@@ -293,6 +293,27 @@ const pharmacyProducts = [
     description:
       'Clinically validated digital blood pressure monitor with Intellisense technology, hypertension indicator, and irregular heartbeat detector.',
   },
+  {
+    id: '15',
+    name: 'Glucose Monitor Glucometer',
+    brand: 'Accu-Chek Active',
+    category: 'Healthcare Devices',
+    price: 1200,
+    mrp: 2450,
+    oldPrice: 2450,
+    discount: '27% OFF',
+    rating: 4.9,
+    reviewsCount: 3100,
+    icon: 'heart-circle',
+    requiresPrescription: false,
+    inStock: true,
+    packSize: '1 Digital Blood Pressure Monitor with Arm Cuff',
+    activeIngredients: 'Intellisense oscillometric measurement',
+    uses: 'Precise measurement of systolic, diastolic BP and pulse rate',
+    dosage: 'Wrap cuff around upper arm at heart level and press Start.',
+    description:
+      'Clinically validated digital blood pressure monitor with Intellisense technology, hypertension indicator, and irregular heartbeat detector.',
+  },
 ];
 
 export default pharmacyProducts;
