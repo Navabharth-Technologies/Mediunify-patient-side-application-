@@ -109,6 +109,7 @@ const HomeScreen = ({ navigation }) => {
   const [carePoints, setCarePoints] = useState(500);
   const [walletModalVisible, setWalletModalVisible] = useState(false);
   const [quickTopUpAmount, setQuickTopUpAmount] = useState('500');
+  const [emergencyModalVisible, setEmergencyModalVisible] = useState(false);
 
   // Load User Info
   useEffect(() => {
@@ -400,40 +401,6 @@ const HomeScreen = ({ navigation }) => {
         </View>
 
         {/* ==========================================
-            EMERGENCY SOS & 24x7 DOCTOR BAR
-        ========================================== */}
-        <View style={styles.emergencyRow}>
-          <TouchableOpacity
-            style={styles.sosCard}
-            onPress={() => Linking.openURL('tel:108')}
-            activeOpacity={0.85}
-          >
-            <View style={styles.sosIconBox}>
-              <Ionicons name="medical" size={18} color="#FFFFFF" />
-            </View>
-            <View style={{ flex: 1, marginLeft: 8 }}>
-              <Text style={styles.sosTitle}>Emergency SOS (108)</Text>
-              <Text style={styles.sosSubtitle}>Instant Ambulance Response</Text>
-            </View>
-            <Ionicons name="call" size={16} color="#DC2626" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.helplineCard}
-            onPress={() => Linking.openURL('tel:18001089999')}
-            activeOpacity={0.85}
-          >
-            <View style={styles.helplineIconBox}>
-              <Ionicons name="headset" size={18} color="#FFFFFF" />
-            </View>
-            <View style={{ flex: 1, marginLeft: 8 }}>
-              <Text style={styles.helplineTitle}>24x7 Doctor Helpline</Text>
-              <Text style={styles.helplineSubtitle}>Free Instant Assistance</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* ==========================================
             4 MAJOR HEALTHCARE HUBS (HERO GRID)
         ========================================== */}
         <View style={styles.sectionHeader}>
@@ -720,8 +687,138 @@ const HomeScreen = ({ navigation }) => {
           ))}
         </View>
 
-        <View style={{ height: 40 }} />
+        {/* ==========================================
+            COMBINED EMERGENCY SOS & 24x7 DOCTOR HELPLINE (BOTTOM)
+        ========================================== */}
+        <TouchableOpacity
+          style={styles.combinedEmergencyCard}
+          onPress={() => setEmergencyModalVisible(true)}
+          activeOpacity={0.9}
+        >
+          <View style={styles.combinedEmergencyIconWrap}>
+            <Ionicons name="medical" size={24} color="#FFFFFF" />
+          </View>
+          <View style={styles.combinedEmergencyTextWrap}>
+            <View style={styles.emergencyPillBadge}>
+              <View style={styles.emergencyPillDot} />
+              <Text style={styles.emergencyPillBadgeText}>24x7 EMERGENCY RESPONSE</Text>
+            </View>
+            <Text style={styles.combinedEmergencyTitle}>Emergency SOS & Doctor Helpline</Text>
+            <Text style={styles.combinedEmergencySubtitle}>Instant Ambulance (108), 24x7 Doctor Call & ER</Text>
+          </View>
+          <View style={styles.combinedEmergencyCallBtn}>
+            <Ionicons name="call" size={16} color="#DC2626" />
+            <Text style={styles.combinedEmergencyCallText}>Help</Text>
+          </View>
+        </TouchableOpacity>
+
+        <View style={{ height: 75 }} />
       </ScrollView>
+
+      {/* ==========================================
+          FLOATING CHATBOT AI ACTION BUTTON (FAB)
+      ========================================== */}
+      <TouchableOpacity
+        style={styles.floatingChatbotFab}
+        onPress={() => navigation.navigate('Chatbot')}
+        activeOpacity={0.88}
+      >
+        <View style={styles.fabIconWrap}>
+          <Ionicons name="sparkles" size={20} color="#FFFFFF" />
+        </View>
+        <View style={styles.fabTextWrap}>
+          <Text style={styles.fabTitle}>AI Care</Text>
+          <Text style={styles.fabSub}>Ask AI</Text>
+        </View>
+        <View style={styles.fabPulseDot} />
+      </TouchableOpacity>
+
+      {/* ==========================================
+          EMERGENCY & 24x7 HELPLINE ACTION MODAL
+      ========================================== */}
+      <Modal
+        visible={emergencyModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEmergencyModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>🚨 Emergency & 24x7 Support</Text>
+                <Text style={styles.modalSubtitle}>Immediate medical assistance & transport</Text>
+              </View>
+              <TouchableOpacity onPress={() => setEmergencyModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* 1. CALL 108 AMBULANCE */}
+            <TouchableOpacity
+              style={styles.emergencyOptionCard}
+              onPress={() => {
+                setEmergencyModalVisible(false);
+                Linking.openURL('tel:108');
+              }}
+              activeOpacity={0.85}
+            >
+              <View style={[styles.emergencyOptionIconBox, { backgroundColor: '#DC2626' }]}>
+                <Ionicons name="medical" size={22} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.emergencyOptionTitle}>Call 108 Ambulance SOS</Text>
+                <Text style={styles.emergencyOptionSubtitle}>Government Emergency Medical Services (Free)</Text>
+              </View>
+              <View style={[styles.callPill, { backgroundColor: '#FEE2E2' }]}>
+                <Ionicons name="call" size={14} color="#DC2626" />
+                <Text style={[styles.callPillText, { color: '#DC2626' }]}>108</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* 2. 24x7 DOCTOR HELPLINE */}
+            <TouchableOpacity
+              style={styles.emergencyOptionCard}
+              onPress={() => {
+                setEmergencyModalVisible(false);
+                Linking.openURL('tel:18001089999');
+              }}
+              activeOpacity={0.85}
+            >
+              <View style={[styles.emergencyOptionIconBox, { backgroundColor: colors.primary }]}>
+                <Ionicons name="headset" size={22} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.emergencyOptionTitle}>24x7 Doctor Helpline</Text>
+                <Text style={styles.emergencyOptionSubtitle}>Talk to on-duty general physician directly</Text>
+              </View>
+              <View style={[styles.callPill, { backgroundColor: colors.lightTeal }]}>
+                <Ionicons name="call" size={14} color={colors.primary} />
+                <Text style={[styles.callPillText, { color: colors.primary }]}>Call</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* 3. NEAREST NABH HOSPITALS */}
+            <TouchableOpacity
+              style={styles.emergencyOptionCard}
+              onPress={() => {
+                setEmergencyModalVisible(false);
+                navigation.navigate('HospitalList');
+              }}
+              activeOpacity={0.85}
+            >
+              <View style={[styles.emergencyOptionIconBox, { backgroundColor: '#2563EB' }]}>
+                <Ionicons name="business" size={22} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.emergencyOptionTitle}>Nearby Hospital Emergency Rooms</Text>
+                <Text style={styles.emergencyOptionSubtitle}>Locate accredited hospital ERs with 24/7 ICU</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* ==========================================
           LOCATION SELECTOR MODAL (SEARCH + CUSTOM ADDRESS)
@@ -2042,6 +2139,172 @@ const styles = StyleSheet.create({
   addMoneyBtnText: {
     color: '#FFFFFF',
     fontSize: 14,
+    fontWeight: '800',
+  },
+
+  // COMBINED EMERGENCY CARD (BOTTOM)
+  combinedEmergencyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    marginHorizontal: 16,
+    marginTop: 18,
+    marginBottom: 10,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#FECACA',
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  combinedEmergencyIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#DC2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  combinedEmergencyTextWrap: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  emergencyPillBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 2,
+  },
+  emergencyPillDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#DC2626',
+  },
+  emergencyPillBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#DC2626',
+    letterSpacing: 0.5,
+  },
+  combinedEmergencyTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#991B1B',
+  },
+  combinedEmergencySubtitle: {
+    fontSize: 11,
+    color: '#B91C1C',
+    marginTop: 1,
+  },
+  combinedEmergencyCallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    gap: 4,
+  },
+  combinedEmergencyCallText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+
+  // FLOATING CHATBOT FAB
+  floatingChatbotFab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 30,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    gap: 8,
+    zIndex: 999,
+  },
+  fabIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fabTextWrap: {
+    justifyContent: 'center',
+  },
+  fabTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  fabSub: {
+    fontSize: 9.5,
+    fontWeight: '600',
+    color: '#A7F3D0',
+  },
+  fabPulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#34D399',
+    marginLeft: 2,
+  },
+
+  // EMERGENCY MODAL OPTIONS
+  emergencyOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 10,
+  },
+  emergencyOptionIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emergencyOptionTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  emergencyOptionSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  callPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 4,
+  },
+  callPillText: {
+    fontSize: 12,
     fontWeight: '800',
   },
 });
