@@ -552,20 +552,45 @@ const CartScreen = ({ navigation, route }) => {
                       </View>
                     </View>
 
-                    {/* QUANTITY CONTROLS */}
-                    <View style={styles.qtyContainer}>
+                    {/* QUANTITY & REMOVE CONTROLS */}
+                    <View style={styles.cartActionControlsRow}>
+                      <View style={styles.qtyContainer}>
+                        <TouchableOpacity
+                          style={styles.qtyBtn}
+                          onPress={() => decreaseQuantity(item.id, 'pharmacy')}
+                        >
+                          <Ionicons name="remove" size={16} color={colors.primary} />
+                        </TouchableOpacity>
+                        <Text style={styles.qtyText}>{item.quantity}</Text>
+                        <TouchableOpacity
+                          style={styles.qtyBtn}
+                          onPress={() => increaseQuantity(item.id, 'pharmacy')}
+                        >
+                          <Ionicons name="add" size={16} color={colors.primary} />
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* DIRECT DELETE BUTTON */}
                       <TouchableOpacity
-                        style={styles.qtyBtn}
-                        onPress={() => decreaseQuantity(item.id, 'pharmacy')}
+                        style={styles.deleteItemBtn}
+                        onPress={() => {
+                          Alert.alert(
+                            'Remove Medicine',
+                            `Remove "${item.name}" from your cart?`,
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: 'Remove',
+                                style: 'destructive',
+                                onPress: () => removeFromCart(item.id, 'pharmacy'),
+                              },
+                            ]
+                          );
+                        }}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <Ionicons name="remove" size={16} color={colors.primary} />
-                      </TouchableOpacity>
-                      <Text style={styles.qtyText}>{item.quantity}</Text>
-                      <TouchableOpacity
-                        style={styles.qtyBtn}
-                        onPress={() => increaseQuantity(item.id, 'pharmacy')}
-                      >
-                        <Ionicons name="add" size={16} color={colors.primary} />
+                        <Ionicons name="trash-outline" size={18} color="#DC2626" />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -1266,6 +1291,21 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 3,
     gap: 6,
+  },
+  cartActionControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  deleteItemBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
   },
   qtyBtn: {
     width: 26,

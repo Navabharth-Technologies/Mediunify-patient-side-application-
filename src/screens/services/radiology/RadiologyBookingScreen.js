@@ -57,8 +57,10 @@ const TIME_SLOTS = {
 const RadiologyBookingScreen = ({ route, navigation }) => {
   const { lab, test, selectedTests = [] } = route.params || {};
 
-  // All tests to be booked
-  const testsToBook = selectedTests.length > 0 ? selectedTests : test ? [test] : [];
+  // All tests to be booked (reactive state)
+  const [testsToBook, setTestsToBook] = useState(
+    selectedTests.length > 0 ? selectedTests : test ? [test] : []
+  );
 
   const availableDates = generateDates();
   const [selectedDate, setSelectedDate] = useState(availableDates[0]);
@@ -76,6 +78,37 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
   const subtotalMrp = testsToBook.reduce((acc, t) => acc + (t.mrp || t.price || 0), 0);
   const totalOfferPrice = testsToBook.reduce((acc, t) => acc + (t.price || 0), 0);
   const totalSavings = Math.max(0, subtotalMrp - totalOfferPrice);
+
+  // Remove a scan from selection
+  const handleRemoveScan = (indexToRemove) => {
+    const scanToRemove = testsToBook[indexToRemove];
+    if (testsToBook.length === 1) {
+      Alert.alert(
+        'Remove Scan',
+        `"${scanToRemove.name}" is the only scan in this booking. Removing it will return to diagnostic center. Proceed?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Remove', style: 'destructive', onPress: () => navigation.goBack() },
+        ]
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Remove Scan',
+      `Remove "${scanToRemove.name}" from this appointment?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            setTestsToBook((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+          },
+        },
+      ]
+    );
+  };
 
   // Upload prescription image
   const pickPrescription = async (useCamera = false) => {
@@ -211,7 +244,17 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
                 <Text style={styles.testItemName}>{t.name}</Text>
                 <Text style={styles.testItemMeta}>{t.categoryLabel || t.modalityCode} • {t.duration}</Text>
               </View>
-              <Text style={styles.testItemPrice}>₹{t.price}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={styles.testItemPrice}>₹{t.price}</Text>
+                <TouchableOpacity
+                  style={styles.scanRemoveBtn}
+                  onPress={() => handleRemoveScan(idx)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                </TouchableOpacity>
+              </View>
             </View>
           ))}
         </View>
@@ -703,6 +746,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: colors.primary,
+  },
+  scanRemoveBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
   },
 
   // SECTION BOX

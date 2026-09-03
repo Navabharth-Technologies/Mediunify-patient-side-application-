@@ -239,6 +239,36 @@ const LabBookingScreen = ({ route, navigation }) => {
     return selectedTests.reduce((sum, item) => sum + (item.mrp || item.price), 0);
   }, [selectedTests]);
 
+  const handleRemoveTest = (indexToRemove) => {
+    const testToRemove = selectedTests[indexToRemove];
+    if (selectedTests.length === 1) {
+      Alert.alert(
+        'Remove Test',
+        `"${testToRemove.name}" is the only test selected. Removing it will return to lab tests list. Proceed?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Remove', style: 'destructive', onPress: () => navigation.goBack() },
+        ]
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Remove Test from Booking',
+      `Remove "${testToRemove.name}" from your selection?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            setSelectedTests((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+          },
+        },
+      ]
+    );
+  };
+
   const handleBooking = async () => {
     if (!patientName.trim()) {
       Alert.alert('Patient Name Required', 'Please enter patient full name.');
@@ -419,7 +449,18 @@ const LabBookingScreen = ({ route, navigation }) => {
                   )}
                 </View>
               </View>
-              <Text style={styles.testItemPrice}>₹{t.price}</Text>
+
+              <View style={styles.testItemRightWrap}>
+                <Text style={styles.testItemPrice}>₹{t.price}</Text>
+                <TouchableOpacity
+                  style={styles.testItemRemoveBtn}
+                  onPress={() => handleRemoveTest(idx)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                </TouchableOpacity>
+              </View>
             </View>
           ))}
         </View>
@@ -1025,7 +1066,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: colors.secondary,
+  },
+  testItemRightWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginLeft: 8,
+  },
+  testItemRemoveBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
   },
 
   // BOOKING SMART UPGRADE CARD
