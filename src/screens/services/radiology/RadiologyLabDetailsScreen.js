@@ -21,7 +21,7 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
   const { labId, initialCategory } = route.params || {};
   const lab = getLabById(labId);
 
-  const { cart, addToCart, removeFromCart, cartCount, finalTotal } = useCart();
+  const { labCart, addToCart, removeFromCart, labCartCount, labFinalTotal } = useCart();
 
   const [selectedCategory, setSelectedCategory] = useState(initialCategory || 'all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,7 +54,8 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
     const cartItem = {
       id: test.id,
       name: test.name,
-      category: 'Radiology',
+      category: 'Diagnostic Scan',
+      categoryLabel: test.categoryLabel || 'Radiology',
       modality: test.categoryLabel,
       modalityCode: test.modalityCode,
       price: test.price,
@@ -70,10 +71,11 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
       labArea: lab.area,
       labAddress: lab.address,
       labPhone: lab.phone,
+      itemType: 'diagnostic',
       quantity: 1,
     };
-    addToCart(cartItem, 1);
-    showToast(`Added "${test.name}" to Cart`);
+    addToCart(cartItem, 1, 'lab');
+    showToast(`Added "${test.name}" to Lab Cart`);
   };
 
   // Handle Direct Instant Booking
@@ -87,7 +89,7 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
 
   // Check if test is already in cart
   const isItemInCart = (testId) => {
-    return cart.some((item) => item.id === testId);
+    return labCart.some((item) => item.id === testId);
   };
 
   const toggleExpand = (testId) => {
@@ -95,22 +97,20 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* ==================================================
-          HEADER
-      ================================================== */}
+      {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
           activeOpacity={0.8}
         >
-          <Ionicons name="arrow-back" size={22} color={colors.secondary} />
+          <Ionicons name="arrow-back" size={22} color="#263238" />
         </TouchableOpacity>
 
-        <View style={styles.headerCenter}>
+        <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle} numberOfLines={1}>
             {lab.name}
           </Text>
@@ -120,12 +120,12 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
         <TouchableOpacity
           style={styles.cartHeaderButton}
           activeOpacity={0.8}
-          onPress={() => navigation.navigate('Cart')}
+          onPress={() => navigation.navigate('Cart', { initialTab: 'lab' })}
         >
-          <Ionicons name="cart-outline" size={24} color={colors.secondary} />
-          {cartCount > 0 && (
+          <Ionicons name="flask-outline" size={24} color={colors.secondary} />
+          {labCartCount > 0 && (
             <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{cartCount}</Text>
+              <Text style={styles.cartBadgeText}>{labCartCount}</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -495,25 +495,25 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
       {/* ==================================================
           FLOATING BOTTOM CART BAR
       ================================================== */}
-      {cartCount > 0 && (
+      {labCartCount > 0 && (
         <View style={styles.floatingCartBar}>
           <View style={styles.cartInfoSection}>
             <View style={styles.cartBadgeSmall}>
-              <Ionicons name="cart" size={16} color="#FFFFFF" />
-              <Text style={styles.cartBadgeSmallText}>{cartCount}</Text>
+              <Ionicons name="flask" size={16} color="#FFFFFF" />
+              <Text style={styles.cartBadgeSmallText}>{labCartCount}</Text>
             </View>
             <View style={styles.cartPriceCol}>
-              <Text style={styles.cartTotalLabel}>Total Amount</Text>
-              <Text style={styles.cartTotalAmount}>₹{finalTotal}</Text>
+              <Text style={styles.cartTotalLabel}>Lab Tests Total</Text>
+              <Text style={styles.cartTotalAmount}>₹{labFinalTotal}</Text>
             </View>
           </View>
 
           <TouchableOpacity
             style={styles.cartProceedButton}
             activeOpacity={0.88}
-            onPress={() => navigation.navigate('Cart')}
+            onPress={() => navigation.navigate('Cart', { initialTab: 'lab' })}
           >
-            <Text style={styles.cartProceedText}>View Cart & Pay</Text>
+            <Text style={styles.cartProceedText}>View Lab Cart</Text>
             <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
           </TouchableOpacity>
         </View>

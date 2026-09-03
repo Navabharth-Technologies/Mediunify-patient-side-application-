@@ -5,6 +5,8 @@ const CartContext = createContext();
 
 const ORDERS_STORAGE_KEY = '@unnathi_pharmacy_orders';
 const ADDRESS_STORAGE_KEY = '@unnathi_delivery_address';
+const PHARMACY_CART_KEY = '@unnathi_pharmacy_cart';
+const LAB_CART_KEY = '@unnathi_lab_cart';
 
 const DEFAULT_ORDERS = [
   {
@@ -57,7 +59,10 @@ const DEFAULT_ORDERS = [
 ];
 
 export const CartProvider = ({ children }) => {
-  const [cart, setCart] = useState([]);
+  // Separate carts for Pharmacy and Lab tests
+  const [pharmacyCart, setPharmacyCart] = useState([]);
+  const [labCart, setLabCart] = useState([]);
+
   const [orders, setOrders] = useState(DEFAULT_ORDERS);
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [selectedAddress, setSelectedAddress] = useState({
@@ -70,7 +75,7 @@ export const CartProvider = ({ children }) => {
     tag: 'Home',
   });
 
-  // Load saved orders & address on mount
+  // Load saved data on mount
   useEffect(() => {
     loadSavedData();
   }, []);
@@ -78,96 +83,143 @@ export const CartProvider = ({ children }) => {
   const loadSavedData = async () => {
     try {
       const storedOrders = await AsyncStorage.getItem(ORDERS_STORAGE_KEY);
-      if (storedOrders) {
-        setOrders(JSON.parse(storedOrders));
-      }
+      if (storedOrders) setOrders(JSON.parse(storedOrders));
 
       const storedAddress = await AsyncStorage.getItem(ADDRESS_STORAGE_KEY);
-      if (storedAddress) {
-        setSelectedAddress(JSON.parse(storedAddress));
-      }
+      if (storedAddress) setSelectedAddress(JSON.parse(storedAddress));
+
+      const storedPharm = await AsyncStorage.getItem(PHARMACY_CART_KEY);
+      if (storedPharm) setPharmacyCart(JSON.parse(storedPharm));
+
+      const storedLab = await AsyncStorage.getItem(LAB_CART_KEY);
+      if (storedLab) setLabCart(JSON.parse(storedLab));
     } catch (e) {
       console.log('Error loading saved cart data:', e);
     }
   };
 
-  // ==========================================
-  // ADD TO CART
-  // ==========================================
-  const addToCart = (product, quantityToAdd = 1) => {
-    setCart((previousCart) => {
-      const existingItem = previousCart.find((item) => item.id === product.id);
+  // Save carts when changed
+  useEffect(() => {
+    AsyncStorage.setItem(PHARMACY_CART_KEY, JSON.stringify(pharmacyCart)).catch(() => {});
+  }, [pharmacyCart]);
 
-      if (existingItem) {
-        return previousCart.map((item) =>
-          item.id === product.id
-            ? {
-                ...item,
-                quantity: item.quantity + quantityToAdd,
-              }
-            : item
-        );
-      }
+  useEffect(() => {
+    AsyncStorage.setItem(LAB_CART_KEY, JSON.stringify(labCart)).catch(() => {});
+  }, [labCart]);
 
-      return [
-        ...previousCart,
-        {
-          ...product,
-          quantity: quantityToAdd,
-        },
-      ];
-    });
+  // Helper to determine if an item is a lab test
+  const isLabItem = (item, forcedType) => {
+    if (forcedType === 'lab') return true;
+    if (forcedType === 'pharmacy') return false;
+    return (
+      item.itemType === 'diagnostic' ||
+      item.itemType === 'lab' ||
+      item.category === 'Diagnostic Scan' ||
+      item.category === 'Lab Test' ||
+      item.category === 'Radiology' ||
+      item.isLabTest === true ||
+      item.labId !== undefined
+    );
+  };
+
+  // ==========================================
+  // ADD TO CART (AUTOMATIC CART ROUTING)
+  // ==========================================
+  const addToCart = (product, quantityToAdd = 1, forcedType = null) => {
+    if (isLabItem(product, forcedType)) {
+      setLabCart((prev) => {
+        const existing = prev.find((item) => item.id === product.id);
+        if (existing) {
+          return prev.map((item) =>
+            item.id === product.id ? { ...item, quantity: item.quantity + quantityToAdd } : item
+          );
+        }
+        return [...prev, { ...product, quantity: quantityToAdd, cartType: 'lab' }];
+      });
+    } else {
+      setPharmacyCart((prev) => {
+        const existing = prev.find((item) => item.id === product.id);
+        if (existing) {
+          return prev.map((item) =>
+            item.id === product.id ? { ...item, quantity: item.quantity + quantityToAdd } : item
+          );
+        }
+        return [...prev, { ...product, quantity: quantityToAdd, cartType: 'pharmacy' }];
+      });
+    }
+  };
+
+  // Dedicated Lab Test Add
+  const addLabTestToCart = (test, quantity = 1) => {
+    addToCart(test, quantity, 'lab');
+  };
+
+  // Dedicated Pharmacy Add
+  const addPharmacyProductToCart = (product, quantity = 1) => {
+    addToCart(product, quantity, 'pharmacy');
   };
 
   // ==========================================
   // INCREASE QUANTITY
   // ==========================================
-  const increaseQuantity = (productId) => {
-    setCart((previousCart) =>
-      previousCart.map((item) =>
-        item.id === productId
-          ? {
-              ...item,
-              quantity: item.quantity + 1,
-            }
-          : item
-      )
-    );
+  const increaseQuantity = (productId, cartType = null) => {
+    if (cartType === 'lab' || labCart.some((i) => i.id === productId)) {
+      setLabCart((prev) =>
+        prev.map((item) => (item.id === productId ? { ...item, quantity: item.quantity + 1 } : item))
+      );
+    } else {
+      setPharmacyCart((prev) =>
+        prev.map((item) => (item.id === productId ? { ...item, quantity: item.quantity + 1 } : item))
+      );
+    }
   };
 
   // ==========================================
   // DECREASE QUANTITY
   // ==========================================
-  const decreaseQuantity = (productId) => {
-    setCart((previousCart) =>
-      previousCart
-        .map((item) =>
-          item.id === productId
-            ? {
-                ...item,
-                quantity: item.quantity - 1,
-              }
-            : item
-        )
-        .filter((item) => item.quantity > 0)
-    );
+  const decreaseQuantity = (productId, cartType = null) => {
+    if (cartType === 'lab' || labCart.some((i) => i.id === productId)) {
+      setLabCart((prev) =>
+        prev
+          .map((item) => (item.id === productId ? { ...item, quantity: item.quantity - 1 } : item))
+          .filter((item) => item.quantity > 0)
+      );
+    } else {
+      setPharmacyCart((prev) =>
+        prev
+          .map((item) => (item.id === productId ? { ...item, quantity: item.quantity - 1 } : item))
+          .filter((item) => item.quantity > 0)
+      );
+    }
   };
 
   // ==========================================
   // REMOVE ITEM
   // ==========================================
-  const removeFromCart = (productId) => {
-    setCart((previousCart) =>
-      previousCart.filter((item) => item.id !== productId)
-    );
+  const removeFromCart = (productId, cartType = null) => {
+    if (cartType === 'lab') {
+      setLabCart((prev) => prev.filter((item) => item.id !== productId));
+    } else if (cartType === 'pharmacy') {
+      setPharmacyCart((prev) => prev.filter((item) => item.id !== productId));
+    } else {
+      setPharmacyCart((prev) => prev.filter((item) => item.id !== productId));
+      setLabCart((prev) => prev.filter((item) => item.id !== productId));
+    }
   };
 
   // ==========================================
   // CLEAR CART
   // ==========================================
-  const clearCart = () => {
-    setCart([]);
-    setAppliedCoupon(null);
+  const clearCart = (cartType = null) => {
+    if (cartType === 'pharmacy') {
+      setPharmacyCart([]);
+    } else if (cartType === 'lab') {
+      setLabCart([]);
+    } else {
+      setPharmacyCart([]);
+      setLabCart([]);
+      setAppliedCoupon(null);
+    }
   };
 
   // ==========================================
@@ -210,53 +262,99 @@ export const CartProvider = ({ children }) => {
   };
 
   // ==========================================
-  // TOTALS & COUNTS
+  // PHARMACY TOTALS
   // ==========================================
-  const cartCount = useMemo(() => {
-    return cart.reduce((total, item) => total + item.quantity, 0);
-  }, [cart]);
+  const pharmacyCartCount = useMemo(() => {
+    return pharmacyCart.reduce((total, item) => total + item.quantity, 0);
+  }, [pharmacyCart]);
 
-  const subtotal = useMemo(() => {
-    return cart.reduce(
+  const pharmacySubtotal = useMemo(() => {
+    return pharmacyCart.reduce(
       (total, item) => total + Number(item.price || 0) * item.quantity,
       0
     );
-  }, [cart]);
+  }, [pharmacyCart]);
 
-  const mrpTotal = useMemo(() => {
-    return cart.reduce(
+  const pharmacyMrpTotal = useMemo(() => {
+    return pharmacyCart.reduce(
       (total, item) => total + Number(item.mrp || item.oldPrice || item.price || 0) * item.quantity,
       0
     );
-  }, [cart]);
+  }, [pharmacyCart]);
 
-  const productSavings = useMemo(() => {
-    return Math.max(0, mrpTotal - subtotal);
-  }, [mrpTotal, subtotal]);
+  const pharmacySavings = useMemo(() => {
+    return Math.max(0, pharmacyMrpTotal - pharmacySubtotal);
+  }, [pharmacyMrpTotal, pharmacySubtotal]);
 
-  const discountAmount = useMemo(() => {
+  const pharmacyDiscountAmount = useMemo(() => {
     if (!appliedCoupon) return 0;
     if (appliedCoupon.discountPercent) {
-      return Math.round((subtotal * appliedCoupon.discountPercent) / 100);
+      return Math.round((pharmacySubtotal * appliedCoupon.discountPercent) / 100);
     }
     if (appliedCoupon.discountAmount) {
-      return Math.min(subtotal, appliedCoupon.discountAmount);
+      return Math.min(pharmacySubtotal, appliedCoupon.discountAmount);
     }
     return 0;
-  }, [appliedCoupon, subtotal]);
+  }, [appliedCoupon, pharmacySubtotal]);
 
-  const deliveryFee = useMemo(() => {
-    if (cart.length === 0) return 0;
+  const pharmacyDeliveryFee = useMemo(() => {
+    if (pharmacyCart.length === 0) return 0;
     if (appliedCoupon?.freeDelivery) return 0;
-    return subtotal >= 499 ? 0 : 40;
-  }, [cart.length, appliedCoupon, subtotal]);
+    return pharmacySubtotal >= 499 ? 0 : 40;
+  }, [pharmacyCart.length, appliedCoupon, pharmacySubtotal]);
 
-  const packagingFee = cart.length > 0 ? 5 : 0;
+  const pharmacyPackagingFee = pharmacyCart.length > 0 ? 5 : 0;
 
-  const finalTotal = useMemo(() => {
-    if (cart.length === 0) return 0;
-    return Math.max(0, subtotal - discountAmount + deliveryFee + packagingFee);
-  }, [cart.length, subtotal, discountAmount, deliveryFee, packagingFee]);
+  const pharmacyFinalTotal = useMemo(() => {
+    if (pharmacyCart.length === 0) return 0;
+    return Math.max(0, pharmacySubtotal - pharmacyDiscountAmount + pharmacyDeliveryFee + pharmacyPackagingFee);
+  }, [pharmacyCart.length, pharmacySubtotal, pharmacyDiscountAmount, pharmacyDeliveryFee, pharmacyPackagingFee]);
+
+  // ==========================================
+  // LAB TESTS TOTALS
+  // ==========================================
+  const labCartCount = useMemo(() => {
+    return labCart.reduce((total, item) => total + item.quantity, 0);
+  }, [labCart]);
+
+  const labSubtotal = useMemo(() => {
+    return labCart.reduce(
+      (total, item) => total + Number(item.price || 0) * item.quantity,
+      0
+    );
+  }, [labCart]);
+
+  const labMrpTotal = useMemo(() => {
+    return labCart.reduce(
+      (total, item) => total + Number(item.mrp || item.oldPrice || item.price || 0) * item.quantity,
+      0
+    );
+  }, [labCart]);
+
+  const labSavings = useMemo(() => {
+    return Math.max(0, labMrpTotal - labSubtotal);
+  }, [labMrpTotal, labSubtotal]);
+
+  const labDiscountAmount = useMemo(() => {
+    if (!appliedCoupon) return 0;
+    if (appliedCoupon.discountPercent) {
+      return Math.round((labSubtotal * appliedCoupon.discountPercent) / 100);
+    }
+    if (appliedCoupon.discountAmount) {
+      return Math.min(labSubtotal, appliedCoupon.discountAmount);
+    }
+    return 0;
+  }, [appliedCoupon, labSubtotal]);
+
+  const labSampleFee = labCart.length > 0 ? 0 : 0; // Free home sample collection
+
+  const labFinalTotal = useMemo(() => {
+    if (labCart.length === 0) return 0;
+    return Math.max(0, labSubtotal - labDiscountAmount + labSampleFee);
+  }, [labCart.length, labSubtotal, labDiscountAmount, labSampleFee]);
+
+  // Overall combined totals (for global headers if needed)
+  const totalCartCount = pharmacyCartCount + labCartCount;
 
   // ==========================================
   // ORDERS MANAGEMENT
@@ -289,26 +387,57 @@ export const CartProvider = ({ children }) => {
   return (
     <CartContext.Provider
       value={{
-        cart,
-        cartItems: cart, // alias
-        setCart,
+        // Separate Carts
+        pharmacyCart,
+        labCart,
+        cart: pharmacyCart, // fallback for legacy components
+        cartItems: pharmacyCart,
+
+        // Add actions
         addToCart,
+        addLabTestToCart,
+        addPharmacyProductToCart,
         increaseQuantity,
         decreaseQuantity,
         removeFromCart,
         clearCart,
-        cartCount,
-        cartTotal: subtotal,
-        subtotal,
-        mrpTotal,
-        productSavings,
-        discountAmount,
-        deliveryFee,
-        packagingFee,
-        finalTotal,
+
+        // Counts
+        totalCartCount,
+        cartCount: pharmacyCartCount,
+        pharmacyCartCount,
+        labCartCount,
+
+        // Pharmacy Pricing
+        subtotal: pharmacySubtotal,
+        mrpTotal: pharmacyMrpTotal,
+        productSavings: pharmacySavings,
+        discountAmount: pharmacyDiscountAmount,
+        deliveryFee: pharmacyDeliveryFee,
+        packagingFee: pharmacyPackagingFee,
+        finalTotal: pharmacyFinalTotal,
+        pharmacySubtotal,
+        pharmacyMrpTotal,
+        pharmacySavings,
+        pharmacyDiscountAmount,
+        pharmacyDeliveryFee,
+        pharmacyPackagingFee,
+        pharmacyFinalTotal,
+
+        // Lab Pricing
+        labSubtotal,
+        labMrpTotal,
+        labSavings,
+        labDiscountAmount,
+        labSampleFee,
+        labFinalTotal,
+
+        // Coupons
         appliedCoupon,
         applyCoupon,
         removeCoupon,
+
+        // Address & Orders
         selectedAddress,
         updateAddress,
         orders,

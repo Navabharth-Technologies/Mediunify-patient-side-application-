@@ -10,10 +10,12 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import colors from '../../../theme/colors';
 import { useCart } from '../../../context/CartContext';
@@ -41,20 +43,37 @@ const PAYMENT_METHODS = [
   },
 ];
 
-const CartScreen = ({ navigation }) => {
+const LAB_SAMPLE_SLOTS = [
+  'Today, 07:30 AM - 09:00 AM (Fasting)',
+  'Today, 10:30 AM - 12:00 PM',
+  'Tomorrow, 07:30 AM - 09:00 AM (Fasting)',
+  'Tomorrow, 10:30 AM - 12:00 PM',
+  'Tomorrow, 04:30 PM - 06:00 PM',
+];
+
+const CartScreen = ({ navigation, route }) => {
   const {
-    cart,
+    pharmacyCart,
+    labCart,
     increaseQuantity,
     decreaseQuantity,
     removeFromCart,
     clearCart,
-    subtotal,
-    mrpTotal,
-    productSavings,
-    discountAmount,
-    deliveryFee,
-    packagingFee,
-    finalTotal,
+    pharmacyCartCount,
+    pharmacySubtotal,
+    pharmacyMrpTotal,
+    pharmacySavings,
+    pharmacyDiscountAmount,
+    pharmacyDeliveryFee,
+    pharmacyPackagingFee,
+    pharmacyFinalTotal,
+    labCartCount,
+    labSubtotal,
+    labMrpTotal,
+    labSavings,
+    labDiscountAmount,
+    labSampleFee,
+    labFinalTotal,
     appliedCoupon,
     applyCoupon,
     removeCoupon,
@@ -63,7 +82,19 @@ const CartScreen = ({ navigation }) => {
     addOrder,
   } = useCart();
 
-  // User & Delivery Details state
+  // Active Cart Tab: 'pharmacy' vs 'lab'
+  const [activeTab, setActiveTab] = useState(
+    route?.params?.initialTab ||
+      (labCartCount > 0 && pharmacyCartCount === 0 ? 'lab' : 'pharmacy')
+  );
+
+  useEffect(() => {
+    if (route?.params?.initialTab) {
+      setActiveTab(route?.params?.initialTab);
+    }
+  }, [route?.params?.initialTab]);
+
+  // Delivery / Patient Details state
   const [userName, setUserName] = useState(selectedAddress.name || 'Ramesh Kumar');
   const [userPhone, setUserPhone] = useState(selectedAddress.phone || '9876543210');
   const [userAddress, setUserAddress] = useState(
@@ -74,14 +105,11 @@ const CartScreen = ({ navigation }) => {
   const [addressTag, setAddressTag] = useState(selectedAddress.tag || 'Home');
   const [gpsLoading, setGpsLoading] = useState(false);
 
-  // Sync with CartContext address changes (e.g. after Map selection)
-  useEffect(() => {
-    if (selectedAddress.addressLine) {
-      setUserAddress(selectedAddress.addressLine);
-      if (selectedAddress.city) setUserCity(selectedAddress.city);
-      if (selectedAddress.pincode) setUserPincode(selectedAddress.pincode);
-    }
-  }, [selectedAddress]);
+  // Lab Specific State
+  const [labVisitType, setLabVisitType] = useState('HOME_COLLECTION'); // HOME_COLLECTION vs LAB_VISIT
+  const [selectedLabSlot, setSelectedLabSlot] = useState(LAB_SAMPLE_SLOTS[0]);
+  const [patientAge, setPatientAge] = useState('32');
+  const [patientGender, setPatientGender] = useState('Male');
 
   // Coupon state
   const [couponInput, setCouponInput] = useState('');
@@ -94,80 +122,17 @@ const CartScreen = ({ navigation }) => {
   const [paymentMethod, setPaymentMethod] = useState('COD');
   const [isBooking, setIsBooking] = useState(false);
 
-  // Check if prescription required
-  const prescriptionItems = cart.filter(
+  // Check if pharmacy prescription required
+  const prescriptionItems = pharmacyCart.filter(
     (item) => item.requiresPrescription || item.category === 'Medicines'
   );
-  const isPrescriptionRequired = prescriptionItems.length > 0;
 
-  // Auto-fill GPS address
-  const handleGpsAutofill = async () => {
-    try {
-      setGpsLoading(true);
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Needed', 'Please allow location permission to auto-fill your delivery address.');
-        setGpsLoading(false);
-        return;
-      }
-
-      const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-
-      const addresses = await Location.reverseGeocodeAsync({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      });
-
-      if (addresses && addresses.length > 0) {
-        const item = addresses[0];
-        const newAddr = `${item.name || item.street || 'Current Location'}, ${item.subregion || item.district || ''}`;
-        const newCity = item.city || item.subregion || 'Mysore';
-        const newPincode = item.postalCode || '570001';
-
-        setUserAddress(newAddr);
-        setUserCity(newCity);
-        setUserPincode(newPincode);
-
-        updateAddress({
-          name: userName,
-          phone: userPhone,
-          addressLine: newAddr,
-          city: newCity,
-          state: item.region || 'Karnataka',
-          pincode: newPincode,
-          tag: addressTag,
-        });
-
-        Alert.alert('GPS Location Detected! 📍', `Address set to: ${newAddr}, ${newCity}`);
-      }
-    } catch (e) {
-      Alert.alert('Error', 'Unable to auto-detect location. Please use the map or type manually.');
-    } finally {
-      setGpsLoading(false);
-    }
-  };
-
-  // Open Interactive Map Location Picker
-  const handleOpenMapPicker = () => {
-    navigation.navigate('PharmacyLocation', {
-      onLocationSelected: (newAddrObj) => {
-        if (newAddrObj) {
-          setUserAddress(newAddrObj.addressLine);
-          setUserCity(newAddrObj.city);
-          setUserPincode(newAddrObj.pincode);
-        }
-      },
-    });
-  };
-
-  // Prescription Upload: Gallery
-  const handlePickFromGallery = async () => {
+  // Pick prescription photo
+  const pickPrescription = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Needed', 'Please allow gallery access to select your prescription.');
+        Alert.alert('Permission Denied', 'Camera roll permission is required to upload prescription.');
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -175,177 +140,219 @@ const CartScreen = ({ navigation }) => {
         allowsEditing: true,
         quality: 0.8,
       });
-      if (!result.canceled && result.assets?.[0]) {
-        setUploadedRx({
-          uri: result.assets[0].uri,
-          name: 'Doctor_Prescription_Photo.jpg',
-        });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setUploadedRx(result.assets[0].uri);
+        Alert.alert('Prescription Uploaded', 'Doctor prescription attached successfully!');
       }
     } catch (e) {
-      setUploadedRx({
-        uri: null,
-        name: 'Prescription_Dr_Anita_Sharma.pdf',
-      });
+      console.log('Error picking image:', e);
     }
   };
 
-  // Prescription Upload: Camera
-  const handleTakePhoto = async () => {
+  // Get GPS Location
+  const handleUseCurrentLocation = async () => {
     try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      setGpsLoading(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Needed', 'Please allow camera access.');
+        Alert.alert('Permission Denied', 'Please grant location permission to fetch address.');
+        setGpsLoading(false);
         return;
       }
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        quality: 0.8,
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
       });
-      if (!result.canceled && result.assets?.[0]) {
-        setUploadedRx({
-          uri: result.assets[0].uri,
-          name: 'Camera_Prescription_Snap.jpg',
+
+      const [geocode] = await Location.reverseGeocodeAsync({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+
+      if (geocode) {
+        const fullAddr = `${geocode.name ? `${geocode.name}, ` : ''}${geocode.street ? `${geocode.street}, ` : ''}${geocode.district || geocode.subregion || ''}`;
+        setUserAddress(fullAddr || 'Near Current Location');
+        if (geocode.city) setUserCity(geocode.city);
+        if (geocode.postalCode) setUserPincode(geocode.postalCode);
+
+        updateAddress({
+          name: userName,
+          phone: userPhone,
+          addressLine: fullAddr,
+          city: geocode.city || userCity,
+          pincode: geocode.postalCode || userPincode,
+          state: geocode.region || 'Karnataka',
+          tag: addressTag,
         });
+
+        Alert.alert('Location Fetched', 'Your address has been updated from GPS.');
       }
+      setGpsLoading(false);
     } catch (e) {
-      setUploadedRx({
-        uri: null,
-        name: 'Camera_Prescription_Snap.jpg',
-      });
+      setGpsLoading(false);
+      Alert.alert('Location Error', 'Could not detect location. Please enter manually.');
     }
   };
 
-  // Coupon handling
+  // Apply Coupon Handler
   const handleApplyCoupon = (codeToApply) => {
     const code = codeToApply || couponInput;
-    if (!code) {
-      Alert.alert('Enter Code', 'Please enter a coupon code.');
+    if (!code.trim()) {
+      setCouponMsg({ text: 'Please enter a valid coupon code.', success: false });
       return;
     }
-    const result = applyCoupon(code);
-    setCouponMsg(result);
-    if (result.success) {
-      setCouponInput('');
-    }
+    const res = applyCoupon(code);
+    setCouponMsg({ text: res.message, success: res.success });
+    if (res.success) setCouponInput('');
   };
 
-  const handleRemoveItem = (item) => {
-    Alert.alert('Remove Item', `Remove "${item.name}" from your cart?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: () => removeFromCart(item.id),
-      },
-    ]);
-  };
-
-  // Main Book & Place Order Action
-  const handleBookAndPay = async () => {
-    if (cart.length === 0) {
-      Alert.alert('Empty Cart', 'Please add medicines to your cart first.');
+  // ==========================================
+  // PLACE PHARMACY ORDER
+  // ==========================================
+  const handlePlacePharmacyOrder = async () => {
+    if (pharmacyCart.length === 0) {
+      Alert.alert('Empty Cart', 'Your Pharmacy cart is empty. Please add medicines first.');
       return;
     }
 
-    // Validation
-    if (!userName.trim()) {
-      Alert.alert('Missing Details', 'Please enter your Full Name.');
-      return;
-    }
-    if (!userPhone.trim() || userPhone.trim().length < 10) {
-      Alert.alert('Invalid Mobile', 'Please enter a valid 10-digit mobile number.');
-      return;
-    }
-    if (!userAddress.trim()) {
-      Alert.alert('Missing Address', 'Please select location from GPS/Map or type address.');
-      return;
-    }
-    if (!userPincode.trim() || userPincode.trim().length < 6) {
-      Alert.alert('Invalid Pincode', 'Please enter a valid 6-digit postal pincode.');
+    if (!userAddress.trim() || userAddress.length < 5) {
+      Alert.alert('Address Incomplete', 'Please enter a complete delivery address.');
       return;
     }
 
-    // Prescription validation
-    if (isPrescriptionRequired && !uploadedRx) {
+    if (!userPhone.trim() || userPhone.length < 10) {
+      Alert.alert('Phone Required', 'Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    if (prescriptionItems.length > 0 && !uploadedRx) {
       Alert.alert(
-        'Doctor Prescription Required 📄',
-        'Your cart contains tablets / regulated medicines. Please upload a doctor prescription using Camera or Gallery before booking.',
-        [
-          { text: 'Upload from Gallery', onPress: handlePickFromGallery },
-          { text: 'Take Camera Photo', onPress: handleTakePhoto },
-          { text: 'Cancel', style: 'cancel' },
-        ]
+        'Doctor Prescription Required',
+        'Your cart contains prescription drugs. Please attach a valid prescription before placing the order.'
       );
       return;
     }
 
     setIsBooking(true);
 
-    const fullAddressObj = {
-      name: userName.trim(),
-      phone: userPhone.trim(),
-      addressLine: userAddress.trim(),
-      city: userCity.trim(),
-      state: 'Karnataka',
-      pincode: userPincode.trim(),
-      tag: addressTag,
-    };
+    setTimeout(async () => {
+      const orderId = `UNC${Math.floor(10000 + Math.random() * 90000)}`;
+      const now = new Date();
+      const dateString = `${now.getDate()} ${now.toLocaleString('default', { month: 'short' })} ${now.getFullYear()}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
-    updateAddress(fullAddressObj);
+      const newOrder = {
+        id: orderId,
+        date: dateString,
+        status: 'Confirmed',
+        paymentMethod:
+          paymentMethod === 'COD'
+            ? 'Cash on Delivery'
+            : paymentMethod === 'UPI'
+            ? 'UPI / Online'
+            : 'Credit/Debit Card',
+        paymentStatus: paymentMethod === 'COD' ? 'Pending on Delivery' : 'Paid Online',
+        total: pharmacyFinalTotal,
+        subtotal: pharmacySubtotal,
+        deliveryFee: pharmacyDeliveryFee,
+        packagingFee: pharmacyPackagingFee,
+        discount: pharmacyDiscountAmount,
+        items: [...pharmacyCart],
+        prescriptionAttached: !!uploadedRx,
+        address: {
+          name: userName,
+          phone: userPhone,
+          addressLine: userAddress,
+          city: userCity,
+          pincode: userPincode,
+          tag: addressTag,
+        },
+        deliverySlot: 'Express Delivery (30-45 mins)',
+      };
 
-    const orderId = `UNC${Math.floor(10000 + Math.random() * 90000)}`;
+      await addOrder(newOrder);
+      clearCart('pharmacy');
+      setIsBooking(false);
 
-    const newOrder = {
-      id: orderId,
-      date: new Date().toLocaleString('en-US', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-      status: 'Confirmed',
-      paymentMethod:
-        paymentMethod === 'COD' ? 'Cash on Delivery (COD)' : `${paymentMethod} (Paid Online)`,
-      paymentStatus: paymentMethod === 'COD' ? 'Pay on Delivery' : 'Paid Online',
-      total: finalTotal,
-      subtotal,
-      deliveryFee,
-      discountAmount,
-      appliedCoupon: appliedCoupon?.code || null,
-      items: cart.map((i) => ({
-        id: i.id,
-        name: i.name,
-        brand: i.brand,
-        price: i.price,
-        quantity: i.quantity,
-        category: i.category,
-      })),
-      address: fullAddressObj,
-      prescriptionAttached: uploadedRx ? uploadedRx.name : null,
-      deliverySlot: 'Express Delivery (30 - 45 mins)',
-    };
+      navigation.navigate('OrderSuccess', { order: newOrder });
+    }, 1200);
+  };
 
-    setIsBooking(false);
-
-    if (paymentMethod === 'COD') {
-      // Complete COD directly
-      setIsBooking(true);
-      setTimeout(async () => {
-        await addOrder(newOrder);
-        clearCart();
-        setIsBooking(false);
-        navigation.replace('OrderSuccess', {
-          order: newOrder,
-        });
-      }, 1000);
-    } else {
-      // Navigate to dedicated Interactive Payment Page
-      navigation.navigate('Payment', {
-        amount: finalTotal,
-        orderData: newOrder,
-      });
+  // ==========================================
+  // PLACE LAB TESTS ORDER
+  // ==========================================
+  const handlePlaceLabOrder = async () => {
+    if (labCart.length === 0) {
+      Alert.alert('Empty Cart', 'Your Lab cart is empty. Please add diagnostic tests first.');
+      return;
     }
+
+    if (!userPhone.trim() || userPhone.length < 10) {
+      Alert.alert('Phone Required', 'Please enter a valid mobile number for lab report SMS.');
+      return;
+    }
+
+    setIsBooking(true);
+
+    setTimeout(async () => {
+      const bookingId = `LAB-${Math.floor(10000 + Math.random() * 90000)}`;
+      const tokenNumber = `TK-${Math.floor(10 + Math.random() * 90)}`;
+      const now = new Date();
+      const dateString = `${now.getDate()} ${now.toLocaleString('default', { month: 'short' })} ${now.getFullYear()}`;
+
+      const labBooking = {
+        id: bookingId,
+        tokenNumber,
+        type: 'Radiology',
+        tests: [...labCart],
+        lab: {
+          name: labCart[0]?.labName || 'Unnathi Diagnostic & Imaging Center',
+          area: 'Mysore',
+          address: 'No. 24, Diagnostic Complex, Kuvempunagar, Mysore',
+        },
+        appointmentDate: dateString,
+        appointmentSlot: selectedLabSlot,
+        status: 'Confirmed',
+        visitType: labVisitType === 'HOME_COLLECTION' ? 'Home Sample Collection' : 'Lab Center Visit',
+        patient: {
+          name: userName,
+          age: patientAge,
+          gender: patientGender,
+          phone: userPhone,
+        },
+        payment: {
+          paidAmount: labFinalTotal,
+          paymentStatus: 'Paid Online',
+          method: paymentMethod,
+        },
+      };
+
+      // Save to @radiologyBookings
+      try {
+        const stored = await AsyncStorage.getItem('@radiologyBookings');
+        const existing = stored ? JSON.parse(stored) : [];
+        await AsyncStorage.setItem('@radiologyBookings', JSON.stringify([labBooking, ...existing]));
+      } catch (e) {
+        console.log('Error saving lab booking:', e);
+      }
+
+      clearCart('lab');
+      setIsBooking(false);
+
+      Alert.alert(
+        'Lab Tests Booked Successfully! 🎉',
+        `Your diagnostic test order ${bookingId} has been confirmed for ${selectedLabSlot}.\n\nToken: ${tokenNumber}`,
+        [
+          {
+            text: 'View Bookings',
+            onPress: () => navigation.navigate('Bookings'),
+          },
+          {
+            text: 'Done',
+            onPress: () => navigation.navigate('Home'),
+          },
+        ]
+      );
+    }, 1200);
   };
 
   return (
@@ -353,555 +360,686 @@ const CartScreen = ({ navigation }) => {
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity
-          style={styles.backBtn}
+          style={styles.backButton}
           onPress={() => navigation.goBack()}
           activeOpacity={0.8}
         >
           <Ionicons name="arrow-back" size={22} color={colors.secondary} />
         </TouchableOpacity>
 
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>My Cart & Booking</Text>
-          <Text style={styles.headerSubtitle}>
-            {cart.length} {cart.length === 1 ? 'item' : 'items'} in basket
-          </Text>
-        </View>
+        <Text style={styles.headerTitle}>My Health Cart</Text>
 
-        {cart.length > 0 ? (
-          <TouchableOpacity onPress={clearCart} style={styles.clearBtn}>
-            <Text style={styles.clearBtnText}>Clear</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={{ width: 40 }} />
-        )}
+        <TouchableOpacity
+          style={styles.clearCartHeaderBtn}
+          onPress={() => {
+            Alert.alert(
+              'Clear Cart?',
+              `Are you sure you want to empty your ${activeTab === 'pharmacy' ? 'Pharmacy' : 'Lab Tests'} cart?`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Clear',
+                  style: 'destructive',
+                  onPress: () => clearCart(activeTab),
+                },
+              ]
+            );
+          }}
+        >
+          <Ionicons name="trash-outline" size={20} color="#DC2626" />
+        </TouchableOpacity>
       </View>
 
-      {cart.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <View style={styles.emptyIconCircle}>
-            <Ionicons name="cart-outline" size={60} color={colors.primary} />
-          </View>
-          <Text style={styles.emptyTitle}>Your Cart is Empty</Text>
-          <Text style={styles.emptySubtitle}>
-            Add medicines or healthcare products to book delivery to your doorstep.
+      {/* ==========================================
+          TOP SEGMENT SWITCHER: PHARMACY VS LAB CART
+      ========================================== */}
+      <View style={styles.cartTabsContainer}>
+        {/* PHARMACY TAB */}
+        <TouchableOpacity
+          style={[styles.cartTab, activeTab === 'pharmacy' && styles.cartTabActive]}
+          onPress={() => setActiveTab('pharmacy')}
+          activeOpacity={0.85}
+        >
+          <Ionicons
+            name="medkit"
+            size={18}
+            color={activeTab === 'pharmacy' ? colors.primary : '#64748B'}
+          />
+          <Text
+            style={[
+              styles.cartTabText,
+              activeTab === 'pharmacy' && styles.cartTabTextActive,
+            ]}
+          >
+            Pharmacy Cart
           </Text>
-          <TouchableOpacity
-            style={styles.browseBtn}
-            activeOpacity={0.85}
-            onPress={() => navigation.navigate('Pharmacy')}
-          >
-            <Ionicons name="medkit-outline" size={18} color={colors.white} />
-            <Text style={styles.browseBtnText}>Browse Pharmacy</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-          >
-            {/* 1. ORDERED ITEMS LIST */}
-            <Text style={styles.sectionHeading}>1. Items in Cart ({cart.length})</Text>
-
-            {/* RADIOLOGY SCANS NOTICE IF PRESENT */}
-            {cart.some((i) => i.category === 'Radiology') && (
-              <View
-                style={{
-                  backgroundColor: colors.lightTeal,
-                  borderRadius: 12,
-                  padding: 12,
-                  marginBottom: 12,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  borderWidth: 1,
-                  borderColor: colors.primary,
-                }}
+          {pharmacyCartCount > 0 && (
+            <View
+              style={[
+                styles.cartTabBadge,
+                activeTab === 'pharmacy' && styles.cartTabBadgeActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.cartTabBadgeText,
+                  activeTab === 'pharmacy' && styles.cartTabBadgeTextActive,
+                ]}
               >
-                <Ionicons name="scan" size={20} color={colors.primary} style={{ marginRight: 8 }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '800', color: colors.secondary }}>
-                    Radiology Scans in Cart
-                  </Text>
-                  <Text style={{ fontSize: 11, color: colors.text, marginTop: 2 }}>
-                    You can schedule an appointment slot and pay your scan bill directly.
-                  </Text>
+                {pharmacyCartCount}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {/* LAB TESTS TAB */}
+        <TouchableOpacity
+          style={[styles.cartTab, activeTab === 'lab' && styles.cartTabActive]}
+          onPress={() => setActiveTab('lab')}
+          activeOpacity={0.85}
+        >
+          <Ionicons
+            name="flask"
+            size={18}
+            color={activeTab === 'lab' ? colors.primary : '#64748B'}
+          />
+          <Text
+            style={[
+              styles.cartTabText,
+              activeTab === 'lab' && styles.cartTabTextActive,
+            ]}
+          >
+            Lab Tests Cart
+          </Text>
+          {labCartCount > 0 && (
+            <View
+              style={[
+                styles.cartTabBadge,
+                activeTab === 'lab' && styles.cartTabBadgeActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.cartTabBadgeText,
+                  activeTab === 'lab' && styles.cartTabBadgeTextActive,
+                ]}
+              >
+                {labCartCount}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* ==========================================
+            TAB 1: PHARMACY CART
+        ========================================== */}
+        {activeTab === 'pharmacy' && (
+          <>
+            {pharmacyCart.length === 0 ? (
+              <View style={styles.emptyCartBox}>
+                <View style={styles.emptyIconCircle}>
+                  <Ionicons name="cart-outline" size={48} color={colors.primary} />
                 </View>
+                <Text style={styles.emptyTitle}>Your Pharmacy Cart is Empty</Text>
+                <Text style={styles.emptySubtitle}>
+                  Order genuine medicines, vitamins, and healthcare essentials delivered to your doorstep.
+                </Text>
                 <TouchableOpacity
-                  style={{
-                    backgroundColor: colors.primary,
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    borderRadius: 8,
-                  }}
-                  onPress={() => {
-                    const radItems = cart.filter((i) => i.category === 'Radiology');
-                    if (radItems.length > 0) {
-                      const firstRad = radItems[0];
-                      navigation.navigate('RadiologyBooking', {
-                        lab: {
-                          id: firstRad.labId,
-                          name: firstRad.labName,
-                          area: firstRad.labArea,
-                          address: firstRad.labAddress,
-                          phone: firstRad.labPhone,
-                        },
-                        selectedTests: radItems,
-                      });
-                    }
-                  }}
+                  style={styles.browseButton}
+                  onPress={() => navigation.navigate('Pharmacy')}
+                  activeOpacity={0.88}
                 >
-                  <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '800' }}>
-                    Schedule
-                  </Text>
+                  <Ionicons name="medkit" size={18} color="#FFFFFF" />
+                  <Text style={styles.browseButtonText}>Browse Medicines</Text>
                 </TouchableOpacity>
               </View>
-            )}
-
-            {cart.map((item) => (
-              <View key={item.id} style={styles.itemCard}>
-                <View style={styles.itemIconCircle}>
-                  <Ionicons
-                    name={
-                      item.category === 'Radiology'
-                        ? 'scan'
-                        : item.category === 'Medicines'
-                        ? 'medkit'
-                        : item.category === 'Vitamins & Minerals'
-                        ? 'fitness'
-                        : 'medical'
-                    }
-                    size={26}
-                    color={colors.primary}
-                  />
+            ) : (
+              <>
+                {/* ITEMS LIST */}
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionHeading}>
+                    Medicines & Products ({pharmacyCartCount})
+                  </Text>
+                  <TouchableOpacity onPress={() => navigation.navigate('Pharmacy')}>
+                    <Text style={styles.addMoreLink}>+ Add More</Text>
+                  </TouchableOpacity>
                 </View>
 
-                <View style={styles.itemDetails}>
-                  <View style={styles.itemNameRow}>
-                    <Text style={styles.itemName} numberOfLines={2}>
-                      {item.name}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => handleRemoveItem(item)}
-                      style={styles.trashBtn}
-                    >
-                      <Ionicons name="trash-outline" size={16} color="#E53935" />
-                    </TouchableOpacity>
-                  </View>
+                {pharmacyCart.map((item) => (
+                  <View key={item.id} style={styles.cartItemCard}>
+                    <Image
+                      source={{
+                        uri:
+                          item.image ||
+                          'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=200',
+                      }}
+                      style={styles.itemImage}
+                    />
 
-                  {item.category === 'Radiology' ? (
-                    <View style={{ marginTop: 2, marginBottom: 4 }}>
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: colors.secondary }}>
-                        🏥 {item.labName || 'Diagnostic Lab'}
+                    <View style={styles.itemDetails}>
+                      <Text style={styles.itemName} numberOfLines={2}>
+                        {item.name}
                       </Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                        <View style={{ backgroundColor: '#E0F2FE', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                          <Text style={{ fontSize: 9, fontWeight: '800', color: colors.secondary }}>
-                            {item.modalityCode || 'Scan'}
-                          </Text>
-                        </View>
-                        {item.fastingRequired && (
-                          <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                            <Text style={{ fontSize: 9, fontWeight: '700', color: '#D97706' }}>
-                              Fasting Required
-                            </Text>
-                          </View>
+                      <Text style={styles.itemCategory}>{item.dosage || item.category || 'Medicine'}</Text>
+
+                      <View style={styles.itemPriceRow}>
+                        <Text style={styles.itemPrice}>₹{item.price}</Text>
+                        {item.mrp && Number(item.mrp) > Number(item.price) && (
+                          <Text style={styles.itemMrp}>₹{item.mrp}</Text>
                         )}
                       </View>
                     </View>
-                  ) : (
-                    <Text style={styles.itemBrand}>{item.brand}</Text>
-                  )}
 
-                  <View style={styles.itemPriceAndQtyRow}>
-                    <Text style={styles.itemPrice}>
-                      ₹{item.price * item.quantity}
+                    {/* QUANTITY CONTROLS */}
+                    <View style={styles.qtyContainer}>
+                      <TouchableOpacity
+                        style={styles.qtyBtn}
+                        onPress={() => decreaseQuantity(item.id, 'pharmacy')}
+                      >
+                        <Ionicons name="remove" size={16} color={colors.primary} />
+                      </TouchableOpacity>
+                      <Text style={styles.qtyText}>{item.quantity}</Text>
+                      <TouchableOpacity
+                        style={styles.qtyBtn}
+                        onPress={() => increaseQuantity(item.id, 'pharmacy')}
+                      >
+                        <Ionicons name="add" size={16} color={colors.primary} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+
+                {/* PRESCRIPTION UPLOAD (IF REQUIRED) */}
+                {prescriptionItems.length > 0 && (
+                  <View style={styles.rxCard}>
+                    <View style={styles.rxHeaderRow}>
+                      <Ionicons name="document-text" size={20} color="#0284C7" />
+                      <Text style={styles.rxTitle}>Prescription Required</Text>
+                    </View>
+                    <Text style={styles.rxSubtitle}>
+                      {prescriptionItems.length} {prescriptionItems.length === 1 ? 'medicine requires' : 'medicines require'} a doctor prescription.
                     </Text>
 
-                    {item.category === 'Radiology' ? (
-                      <TouchableOpacity
-                        style={{
-                          backgroundColor: colors.secondary,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          borderRadius: 8,
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          gap: 4,
-                        }}
-                        onPress={() => {
-                          navigation.navigate('RadiologyBooking', {
-                            lab: {
-                              id: item.labId,
-                              name: item.labName,
-                              area: item.labArea,
-                              address: item.labAddress,
-                              phone: item.labPhone,
-                            },
-                            test: item,
-                            selectedTests: [item],
-                          });
-                        }}
+                    <TouchableOpacity
+                      style={styles.rxUploadBtn}
+                      onPress={pickPrescription}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons
+                        name={uploadedRx ? 'checkmark-circle' : 'cloud-upload-outline'}
+                        size={20}
+                        color={uploadedRx ? '#10B981' : colors.primary}
+                      />
+                      <Text
+                        style={[
+                          styles.rxUploadBtnText,
+                          uploadedRx && { color: '#059669', fontWeight: '800' },
+                        ]}
                       >
-                        <Ionicons name="calendar-outline" size={12} color="#FFFFFF" />
-                        <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '800' }}>
-                          Book Slot
-                        </Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <View style={styles.qtyBox}>
-                        <TouchableOpacity
-                          style={styles.qtyBtn}
-                          onPress={() => decreaseQuantity(item.id)}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons name="remove" size={14} color={colors.primary} />
-                        </TouchableOpacity>
-                        <Text style={styles.qtyNumber}>{item.quantity}</Text>
-                        <TouchableOpacity
-                          style={styles.qtyBtn}
-                          onPress={() => increaseQuantity(item.id)}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons name="add" size={14} color={colors.primary} />
-                        </TouchableOpacity>
-                      </View>
-                    )}
+                        {uploadedRx ? 'Prescription Attached ✓' : 'Upload Doctor Prescription'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
-                </View>
-              </View>
-            ))}
+                )}
 
-            {/* 2. USER DETAILS & LOCATION PICKER (GPS + MAP) */}
-            <Text style={styles.sectionHeading}>2. Delivery Location & Customer Details</Text>
-            <View style={styles.formCard}>
-              {/* DUAL LOCATION ACTIONS: GPS + MAP */}
-              <View style={styles.locationActionsRow}>
-                {/* AUTO-DETECT GPS */}
-                <TouchableOpacity
-                  style={styles.gpsActionBtn}
-                  activeOpacity={0.8}
-                  onPress={handleGpsAutofill}
-                  disabled={gpsLoading}
-                >
-                  {gpsLoading ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
-                  ) : (
-                    <Ionicons name="navigate" size={18} color={colors.primary} />
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.locationActionTitle}>Auto-Detect GPS</Text>
-                    <Text style={styles.locationActionSub}>Use current live spot</Text>
+                {/* DELIVERY ADDRESS */}
+                <View style={styles.card}>
+                  <View style={styles.cardTitleRow}>
+                    <Ionicons name="location" size={20} color={colors.primary} />
+                    <Text style={styles.cardTitle}>Delivery Address</Text>
+                    <TouchableOpacity
+                      style={styles.gpsButton}
+                      onPress={handleUseCurrentLocation}
+                      disabled={gpsLoading}
+                    >
+                      {gpsLoading ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                      ) : (
+                        <>
+                          <Ionicons name="locate" size={14} color={colors.primary} />
+                          <Text style={styles.gpsButtonText}>Use GPS</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
                   </View>
-                </TouchableOpacity>
 
-                {/* SELECT THROUGH MAP */}
-                <TouchableOpacity
-                  style={styles.mapActionBtn}
-                  activeOpacity={0.8}
-                  onPress={handleOpenMapPicker}
-                >
-                  <Ionicons name="map" size={18} color={colors.white} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.mapActionTitle}>Select on Map</Text>
-                    <Text style={styles.mapActionSub}>Pinpoint & drag pin</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={colors.white} />
-                </TouchableOpacity>
-              </View>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Full Address (Flat, Street, Area)"
+                    value={userAddress}
+                    onChangeText={setUserAddress}
+                  />
 
-              <Text style={styles.fieldLabel}>Full Name *</Text>
-              <View style={styles.inputContainer}>
-                <Ionicons name="person-outline" size={18} color={colors.primary} />
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Enter recipient name"
-                  placeholderTextColor={colors.slate}
-                  value={userName}
-                  onChangeText={setUserName}
-                />
-              </View>
-
-              <Text style={styles.fieldLabel}>Mobile Phone Number *</Text>
-              <View style={styles.inputContainer}>
-                <Ionicons name="call-outline" size={18} color={colors.primary} />
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="10-digit mobile number"
-                  placeholderTextColor={colors.slate}
-                  value={userPhone}
-                  onChangeText={setUserPhone}
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                />
-              </View>
-
-              <Text style={styles.fieldLabel}>House / Flat No., Street, Area *</Text>
-              <View style={[styles.inputContainer, { height: 58 }]}>
-                <Ionicons name="location-outline" size={18} color={colors.primary} />
-                <TextInput
-                  style={[styles.textInput, { height: 52 }]}
-                  placeholder="Flat 402, Green Valley Apartments, Kuvempunagar"
-                  placeholderTextColor={colors.slate}
-                  value={userAddress}
-                  onChangeText={setUserAddress}
-                  multiline
-                />
-              </View>
-
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>City *</Text>
-                  <View style={styles.inputContainer}>
+                  <View style={styles.rowInputs}>
                     <TextInput
-                      style={styles.textInput}
-                      placeholder="Mysore"
-                      placeholderTextColor={colors.slate}
+                      style={[styles.input, { flex: 1 }]}
+                      placeholder="City"
                       value={userCity}
                       onChangeText={setUserCity}
                     />
-                  </View>
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>Pincode *</Text>
-                  <View style={styles.inputContainer}>
                     <TextInput
-                      style={styles.textInput}
-                      placeholder="570023"
-                      placeholderTextColor={colors.slate}
+                      style={[styles.input, { width: 110 }]}
+                      placeholder="Pincode"
                       value={userPincode}
                       onChangeText={setUserPincode}
-                      keyboardType="number-pad"
-                      maxLength={6}
+                      keyboardType="numeric"
                     />
                   </View>
+
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Mobile Number (for delivery SMS)"
+                    value={userPhone}
+                    onChangeText={setUserPhone}
+                    keyboardType="phone-pad"
+                  />
                 </View>
-              </View>
 
-              <Text style={styles.fieldLabel}>Address Tag</Text>
-              <View style={styles.tagGroup}>
-                {['Home', 'Work', 'Other'].map((t) => (
-                  <TouchableOpacity
-                    key={t}
-                    style={[styles.tagPill, addressTag === t && styles.tagPillActive]}
-                    onPress={() => setAddressTag(t)}
-                  >
-                    <Text style={[styles.tagText, addressTag === t && styles.tagTextActive]}>
-                      {t}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* 3. PRESCRIPTION UPLOAD SECTION (MANDATORY FOR TABLETS) */}
-            <Text style={styles.sectionHeading}>
-              3. Doctor Prescription {isPrescriptionRequired ? '(Required for Tablets)' : '(Optional)'}
-            </Text>
-            <View style={[styles.formCard, isPrescriptionRequired && styles.rxHighlightCard]}>
-              {isPrescriptionRequired && (
-                <View style={styles.rxAlertBanner}>
-                  <Ionicons name="alert-circle" size={18} color={colors.coral} />
-                  <Text style={styles.rxAlertText}>
-                    Your cart contains tablets / medicines ({prescriptionItems.map((p) => p.name).join(', ')}). Please attach a valid prescription.
-                  </Text>
-                </View>
-              )}
-
-              {uploadedRx ? (
-                <View style={styles.uploadedRxBox}>
-                  <View style={styles.uploadedRxLeft}>
-                    {uploadedRx.uri ? (
-                      <Image source={{ uri: uploadedRx.uri }} style={styles.rxThumb} />
-                    ) : (
-                      <Ionicons name="document-text" size={24} color={colors.primary} />
-                    )}
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.rxFileName} numberOfLines={1}>
-                        {uploadedRx.name}
-                      </Text>
-                      <View style={styles.rxVerifiedBadge}>
-                        <Ionicons name="checkmark-circle" size={12} color="#00B894" />
-                        <Text style={styles.rxVerifiedText}>Prescription Attached</Text>
-                      </View>
-                    </View>
+                {/* COUPON CODE */}
+                <View style={styles.card}>
+                  <View style={styles.cardTitleRow}>
+                    <Ionicons name="pricetag" size={18} color={colors.primary} />
+                    <Text style={styles.cardTitle}>Apply Promo Code</Text>
                   </View>
-                  <TouchableOpacity onPress={() => setUploadedRx(null)}>
-                    <Ionicons name="trash-outline" size={18} color="#E53935" />
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.rxUploadBtnsRow}>
-                  <TouchableOpacity
-                    style={styles.uploadRxBtn}
-                    onPress={handleTakePhoto}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="camera-outline" size={20} color={colors.primary} />
-                    <Text style={styles.uploadRxBtnText}>Take Camera Photo</Text>
-                  </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={styles.uploadRxBtn}
-                    onPress={handlePickFromGallery}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="image-outline" size={20} color={colors.primary} />
-                    <Text style={styles.uploadRxBtnText}>Upload from Gallery</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-
-            {/* 4. PROMO COUPON CODE */}
-            <View style={styles.couponCard}>
-              <View style={styles.couponTitleRow}>
-                <Ionicons name="pricetag-outline" size={18} color={colors.primary} />
-                <Text style={styles.couponTitle}>Apply Promo Code</Text>
-              </View>
-
-              {appliedCoupon ? (
-                <View style={styles.appliedRow}>
-                  <Text style={styles.appliedCode}>{appliedCoupon.code} Applied (Saved ₹{discountAmount})</Text>
-                  <TouchableOpacity onPress={removeCoupon}>
-                    <Text style={styles.removeCouponText}>Remove</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <>
                   <View style={styles.couponInputRow}>
                     <TextInput
-                      style={styles.couponTextInput}
-                      placeholder="Enter promo code (e.g. UNNATHI20)"
-                      placeholderTextColor={colors.slate}
+                      style={styles.couponInput}
+                      placeholder="Enter code (e.g. UNNATHI20)"
+                      placeholderTextColor="#94A3B8"
                       value={couponInput}
                       onChangeText={setCouponInput}
                       autoCapitalize="characters"
                     />
                     <TouchableOpacity
-                      style={styles.applyCouponBtn}
+                      style={styles.applyBtn}
                       onPress={() => handleApplyCoupon()}
                     >
-                      <Text style={styles.applyCouponText}>Apply</Text>
+                      <Text style={styles.applyBtnText}>Apply</Text>
                     </TouchableOpacity>
                   </View>
-                  <View style={styles.chipsRow}>
-                    {PROMO_CHIPS.map((c) => (
+
+                  {/* CHIPS */}
+                  <View style={styles.couponChipsRow}>
+                    {PROMO_CHIPS.map((chip) => (
                       <TouchableOpacity
-                        key={c}
-                        style={styles.chip}
-                        onPress={() => handleApplyCoupon(c)}
+                        key={chip}
+                        style={styles.couponChip}
+                        onPress={() => handleApplyCoupon(chip)}
                       >
-                        <Text style={styles.chipText}>{c}</Text>
+                        <Text style={styles.couponChipText}>{chip}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
-                </>
-              )}
-              {couponMsg && (
-                <Text style={[styles.couponMsg, couponMsg.success ? styles.couponSuccess : styles.couponError]}>
-                  {couponMsg.message}
-                </Text>
-              )}
-            </View>
 
-            {/* 5. PAYMENT METHOD SELECTION */}
-            <Text style={styles.sectionHeading}>4. Select Payment Method</Text>
-            <View style={styles.formCard}>
-              {PAYMENT_METHODS.map((pm) => {
-                const isSelected = paymentMethod === pm.id;
-                return (
-                  <TouchableOpacity
-                    key={pm.id}
-                    style={[styles.paymentOption, isSelected && styles.paymentOptionSelected]}
-                    activeOpacity={0.8}
-                    onPress={() => setPaymentMethod(pm.id)}
-                  >
-                    <Ionicons
-                      name={pm.icon}
-                      size={22}
-                      color={isSelected ? colors.primary : colors.secondary}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.paymentOptionTitle}>{pm.title}</Text>
-                      <Text style={styles.paymentOptionSub}>{pm.subtitle}</Text>
-                    </View>
-                    <Ionicons
-                      name={isSelected ? 'radio-button-on' : 'radio-button-off'}
-                      size={20}
-                      color={isSelected ? colors.primary : colors.slate}
-                    />
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* 6. BILL SUMMARY */}
-            <View style={styles.billCard}>
-              <Text style={styles.billCardTitle}>Bill Summary</Text>
-
-              <View style={styles.billLine}>
-                <Text style={styles.billLabel}>Item Total</Text>
-                <Text style={styles.billValue}>₹{subtotal}</Text>
-              </View>
-
-              {discountAmount > 0 && (
-                <View style={styles.billLine}>
-                  <Text style={styles.billLabel}>Coupon Discount</Text>
-                  <Text style={styles.billDiscount}>-₹{discountAmount}</Text>
+                  {couponMsg && (
+                    <Text
+                      style={[
+                        styles.couponMsg,
+                        { color: couponMsg.success ? '#059669' : '#DC2626' },
+                      ]}
+                    >
+                      {couponMsg.text}
+                    </Text>
+                  )}
                 </View>
-              )}
 
-              <View style={styles.billLine}>
-                <Text style={styles.billLabel}>Delivery Charges</Text>
-                <Text style={deliveryFee === 0 ? styles.freeText : styles.billValue}>
-                  {deliveryFee === 0 ? 'FREE' : `₹${deliveryFee}`}
+                {/* PAYMENT METHOD */}
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>Select Payment Method</Text>
+                  {PAYMENT_METHODS.map((method) => {
+                    const isSelected = paymentMethod === method.id;
+                    return (
+                      <TouchableOpacity
+                        key={method.id}
+                        style={[
+                          styles.paymentOption,
+                          isSelected && styles.paymentOptionSelected,
+                        ]}
+                        onPress={() => setPaymentMethod(method.id)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons
+                          name={method.icon}
+                          size={22}
+                          color={isSelected ? colors.primary : '#64748B'}
+                        />
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <Text
+                            style={[
+                              styles.paymentTitle,
+                              isSelected && { color: colors.primary, fontWeight: '800' },
+                            ]}
+                          >
+                            {method.title}
+                          </Text>
+                          <Text style={styles.paymentSub}>{method.subtitle}</Text>
+                        </View>
+                        <Ionicons
+                          name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                          size={20}
+                          color={isSelected ? colors.primary : '#94A3B8'}
+                        />
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* BILL SUMMARY */}
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>Pharmacy Bill Summary</Text>
+                  <View style={styles.billRow}>
+                    <Text style={styles.billLabel}>Items Total (MRP)</Text>
+                    <Text style={styles.billValue}>₹{pharmacyMrpTotal}</Text>
+                  </View>
+                  {pharmacySavings > 0 && (
+                    <View style={styles.billRow}>
+                      <Text style={[styles.billLabel, { color: '#059669' }]}>Product Discount</Text>
+                      <Text style={[styles.billValue, { color: '#059669' }]}>- ₹{pharmacySavings}</Text>
+                    </View>
+                  )}
+                  {pharmacyDiscountAmount > 0 && (
+                    <View style={styles.billRow}>
+                      <Text style={[styles.billLabel, { color: '#059669' }]}>Coupon Discount</Text>
+                      <Text style={[styles.billValue, { color: '#059669' }]}>- ₹{pharmacyDiscountAmount}</Text>
+                    </View>
+                  )}
+                  <View style={styles.billRow}>
+                    <Text style={styles.billLabel}>Express Delivery Fee</Text>
+                    <Text style={styles.billValue}>
+                      {pharmacyDeliveryFee === 0 ? 'FREE' : `₹${pharmacyDeliveryFee}`}
+                    </Text>
+                  </View>
+                  <View style={styles.billRow}>
+                    <Text style={styles.billLabel}>Packaging & Handling</Text>
+                    <Text style={styles.billValue}>₹{pharmacyPackagingFee}</Text>
+                  </View>
+                  <View style={styles.divider} />
+                  <View style={styles.billRowTotal}>
+                    <Text style={styles.totalLabel}>Total Payable</Text>
+                    <Text style={styles.totalValue}>₹{pharmacyFinalTotal}</Text>
+                  </View>
+                </View>
+
+                {/* PLACE ORDER BUTTON */}
+                <TouchableOpacity
+                  style={styles.checkoutButton}
+                  onPress={handlePlacePharmacyOrder}
+                  disabled={isBooking}
+                  activeOpacity={0.88}
+                >
+                  {isBooking ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Text style={styles.checkoutButtonText}>
+                        Place Pharmacy Order • ₹{pharmacyFinalTotal}
+                      </Text>
+                      <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                    </>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
+          </>
+        )}
+
+        {/* ==========================================
+            TAB 2: LAB & DIAGNOSTIC TESTS CART
+        ========================================== */}
+        {activeTab === 'lab' && (
+          <>
+            {labCart.length === 0 ? (
+              <View style={styles.emptyCartBox}>
+                <View style={styles.emptyIconCircle}>
+                  <Ionicons name="flask-outline" size={48} color={colors.primary} />
+                </View>
+                <Text style={styles.emptyTitle}>Your Lab Tests Cart is Empty</Text>
+                <Text style={styles.emptySubtitle}>
+                  Book certified blood tests, health packages, and radiology scans with 100% accurate reports.
                 </Text>
+                <TouchableOpacity
+                  style={styles.browseButton}
+                  onPress={() => navigation.navigate('RadiologyLabs')}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="flask" size={18} color="#FFFFFF" />
+                  <Text style={styles.browseButtonText}>Browse Lab Tests & Scans</Text>
+                </TouchableOpacity>
               </View>
-
-              <View style={styles.billLine}>
-                <Text style={styles.billLabel}>Packaging & Safety</Text>
-                <Text style={styles.billValue}>₹{packagingFee}</Text>
-              </View>
-
-              <View style={styles.billDivider} />
-
-              <View style={styles.billTotalRow}>
-                <Text style={styles.billTotalLabel}>Grand Total</Text>
-                <Text style={styles.billTotalValue}>₹{finalTotal}</Text>
-              </View>
-            </View>
-
-            <View style={{ height: 120 }} />
-          </ScrollView>
-
-          {/* BOTTOM FIXED ACTION BAR */}
-          <View style={styles.bottomBar}>
-            <View style={styles.bottomPriceGroup}>
-              <Text style={styles.bottomPriceLabel}>Total Payable</Text>
-              <Text style={styles.bottomPriceValue}>₹{finalTotal}</Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.bookBtn}
-              activeOpacity={0.85}
-              onPress={handleBookAndPay}
-              disabled={isBooking}
-            >
-              {isBooking ? (
-                <ActivityIndicator size="small" color={colors.white} />
-              ) : (
-                <>
-                  <Text style={styles.bookBtnText}>
-                    {paymentMethod === 'COD' ? 'Confirm Booking (COD)' : `Pay ₹${finalTotal} & Book`}
+            ) : (
+              <>
+                {/* LAB ITEMS LIST */}
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionHeading}>
+                    Selected Tests & Scans ({labCartCount})
                   </Text>
-                  <Ionicons name="arrow-forward" size={18} color={colors.white} />
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
+                  <TouchableOpacity onPress={() => navigation.navigate('RadiologyLabs')}>
+                    <Text style={styles.addMoreLink}>+ Add Tests</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {labCart.map((item) => (
+                  <View key={item.id} style={styles.cartItemCard}>
+                    <View style={styles.labIconBox}>
+                      <Ionicons name="flask" size={24} color={colors.primary} />
+                    </View>
+
+                    <View style={styles.itemDetails}>
+                      <Text style={styles.itemName} numberOfLines={2}>
+                        {item.name}
+                      </Text>
+                      <Text style={styles.itemCategory}>
+                        {item.categoryLabel || item.category || 'Diagnostic Scan'} • {item.labName || 'Diagnostic Lab'}
+                      </Text>
+
+                      <View style={styles.itemPriceRow}>
+                        <Text style={styles.itemPrice}>₹{item.price}</Text>
+                        {item.mrp && Number(item.mrp) > Number(item.price) && (
+                          <Text style={styles.itemMrp}>₹{item.mrp}</Text>
+                        )}
+                      </View>
+                    </View>
+
+                    {/* REMOVE TEST BUTTON */}
+                    <TouchableOpacity
+                      style={styles.removeTestBtn}
+                      onPress={() => removeFromCart(item.id, 'lab')}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
+                {/* VISIT CHOICE: HOME SAMPLE VS LAB VISIT */}
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>Sample Collection Preference</Text>
+                  <View style={styles.visitTypeRow}>
+                    <TouchableOpacity
+                      style={[
+                        styles.visitTypeCard,
+                        labVisitType === 'HOME_COLLECTION' && styles.visitTypeCardActive,
+                      ]}
+                      onPress={() => setLabVisitType('HOME_COLLECTION')}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons
+                        name="home"
+                        size={20}
+                        color={labVisitType === 'HOME_COLLECTION' ? '#FFFFFF' : colors.primary}
+                      />
+                      <Text
+                        style={[
+                          styles.visitTypeTitle,
+                          labVisitType === 'HOME_COLLECTION' && styles.visitTypeTitleActive,
+                        ]}
+                      >
+                        Home Collection
+                      </Text>
+                      <Text
+                        style={[
+                          styles.visitTypeSubtitle,
+                          labVisitType === 'HOME_COLLECTION' && styles.visitTypeSubtitleActive,
+                        ]}
+                      >
+                        Phlebotomist at doorstep (FREE)
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.visitTypeCard,
+                        labVisitType === 'LAB_VISIT' && styles.visitTypeCardActive,
+                      ]}
+                      onPress={() => setLabVisitType('LAB_VISIT')}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons
+                        name="business"
+                        size={20}
+                        color={labVisitType === 'LAB_VISIT' ? '#FFFFFF' : colors.primary}
+                      />
+                      <Text
+                        style={[
+                          styles.visitTypeTitle,
+                          labVisitType === 'LAB_VISIT' && styles.visitTypeTitleActive,
+                        ]}
+                      >
+                        Visit Diagnostic Lab
+                      </Text>
+                      <Text
+                        style={[
+                          styles.visitTypeSubtitle,
+                          labVisitType === 'LAB_VISIT' && styles.visitTypeSubtitleActive,
+                        ]}
+                      >
+                        Direct fast-track visit
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* SAMPLE DATE & SLOT */}
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>Select Preferred Date & Slot</Text>
+                  <View style={styles.slotGrid}>
+                    {LAB_SAMPLE_SLOTS.map((slot, index) => {
+                      const isSelected = selectedLabSlot === slot;
+                      return (
+                        <TouchableOpacity
+                          key={index}
+                          style={[
+                            styles.labSlotOption,
+                            isSelected && styles.labSlotOptionActive,
+                          ]}
+                          onPress={() => setSelectedLabSlot(slot)}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons
+                            name="time-outline"
+                            size={16}
+                            color={isSelected ? colors.primary : '#64748B'}
+                          />
+                          <Text
+                            style={[
+                              styles.labSlotText,
+                              isSelected && styles.labSlotTextActive,
+                            ]}
+                          >
+                            {slot}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                {/* PATIENT INFO */}
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>Patient Details for Lab Report</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Patient Full Name"
+                    value={userName}
+                    onChangeText={setUserName}
+                  />
+
+                  <View style={styles.rowInputs}>
+                    <TextInput
+                      style={[styles.input, { flex: 1 }]}
+                      placeholder="Age (Yrs)"
+                      value={patientAge}
+                      onChangeText={setPatientAge}
+                      keyboardType="numeric"
+                    />
+                    <TextInput
+                      style={[styles.input, { flex: 1 }]}
+                      placeholder="Gender (Male/Female)"
+                      value={patientGender}
+                      onChangeText={setPatientGender}
+                    />
+                  </View>
+
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Mobile Number (for WhatsApp/SMS Report)"
+                    value={userPhone}
+                    onChangeText={setUserPhone}
+                    keyboardType="phone-pad"
+                  />
+                </View>
+
+                {/* LAB BILL SUMMARY */}
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>Lab Tests Bill Summary</Text>
+                  <View style={styles.billRow}>
+                    <Text style={styles.billLabel}>Tests Total (MRP)</Text>
+                    <Text style={styles.billValue}>₹{labMrpTotal}</Text>
+                  </View>
+                  {labSavings > 0 && (
+                    <View style={styles.billRow}>
+                      <Text style={[styles.billLabel, { color: '#059669' }]}>Lab Package Discount</Text>
+                      <Text style={[styles.billValue, { color: '#059669' }]}>- ₹{labSavings}</Text>
+                    </View>
+                  )}
+                  <View style={styles.billRow}>
+                    <Text style={styles.billLabel}>Sample Collection Fee</Text>
+                    <Text style={[styles.billValue, { color: '#059669', fontWeight: '800' }]}>
+                      FREE
+                    </Text>
+                  </View>
+                  <View style={styles.divider} />
+                  <View style={styles.billRowTotal}>
+                    <Text style={styles.totalLabel}>Total Payable</Text>
+                    <Text style={styles.totalValue}>₹{labFinalTotal}</Text>
+                  </View>
+                </View>
+
+                {/* BOOK LAB TESTS BUTTON */}
+                <TouchableOpacity
+                  style={[styles.checkoutButton, { backgroundColor: colors.primary }]}
+                  onPress={handlePlaceLabOrder}
+                  disabled={isBooking}
+                  activeOpacity={0.88}
+                >
+                  {isBooking ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Text style={styles.checkoutButtonText}>
+                        Book Lab Tests & Scans • ₹{labFinalTotal}
+                      </Text>
+                      <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                    </>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
+          </>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -909,576 +1047,533 @@ const CartScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F4F8FA',
+    backgroundColor: '#F8FAFC',
   },
   header: {
-    minHeight: 60,
+    height: 60,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: '#E2E8F0',
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F4F8FA',
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerTitleWrap: {
-    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: '900',
-    color: colors.secondary,
+    fontWeight: '800',
+    color: '#1E293B',
   },
-  headerSubtitle: {
-    fontSize: 11,
-    color: colors.slate,
-    fontWeight: '600',
+  clearCartHeaderBtn: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  clearBtn: {
-    padding: 6,
+
+  // ==========================================
+  // CART TABS
+  // ==========================================
+  cartTabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    gap: 8,
   },
-  clearBtnText: {
-    color: '#E53935',
-    fontSize: 12,
+  cartTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    gap: 6,
+  },
+  cartTabActive: {
+    backgroundColor: colors.lightTeal,
+    borderColor: colors.primary,
+  },
+  cartTabText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  cartTabTextActive: {
+    color: colors.primary,
     fontWeight: '800',
   },
-  scrollContent: {
+  cartTabBadge: {
+    backgroundColor: '#94A3B8',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  cartTabBadgeActive: {
+    backgroundColor: colors.primary,
+  },
+  cartTabBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  cartTabBadgeTextActive: {
+    color: '#FFFFFF',
+  },
+
+  content: {
     padding: 16,
+    paddingBottom: 40,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
   sectionHeading: {
     fontSize: 14,
-    fontWeight: '900',
-    color: colors.secondary,
-    marginBottom: 8,
-    marginTop: 10,
+    fontWeight: '800',
+    color: '#1E293B',
   },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 30,
+  addMoreLink: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
   },
-  emptyIconCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#E8F7F4',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: colors.secondary,
-  },
-  emptySubtitle: {
-    fontSize: 12,
-    color: colors.slate,
-    textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 18,
-  },
-  browseBtn: {
-    marginTop: 22,
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 13,
-    borderRadius: 14,
+
+  // ITEM CARDS
+  cartItemCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  browseBtnText: {
-    color: colors.white,
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  itemCard: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: colors.border,
-    gap: 12,
+    borderColor: '#E2E8F0',
   },
-  itemIconCircle: {
-    width: 48,
-    height: 48,
+  itemImage: {
+    width: 55,
+    height: 55,
     borderRadius: 12,
-    backgroundColor: '#F0FAF8',
+    backgroundColor: '#F1F5F9',
+  },
+  labIconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: colors.lightTeal,
     alignItems: 'center',
     justifyContent: 'center',
   },
   itemDetails: {
     flex: 1,
-  },
-  itemNameRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    marginLeft: 12,
   },
   itemName: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
-    color: colors.secondary,
-    flex: 1,
-    marginRight: 6,
+    color: '#1E293B',
   },
-  trashBtn: {
-    padding: 2,
+  itemCategory: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
   },
-  itemBrand: {
-    fontSize: 10,
-    color: colors.slate,
-    marginTop: 1,
-  },
-  itemPriceAndQtyRow: {
+  itemPriceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 8,
+    gap: 6,
+    marginTop: 4,
   },
   itemPrice: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: colors.secondary,
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.primary,
   },
-  qtyBox: {
+  itemMrp: {
+    fontSize: 11,
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  qtyContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E6F8F5',
-    borderRadius: 8,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    padding: 3,
     gap: 6,
   },
   qtyBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    backgroundColor: colors.white,
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  qtyNumber: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: colors.secondary,
+  qtyText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E293B',
     minWidth: 16,
     textAlign: 'center',
   },
-  formCard: {
-    backgroundColor: colors.white,
+  removeTestBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // CARD CONTAINERS
+  card: {
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
   },
-  locationActionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 12,
-  },
-  gpsActionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E8F7F4',
-    padding: 10,
-    borderRadius: 12,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#C0EFE5',
-  },
-  locationActionTitle: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: colors.primary,
-  },
-  locationActionSub: {
-    fontSize: 9,
-    color: colors.slate,
-    marginTop: 1,
-  },
-  mapActionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    padding: 10,
-    borderRadius: 12,
-    gap: 8,
-  },
-  mapActionTitle: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: colors.white,
-  },
-  mapActionSub: {
-    fontSize: 9,
-    color: '#D1F4EB',
-    marginTop: 1,
-  },
-  fieldLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.slate,
-    marginTop: 6,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFB',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 10,
-    height: 42,
-    gap: 8,
-  },
-  textInput: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.secondary,
-    fontWeight: '600',
-  },
-  tagGroup: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 6,
-  },
-  tagPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#F0F4F6',
-  },
-  tagPillActive: {
-    backgroundColor: colors.primary,
-  },
-  tagText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.secondary,
-  },
-  tagTextActive: {
-    color: colors.white,
-  },
-  rxHighlightCard: {
-    borderColor: '#FFD3C4',
-    backgroundColor: '#FFFBF9',
-  },
-  rxAlertBanner: {
-    backgroundColor: '#FFF2EC',
-    borderRadius: 10,
-    padding: 10,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#FFD3C4',
-  },
-  rxAlertText: {
-    fontSize: 11,
-    color: '#8A3B18',
-    flex: 1,
-    lineHeight: 15,
-    fontWeight: '600',
-  },
-  uploadedRxBox: {
-    backgroundColor: '#F0FAF8',
-    borderRadius: 12,
-    padding: 10,
+  cardTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#BEECE1',
+    marginBottom: 12,
   },
-  uploadedRxLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  rxThumb: {
-    width: 38,
-    height: 38,
-    borderRadius: 6,
-  },
-  rxFileName: {
-    fontSize: 12,
+  cardTitle: {
+    fontSize: 14,
     fontWeight: '800',
-    color: colors.secondary,
+    color: '#1E293B',
+    marginBottom: 10,
   },
-  rxVerifiedBadge: {
+  gpsButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.lightTeal,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
     gap: 4,
-    marginTop: 2,
   },
-  rxVerifiedText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#00A382',
+  gpsButtonText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primary,
   },
-  rxUploadBtnsRow: {
+
+  input: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    padding: 10,
+    fontSize: 13,
+    color: '#1E293B',
+    marginBottom: 8,
+  },
+  rowInputs: {
     flexDirection: 'row',
     gap: 8,
   },
-  uploadRxBtn: {
-    flex: 1,
-    backgroundColor: '#F0FAF8',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    borderWidth: 1,
-    borderColor: '#BEECE1',
-    borderStyle: 'dashed',
-  },
-  uploadRxBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  couponCard: {
-    backgroundColor: colors.white,
+
+  // RX CARD
+  rxCard: {
+    backgroundColor: '#EFF6FF',
     borderRadius: 16,
     padding: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#BFDBFE',
   },
-  couponTitleRow: {
+  rxHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 8,
   },
-  couponTitle: {
-    fontSize: 13,
+  rxTitle: {
+    fontSize: 14,
     fontWeight: '800',
-    color: colors.secondary,
+    color: '#1E40AF',
   },
+  rxSubtitle: {
+    fontSize: 12,
+    color: '#3B82F6',
+    marginVertical: 6,
+  },
+  rxUploadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#93C5FD',
+    borderRadius: 12,
+    paddingVertical: 10,
+    gap: 8,
+    marginTop: 4,
+  },
+  rxUploadBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+
+  // COUPONS
   couponInputRow: {
     flexDirection: 'row',
     gap: 8,
   },
-  couponTextInput: {
+  couponInput: {
     flex: 1,
-    height: 40,
-    backgroundColor: '#F8FAFB',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    fontSize: 12,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: colors.border,
-    color: colors.secondary,
-    fontWeight: '700',
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 13,
   },
-  applyCouponBtn: {
+  applyBtn: {
     backgroundColor: colors.primary,
     paddingHorizontal: 16,
-    height: 40,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  applyCouponText: {
-    color: colors.white,
-    fontSize: 12,
+  applyBtnText: {
+    color: '#FFFFFF',
     fontWeight: '800',
+    fontSize: 13,
   },
-  chipsRow: {
+  couponChipsRow: {
     flexDirection: 'row',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 6,
     marginTop: 8,
   },
-  chip: {
-    backgroundColor: '#E6F8F5',
-    paddingHorizontal: 8,
+  couponChip: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 6,
-  },
-  chipText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  appliedRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#E8F8F2',
-    padding: 8,
     borderRadius: 8,
   },
-  appliedCode: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#00A382',
-  },
-  removeCouponText: {
-    color: '#E53935',
+  couponChipText: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
+    color: '#475569',
   },
   couponMsg: {
-    fontSize: 10,
-    fontWeight: '700',
-    marginTop: 4,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 6,
   },
-  couponSuccess: {
-    color: '#00A382',
-  },
-  couponError: {
-    color: '#E53935',
-  },
+
+  // PAYMENT
   paymentOption: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
     borderRadius: 12,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
     marginBottom: 8,
-    gap: 10,
   },
   paymentOptionSelected: {
+    backgroundColor: colors.lightTeal,
     borderColor: colors.primary,
-    backgroundColor: '#F0FAF8',
   },
-  paymentOptionTitle: {
+  paymentTitle: {
     fontSize: 13,
-    fontWeight: '800',
-    color: colors.secondary,
+    fontWeight: '700',
+    color: '#1E293B',
   },
-  paymentOptionSub: {
-    fontSize: 10,
-    color: colors.slate,
+  paymentSub: {
+    fontSize: 11,
+    color: '#64748B',
     marginTop: 1,
   },
-  billCard: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 14,
+
+  // LAB VISIT CHOICES
+  visitTypeRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  visitTypeCard: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    textAlign: 'center',
+  },
+  visitTypeCardActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  visitTypeTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  visitTypeTitleActive: {
+    color: '#FFFFFF',
+  },
+  visitTypeSubtitle: {
+    fontSize: 10,
+    color: '#64748B',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  visitTypeSubtitleActive: {
+    color: '#E0F2FE',
+  },
+
+  slotGrid: {
+    gap: 6,
+  },
+  labSlotOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    padding: 10,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 12,
+    borderColor: '#E2E8F0',
+    gap: 8,
   },
-  billCardTitle: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: colors.secondary,
-    marginBottom: 10,
+  labSlotOptionActive: {
+    backgroundColor: colors.lightTeal,
+    borderColor: colors.primary,
   },
-  billLine: {
+  labSlotText: {
+    fontSize: 12,
+    color: '#334155',
+    fontWeight: '600',
+  },
+  labSlotTextActive: {
+    color: colors.primary,
+    fontWeight: '800',
+  },
+
+  // BILL ROWS
+  billRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 6,
   },
   billLabel: {
-    fontSize: 12,
-    color: colors.slate,
+    fontSize: 13,
+    color: '#64748B',
   },
   billValue: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.secondary,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
   },
-  billDiscount: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#00B894',
-  },
-  freeText: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#00B894',
-  },
-  billDivider: {
+  divider: {
     height: 1,
-    backgroundColor: '#F0F4F6',
+    backgroundColor: '#E2E8F0',
     marginVertical: 8,
   },
-  billTotalRow: {
+  billRowTotal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  billTotalLabel: {
+  totalLabel: {
     fontSize: 15,
-    fontWeight: '900',
-    color: colors.secondary,
+    fontWeight: '800',
+    color: '#1E293B',
   },
-  billTotalValue: {
-    fontSize: 18,
-    fontWeight: '900',
+  totalValue: {
+    fontSize: 17,
+    fontWeight: '800',
     color: colors.primary,
   },
-  bottomBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.white,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+
+  // CHECKOUT BTN
+  checkoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-  },
-  bottomPriceGroup: {
     justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 15,
+    borderRadius: 14,
+    gap: 8,
+    marginTop: 6,
   },
-  bottomPriceLabel: {
-    fontSize: 10,
-    color: colors.slate,
-    fontWeight: '700',
+  checkoutButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
   },
-  bottomPriceValue: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: colors.secondary,
+
+  // EMPTY BOX
+  emptyCartBox: {
+    alignItems: 'center',
+    padding: 30,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginTop: 20,
   },
-  bookBtn: {
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.lightTeal,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginBottom: 6,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 20,
+  },
+  browseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.primary,
     paddingHorizontal: 20,
-    paddingVertical: 13,
-    borderRadius: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 6,
   },
-  bookBtnText: {
-    color: colors.white,
-    fontSize: 13,
-    fontWeight: '900',
+  browseButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
   },
 });
 
