@@ -532,41 +532,70 @@ const BookingsScreen = ({ navigation, route }) => {
         )}
 
         {/* ACTION BUTTONS */}
-        <View style={styles.cardActionsRow}>
+        <View style={styles.cardActionsContainer}>
           {!isCancelled ? (
             <>
-              {/* GPS DIRECTIONS / TECHNICIAN CONTACT */}
-              <TouchableOpacity
-                style={styles.actionBtnSecondary}
-                onPress={() => {
-                  if (isLabTest && item.collectionMode?.includes('Home')) {
-                    Alert.alert(
-                      'Lab Technician Assigned',
-                      `Technician Phlebotomist will arrive during ${item.time || 'your scheduled slot'} with sealed sterile sample collection kits.\n\nHelpline: +91 821 245 9902`,
-                      [
-                        { text: 'Call Lab Support', onPress: () => Linking.openURL('tel:18001089999') },
-                        { text: 'OK' },
-                      ]
-                    );
-                  } else {
-                    handleOpenDirections(item);
-                  }
-                }}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name={isLabTest && item.collectionMode?.includes('Home') ? 'call-outline' : 'navigate'}
-                  size={14}
-                  color="#0284C7"
-                />
-                <Text style={styles.actionBtnSecondaryText}>
-                  {isLabTest && item.collectionMode?.includes('Home') ? 'Technician Info' : 'Directions'}
-                </Text>
-              </TouchableOpacity>
+              {/* ROW 1: 3 EQUAL ACTION PILLS */}
+              <View style={styles.actionPillsRow}>
+                {/* 1. GPS DIRECTIONS / TECHNICIAN CONTACT */}
+                <TouchableOpacity
+                  style={styles.actionPillBtn}
+                  onPress={() => {
+                    if (isLabTest && item.collectionMode?.includes('Home')) {
+                      Alert.alert(
+                        'Lab Technician Assigned',
+                        `Technician Phlebotomist will arrive during ${item.time || 'your scheduled slot'} with sealed sterile sample collection kits.\n\nHelpline: +91 821 245 9902`,
+                        [
+                          { text: 'Call Lab Support', onPress: () => Linking.openURL('tel:18001089999') },
+                          { text: 'OK' },
+                        ]
+                      );
+                    } else {
+                      handleOpenDirections(item);
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name={isLabTest && item.collectionMode?.includes('Home') ? 'call-outline' : 'navigate'}
+                    size={14}
+                    color="#0284C7"
+                  />
+                  <Text style={styles.actionPillTextBlue} numberOfLines={1}>
+                    {isLabTest && item.collectionMode?.includes('Home') ? 'Tech Info' : 'Directions'}
+                  </Text>
+                </TouchableOpacity>
 
-              {/* RESCHEDULE */}
+                {/* 2. RESCHEDULE */}
+                <TouchableOpacity
+                  style={styles.actionPillBtn}
+                  onPress={() => {
+                    if (isRadiology && item.details) {
+                      navigation.navigate('RadiologyOrderSuccess', { booking: item.details });
+                    } else {
+                      navigation.navigate('BookingDetails', { appointment: item });
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="calendar-outline" size={14} color={colors.primary} />
+                  <Text style={styles.actionPillTextPrimary} numberOfLines={1}>Reschedule</Text>
+                </TouchableOpacity>
+
+                {/* 3. CANCEL */}
+                <TouchableOpacity
+                  style={styles.actionPillBtnCancel}
+                  onPress={() => handleQuickCancel(item)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="close-circle-outline" size={14} color="#DC2626" />
+                  <Text style={styles.actionPillTextRed} numberOfLines={1}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* ROW 2: FULL WIDTH DETAILS BUTTON */}
               <TouchableOpacity
-                style={styles.actionBtnSecondary}
+                style={styles.fullDetailsBtn}
                 onPress={() => {
                   if (isRadiology && item.details) {
                     navigation.navigate('RadiologyOrderSuccess', { booking: item.details });
@@ -574,61 +603,41 @@ const BookingsScreen = ({ navigation, route }) => {
                     navigation.navigate('BookingDetails', { appointment: item });
                   }
                 }}
-                activeOpacity={0.8}
+                activeOpacity={0.85}
               >
-                <Ionicons name="calendar-outline" size={14} color={colors.primary} />
-                <Text style={[styles.actionBtnSecondaryText, { color: colors.primary }]}>Reschedule</Text>
-              </TouchableOpacity>
-
-              {/* CANCEL */}
-              <TouchableOpacity
-                style={styles.cancelMiniBtn}
-                onPress={() => handleQuickCancel(item)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="close" size={14} color="#DC2626" />
-                <Text style={styles.cancelMiniBtnText}>Cancel</Text>
+                <Ionicons name="receipt-outline" size={14} color={colors.primary} />
+                <Text style={styles.fullDetailsBtnText}>View Booking Slip & Details</Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.primary} />
               </TouchableOpacity>
             </>
           ) : (
             <>
-              <TouchableOpacity
-                style={styles.rebookBtn}
-                onPress={() =>
-                  navigation.navigate(
-                    isRadiology ? 'RadiologyLabs' : isLabTest ? 'LabTests' : 'DoctorList'
-                  )
-                }
-                activeOpacity={0.85}
-              >
-                <Ionicons name="refresh" size={14} color="#FFFFFF" />
-                <Text style={styles.rebookBtnText}>Book Again</Text>
-              </TouchableOpacity>
+              {/* CANCELLED ROW */}
+              <View style={styles.actionPillsRow}>
+                <TouchableOpacity
+                  style={styles.rebookBtnFilled}
+                  onPress={() =>
+                    navigation.navigate(
+                      isRadiology ? 'RadiologyLabs' : isLabTest ? 'LabTests' : 'DoctorList'
+                    )
+                  }
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="refresh" size={14} color="#FFFFFF" />
+                  <Text style={styles.rebookBtnFilledText}>Book Again</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.actionBtnSecondary}
-                onPress={() => navigation.navigate('BookingDetails', { appointment: item })}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="receipt-outline" size={14} color="#64748B" />
-                <Text style={styles.actionBtnSecondaryText}>View Summary</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.viewSummaryBtn}
+                  onPress={() => navigation.navigate('BookingDetails', { appointment: item })}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="receipt-outline" size={14} color="#64748B" />
+                  <Text style={styles.viewSummaryBtnText}>View Summary</Text>
+                </TouchableOpacity>
+              </View>
             </>
           )}
-
-          {/* VIEW DETAILS */}
-          <TouchableOpacity
-            style={styles.detailsBtn}
-            onPress={() => {
-              if (isRadiology && item.details) {
-                navigation.navigate('RadiologyOrderSuccess', { booking: item.details });
-              } else {
-                navigation.navigate('BookingDetails', { appointment: item });
-              }
-            }}
-          >
-            <Text style={styles.detailsBtnText}>Details ›</Text>
-          </TouchableOpacity>
         </View>
       </TouchableOpacity>
     );
@@ -638,7 +647,7 @@ const BookingsScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* TOP HEADER */}
+      {/* TOP HEADER (CLEAN & CENTERED WITHOUT +BOOK BUTTON) */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -655,14 +664,8 @@ const BookingsScreen = ({ navigation, route }) => {
           </Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.newBookingBtn}
-          onPress={() => navigation.navigate('DoctorList')}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="add" size={16} color="#FFFFFF" />
-          <Text style={styles.newBookingBtnText}>Book</Text>
-        </TouchableOpacity>
+        {/* BALANCED PLACEHOLDER */}
+        <View style={styles.headerRightPlaceholder} />
       </View>
 
       {/* FILTER TABS (WITH LAB TEST FILTER) */}
@@ -1032,70 +1035,108 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
 
+  headerRightPlaceholder: {
+    width: 38,
+  },
+
   // CARD ACTIONS ROW
-  cardActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+  cardActionsContainer: {
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
     paddingTop: 10,
+    gap: 8,
   },
-  actionBtnSecondary: {
+  actionPillsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+  },
+  actionPillBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#F8FAFC',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 4,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     gap: 4,
   },
-  actionBtnSecondaryText: {
-    fontSize: 11.5,
+  actionPillBtnCancel: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+    paddingVertical: 7,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    gap: 4,
+  },
+  actionPillTextBlue: {
+    fontSize: 11,
     fontWeight: '700',
     color: '#0284C7',
   },
-  cancelMiniBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 3,
-    borderWidth: 1,
-    borderColor: '#FEE2E2',
+  actionPillTextPrimary: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primary,
   },
-  cancelMiniBtnText: {
+  actionPillTextRed: {
     fontSize: 11,
     fontWeight: '700',
     color: '#DC2626',
   },
-  rebookBtn: {
+  fullDetailsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.lightTeal,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  fullDetailsBtnText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  rebookBtnFilled: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 8,
     gap: 4,
   },
-  rebookBtnText: {
+  rebookBtnFilledText: {
     fontSize: 11.5,
     fontWeight: '800',
     color: '#FFFFFF',
   },
-  detailsBtn: {
-    marginLeft: 'auto',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+  viewSummaryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 4,
   },
-  detailsBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.primary,
+  viewSummaryBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#64748B',
   },
 
   // EMPTY CONTAINER
