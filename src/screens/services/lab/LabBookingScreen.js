@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import { nearbyLabCenters } from '../../../data/labTests';
+import labTests, { nearbyLabCenters } from '../../../data/labTests';
 import colors from '../../../theme/colors';
 
 const generateBookingDates = () => {
@@ -60,15 +60,16 @@ const LAB_VISIT_SLOTS = [
 ];
 
 const LabBookingScreen = ({ route, navigation }) => {
-  // Support both single test object or selectedTests array
-  const rawSelectedTests = route?.params?.selectedTests || (route?.params?.test ? [route.params.test] : []);
+  // Support both single test object or selectedTests array as reactive state
+  const initialTests = route?.params?.selectedTests || (route?.params?.test ? [route.params.test] : []);
+  const [selectedTests, setSelectedTests] = useState(initialTests);
 
   const dates = generateBookingDates();
   const [selectedDate, setSelectedDate] = useState(dates[0]);
 
   // Check if any test strictly requires a Hospital/Lab visit
   const requiresHospitalVisit = useMemo(() => {
-    return rawSelectedTests.some(
+    return selectedTests.some(
       (t) =>
         t.homeCollectionAvailable === false ||
         t.category === 'Radiology' ||
@@ -81,7 +82,26 @@ const LabBookingScreen = ({ route, navigation }) => {
         t.name?.toLowerCase().includes('ultrasound') ||
         t.name?.toLowerCase().includes('scan')
     );
-  }, [rawSelectedTests]);
+  }, [selectedTests]);
+
+  // Check if 6-in-1 Master Package is already active
+  const is6in1PackageActive = useMemo(() => {
+    return selectedTests.some((t) => t.id === 'pkg-6in1');
+  }, [selectedTests]);
+
+  // Upgrade handler
+  const handleUpgradeTo6in1 = () => {
+    const pkg = labTests.find((t) => t.id === 'pkg-6in1');
+    if (pkg) {
+      setSelectedTests([pkg]);
+      setCollectionMode('HOME');
+      setSelectedSlot(HOME_SLOTS[0]);
+      Alert.alert(
+        'Upgraded to 6-in-1 Master Package! 🌟',
+        'Your booking now includes Complete Blood Count, Lipid Profile, Thyroid, Diabetes Sugar, Liver LFT & Kidney KFT (58 Parameters) for only ₹666!'
+      );
+    }
+  };
 
   // Collection Mode: 'HOME' (Lab boy visits) or 'LAB_VISIT' (Patient visits diagnostic center)
   const [collectionMode, setCollectionMode] = useState(
@@ -212,12 +232,12 @@ const LabBookingScreen = ({ route, navigation }) => {
 
   // Bill Totals
   const totalAmount = useMemo(() => {
-    return rawSelectedTests.reduce((sum, item) => sum + item.price, 0);
-  }, [rawSelectedTests]);
+    return selectedTests.reduce((sum, item) => sum + item.price, 0);
+  }, [selectedTests]);
 
   const totalMrp = useMemo(() => {
-    return rawSelectedTests.reduce((sum, item) => sum + (item.mrp || item.price), 0);
-  }, [rawSelectedTests]);
+    return selectedTests.reduce((sum, item) => sum + (item.mrp || item.price), 0);
+  }, [selectedTests]);
 
   const handleBooking = async () => {
     if (!patientName.trim()) {
@@ -246,7 +266,7 @@ const LabBookingScreen = ({ route, navigation }) => {
         tokenNumber,
         type: 'Diagnostic Lab Test',
         collectionMode: collectionMode === 'HOME' ? 'Home Sample Collection' : 'Visit Diagnostic Center',
-        tests: rawSelectedTests.map((t) => ({
+        tests: selectedTests.map((t) => ({
           name: t.name,
           price: t.price,
           sampleType: t.sampleType,
@@ -322,7 +342,7 @@ const LabBookingScreen = ({ route, navigation }) => {
     }
   };
 
-  if (rawSelectedTests.length === 0) {
+  if (selectedTests.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
@@ -357,7 +377,7 @@ const LabBookingScreen = ({ route, navigation }) => {
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Schedule Lab Test</Text>
           <Text style={styles.headerSubtitle}>
-            {rawSelectedTests.length} {rawSelectedTests.length === 1 ? 'Test' : 'Tests'} in Cart
+            {selectedTests.length} {selectedTests.length === 1 ? 'Test' : 'Tests'} in Cart
           </Text>
         </View>
 
@@ -378,7 +398,7 @@ const LabBookingScreen = ({ route, navigation }) => {
             <Text style={styles.sectionTitle}>Selected Diagnostic Tests</Text>
           </View>
 
-          {rawSelectedTests.map((t, idx) => (
+          {selectedTests.map((t, idx) => (
             <View key={idx} style={styles.testItemRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.testItemName}>{t.name}</Text>
@@ -403,6 +423,39 @@ const LabBookingScreen = ({ route, navigation }) => {
             </View>
           ))}
         </View>
+
+        {/* ==========================================
+            SMART UPGRADE RECOMMENDATION BANNER
+        ========================================== */}
+        {!is6in1PackageActive && (
+          <View style={styles.bookingUpgradeCard}>
+            <View style={styles.bookingUpgradeHeader}>
+              <View style={styles.bookingUpgradeBadge}>
+                <Ionicons name="sparkles" size={13} color="#FFFFFF" />
+                <Text style={styles.bookingUpgradeBadgeText}>RECOMMENDED PACKAGE UPGRADE</Text>
+              </View>
+              <Text style={styles.bookingUpgradePrice}>₹666 Only</Text>
+            </View>
+
+            <Text style={styles.bookingUpgradeTitle}>
+              Upgrade to MediUnify 6-in-1 Master Health Package
+            </Text>
+            <Text style={styles.bookingUpgradeDesc}>
+              Includes all your selected tests ({selectedTests.map((t) => t.name.split('(')[0].trim()).join(', ')}) + additional vital organ screening covering CBC, Lipid Cholesterol, Thyroid, Sugar, Liver LFT & Kidney KFT (58 Parameters).
+            </Text>
+
+            <TouchableOpacity
+              style={styles.bookingUpgradeBtn}
+              onPress={handleUpgradeTo6in1}
+              activeOpacity={0.88}
+            >
+              <Ionicons name="arrow-up-circle" size={18} color="#FFFFFF" />
+              <Text style={styles.bookingUpgradeBtnText}>
+                Switch & Upgrade to 6-in-1 Package (₹666)
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* COLLECTION MODE SWITCHER */}
         <View style={styles.sectionCard}>
@@ -973,6 +1026,74 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.secondary,
     marginLeft: 8,
+  },
+
+  // BOOKING SMART UPGRADE CARD
+  bookingUpgradeCard: {
+    backgroundColor: '#F0FDFA',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#99F6E4',
+    shadowColor: colors.teal,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  bookingUpgradeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  bookingUpgradeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.teal,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  bookingUpgradeBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  bookingUpgradePrice: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: colors.navyBlue,
+  },
+  bookingUpgradeTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  bookingUpgradeDesc: {
+    fontSize: 11.5,
+    color: colors.slate,
+    lineHeight: 16,
+    marginBottom: 12,
+  },
+  bookingUpgradeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.teal,
+    paddingVertical: 11,
+    borderRadius: 12,
+    gap: 8,
+  },
+  bookingUpgradeBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '800',
   },
 
   // HOSPITAL ONLY WARNING

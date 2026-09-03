@@ -40,6 +40,18 @@ const LabTestsScreen = ({ navigation }) => {
     });
   };
 
+  // Upgrade directly to the 6-in-1 Master Health Package for ₹666
+  const handleUpgradeToPackage = (fromTest) => {
+    const pkg = labTests.find((t) => t.id === 'pkg-6in1');
+    if (pkg) {
+      navigation.navigate('LabBooking', {
+        selectedTests: [pkg],
+        source: 'upgrade_package',
+        upgradedFrom: fromTest?.name,
+      });
+    }
+  };
+
   // Proceed with multiple selected tests
   const handleProceedWithSelected = () => {
     const selectedList = labTests.filter((t) => selectedTestIds.includes(t.id));
@@ -95,6 +107,7 @@ const LabTestsScreen = ({ navigation }) => {
   const renderTestCard = ({ item }) => {
     const isSelected = selectedTestIds.includes(item.id);
     const isExpanded = expandedTestId === item.id;
+    const isSpecialPackage = item.id === 'pkg-6in1' || item.category === 'packages';
 
     return (
       <View style={[styles.testCard, isSelected && styles.testCardSelected]}>
@@ -171,6 +184,37 @@ const LabTestsScreen = ({ navigation }) => {
                 <Text style={styles.paramText}>{param}</Text>
               </View>
             ))}
+          </View>
+        )}
+
+        {/* ==========================================
+            SMART PACKAGE UPGRADE SUGGESTION (FOR INDIVIDUAL TESTS)
+        ========================================== */}
+        {!isSpecialPackage && (
+          <View style={styles.upgradeCard}>
+            <View style={styles.upgradeHeaderRow}>
+              <View style={styles.upgradeBadge}>
+                <Ionicons name="sparkles" size={12} color="#FFFFFF" />
+                <Text style={styles.upgradeBadgeText}>SMART VALUE UPGRADE</Text>
+              </View>
+              <Text style={styles.upgradePriceChip}>6 Tests for ₹666</Text>
+            </View>
+
+            <Text style={styles.upgradeHeading}>
+              Get <Text style={{ fontWeight: '900', color: colors.teal }}>{item.name.split('(')[0].trim()}</Text> + 5 Extra Vital Tests!
+            </Text>
+            <Text style={styles.upgradeSubText}>
+              Includes CBC, Lipid Profile, Thyroid, Sugar, Liver LFT & Kidney KFT (58 Parameters).
+            </Text>
+
+            <TouchableOpacity
+              style={styles.upgradeActionBtn}
+              activeOpacity={0.88}
+              onPress={() => handleUpgradeToPackage(item)}
+            >
+              <Ionicons name="arrow-up-circle" size={16} color="#FFFFFF" />
+              <Text style={styles.upgradeActionBtnText}>Upgrade to 6-in-1 Package @ ₹666</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -379,27 +423,48 @@ const LabTestsScreen = ({ navigation }) => {
           STICKY MULTI-SELECT BOTTOM BAR
       ================================================== */}
       {selectedTestIds.length > 0 && (
-        <View style={styles.multiSelectBottomBar}>
-          <View style={styles.bottomBarLeft}>
-            <Text style={styles.bottomCountText}>
-              {selectedTestIds.length} {selectedTestIds.length === 1 ? 'Test' : 'Tests'} Selected
-            </Text>
-            <Text style={styles.bottomTotalText}>₹{selectedTotalAmount}</Text>
-            {hasHospitalOnlyTest ? (
-              <Text style={styles.bottomNoticeHospital}>⚠️ Includes Lab / Hospital Visit Test</Text>
-            ) : (
-              <Text style={styles.bottomNoticeHome}>✓ Eligible for Free Home Collection</Text>
-            )}
-          </View>
+        <View style={styles.multiSelectBottomContainer}>
+          {/* SMART UPGRADE RECOMMENDATION STRIP (IF 2+ TESTS OR TOTAL >= 500) */}
+          {(selectedTestIds.length >= 2 || selectedTotalAmount >= 500) && (
+            <TouchableOpacity
+              style={styles.stickyUpgradeStrip}
+              onPress={() => handleUpgradeToPackage({ name: 'Selected Tests' })}
+              activeOpacity={0.88}
+            >
+              <View style={styles.stickyUpgradeLeft}>
+                <Ionicons name="sparkles" size={15} color="#D97706" />
+                <Text style={styles.stickyUpgradeText}>
+                  Upgrade to <Text style={{ fontWeight: '900', color: colors.teal }}>6-in-1 Master Package (₹666)</Text> — Save more!
+                </Text>
+              </View>
+              <View style={styles.stickyUpgradePill}>
+                <Text style={styles.stickyUpgradePillText}>Upgrade ›</Text>
+              </View>
+            </TouchableOpacity>
+          )}
 
-          <TouchableOpacity
-            style={styles.proceedButton}
-            activeOpacity={0.88}
-            onPress={handleProceedWithSelected}
-          >
-            <Text style={styles.proceedButtonText}>Proceed to Schedule</Text>
-            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-          </TouchableOpacity>
+          <View style={styles.multiSelectBottomBar}>
+            <View style={styles.bottomBarLeft}>
+              <Text style={styles.bottomCountText}>
+                {selectedTestIds.length} {selectedTestIds.length === 1 ? 'Test' : 'Tests'} Selected
+              </Text>
+              <Text style={styles.bottomTotalText}>₹{selectedTotalAmount}</Text>
+              {hasHospitalOnlyTest ? (
+                <Text style={styles.bottomNoticeHospital}>⚠️ Includes Lab / Hospital Visit Test</Text>
+              ) : (
+                <Text style={styles.bottomNoticeHome}>✓ Eligible for Free Home Collection</Text>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={styles.proceedButton}
+              activeOpacity={0.88}
+              onPress={handleProceedWithSelected}
+            >
+              <Text style={styles.proceedButtonText}>Proceed to Schedule</Text>
+              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         </View>
       )}
     </SafeAreaView>
@@ -746,6 +811,69 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
 
+  // SMART UPGRADE SUGGESTION CARD
+  upgradeCard: {
+    backgroundColor: '#F0FDFA',
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 10,
+    borderWidth: 1.5,
+    borderColor: '#99F6E4',
+  },
+  upgradeHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  upgradeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.teal,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 4,
+  },
+  upgradeBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  upgradePriceChip: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: colors.navyBlue,
+  },
+  upgradeHeading: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0F172A',
+    lineHeight: 17,
+  },
+  upgradeSubText: {
+    fontSize: 11,
+    color: colors.slate,
+    marginTop: 2,
+    marginBottom: 8,
+    lineHeight: 15,
+  },
+  upgradeActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.teal,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 6,
+  },
+  upgradeActionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -827,24 +955,59 @@ const styles = StyleSheet.create({
   },
 
   // MULTI-SELECT STICKY BOTTOM BAR
-  multiSelectBottomBar: {
+  multiSelectBottomContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+  },
+  stickyUpgradeStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#FDE68A',
+  },
+  stickyUpgradeLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  stickyUpgradeText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#92400E',
+    flex: 1,
+  },
+  stickyUpgradePill: {
+    backgroundColor: '#D97706',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  stickyUpgradePillText: {
+    color: '#FFFFFF',
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
+  multiSelectBottomBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
   },
   bottomBarLeft: {
     flex: 1,
