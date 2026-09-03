@@ -50,6 +50,42 @@ const DEFAULT_SAMPLE_APPOINTMENTS = [
     },
   },
   {
+    id: 'appt-demo-3',
+    tokenNumber: 'LAB-48',
+    type: 'Lab Test',
+    collectionMode: 'Home Sample Collection',
+    tests: [
+      { name: 'Complete Blood Count (CBC)' },
+      { name: 'HbA1c Glycated Hemoglobin' },
+      { name: 'Lipid Profile Comprehensive' },
+    ],
+    doctor: {
+      name: 'Unnathi Pathology & Diagnostics Hub',
+      specialty: 'Pathology • CBC, HbA1c & Lipid Screen',
+      qualification: 'NABL & ICMR Certified Diagnostics',
+      clinicName: 'Unnathi Pathology Lab',
+      clinicAddress: 'Doorstep Sample Collection (Kuvempunagar, Mysore)',
+      clinicArea: 'Kuvempunagar, Mysore',
+      phone: '+91 821 245 9902',
+      latitude: 12.2858,
+      longitude: 76.6341,
+      fee: 699,
+      image: 'https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&q=80&w=300',
+    },
+    day: 'Tomorrow',
+    date: 'Tomorrow, 07:30 AM',
+    time: '07:30 AM - 08:30 AM',
+    status: 'Confirmed',
+    paidAmount: 699,
+    paymentStatus: 'Paid Online via UPI',
+    patient: {
+      name: 'Ramesh (Self)',
+      age: '28',
+      gender: 'Male',
+      reason: 'Fasting Blood Sample Collection for Preventive Health',
+    },
+  },
+  {
     id: 'appt-demo-2',
     tokenNumber: 'RAD-109',
     type: 'Radiology',
@@ -92,7 +128,40 @@ const BookingsScreen = ({ navigation, route }) => {
       const apptJson = await AsyncStorage.getItem('@unnathi_appointments');
       const storedAppts = apptJson ? JSON.parse(apptJson) : [];
 
-      // 2. Load radiology bookings
+      // 2. Load lab bookings
+      const labJson = await AsyncStorage.getItem('@labBookings');
+      const storedLabs = labJson ? JSON.parse(labJson) : [];
+
+      const formattedLabs = storedLabs.map((l) => ({
+        id: l.id,
+        tokenNumber: l.tokenNumber || 'LAB-88',
+        type: 'Lab Test',
+        collectionMode: l.collectionMode || 'Home Sample Collection',
+        tests: l.tests || [],
+        doctor: {
+          name: l.labCenter?.name || 'Unnathi Pathology & Diagnostic Lab',
+          specialty: `Lab Tests • ${l.tests?.map((t) => t.name).join(', ') || 'Diagnostic Blood Profile'}`,
+          qualification: 'NABL Certified Diagnostics',
+          clinicName: l.labCenter?.name || 'Unnathi Pathology Hub',
+          clinicAddress: l.address || l.labCenter?.address || 'Doorstep Home Collection, Mysore',
+          clinicArea: l.labCenter?.area || 'Mysore',
+          phone: l.labCenter?.phone || '+91 821 245 9901',
+          latitude: 12.2858,
+          longitude: 76.6341,
+          fee: l.totalAmount || l.paidAmount || 499,
+          image: 'https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&q=80&w=300',
+        },
+        day: l.day || 'Scheduled',
+        date: l.date,
+        time: l.slot || l.time,
+        status: l.status || 'Confirmed',
+        paidAmount: l.totalAmount || l.paidAmount,
+        paymentStatus: l.paymentStatus || 'Paid Online',
+        patient: l.patient || { name: 'Ramesh (Self)', age: '28', gender: 'Male' },
+        details: l,
+      }));
+
+      // 3. Load radiology bookings
       const radJson = await AsyncStorage.getItem('@radiologyBookings');
       const storedRad = radJson ? JSON.parse(radJson) : [];
 
@@ -128,7 +197,7 @@ const BookingsScreen = ({ navigation, route }) => {
       }));
 
       // Combine and eliminate duplicates
-      const all = [...storedAppts, ...formattedRad];
+      const all = [...storedAppts, ...formattedLabs, ...formattedRad];
       if (all.length === 0) {
         all.push(...DEFAULT_SAMPLE_APPOINTMENTS);
       }
@@ -166,11 +235,21 @@ const BookingsScreen = ({ navigation, route }) => {
   // Tab Filtering
   const filteredAppointments = useMemo(() => {
     return appointments.filter((item) => {
+      const isLab =
+        item.type === 'Lab Test' ||
+        item.type === 'Diagnostic Lab Test' ||
+        item.type === 'Lab';
+      const isRad = item.type === 'Radiology';
+      const isDoc = !isLab && !isRad;
+
       if (selectedTab === 'Doctor Visits') {
-        return item.type !== 'Radiology';
+        return isDoc;
+      }
+      if (selectedTab === 'Lab Tests') {
+        return isLab;
       }
       if (selectedTab === 'Radiology Scans') {
-        return item.type === 'Radiology';
+        return isRad;
       }
       if (selectedTab === 'Confirmed') {
         return item.status === 'Confirmed' || item.status === 'Rescheduled';
@@ -186,7 +265,19 @@ const BookingsScreen = ({ navigation, route }) => {
   const counts = useMemo(() => {
     return {
       all: appointments.length,
-      doctors: appointments.filter((a) => a.type !== 'Radiology').length,
+      doctors: appointments.filter(
+        (a) =>
+          a.type !== 'Radiology' &&
+          a.type !== 'Lab Test' &&
+          a.type !== 'Diagnostic Lab Test' &&
+          a.type !== 'Lab'
+      ).length,
+      labTests: appointments.filter(
+        (a) =>
+          a.type === 'Lab Test' ||
+          a.type === 'Diagnostic Lab Test' ||
+          a.type === 'Lab'
+      ).length,
       radiology: appointments.filter((a) => a.type === 'Radiology').length,
       confirmed: appointments.filter((a) => a.status === 'Confirmed' || a.status === 'Rescheduled').length,
       cancelled: appointments.filter((a) => a.status === 'Cancelled').length,
@@ -241,6 +332,10 @@ const BookingsScreen = ({ navigation, route }) => {
   // Render Card
   const renderAppointmentCard = ({ item }) => {
     const isRadiology = item.type === 'Radiology';
+    const isLabTest =
+      item.type === 'Lab Test' ||
+      item.type === 'Diagnostic Lab Test' ||
+      item.type === 'Lab';
     const isCancelled = item.status === 'Cancelled';
     const isRescheduled = item.status === 'Rescheduled';
 
@@ -264,27 +359,50 @@ const BookingsScreen = ({ navigation, route }) => {
                 styles.typeBadge,
                 isRadiology
                   ? { backgroundColor: '#F3E8FF', borderColor: '#E9D5FF' }
+                  : isLabTest
+                  ? { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }
                   : { backgroundColor: '#EFF6FF', borderColor: '#DBEAFE' },
               ]}
             >
               <Ionicons
-                name={isRadiology ? 'radio' : 'person'}
+                name={isRadiology ? 'radio' : isLabTest ? 'flask' : 'person'}
                 size={12}
-                color={isRadiology ? '#7C3AED' : '#2563EB'}
+                color={isRadiology ? '#7C3AED' : isLabTest ? '#059669' : '#2563EB'}
               />
               <Text
                 style={[
                   styles.typeBadgeText,
-                  isRadiology ? { color: '#7C3AED' } : { color: '#2563EB' },
+                  isRadiology
+                    ? { color: '#7C3AED' }
+                    : isLabTest
+                    ? { color: '#059669' }
+                    : { color: '#2563EB' },
                 ]}
               >
-                {isRadiology ? 'Radiology Scan' : 'Doctor Consultation'}
+                {isRadiology
+                  ? 'Radiology Scan'
+                  : isLabTest
+                  ? 'Diagnostic Lab Test'
+                  : 'Doctor Consultation'}
               </Text>
             </View>
 
             {item.tokenNumber && (
               <View style={styles.tokenPill}>
                 <Text style={styles.tokenPillText}>#{item.tokenNumber}</Text>
+              </View>
+            )}
+
+            {isLabTest && item.collectionMode && (
+              <View style={styles.collectionModeBadge}>
+                <Ionicons
+                  name={item.collectionMode.includes('Home') ? 'home' : 'business'}
+                  size={10}
+                  color="#065F46"
+                />
+                <Text style={styles.collectionModeText}>
+                  {item.collectionMode.includes('Home') ? 'Home Collection' : 'Lab Visit'}
+                </Text>
               </View>
             )}
           </View>
@@ -333,6 +451,8 @@ const BookingsScreen = ({ navigation, route }) => {
                 item.doctor?.image ||
                 (isRadiology
                   ? 'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&q=80&w=300'
+                  : isLabTest
+                  ? 'https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&q=80&w=300'
                   : 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300'),
             }}
             style={styles.doctorAvatar}
@@ -352,9 +472,13 @@ const BookingsScreen = ({ navigation, route }) => {
             ) : null}
 
             <View style={styles.clinicLocationRow}>
-              <Ionicons name="location" size={13} color={colors.primary} />
+              <Ionicons
+                name={isLabTest && item.collectionMode?.includes('Home') ? 'home' : 'location'}
+                size={13}
+                color={colors.primary}
+              />
               <Text style={styles.clinicLocationText} numberOfLines={1}>
-                {item.doctor?.clinicName || item.doctor?.clinicArea || 'Mysore'}
+                {item.doctor?.clinicAddress || item.doctor?.clinicName || 'Mysore'}
               </Text>
             </View>
           </View>
@@ -365,7 +489,9 @@ const BookingsScreen = ({ navigation, route }) => {
           <View style={styles.scheduleBoxItem}>
             <Ionicons name="calendar" size={15} color={colors.primary} />
             <Text style={styles.scheduleLabel}>Date</Text>
-            <Text style={styles.scheduleValue}>{item.day ? `${item.day}, ` : ''}{item.date?.split(',')[0] || item.date}</Text>
+            <Text style={styles.scheduleValue}>
+              {item.day ? `${item.day}, ` : ''}{item.date?.split(',')[0] || item.date}
+            </Text>
           </View>
 
           <View style={styles.scheduleDivider} />
@@ -373,14 +499,16 @@ const BookingsScreen = ({ navigation, route }) => {
           <View style={styles.scheduleBoxItem}>
             <Ionicons name="time" size={15} color="#0284C7" />
             <Text style={styles.scheduleLabel}>Time Slot</Text>
-            <Text style={styles.scheduleValue}>{item.time || '04:30 PM'}</Text>
+            <Text style={styles.scheduleValue} numberOfLines={1}>
+              {item.time || '04:30 PM'}
+            </Text>
           </View>
 
           <View style={styles.scheduleDivider} />
 
           <View style={styles.scheduleBoxItem}>
             <Ionicons name="cash" size={15} color="#059669" />
-            <Text style={styles.scheduleLabel}>Fee</Text>
+            <Text style={styles.scheduleLabel}>Amount</Text>
             <Text
               style={[
                 styles.scheduleValue,
@@ -407,14 +535,33 @@ const BookingsScreen = ({ navigation, route }) => {
         <View style={styles.cardActionsRow}>
           {!isCancelled ? (
             <>
-              {/* GPS DIRECTIONS */}
+              {/* GPS DIRECTIONS / TECHNICIAN CONTACT */}
               <TouchableOpacity
                 style={styles.actionBtnSecondary}
-                onPress={() => handleOpenDirections(item)}
+                onPress={() => {
+                  if (isLabTest && item.collectionMode?.includes('Home')) {
+                    Alert.alert(
+                      'Lab Technician Assigned',
+                      `Technician Phlebotomist will arrive during ${item.time || 'your scheduled slot'} with sealed sterile sample collection kits.\n\nHelpline: +91 821 245 9902`,
+                      [
+                        { text: 'Call Lab Support', onPress: () => Linking.openURL('tel:18001089999') },
+                        { text: 'OK' },
+                      ]
+                    );
+                  } else {
+                    handleOpenDirections(item);
+                  }
+                }}
                 activeOpacity={0.8}
               >
-                <Ionicons name="navigate" size={14} color="#0284C7" />
-                <Text style={styles.actionBtnSecondaryText}>Directions</Text>
+                <Ionicons
+                  name={isLabTest && item.collectionMode?.includes('Home') ? 'call-outline' : 'navigate'}
+                  size={14}
+                  color="#0284C7"
+                />
+                <Text style={styles.actionBtnSecondaryText}>
+                  {isLabTest && item.collectionMode?.includes('Home') ? 'Technician Info' : 'Directions'}
+                </Text>
               </TouchableOpacity>
 
               {/* RESCHEDULE */}
@@ -447,7 +594,11 @@ const BookingsScreen = ({ navigation, route }) => {
             <>
               <TouchableOpacity
                 style={styles.rebookBtn}
-                onPress={() => navigation.navigate(isRadiology ? 'RadiologyLabs' : 'DoctorList')}
+                onPress={() =>
+                  navigation.navigate(
+                    isRadiology ? 'RadiologyLabs' : isLabTest ? 'LabTests' : 'DoctorList'
+                  )
+                }
                 activeOpacity={0.85}
               >
                 <Ionicons name="refresh" size={14} color="#FFFFFF" />
@@ -514,7 +665,7 @@ const BookingsScreen = ({ navigation, route }) => {
         </TouchableOpacity>
       </View>
 
-      {/* FILTER TABS */}
+      {/* FILTER TABS (WITH LAB TEST FILTER) */}
       <View style={styles.tabsContainer}>
         <FlatList
           horizontal
@@ -522,6 +673,7 @@ const BookingsScreen = ({ navigation, route }) => {
           data={[
             { key: 'All', label: `All (${counts.all})`, icon: 'apps' },
             { key: 'Doctor Visits', label: `Doctors (${counts.doctors})`, icon: 'person' },
+            { key: 'Lab Tests', label: `Lab Tests (${counts.labTests})`, icon: 'flask' },
             { key: 'Radiology Scans', label: `Scans (${counts.radiology})`, icon: 'radio' },
             { key: 'Confirmed', label: `Upcoming (${counts.confirmed})`, icon: 'checkmark-circle' },
             { key: 'Cancelled', label: `Cancelled (${counts.cancelled})`, icon: 'close-circle' },
@@ -554,30 +706,30 @@ const BookingsScreen = ({ navigation, route }) => {
       {filteredAppointments.length === 0 ? (
         <View style={styles.emptyContainer}>
           <View style={styles.emptyIconCircle}>
-            <Ionicons name="calendar-outline" size={54} color={colors.primary} />
+            <Ionicons name="flask-outline" size={54} color={colors.primary} />
           </View>
-          <Text style={styles.emptyTitle}>No Appointments Found</Text>
+          <Text style={styles.emptyTitle}>No Bookings Found</Text>
           <Text style={styles.emptySubtitle}>
-            You have no appointments under the "{selectedTab}" filter.
+            You have no appointments or tests scheduled under "{selectedTab}".
           </Text>
 
           <View style={styles.emptyActionRow}>
             <TouchableOpacity
               style={styles.emptyPrimaryBtn}
-              onPress={() => navigation.navigate('DoctorList')}
+              onPress={() => navigation.navigate('LabTests')}
               activeOpacity={0.88}
             >
-              <Ionicons name="person-add" size={16} color="#FFFFFF" />
-              <Text style={styles.emptyPrimaryBtnText}>Consult a Doctor</Text>
+              <Ionicons name="flask" size={16} color="#FFFFFF" />
+              <Text style={styles.emptyPrimaryBtnText}>Book Blood & Lab Tests</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.emptySecondaryBtn}
-              onPress={() => navigation.navigate('RadiologyLabs')}
+              onPress={() => navigation.navigate('DoctorList')}
               activeOpacity={0.88}
             >
-              <Ionicons name="radio" size={16} color={colors.primary} />
-              <Text style={styles.emptySecondaryBtnText}>Book Radiology Scan</Text>
+              <Ionicons name="person" size={16} color={colors.primary} />
+              <Text style={styles.emptySecondaryBtnText}>Consult a Doctor</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -716,6 +868,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexWrap: 'wrap',
   },
   typeBadge: {
     flexDirection: 'row',
@@ -741,6 +894,20 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     fontWeight: '800',
     color: '#475569',
+  },
+  collectionModeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 3,
+  },
+  collectionModeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#065F46',
   },
   statusPill: {
     flexDirection: 'row',
