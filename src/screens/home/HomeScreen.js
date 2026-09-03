@@ -235,6 +235,12 @@ const HomeScreen = ({ navigation }) => {
     );
   }, [selectedCityTab, locationSearchQuery]);
 
+  // Handle Search Execution
+  const handleSearchSubmit = () => {
+    if (!search.trim()) return;
+    navigation.navigate('GlobalSearch', { query: search.trim() });
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
