@@ -200,8 +200,8 @@ const HealthRecordsScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerBadge}>ABDM DIGITAL VAULT</Text>
-          <Text style={styles.headerTitle}>Health Records</Text>
+          <Text style={styles.headerBadge}>MEDIUNIFY DIGITAL VAULT</Text>
+          <Text style={styles.headerTitle}>MediUnify Health Records</Text>
         </View>
 
         <TouchableOpacity
@@ -236,7 +236,7 @@ const HealthRecordsScreen = ({ navigation }) => {
           <View style={styles.heroTopRow}>
             <View style={styles.abdmBadge}>
               <Ionicons name="shield-checkmark" size={12} color="#2DD4BF" />
-              <Text style={styles.abdmBadgeText}>ABHA LINKED • 256-BIT ENCRYPTED</Text>
+              <Text style={styles.abdmBadgeText}>MEDIUNIFY SECURE • 256-BIT ENCRYPTED</Text>
             </View>
             <View style={styles.heroRecordsPill}>
               <Text style={styles.heroRecordsPillText}>{allRecords.length} Documents</Text>
