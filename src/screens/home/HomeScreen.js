@@ -304,7 +304,7 @@ const HomeScreen = ({ navigation }) => {
           </View>
         </TouchableOpacity>
 
-        {/* RIGHT ACTIONS: WALLET & CART */}
+        {/* RIGHT ACTIONS: WALLET, NOTIFS & CART */}
         <View style={styles.topBarRight}>
           {/* WALLET BUTTON */}
           <TouchableOpacity
@@ -314,6 +314,16 @@ const HomeScreen = ({ navigation }) => {
           >
             <Ionicons name="wallet-outline" size={16} color={colors.primary} />
             <Text style={styles.walletPillText}>₹{walletBalance.toLocaleString('en-IN')}</Text>
+          </TouchableOpacity>
+
+          {/* NOTIFICATIONS BUTTON */}
+          <TouchableOpacity
+            style={styles.iconCircle}
+            onPress={() => navigation.navigate('Notifications')}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="notifications-outline" size={20} color="#1E293B" />
+            <View style={styles.notifBadgeDot} />
           </TouchableOpacity>
 
           {/* CART BUTTON */}
@@ -1315,6 +1325,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '800',
+  },
+  notifBadgeDot: {
+    position: 'absolute',
+    top: 6,
+    right: 7,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#DC2626',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
 
   toastCard: {
