@@ -10,7 +10,6 @@ import {
   Platform,
   StatusBar,
   Linking,
-  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -25,14 +24,11 @@ const ProfileScreen = ({ navigation, route }) => {
     bloodGroup: 'O+ Positive',
     age: '28 Yrs',
     gender: 'Male',
-    abhaId: '91-4521-8890-1234',
     emergencyContact: '+91 98450 11223 (Father)',
   });
 
   const [walletBalance, setWalletBalance] = useState(1250);
   const [carePoints, setCarePoints] = useState(500);
-  const [abhaModalVisible, setAbhaModalVisible] = useState(false);
-  const [copiedAbha, setCopiedAbha] = useState(false);
 
   // Load Saved Data
   useEffect(() => {
@@ -46,6 +42,10 @@ const ProfileScreen = ({ navigation, route }) => {
         name: route.params.updatedUser.name || prev.name,
         email: route.params.updatedUser.email || prev.email,
         phone: route.params.updatedUser.phone || prev.phone,
+        bloodGroup: route.params.updatedUser.bloodGroup || prev.bloodGroup,
+        gender: route.params.updatedUser.gender || prev.gender,
+        age: route.params.updatedUser.age || prev.age,
+        emergencyContact: route.params.updatedUser.emergencyContact || prev.emergencyContact,
       }));
     }
   }, [route?.params?.updatedUser]);
@@ -104,11 +104,6 @@ const ProfileScreen = ({ navigation, route }) => {
     );
   };
 
-  const copyAbhaToClipboard = () => {
-    setCopiedAbha(true);
-    setTimeout(() => setCopiedAbha(false), 2500);
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -152,20 +147,20 @@ const ProfileScreen = ({ navigation, route }) => {
           <View style={styles.heroCardBgOrb2} />
 
           <View style={styles.heroMainRow}>
-            {/* AVATAR WITH BADGE */}
+            {/* AVATAR WITH VERIFIED BADGE */}
             <View style={styles.avatarWrap}>
               <View style={styles.avatarCircle}>
                 <Ionicons name="person" size={38} color="#FFFFFF" />
               </View>
               <View style={styles.verifiedBadge}>
-                <Ionicons name="shield-checkmark" size={12} color="#FFFFFF" />
+                <Ionicons name="checkmark-sharp" size={12} color="#FFFFFF" />
               </View>
             </View>
 
             {/* USER INFO */}
             <View style={styles.heroInfoColumn}>
               <View style={styles.verifiedTagRow}>
-                <Text style={styles.verifiedTagText}>ABDM VERIFIED PATIENT</Text>
+                <Text style={styles.verifiedTagText}>VERIFIED PATIENT PROFILE</Text>
               </View>
               <Text style={styles.heroUserName} numberOfLines={1}>
                 {user.name}
@@ -197,7 +192,7 @@ const ProfileScreen = ({ navigation, route }) => {
             </View>
           </View>
 
-          {/* ACTION BUTTONS (EDIT & ABHA CARD) */}
+          {/* ACTION BUTTONS (EDIT PROFILE & SECURITY) */}
           <View style={styles.heroActionsRow}>
             <TouchableOpacity
               style={styles.heroPrimaryBtn}
@@ -210,11 +205,11 @@ const ProfileScreen = ({ navigation, route }) => {
 
             <TouchableOpacity
               style={styles.heroSecondaryBtn}
-              onPress={() => setAbhaModalVisible(true)}
+              onPress={() => navigation.navigate('EditProfile', { user, openPassword: true })}
               activeOpacity={0.88}
             >
-              <Ionicons name="qr-code-outline" size={16} color="#FFFFFF" />
-              <Text style={styles.heroSecondaryBtnText}>View ABHA Card</Text>
+              <Ionicons name="lock-closed-outline" size={16} color="#FFFFFF" />
+              <Text style={styles.heroSecondaryBtnText}>Change Password</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -513,88 +508,10 @@ const ProfileScreen = ({ navigation, route }) => {
         <View style={styles.footerSection}>
           <Text style={styles.footerVersion}>MediUnify Patient App • v2.4.0 (Build 120)</Text>
           <Text style={styles.footerCompliance}>
-            🔒 256-Bit Encrypted Health Records • ABDM & NABH Certified 🇮🇳
+            🔒 256-Bit Encrypted Health Records • NABH Certified 🇮🇳
           </Text>
         </View>
       </ScrollView>
-
-      {/* ==========================================
-          ABHA DIGITAL HEALTH ID MODAL
-      ========================================== */}
-      <Modal
-        visible={abhaModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setAbhaModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.abhaModalContent}>
-            <View style={styles.abhaModalHeader}>
-              <View>
-                <Text style={styles.abhaNationalTag}>NATIONAL HEALTH AUTHORITY 🇮🇳</Text>
-                <Text style={styles.abhaModalTitle}>Ayushman Bharat Health Card</Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => setAbhaModalVisible(false)}
-                style={styles.modalCloseBtn}
-              >
-                <Ionicons name="close" size={20} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-
-            {/* ABHA DIGITAL CARD */}
-            <View style={styles.abhaDigitalCard}>
-              <View style={styles.abhaCardTopRow}>
-                <View style={styles.abhaCardLogoBadge}>
-                  <Ionicons name="shield-checkmark" size={16} color="#FFFFFF" />
-                  <Text style={styles.abhaCardLogoText}>ABHA DIGITAL ID</Text>
-                </View>
-                <Text style={styles.abhaGovText}>Govt. of India</Text>
-              </View>
-
-              <View style={styles.abhaCardBody}>
-                <View style={styles.abhaCardAvatar}>
-                  <Ionicons name="person" size={32} color="#FFFFFF" />
-                </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.abhaCardHolderName}>{user.name}</Text>
-                  <Text style={styles.abhaCardNumberLabel}>ABHA Number:</Text>
-                  <Text style={styles.abhaCardNumberValue}>{user.abhaId}</Text>
-                </View>
-              </View>
-
-              <View style={styles.abhaCardBottomRow}>
-                <Text style={styles.abhaCardSubDetail}>Gender: {user.gender}</Text>
-                <Text style={styles.abhaCardSubDetail}>Blood: {user.bloodGroup}</Text>
-                <Text style={styles.abhaCardSubDetail}>Age: {user.age}</Text>
-              </View>
-            </View>
-
-            {/* COPY & SHARE ACTION BUTTONS */}
-            <TouchableOpacity
-              style={styles.abhaCopyBtn}
-              onPress={copyAbhaToClipboard}
-              activeOpacity={0.88}
-            >
-              <Ionicons
-                name={copiedAbha ? 'checkmark-circle' : 'copy-outline'}
-                size={18}
-                color="#FFFFFF"
-              />
-              <Text style={styles.abhaCopyBtnText}>
-                {copiedAbha ? 'ABHA ID Copied to Clipboard!' : 'Copy ABHA Number'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.abhaDoneBtn}
-              onPress={() => setAbhaModalVisible(false)}
-            >
-              <Text style={styles.abhaDoneBtnText}>Close Card</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };
@@ -992,149 +909,5 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginTop: 4,
     textAlign: 'center',
-  },
-
-  // ABHA MODAL
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  abhaModalContent: {
-    backgroundColor: '#FFFFFF',
-    width: '100%',
-    maxWidth: 380,
-    borderRadius: 24,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  abhaModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  abhaNationalTag: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#0F766E',
-    letterSpacing: 0.5,
-  },
-  abhaModalTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#0F172A',
-    marginTop: 2,
-  },
-  modalCloseBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  abhaDigitalCard: {
-    backgroundColor: '#0F172A',
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 16,
-  },
-  abhaCardTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-    paddingBottom: 10,
-  },
-  abhaCardLogoBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  abhaCardLogoText: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  abhaGovText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#94A3B8',
-  },
-  abhaCardBody: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 14,
-  },
-  abhaCardAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#334155',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#0F766E',
-  },
-  abhaCardHolderName: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  abhaCardNumberLabel: {
-    fontSize: 10,
-    color: '#94A3B8',
-    marginTop: 4,
-  },
-  abhaCardNumberValue: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#2DD4BF',
-    letterSpacing: 0.8,
-  },
-  abhaCardBottomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    paddingTop: 10,
-  },
-  abhaCardSubDetail: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#CBD5E1',
-  },
-  abhaCopyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0F766E',
-    paddingVertical: 12,
-    borderRadius: 14,
-    gap: 8,
-  },
-  abhaCopyBtnText: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  abhaDoneBtn: {
-    alignItems: 'center',
-    paddingVertical: 12,
-    marginTop: 4,
-  },
-  abhaDoneBtnText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#64748B',
   },
 });
