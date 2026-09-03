@@ -260,7 +260,7 @@ const RadiologyLabsScreen = ({ navigation }) => {
           <View style={styles.heroContent}>
             <View style={styles.heroTag}>
               <Ionicons name="sparkles" size={12} color="#FFFFFF" />
-              <Text style={styles.heroTagText}>UNNATHI RADIOLOGY NETWORK</Text>
+              <Text style={styles.heroTagText}>MEDIUNIFY RADIOLOGY NETWORK</Text>
             </View>
             <Text style={styles.heroTitle}>Book Scans with Top Diagnostic Centers</Text>
             <Text style={styles.heroDesc}>

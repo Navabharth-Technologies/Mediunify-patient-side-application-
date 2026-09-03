@@ -360,7 +360,7 @@ const ProfileScreen = ({ navigation, route }) => {
               <Ionicons name="wallet-outline" size={20} color="#059669" />
             </View>
             <View style={styles.itemTextWrap}>
-              <Text style={styles.itemTitle}>Unnathi Health Wallet</Text>
+              <Text style={styles.itemTitle}>MediUnify Health Wallet</Text>
               <Text style={styles.itemSubtitle}>Add money, transfer & instant cashback</Text>
             </View>
             <View style={[styles.badgePill, { backgroundColor: '#D1FAE5' }]}>

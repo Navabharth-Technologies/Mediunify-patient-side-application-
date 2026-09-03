@@ -188,7 +188,7 @@ const RadiologyOrderSuccessScreen = ({ route, navigation }) => {
           <View style={styles.guidelineBulletRow}>
             <Ionicons name="checkmark-circle" size={15} color={colors.primary} />
             <Text style={styles.guidelineText}>
-              Digital report & high-resolution DICOM images will be delivered on your Unnathi OneCare app.
+              Digital report & high-resolution DICOM images will be delivered on your MediUnify app.
             </Text>
           </View>
         </View>

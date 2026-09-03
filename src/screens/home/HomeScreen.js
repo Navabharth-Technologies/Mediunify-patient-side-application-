@@ -1200,7 +1200,7 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>MediUnnathi Care Wallet</Text>
+              <Text style={styles.modalTitle}>MediUnify Care Wallet</Text>
               <TouchableOpacity onPress={() => setWalletModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#64748B" />
               </TouchableOpacity>

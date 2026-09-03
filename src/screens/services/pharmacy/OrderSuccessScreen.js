@@ -63,7 +63,7 @@ const OrderSuccessScreen = ({ navigation, route }) => {
 
         <Text style={styles.successHeading}>Order Placed Successfully! 🎉</Text>
         <Text style={styles.successSub}>
-          Thank you for choosing Unnathi Healthcare. Your pharmacy order is confirmed and being prepared for dispatch.
+          Thank you for choosing MediUnify. Your pharmacy order is confirmed and being prepared for dispatch.
         </Text>
 
         {/* ORDER ID & ESTIMATED ARRIVAL BANNER */}
@@ -166,7 +166,7 @@ const OrderSuccessScreen = ({ navigation, route }) => {
         <View style={styles.supportCard}>
           <Ionicons name="headset-outline" size={20} color={colors.primary} />
           <Text style={styles.supportText}>
-            Need help with this order? Call our 24/7 Helpline at 1800-UNNATHI.
+            Need help with this order? Call our 24/7 Helpline at 1800-MEDIUNIFY.
           </Text>
         </View>
 

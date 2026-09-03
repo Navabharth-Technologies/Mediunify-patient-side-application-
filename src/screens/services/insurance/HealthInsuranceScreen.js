@@ -68,7 +68,7 @@ const HealthInsuranceScreen = ({ navigation }) => {
 
   const handleWhatsAppEnquiry = () => {
     const url = `whatsapp://send?phone=+919876543210&text=${encodeURIComponent(
-      'Hi Unnathi Healthcare Insurance Desk! I would like to get a quote and enquiry for Health Insurance plans.'
+      'Hi MediUnify Healthcare Insurance Desk! I would like to get a quote and enquiry for Health Insurance plans.'
     )}`;
     Linking.openURL(url).catch(() => {
       Alert.alert('WhatsApp', 'Could not open WhatsApp. Please call our toll-free number.');
@@ -187,7 +187,7 @@ const HealthInsuranceScreen = ({ navigation }) => {
 
   const handleCompletePurchase = async () => {
     try {
-      const policyId = `POL-UNNATHI-${Math.floor(100000 + Math.random() * 900000)}`;
+      const policyId = `POL-MEDI-${Math.floor(100000 + Math.random() * 900000)}`;
       const policyObj = {
         id: policyId,
         policyNumber: policyId,

@@ -24,7 +24,7 @@ const DELIVERY_SLOTS = [
     id: 'express',
     title: '⚡ Express Delivery',
     time: '30 - 45 mins',
-    desc: 'Instant delivery from nearest Unnathi partner pharmacy',
+    desc: 'Instant delivery from nearest MediUnify partner pharmacy',
     fee: 'FREE',
   },
   {
@@ -78,7 +78,7 @@ const SAMPLE_PRESCRIPTIONS = [
   {
     id: 'rx-1',
     doctor: 'Dr. Anita Sharma (MBBS, MD)',
-    hospital: 'Unnathi Multi-Speciality Clinic',
+    hospital: 'MediUnify Multi-Speciality Clinic',
     date: '28 Aug 2026',
     meds: 'Amoxicillin 625mg, Paracetamol 500mg',
   },

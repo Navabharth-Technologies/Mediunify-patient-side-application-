@@ -98,7 +98,7 @@ const MyOrdersScreen = ({ navigation }) => {
         {
           id: item.id,
           name: item.name,
-          brand: item.brand || 'Unnathi Care',
+          brand: item.brand || 'MediUnify Care',
           price: item.price,
           category: item.category || 'Medicines',
         },
@@ -173,7 +173,7 @@ const MyOrdersScreen = ({ navigation }) => {
       items: returnedItems,
       refundMethod:
         refundMethod === 'WALLET'
-          ? 'Instant MediUnnathi Wallet'
+          ? 'Instant MediUnify Wallet'
           : 'Original Bank / Payment Source',
       refundAmount: orderToReturn.total,
     });
@@ -183,7 +183,7 @@ const MyOrdersScreen = ({ navigation }) => {
     Alert.alert(
       'Return Request Submitted! 🔄',
       `Your return request for Order #${orderToReturn.id} has been accepted.\n\nDoorstep pickup will be completed within 24-48 hours. Refund of ₹${orderToReturn.total} will be credited to your ${
-        refundMethod === 'WALLET' ? 'MediUnnathi Wallet' : 'Original Bank Account'
+        refundMethod === 'WALLET' ? 'MediUnify Wallet' : 'Original Bank Account'
       } upon inspection.`,
       [{ text: 'Great, Got it!' }]
     );
@@ -590,7 +590,7 @@ const MyOrdersScreen = ({ navigation }) => {
                       refundMethod === 'WALLET' && styles.refundTitleSelected,
                     ]}
                   >
-                    MediUnnathi Wallet
+                    MediUnify Wallet
                   </Text>
                   <Text style={styles.refundSubtitle}>Instant Credit • Use anytime</Text>
                 </TouchableOpacity>

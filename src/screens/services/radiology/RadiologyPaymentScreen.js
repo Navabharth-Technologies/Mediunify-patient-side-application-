@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import { useCart } from '../../../context/CartContext';
 
-const PROMO_CHIPS = ['UNNATHI20', 'HEALTH50'];
+const PROMO_CHIPS = ['MEDI20', 'HEALTH50'];
 
 const UPI_APPS = [
   { id: 'gpay', name: 'Google Pay', icon: 'logo-google', color: '#4285F4' },
@@ -66,15 +66,15 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
   // Handle Apply Coupon
   const handleApplyCoupon = (codeToApply) => {
     const code = (codeToApply || couponCode).trim().toUpperCase();
-    if (code === 'UNNATHI20') {
-      setAppliedCoupon({ code: 'UNNATHI20', percent: 20 });
+    if (code === 'MEDI20') {
+      setAppliedCoupon({ code: 'MEDI20', percent: 20 });
       setCouponMessage({ type: 'success', text: '20% Extra Diagnostic Discount Applied!' });
     } else if (code === 'HEALTH50') {
       setAppliedCoupon({ code: 'HEALTH50', amount: 50 });
       setCouponMessage({ type: 'success', text: 'Flat ₹50 Promo Discount Applied!' });
     } else {
       setAppliedCoupon(null);
-      setCouponMessage({ type: 'error', text: 'Invalid promo code. Try UNNATHI20 or HEALTH50' });
+      setCouponMessage({ type: 'error', text: 'Invalid promo code. Try MEDI20 or HEALTH50' });
     }
   };
 
@@ -267,7 +267,7 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
               <View style={styles.couponInputRow}>
                 <TextInput
                   style={styles.couponInput}
-                  placeholder="Enter Promo Code (e.g. UNNATHI20)"
+                  placeholder="Enter Promo Code (e.g. MEDI20)"
                   placeholderTextColor="#94A3B8"
                   autoCapitalize="characters"
                   value={couponCode}

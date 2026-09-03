@@ -108,7 +108,7 @@ const WalletScreen = ({ navigation }) => {
     await AsyncStorage.setItem('@unnathi_wallet_transactions', JSON.stringify(updatedTxList));
 
     setTopUpModalVisible(false);
-    Alert.alert('Top-Up Successful! 💳', `₹${num.toLocaleString('en-IN')} has been added to your Unnathi Wallet.`);
+    Alert.alert('Top-Up Successful! 💳', `₹${num.toLocaleString('en-IN')} has been added to your MediUnify Wallet.`);
   };
 
   return (
@@ -126,7 +126,7 @@ const WalletScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Unnathi Health Wallet</Text>
+          <Text style={styles.headerTitle}>MediUnify Health Wallet</Text>
           <Text style={styles.headerSubtitle}>
             Cashback, Care Points & Instant Payments
           </Text>

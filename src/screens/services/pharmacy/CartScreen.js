@@ -20,7 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../../theme/colors';
 import { useCart } from '../../../context/CartContext';
 
-const PROMO_CHIPS = ['UNNATHI20', 'HEALTH50', 'FIRSTFREE'];
+const PROMO_CHIPS = ['MEDI20', 'HEALTH50', 'FIRSTFREE'];
 
 const PAYMENT_METHODS = [
   {
@@ -325,7 +325,7 @@ const CartScreen = ({ navigation, route }) => {
         type: 'Radiology',
         tests: [...labCart],
         lab: {
-          name: labCart[0]?.labName || 'Unnathi Diagnostic & Imaging Center',
+          name: labCart[0]?.labName || 'MediUnify Diagnostic & Imaging Center',
           area: 'Mysore',
           address: 'No. 24, Diagnostic Complex, Kuvempunagar, Mysore',
         },
@@ -667,7 +667,7 @@ const CartScreen = ({ navigation, route }) => {
                   <View style={styles.couponInputRow}>
                     <TextInput
                       style={styles.couponInput}
-                      placeholder="Enter code (e.g. UNNATHI20)"
+                      placeholder="Enter code (e.g. MEDI20)"
                       placeholderTextColor="#94A3B8"
                       value={couponInput}
                       onChangeText={setCouponInput}
@@ -894,7 +894,7 @@ const CartScreen = ({ navigation, route }) => {
                       <Ionicons name="location" size={16} color="#0284C7" />
                       <View style={{ flex: 1, marginLeft: 8 }}>
                         <Text style={styles.hospitalCenterName}>
-                          {labCart[0]?.labName || 'Unnathi Diagnostic & Imaging Center'}
+                          {labCart[0]?.labName || 'MediUnify Diagnostic & Imaging Center'}
                         </Text>
                         <Text style={styles.hospitalCenterArea}>
                           {labCart[0]?.labArea || 'Kuvempunagar, Mysore'} • On-site Appointment

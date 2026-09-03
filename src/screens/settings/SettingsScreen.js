@@ -71,7 +71,7 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout from Unnathi Healthcare?', [
+    Alert.alert('Logout', 'Are you sure you want to logout from MediUnify?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Logout',
@@ -265,10 +265,10 @@ const SettingsScreen = ({ navigation }) => {
           onPress={handleLogout}
         >
           <Ionicons name="log-out-outline" size={20} color="#E53935" />
-          <Text style={styles.logoutText}>Log Out of Unnathi Care</Text>
+          <Text style={styles.logoutText}>Log Out of MediUnify Care</Text>
         </TouchableOpacity>
 
-        <Text style={styles.appVersion}>Unnathi OneCare Healthcare App • v2.4.0 (Build 418)</Text>
+        <Text style={styles.appVersion}>MediUnify Healthcare App • v2.4.0 (Build 418)</Text>
 
         <View style={{ height: 40 }} />
       </ScrollView>

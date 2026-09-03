@@ -1,4 +1,4 @@
-export const APP_NAME = 'Unnathi OneCare';
+export const APP_NAME = 'MediUnify';
 
 export const DEMO_OTP = '123456';
 

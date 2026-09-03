@@ -51,7 +51,7 @@ const REFERRAL_FRIENDS = [
 ];
 
 const ReferEarnScreen = ({ navigation }) => {
-  const [referralCode, setReferralCode] = useState('UNNATHI250');
+  const [referralCode, setReferralCode] = useState('MEDI250');
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -80,7 +80,7 @@ const ReferEarnScreen = ({ navigation }) => {
   };
 
   const handleShareWhatsApp = () => {
-    const message = `Hey! Download the Unnathi Healthcare App for Doctor Consultations, 3T MRI Scans, Surgeries & Medicines in Mysore. Use my referral code "${referralCode}" to get an instant ₹250 OFF on your first booking! 🩺✨`;
+    const message = `Hey! Download the MediUnify App for Doctor Consultations, 3T MRI Scans, Surgeries & Medicines. Use my referral code "${referralCode}" to get an instant ₹250 OFF on your first booking! 🩺✨`;
     const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
     Linking.openURL(url).catch(() => {
       handleNativeShare();
@@ -90,8 +90,8 @@ const ReferEarnScreen = ({ navigation }) => {
   const handleNativeShare = async () => {
     try {
       await Share.share({
-        message: `Use my invite code "${referralCode}" on Unnathi Healthcare App to get ₹250 OFF on Doctor visits, Lab tests & Medicines! Download now.`,
-        title: 'Join Unnathi Healthcare',
+        message: `Use my invite code "${referralCode}" on MediUnify App to get ₹250 OFF on Doctor visits, Lab tests & Medicines! Download now.`,
+        title: 'Join MediUnify',
       });
     } catch (error) {
       console.log('Error sharing:', error);
@@ -228,7 +228,7 @@ const ReferEarnScreen = ({ navigation }) => {
             <View style={styles.stepContent}>
               <Text style={styles.stepHeading}>You Get ₹250 in Your Wallet</Text>
               <Text style={styles.stepDesc}>
-                ₹250 Health Cash is instantly credited to your Unnathi Wallet once their booking is completed.
+                ₹250 Health Cash is instantly credited to your MediUnify Wallet once their booking is completed.
               </Text>
             </View>
           </View>

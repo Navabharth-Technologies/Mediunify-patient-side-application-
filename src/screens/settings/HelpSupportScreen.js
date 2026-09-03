@@ -55,12 +55,12 @@ const HelpSupportScreen = ({ navigation }) => {
 
   const handleCallSupport = () => {
     Linking.openURL('tel:18008662844').catch(() => {
-      Alert.alert('Helpline', 'Call 24/7 Toll-Free: 1800-UNNATHI (1800-866-2844)');
+      Alert.alert('Helpline', 'Call 24/7 Toll-Free: 1800-MEDIUNIFY (1800-866-2844)');
     });
   };
 
   const handleWhatsAppSupport = () => {
-    Linking.openURL('https://wa.me/919876543210?text=Hi%20Unnathi%20Support,%20I%20need%20help%20with%20my%20healthcare%20account.').catch(() => {
+    Linking.openURL('https://wa.me/919876543210?text=Hi%20MediUnify%20Support,%20I%20need%20help%20with%20my%20healthcare%20account.').catch(() => {
       Alert.alert('WhatsApp Support', 'WhatsApp Helpline: +91 98765 43210');
     });
   };

@@ -25,7 +25,7 @@ const DEFAULT_TRANSACTIONS = [
     service: 'Radiology Scan',
     serviceType: 'radiology',
     title: '3.0T MRI Brain (Plain & Contrast)',
-    facility: 'Unnathi Advanced Diagnostics & 3T MRI Centre',
+    facility: 'MediUnify Advanced Diagnostics & 3T MRI Centre',
     facilityArea: 'Kuvempunagar, Mysore',
     date: 'Today, 02:45 PM',
     amount: 3200,
@@ -45,7 +45,7 @@ const DEFAULT_TRANSACTIONS = [
     service: 'Video Consultation',
     serviceType: 'consultation',
     title: 'Dr. Ananya Rao • General Physician',
-    facility: 'Unnathi TeleHealth Network',
+    facility: 'MediUnify TeleHealth Network',
     facilityArea: 'Online HD Video Room',
     date: 'Yesterday, 04:30 PM',
     amount: 450,
@@ -65,7 +65,7 @@ const DEFAULT_TRANSACTIONS = [
     service: 'Diagnostic Lab Test',
     serviceType: 'lab',
     title: 'CBC with ESR + Thyroid Profile Total',
-    facility: 'Unnathi Central Pathology (Home Collection)',
+    facility: 'MediUnify Central Pathology (Home Collection)',
     facilityArea: 'Doorstep Phlebotomist Visit',
     date: '28 Aug 2026, 08:00 AM',
     amount: 748,
@@ -106,7 +106,7 @@ const DEFAULT_TRANSACTIONS = [
     service: 'Pharmacy & Medicines',
     serviceType: 'pharmacy',
     title: 'Prescription Refill & Wellness Items',
-    facility: 'Unnathi Express Pharmacy',
+    facility: 'MediUnify Express Pharmacy',
     facilityArea: 'Express 45-Min Delivery',
     date: '22 Aug 2026, 11:30 AM',
     amount: 385,
@@ -127,8 +127,8 @@ const DEFAULT_TRANSACTIONS = [
     refId: 'LAB-881920',
     service: 'Full Body Health Package',
     serviceType: 'lab',
-    title: 'Unnathi Executive Full Body Package (68 Tests)',
-    facility: 'Unnathi Central Pathology & Diagnostic Center',
+    title: 'MediUnify Executive Full Body Package (68 Tests)',
+    facility: 'MediUnify Central Pathology & Diagnostic Center',
     facilityArea: 'Kuvempunagar, Mysore',
     date: '18 Aug 2026, 07:30 AM',
     amount: 1299,
@@ -281,7 +281,7 @@ const TransactionHistoryScreen = ({ navigation }) => {
   const handleShareReceipt = async (txn) => {
     try {
       await Share.share({
-        message: `UNNATHI HEALTHCARE PAYMENT RECEIPT\n--------------------------------\nTransaction ID: ${txn.id}\nBooking Ref: ${txn.refId}\nService: ${txn.service}\nTitle: ${txn.title}\nFacility: ${txn.facility}\nAmount Paid: ₹${txn.amount}\nPayment Mode: ${txn.paymentMode}\nDate: ${txn.date}\nStatus: ${txn.status}\n--------------------------------\nThank you for choosing Unnathi Healthcare.`,
+        message: `MEDIUNIFY HEALTHCARE PAYMENT RECEIPT\n--------------------------------\nTransaction ID: ${txn.id}\nBooking Ref: ${txn.refId}\nService: ${txn.service}\nTitle: ${txn.title}\nFacility: ${txn.facility}\nAmount Paid: ₹${txn.amount}\nPayment Mode: ${txn.paymentMode}\nDate: ${txn.date}\nStatus: ${txn.status}\n--------------------------------\nThank you for choosing MediUnify Healthcare.`,
       });
     } catch (error) {
       console.log('Share error:', error);

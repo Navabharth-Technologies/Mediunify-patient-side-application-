@@ -75,7 +75,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
   }
 
   const doctor = appointment.doctor || {};
-  const clinicName = doctor.clinicName || 'Unnathi Multispeciality Clinic';
+  const clinicName = doctor.clinicName || 'MediUnify Multispeciality Clinic';
   const clinicAddress =
     doctor.clinicAddress ||
     'No. 24, 5th Cross, Near Vishwamanava Double Road, Kuvempunagar, Mysore - 570023';
@@ -176,7 +176,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
 
               Alert.alert(
                 'Appointment Cancelled',
-                `Your appointment has been cancelled successfully.\n\nFee refund (₹${appointment.paidAmount || doctor.fee || 500}) has been initiated to your Unnathi Wallet.`
+                `Your appointment has been cancelled successfully.\n\nFee refund (₹${appointment.paidAmount || doctor.fee || 500}) has been initiated to your MediUnify Wallet.`
               );
             } catch (err) {
               setIsCancelling(false);

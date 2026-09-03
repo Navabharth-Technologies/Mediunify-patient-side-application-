@@ -267,7 +267,7 @@ const VideoConsultationScreen = ({ navigation }) => {
         <View style={styles.heroContent}>
           <View style={styles.heroTag}>
             <Ionicons name="sparkles" size={12} color="#FFFFFF" />
-            <Text style={styles.heroTagText}>UNNATHI TELEHEALTH</Text>
+            <Text style={styles.heroTagText}>MEDIUNIFY TELEHEALTH</Text>
           </View>
           <Text style={styles.heroTitle}>Connect with Specialist in 15 Mins</Text>
           <Text style={styles.heroDesc}>

@@ -252,7 +252,7 @@ const PharmacyScreen = ({ navigation }) => {
               <Text style={styles.promoBadgeText}>FLASH DEAL</Text>
             </View>
             <Text style={styles.promoHeading}>Flat 20% OFF</Text>
-            <Text style={styles.promoDesc}>Use coupon code: UNNATHI20</Text>
+            <Text style={styles.promoDesc}>Use coupon code: MEDI20</Text>
             <Text style={styles.promoSub}>⚡ Express 30-45 mins delivery to your doorstep</Text>
           </View>
           <View style={styles.promoIconBg}>
