@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   StatusBar,
   Linking,
   Platform,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +24,8 @@ const DEFAULT_SAMPLE_APPOINTMENTS = [
     doctor: {
       name: 'Dr. Ananya Rao',
       specialty: 'General Physician',
+      qualification: 'MBBS, MD - General Medicine',
+      experienceYears: '12',
       clinicName: 'Unnathi Multispeciality Clinic',
       clinicAddress: 'No. 24, 5th Cross, Near Vishwamanava Double Road, Kuvempunagar, Mysore - 570023',
       clinicArea: 'Kuvempunagar, Mysore',
@@ -31,6 +34,7 @@ const DEFAULT_SAMPLE_APPOINTMENTS = [
       longitude: 76.6341,
       distance: '0.8 km away',
       fee: 500,
+      image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300',
     },
     day: 'Today',
     date: 'Today, 04:30 PM',
@@ -39,10 +43,41 @@ const DEFAULT_SAMPLE_APPOINTMENTS = [
     paidAmount: 500,
     paymentStatus: 'Pay at Clinic Reception',
     patient: {
-      name: 'User',
+      name: 'Ramesh (Self)',
       age: '28',
       gender: 'Male',
       reason: 'Regular Health Checkup & Fever Consultation',
+    },
+  },
+  {
+    id: 'appt-demo-2',
+    tokenNumber: 'RAD-109',
+    type: 'Radiology',
+    doctor: {
+      name: 'Unnathi Diagnostic & Imaging Center',
+      specialty: 'Radiology • 3T Brain MRI with Contrast',
+      qualification: 'NABL & NABH Accredited Center',
+      clinicName: 'Unnathi Diagnostic Center',
+      clinicAddress: 'No. 112, Kalidasa Road, Jayalakshmipuram, Mysore - 570012',
+      clinicArea: 'Jayalakshmipuram, Mysore',
+      phone: '+91 821 251 4400',
+      latitude: 12.3168,
+      longitude: 76.6321,
+      distance: '1.4 km away',
+      fee: 3499,
+      image: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&q=80&w=300',
+    },
+    day: 'Tomorrow',
+    date: 'Tomorrow, 10:00 AM',
+    time: '10:00 AM',
+    status: 'Confirmed',
+    paidAmount: 3499,
+    paymentStatus: 'Paid Online via UPI',
+    patient: {
+      name: 'Ramesh (Self)',
+      age: '28',
+      gender: 'Male',
+      reason: 'Doctor Prescribed Brain Imaging Scan',
     },
   },
 ];
@@ -66,12 +101,14 @@ const BookingsScreen = ({ navigation, route }) => {
         doctor: {
           name: r.lab?.name || 'Diagnostic Center',
           specialty: `Radiology • ${r.tests?.map((t) => t.categoryLabel || t.name).join(', ')}`,
+          qualification: 'NABL Accredited Center',
           clinicName: r.lab?.name || 'Diagnostic Center',
           clinicAddress: r.lab?.address || 'Mysore Diagnostic Hub',
           clinicArea: r.lab?.area || 'Mysore',
           phone: r.lab?.phone || '+91 821 245 9901',
           latitude: r.lab?.latitude || 12.2958,
           longitude: r.lab?.longitude || 76.6394,
+          image: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&q=80&w=300',
         },
         day: r.appointmentDate?.split(',')[0] || 'Scheduled',
         date: r.appointmentDate,
@@ -80,7 +117,14 @@ const BookingsScreen = ({ navigation, route }) => {
         type: 'Radiology',
         tokenNumber: r.tokenNumber,
         paidAmount: r.payment?.paidAmount,
+        paymentStatus: r.payment?.method ? `Paid via ${r.payment.method}` : 'Paid Online',
         details: r,
+        patient: {
+          name: r.patientDetails?.name || 'Self',
+          age: r.patientDetails?.age || '28',
+          gender: r.patientDetails?.gender || 'Male',
+          reason: 'Radiology Scan Investigation',
+        },
       }));
 
       // Combine and eliminate duplicates
@@ -119,267 +163,421 @@ const BookingsScreen = ({ navigation, route }) => {
     return unsubscribe;
   }, [navigation]);
 
-  const filteredAppointments = appointments.filter((item) => {
-    if (selectedTab === 'Radiology Scans') {
-      return item.type === 'Radiology';
-    }
-    if (selectedTab === 'Doctor Visits') {
-      return item.type !== 'Radiology';
-    }
-    return true;
-  });
+  // Tab Filtering
+  const filteredAppointments = useMemo(() => {
+    return appointments.filter((item) => {
+      if (selectedTab === 'Doctor Visits') {
+        return item.type !== 'Radiology';
+      }
+      if (selectedTab === 'Radiology Scans') {
+        return item.type === 'Radiology';
+      }
+      if (selectedTab === 'Confirmed') {
+        return item.status === 'Confirmed' || item.status === 'Rescheduled';
+      }
+      if (selectedTab === 'Cancelled') {
+        return item.status === 'Cancelled';
+      }
+      return true; // 'All'
+    });
+  }, [appointments, selectedTab]);
 
-  const renderAppointment = ({ item }) => {
+  // Appointment Counters
+  const counts = useMemo(() => {
+    return {
+      all: appointments.length,
+      doctors: appointments.filter((a) => a.type !== 'Radiology').length,
+      radiology: appointments.filter((a) => a.type === 'Radiology').length,
+      confirmed: appointments.filter((a) => a.status === 'Confirmed' || a.status === 'Rescheduled').length,
+      cancelled: appointments.filter((a) => a.status === 'Cancelled').length,
+    };
+  }, [appointments]);
+
+  // Handle GPS Directions
+  const handleOpenDirections = (item) => {
+    const address = item.doctor?.clinicAddress || item.doctor?.clinicName || 'Mysore';
+    const lat = item.doctor?.latitude || 12.2858;
+    const lng = item.doctor?.longitude || 76.6341;
+    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&query=${encodeURIComponent(address)}`;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.open(mapsUrl, '_blank');
+    } else {
+      Linking.openURL(mapsUrl);
+    }
+  };
+
+  // Quick Cancel Appointment Handler
+  const handleQuickCancel = (item) => {
+    Alert.alert(
+      'Cancel Appointment?',
+      `Are you sure you want to cancel your appointment with ${item.doctor?.name}? Any paid fees will be refunded to your MediUnnathi Wallet.`,
+      [
+        { text: 'Keep Booking', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            const updated = appointments.map((a) =>
+              a.id === item.id ? { ...a, status: 'Cancelled' } : a
+            );
+            setAppointments(updated);
+            await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updated));
+
+            // Refund if paid
+            if (item.paidAmount) {
+              const curBalStr = await AsyncStorage.getItem('@unnathi_wallet_balance');
+              const curBal = parseInt(curBalStr, 10) || 1250;
+              const newBal = curBal + parseInt(item.paidAmount, 10);
+              await AsyncStorage.setItem('@unnathi_wallet_balance', newBal.toString());
+            }
+
+            Alert.alert('Appointment Cancelled', 'Your booking has been cancelled and refunded.');
+          },
+        },
+      ]
+    );
+  };
+
+  // Render Card
+  const renderAppointmentCard = ({ item }) => {
     const isRadiology = item.type === 'Radiology';
+    const isCancelled = item.status === 'Cancelled';
+    const isRescheduled = item.status === 'Rescheduled';
 
     return (
       <TouchableOpacity
-        style={styles.card}
-        activeOpacity={0.88}
+        style={[styles.card, isCancelled && styles.cardCancelled]}
+        activeOpacity={0.92}
         onPress={() => {
           if (isRadiology && item.details) {
-            navigation.navigate('RadiologyOrderSuccess', {
-              booking: item.details,
-            });
+            navigation.navigate('RadiologyOrderSuccess', { booking: item.details });
           } else {
-            navigation.navigate('BookingDetails', {
-              appointment: item,
-            });
+            navigation.navigate('BookingDetails', { appointment: item });
           }
         }}
       >
-        <View
-          style={[
-            styles.iconContainer,
-            isRadiology && { backgroundColor: colors.lightTeal },
-          ]}
-        >
-          <Ionicons
-            name={isRadiology ? 'scan-outline' : 'calendar-outline'}
-            size={26}
-            color={isRadiology ? colors.primary : '#1976D2'}
-          />
-        </View>
-
-        <View style={styles.info}>
-          {/* BADGE */}
-          <View style={styles.topBadgeRow}>
+        {/* CARD TOP BAR: TYPE, TOKEN & STATUS */}
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderLeft}>
             <View
               style={[
                 styles.typeBadge,
-                isRadiology && { backgroundColor: colors.lightTeal },
+                isRadiology
+                  ? { backgroundColor: '#F3E8FF', borderColor: '#E9D5FF' }
+                  : { backgroundColor: '#EFF6FF', borderColor: '#DBEAFE' },
               ]}
             >
+              <Ionicons
+                name={isRadiology ? 'radio' : 'person'}
+                size={12}
+                color={isRadiology ? '#7C3AED' : '#2563EB'}
+              />
               <Text
                 style={[
                   styles.typeBadgeText,
-                  isRadiology && { color: colors.primary },
+                  isRadiology ? { color: '#7C3AED' } : { color: '#2563EB' },
                 ]}
               >
-                {isRadiology ? 'RADIOLOGY SCAN' : 'DOCTOR APPOINTMENT'}
+                {isRadiology ? 'Radiology Scan' : 'Doctor Consultation'}
               </Text>
             </View>
+
             {item.tokenNumber && (
-              <View style={styles.tokenBadge}>
-                <Text style={styles.tokenBadgeText}>Token: {item.tokenNumber}</Text>
+              <View style={styles.tokenPill}>
+                <Text style={styles.tokenPillText}>#{item.tokenNumber}</Text>
               </View>
             )}
           </View>
 
-          <Text style={styles.doctorName}>{item.doctor?.name}</Text>
-          <Text style={styles.specialty} numberOfLines={1}>
-            {item.doctor?.specialty}
-          </Text>
-
-          {item.doctor?.clinicName ? (
-            <View style={styles.clinicRow}>
-              <Ionicons name="location-outline" size={13} color="#0284C7" />
-              <Text style={styles.clinicText} numberOfLines={1}>
-                {item.doctor.clinicName} • {item.doctor.clinicArea || 'Mysore'}
-              </Text>
-            </View>
-          ) : null}
-
-          <Text style={styles.date}>
-            <Ionicons name="time-outline" size={12} color="#78909C" /> {item.day ? `${item.day}, ` : ''}{item.date} • {item.time}
-          </Text>
-
-          <View style={styles.statusRow}>
-            <Ionicons
-              name={
-                item.status === 'Cancelled'
-                  ? 'close-circle'
-                  : item.status === 'Rescheduled'
-                  ? 'calendar'
-                  : 'checkmark-circle'
-              }
-              size={15}
-              color={
-                item.status === 'Cancelled'
-                  ? '#DC2626'
-                  : item.status === 'Rescheduled'
-                  ? colors.primary
-                  : '#2E7D32'
-              }
+          {/* STATUS PILL */}
+          <View
+            style={[
+              styles.statusPill,
+              isCancelled
+                ? styles.statusPillCancelled
+                : isRescheduled
+                ? styles.statusPillRescheduled
+                : styles.statusPillConfirmed,
+            ]}
+          >
+            <View
+              style={[
+                styles.statusDot,
+                isCancelled
+                  ? { backgroundColor: '#DC2626' }
+                  : isRescheduled
+                  ? { backgroundColor: colors.primary }
+                  : { backgroundColor: '#10B981' },
+              ]}
             />
             <Text
               style={[
-                styles.status,
-                item.status === 'Cancelled' && { color: '#DC2626' },
-                item.status === 'Rescheduled' && { color: colors.primary },
+                styles.statusPillText,
+                isCancelled
+                  ? { color: '#DC2626' }
+                  : isRescheduled
+                  ? { color: colors.primary }
+                  : { color: '#047857' },
               ]}
             >
               {item.status}
             </Text>
-            {item.paidAmount && (
-              <Text
-                style={[
-                  styles.paidAmountText,
-                  item.status === 'Cancelled' && { color: '#64748B', textDecorationLine: 'line-through' },
-                ]}
-              >
-                • ₹{item.paidAmount} {item.status === 'Cancelled' ? 'Refunded' : 'Paid'}
-              </Text>
-            )}
           </View>
+        </View>
 
-          <View style={styles.cardActionsRow}>
-            {item.status !== 'Cancelled' ? (
-              <>
-                <TouchableOpacity
-                  style={styles.cardDirectionBtn}
-                  onPress={() => {
-                    const address = item.doctor?.clinicAddress || item.doctor?.clinicName || 'Clinic, Mysore';
-                    const lat = item.doctor?.latitude || 12.2858;
-                    const lng = item.doctor?.longitude || 76.6341;
-                    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&query=${encodeURIComponent(address)}`;
-                    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-                      window.open(mapsUrl, '_blank');
-                    } else {
-                      Linking.openURL(mapsUrl);
-                    }
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="navigate" size={12} color="#0284C7" />
-                  <Text style={styles.cardDirectionText}>Directions</Text>
-                </TouchableOpacity>
+        {/* DOCTOR / CENTER INFO ROW */}
+        <View style={styles.doctorInfoRow}>
+          <Image
+            source={{
+              uri:
+                item.doctor?.image ||
+                (isRadiology
+                  ? 'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&q=80&w=300'
+                  : 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300'),
+            }}
+            style={styles.doctorAvatar}
+          />
 
-                <TouchableOpacity
-                  style={styles.cardRescheduleBtn}
-                  onPress={() => {
-                    if (isRadiology && item.details) {
-                      navigation.navigate('RadiologyOrderSuccess', {
-                        booking: item.details,
-                      });
-                    } else {
-                      navigation.navigate('BookingDetails', {
-                        appointment: item,
-                      });
-                    }
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="calendar-outline" size={12} color={colors.primary} />
-                  <Text style={styles.cardRescheduleText}>Reschedule / Cancel</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <TouchableOpacity
-                  style={[styles.cardDirectionBtn, { backgroundColor: colors.lightTeal }]}
-                  onPress={() => navigation.navigate('DoctorList')}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="refresh" size={12} color={colors.primary} />
-                  <Text style={[styles.cardDirectionText, { color: colors.primary }]}>Rebook</Text>
-                </TouchableOpacity>
+          <View style={styles.doctorDetailsWrap}>
+            <Text style={styles.doctorName} numberOfLines={1}>
+              {item.doctor?.name}
+            </Text>
+            <Text style={styles.doctorSpecialty} numberOfLines={1}>
+              {item.doctor?.specialty}
+            </Text>
+            {item.doctor?.qualification ? (
+              <Text style={styles.doctorQual} numberOfLines={1}>
+                {item.doctor.qualification}
+              </Text>
+            ) : null}
 
-                <TouchableOpacity
-                  style={styles.cardRescheduleBtn}
-                  onPress={() => {
-                    navigation.navigate('BookingDetails', {
-                      appointment: item,
-                    });
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="eye-outline" size={12} color="#64748B" />
-                  <Text style={[styles.cardRescheduleText, { color: '#64748B' }]}>View Details</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            <View style={styles.viewBadge}>
-              <Text style={styles.viewDetailsText}>Details ›</Text>
+            <View style={styles.clinicLocationRow}>
+              <Ionicons name="location" size={13} color={colors.primary} />
+              <Text style={styles.clinicLocationText} numberOfLines={1}>
+                {item.doctor?.clinicName || item.doctor?.clinicArea || 'Mysore'}
+              </Text>
             </View>
           </View>
         </View>
 
-        <Ionicons name="chevron-forward" size={18} color="#90A4AE" style={{ alignSelf: 'center' }} />
+        {/* SCHEDULED DATE & TIME HIGHLIGHT BOX */}
+        <View style={styles.scheduleBox}>
+          <View style={styles.scheduleBoxItem}>
+            <Ionicons name="calendar" size={15} color={colors.primary} />
+            <Text style={styles.scheduleLabel}>Date</Text>
+            <Text style={styles.scheduleValue}>{item.day ? `${item.day}, ` : ''}{item.date?.split(',')[0] || item.date}</Text>
+          </View>
+
+          <View style={styles.scheduleDivider} />
+
+          <View style={styles.scheduleBoxItem}>
+            <Ionicons name="time" size={15} color="#0284C7" />
+            <Text style={styles.scheduleLabel}>Time Slot</Text>
+            <Text style={styles.scheduleValue}>{item.time || '04:30 PM'}</Text>
+          </View>
+
+          <View style={styles.scheduleDivider} />
+
+          <View style={styles.scheduleBoxItem}>
+            <Ionicons name="cash" size={15} color="#059669" />
+            <Text style={styles.scheduleLabel}>Fee</Text>
+            <Text
+              style={[
+                styles.scheduleValue,
+                isCancelled && { textDecorationLine: 'line-through', color: '#94A3B8' },
+              ]}
+            >
+              ₹{item.paidAmount || item.doctor?.fee || 500}
+            </Text>
+          </View>
+        </View>
+
+        {/* PATIENT PROFILE CHIP */}
+        {item.patient?.name && (
+          <View style={styles.patientRow}>
+            <Ionicons name="person-circle-outline" size={15} color="#64748B" />
+            <Text style={styles.patientText}>
+              Patient: <Text style={{ fontWeight: '700', color: '#1E293B' }}>{item.patient.name}</Text>
+              {item.patient.gender ? ` • ${item.patient.gender}, ${item.patient.age || '28'} Yrs` : ''}
+            </Text>
+          </View>
+        )}
+
+        {/* ACTION BUTTONS */}
+        <View style={styles.cardActionsRow}>
+          {!isCancelled ? (
+            <>
+              {/* GPS DIRECTIONS */}
+              <TouchableOpacity
+                style={styles.actionBtnSecondary}
+                onPress={() => handleOpenDirections(item)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="navigate" size={14} color="#0284C7" />
+                <Text style={styles.actionBtnSecondaryText}>Directions</Text>
+              </TouchableOpacity>
+
+              {/* RESCHEDULE */}
+              <TouchableOpacity
+                style={styles.actionBtnSecondary}
+                onPress={() => {
+                  if (isRadiology && item.details) {
+                    navigation.navigate('RadiologyOrderSuccess', { booking: item.details });
+                  } else {
+                    navigation.navigate('BookingDetails', { appointment: item });
+                  }
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="calendar-outline" size={14} color={colors.primary} />
+                <Text style={[styles.actionBtnSecondaryText, { color: colors.primary }]}>Reschedule</Text>
+              </TouchableOpacity>
+
+              {/* CANCEL */}
+              <TouchableOpacity
+                style={styles.cancelMiniBtn}
+                onPress={() => handleQuickCancel(item)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close" size={14} color="#DC2626" />
+                <Text style={styles.cancelMiniBtnText}>Cancel</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity
+                style={styles.rebookBtn}
+                onPress={() => navigation.navigate(isRadiology ? 'RadiologyLabs' : 'DoctorList')}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="refresh" size={14} color="#FFFFFF" />
+                <Text style={styles.rebookBtnText}>Book Again</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionBtnSecondary}
+                onPress={() => navigation.navigate('BookingDetails', { appointment: item })}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="receipt-outline" size={14} color="#64748B" />
+                <Text style={styles.actionBtnSecondaryText}>View Summary</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {/* VIEW DETAILS */}
+          <TouchableOpacity
+            style={styles.detailsBtn}
+            onPress={() => {
+              if (isRadiology && item.details) {
+                navigation.navigate('RadiologyOrderSuccess', { booking: item.details });
+              } else {
+                navigation.navigate('BookingDetails', { appointment: item });
+              }
+            }}
+          >
+            <Text style={styles.detailsBtnText}>Details ›</Text>
+          </TouchableOpacity>
+        </View>
       </TouchableOpacity>
     );
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* HEADER */}
+      {/* TOP HEADER */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
           activeOpacity={0.8}
         >
-          <Ionicons name="arrow-back" size={22} color="#263238" />
+          <Ionicons name="arrow-back" size={20} color="#1E293B" />
         </TouchableOpacity>
 
-        <Text style={styles.title}>My Appointments</Text>
-        <View style={styles.headerSpace} />
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>My Appointments</Text>
+          <Text style={styles.headerSubtitle}>
+            {counts.all} Total • {counts.confirmed} Active
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={styles.newBookingBtn}
+          onPress={() => navigation.navigate('DoctorList')}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="add" size={16} color="#FFFFFF" />
+          <Text style={styles.newBookingBtnText}>Book</Text>
+        </TouchableOpacity>
       </View>
 
       {/* FILTER TABS */}
-      <View style={styles.tabBar}>
-        {['All', 'Radiology Scans', 'Doctor Visits'].map((tab) => {
-          const isSelected = selectedTab === tab;
-          return (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tabBtn, isSelected && styles.tabBtnActive]}
-              onPress={() => setSelectedTab(tab)}
-            >
-              <Text style={[styles.tabBtnText, isSelected && styles.tabBtnTextActive]}>
-                {tab}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+      <View style={styles.tabsContainer}>
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={[
+            { key: 'All', label: `All (${counts.all})`, icon: 'apps' },
+            { key: 'Doctor Visits', label: `Doctors (${counts.doctors})`, icon: 'person' },
+            { key: 'Radiology Scans', label: `Scans (${counts.radiology})`, icon: 'radio' },
+            { key: 'Confirmed', label: `Upcoming (${counts.confirmed})`, icon: 'checkmark-circle' },
+            { key: 'Cancelled', label: `Cancelled (${counts.cancelled})`, icon: 'close-circle' },
+          ]}
+          keyExtractor={(item) => item.key}
+          contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+          renderItem={({ item }) => {
+            const isSelected = selectedTab === item.key;
+            return (
+              <TouchableOpacity
+                style={[styles.filterTab, isSelected && styles.filterTabActive]}
+                onPress={() => setSelectedTab(item.key)}
+                activeOpacity={0.85}
+              >
+                <Ionicons
+                  name={item.icon}
+                  size={14}
+                  color={isSelected ? '#FFFFFF' : '#64748B'}
+                />
+                <Text style={[styles.filterTabText, isSelected && styles.filterTabTextActive]}>
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          }}
+        />
       </View>
 
+      {/* APPOINTMENTS LIST OR EMPTY STATE */}
       {filteredAppointments.length === 0 ? (
-        <View style={styles.empty}>
-          <Ionicons name="calendar-outline" size={60} color="#90A4AE" />
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyIconCircle}>
+            <Ionicons name="calendar-outline" size={54} color={colors.primary} />
+          </View>
           <Text style={styles.emptyTitle}>No Appointments Found</Text>
           <Text style={styles.emptySubtitle}>
-            Your scheduled scan appointments and doctor visits will appear here.
+            You have no appointments under the "{selectedTab}" filter.
           </Text>
 
           <View style={styles.emptyActionRow}>
             <TouchableOpacity
-              style={styles.findButton}
-              onPress={() => navigation.navigate('RadiologyLabs')}
+              style={styles.emptyPrimaryBtn}
+              onPress={() => navigation.navigate('DoctorList')}
+              activeOpacity={0.88}
             >
-              <Ionicons name="scan-outline" size={16} color="#FFFFFF" />
-              <Text style={styles.findButtonText}>Book Radiology Scan</Text>
+              <Ionicons name="person-add" size={16} color="#FFFFFF" />
+              <Text style={styles.emptyPrimaryBtnText}>Consult a Doctor</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.findButton, { backgroundColor: '#1976D2' }]}
-              onPress={() => navigation.navigate('DoctorList')}
+              style={styles.emptySecondaryBtn}
+              onPress={() => navigation.navigate('RadiologyLabs')}
+              activeOpacity={0.88}
             >
-              <Ionicons name="person-outline" size={16} color="#FFFFFF" />
-              <Text style={styles.findButtonText}>Find Doctor</Text>
+              <Ionicons name="radio" size={16} color={colors.primary} />
+              <Text style={styles.emptySecondaryBtnText}>Book Radiology Scan</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -387,8 +585,8 @@ const BookingsScreen = ({ navigation, route }) => {
         <FlatList
           data={filteredAppointments}
           keyExtractor={(item) => item.id}
-          renderItem={renderAppointment}
-          contentContainerStyle={styles.list}
+          renderItem={renderAppointmentCard}
+          contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
         />
       )}
@@ -397,274 +595,403 @@ const BookingsScreen = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
 
+  // HEADER
   header: {
-    height: 60,
-    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
-
   backButton: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: 12,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  title: {
-    fontSize: 17,
+  headerCenter: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  headerTitle: {
+    fontSize: 18,
     fontWeight: '800',
-    color: '#263238',
+    color: '#1E293B',
   },
-
-  headerSpace: {
-    width: 40,
+  headerSubtitle: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 1,
   },
-
-  tabBar: {
+  newBookingBtn: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    gap: 4,
+  },
+  newBookingBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+
+  // TABS
+  tabsContainer: {
     backgroundColor: '#FFFFFF',
-    gap: 8,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
-  tabBtn: {
-    paddingHorizontal: 14,
+  filterTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: '#F1F5F9',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  tabBtnActive: {
+  filterTabActive: {
     backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
-  tabBtnText: {
+  filterTabText: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.textSecondary,
+    color: '#475569',
   },
-  tabBtnTextActive: {
+  filterTabTextActive: {
     color: '#FFFFFF',
   },
 
-  list: {
+  // LIST CONTENT
+  listContent: {
     padding: 16,
     paddingBottom: 40,
   },
 
+  // CARD ARCHITECTURE
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
     elevation: 2,
   },
+  cardCancelled: {
+    backgroundColor: '#FAF5F5',
+    borderColor: '#FEE2E2',
+    opacity: 0.88,
+  },
 
-  iconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 14,
-    backgroundColor: '#E3F2FD',
+  // CARD HEADER
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: 12,
   },
-
-  info: {
-    flex: 1,
-    marginLeft: 12,
-    marginRight: 6,
-  },
-
-  topBadgeRow: {
+  cardHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 4,
   },
   typeBadge: {
-    backgroundColor: '#E3F2FD',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 4,
   },
   typeBadgeText: {
-    fontSize: 9,
+    fontSize: 10.5,
     fontWeight: '800',
-    color: '#1976D2',
-    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
-  tokenBadge: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  tokenBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#D97706',
-  },
-
-  doctorName: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#263238',
-  },
-
-  specialty: {
-    fontSize: 11,
-    color: colors.primary,
-    marginTop: 2,
-    fontWeight: '600',
-  },
-
-  date: {
-    fontSize: 11,
-    color: '#78909C',
-    marginTop: 5,
-  },
-
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 5,
-  },
-
-  status: {
-    color: '#2E7D32',
-    fontSize: 11,
-    fontWeight: '700',
-    marginLeft: 4,
-  },
-  paidAmountText: {
-    color: '#059669',
-    fontSize: 11,
-    fontWeight: '700',
-    marginLeft: 6,
-  },
-
-  clinicRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-  },
-  clinicText: {
-    fontSize: 11,
-    color: '#0284C7',
-    fontWeight: '600',
-  },
-
-  cardActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 8,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  cardDirectionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E0F2FE',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 8,
-    gap: 4,
-  },
-  cardDirectionText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0284C7',
-  },
-  cardRescheduleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.lightTeal,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 8,
-    gap: 4,
-  },
-  cardRescheduleText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  viewBadge: {
+  tokenPill: {
     backgroundColor: '#F1F5F9',
     paddingHorizontal: 7,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
-  viewDetailsText: {
+  tokenPillText: {
     fontSize: 10.5,
+    fontWeight: '800',
+    color: '#475569',
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 5,
+  },
+  statusPillConfirmed: {
+    backgroundColor: '#ECFDF5',
+  },
+  statusPillRescheduled: {
+    backgroundColor: colors.lightTeal,
+  },
+  statusPillCancelled: {
+    backgroundColor: '#FEF2F2',
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  // DOCTOR INFO ROW
+  doctorInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  doctorAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 16,
+    backgroundColor: '#E2E8F0',
+  },
+  doctorDetailsWrap: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  doctorName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  doctorSpecialty: {
+    fontSize: 12,
     fontWeight: '700',
+    color: colors.primary,
+    marginTop: 1,
+  },
+  doctorQual: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  clinicLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 3,
+  },
+  clinicLocationText: {
+    fontSize: 11.5,
     color: '#475569',
   },
 
-  empty: {
+  // SCHEDULE HIGHLIGHT BOX
+  scheduleBox: {
+    flexDirection: 'row',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    marginBottom: 10,
+  },
+  scheduleBoxItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  scheduleLabel: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginTop: 2,
+  },
+  scheduleValue: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginTop: 1,
+    textAlign: 'center',
+  },
+  scheduleDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: '#CBD5E1',
+  },
+
+  // PATIENT ROW
+  patientRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 6,
+    marginBottom: 12,
+  },
+  patientText: {
+    fontSize: 11.5,
+    color: '#475569',
+  },
+
+  // CARD ACTIONS ROW
+  cardActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 10,
+  },
+  actionBtnSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 4,
+  },
+  actionBtnSecondaryText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  cancelMiniBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 3,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+  },
+  cancelMiniBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  rebookBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  rebookBtnText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  detailsBtn: {
+    marginLeft: 'auto',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  detailsBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+
+  // EMPTY CONTAINER
+  emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 30,
   },
-
+  emptyIconCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: colors.lightTeal,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
   emptyTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#263238',
-    marginTop: 14,
+    color: '#1E293B',
   },
-
   emptySubtitle: {
-    fontSize: 12,
-    color: '#78909C',
+    fontSize: 13,
+    color: '#64748B',
     textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 17,
+    marginTop: 4,
+    marginBottom: 24,
+    lineHeight: 18,
   },
-
   emptyActionRow: {
-    flexDirection: 'row',
+    flexDirection: 'column',
+    width: '100%',
     gap: 10,
-    marginTop: 20,
   },
-  findButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
+  emptyPrimaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 13,
+    borderRadius: 12,
+    gap: 8,
   },
-
-  findButtonText: {
+  emptyPrimaryBtnText: {
     color: '#FFFFFF',
+    fontSize: 13.5,
     fontWeight: '800',
-    fontSize: 12,
+  },
+  emptySecondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.lightTeal,
+    paddingVertical: 13,
+    borderRadius: 12,
+    gap: 8,
+  },
+  emptySecondaryBtnText: {
+    color: colors.primary,
+    fontSize: 13.5,
+    fontWeight: '800',
   },
 });
 
