@@ -11,10 +11,13 @@ import {
   Linking,
   Platform,
   Image,
+  Modal,
+  TextInput,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
+import labTests from '../../../data/labTests';
 
 const DEFAULT_SAMPLE_APPOINTMENTS = [
   {
@@ -121,6 +124,8 @@ const DEFAULT_SAMPLE_APPOINTMENTS = [
 const BookingsScreen = ({ navigation, route }) => {
   const [appointments, setAppointments] = useState(DEFAULT_SAMPLE_APPOINTMENTS);
   const [selectedTab, setSelectedTab] = useState('All');
+  const [activeBookingForAddTest, setActiveBookingForAddTest] = useState(null);
+  const [testSearchQuery, setTestSearchQuery] = useState('');
 
   // Normalize an appointment item so lab tests, radiology, and doctor visits are all correctly structured
   const normalizeAppointment = (item) => {
@@ -392,6 +397,122 @@ const BookingsScreen = ({ navigation, route }) => {
     );
   };
 
+  // Remove a test from an appointment
+  const handleRemoveTest = (appointment, testIndexToRemove) => {
+    const testToRemove = appointment.tests[testIndexToRemove];
+    const testName = typeof testToRemove === 'string' ? testToRemove : testToRemove.name;
+
+    if (appointment.tests.length === 1) {
+      Alert.alert(
+        'Remove Single Test',
+        `"${testName}" is the only test in this booking. Removing it will cancel this booking. Do you want to proceed?`,
+        [
+          { text: 'Keep Test', style: 'cancel' },
+          {
+            text: 'Cancel Booking',
+            style: 'destructive',
+            onPress: () => handleQuickCancel(appointment),
+          },
+        ]
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Remove Test from Booking',
+      `Remove "${testName}" from booking #${appointment.tokenNumber || appointment.id}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Yes, Remove',
+          style: 'destructive',
+          onPress: async () => {
+            const updatedTests = appointment.tests.filter((_, idx) => idx !== testIndexToRemove);
+            const removedPrice = typeof testToRemove === 'object' && testToRemove.price ? testToRemove.price : 0;
+            const updatedAmount = Math.max(0, (appointment.paidAmount || appointment.totalAmount || 0) - removedPrice);
+
+            const updatedAppointments = appointments.map((a) => {
+              if (a.id === appointment.id) {
+                return normalizeAppointment({
+                  ...a,
+                  tests: updatedTests,
+                  paidAmount: updatedAmount,
+                  totalAmount: updatedAmount,
+                });
+              }
+              return a;
+            });
+
+            setAppointments(updatedAppointments);
+            await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updatedAppointments));
+            await AsyncStorage.setItem(
+              '@labBookings',
+              JSON.stringify(updatedAppointments.filter((a) => a.type === 'Diagnostic Lab Test'))
+            );
+
+            Alert.alert(
+              'Test Removed',
+              `"${testName}" has been removed. Updated booking amount: ₹${updatedAmount}`
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  // Add a test to an appointment
+  const handleAddTestToBooking = async (appointment, testToAdd) => {
+    const currentTests = appointment.tests || [];
+    const isAlreadyAdded = currentTests.some(
+      (t) => (typeof t === 'string' ? t : t.name) === testToAdd.name
+    );
+
+    if (isAlreadyAdded) {
+      Alert.alert('Test Already Included', `"${testToAdd.name}" is already in this appointment.`);
+      return;
+    }
+
+    const newTests = [
+      ...currentTests,
+      {
+        name: testToAdd.name,
+        price: testToAdd.price,
+        sampleType: testToAdd.sampleType,
+        fastingRequired: testToAdd.fastingRequired,
+      },
+    ];
+
+    const addedPrice = testToAdd.price || 0;
+    const updatedAmount = (appointment.paidAmount || appointment.totalAmount || 0) + addedPrice;
+
+    const updatedAppointments = appointments.map((a) => {
+      if (a.id === appointment.id) {
+        return normalizeAppointment({
+          ...a,
+          tests: newTests,
+          paidAmount: updatedAmount,
+          totalAmount: updatedAmount,
+        });
+      }
+      return a;
+    });
+
+    setAppointments(updatedAppointments);
+    await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updatedAppointments));
+    await AsyncStorage.setItem(
+      '@labBookings',
+      JSON.stringify(updatedAppointments.filter((a) => a.type === 'Diagnostic Lab Test'))
+    );
+
+    setActiveBookingForAddTest(null);
+    setTestSearchQuery('');
+
+    Alert.alert(
+      'Test Added Successfully',
+      `"${testToAdd.name}" (+₹${addedPrice}) was added to booking #${appointment.tokenNumber || appointment.id}.\nTotal Amount: ₹${updatedAmount}`
+    );
+  };
+
   // Render Card
   const renderAppointmentCard = ({ item }) => {
     const isRadiology = item.type === 'Radiology';
@@ -548,21 +669,63 @@ const BookingsScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* LAB TESTS INCLUDED PILLS GRID */}
-        {isLabTest && item.tests && item.tests.length > 0 && (
+        {/* LAB TESTS INCLUDED PILLS GRID WITH REMOVE & ADD BUTTONS */}
+        {(isLabTest || (item.tests && item.tests.length > 0)) && (
           <View style={styles.testsListWrap}>
-            <Text style={styles.testsListTitle}>
-              Tests Included ({item.tests.length}):
-            </Text>
+            <View style={styles.testsListHeaderRow}>
+              <Text style={styles.testsListTitle}>
+                Tests Booked ({item.tests ? item.tests.length : 0}):
+              </Text>
+              {!isCancelled && (
+                <TouchableOpacity
+                  style={styles.addTestSmallBtn}
+                  onPress={() => {
+                    setActiveBookingForAddTest(item);
+                    setTestSearchQuery('');
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="add-circle" size={13} color={colors.teal} />
+                  <Text style={styles.addTestSmallBtnText}>+ Add Test</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
             <View style={styles.testsPillsRow}>
-              {item.tests.map((t, tIdx) => (
-                <View key={tIdx} style={styles.testBadgePill}>
-                  <Ionicons name="flask" size={10} color={colors.teal} />
-                  <Text style={styles.testBadgePillText} numberOfLines={1}>
-                    {typeof t === 'string' ? t : t.name}
+              {item.tests && item.tests.length > 0 ? (
+                item.tests.map((t, tIdx) => (
+                  <View key={tIdx} style={styles.testBadgePill}>
+                    <Ionicons name="flask" size={10} color={colors.teal} />
+                    <Text style={styles.testBadgePillText} numberOfLines={1}>
+                      {typeof t === 'string' ? t : t.name}
+                    </Text>
+                    {!isCancelled && (
+                      <TouchableOpacity
+                        style={styles.removeTestChipBtn}
+                        onPress={() => handleRemoveTest(item, tIdx)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="close-circle" size={14} color="#DC2626" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ))
+              ) : (
+                <TouchableOpacity
+                  style={styles.emptyAddTestPrompt}
+                  onPress={() => {
+                    setActiveBookingForAddTest(item);
+                    setTestSearchQuery('');
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="add-circle-outline" size={14} color={colors.teal} />
+                  <Text style={styles.emptyAddTestPromptText}>
+                    No tests in this booking. Tap to add tests.
                   </Text>
-                </View>
-              ))}
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         )}
@@ -829,6 +992,120 @@ const BookingsScreen = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
         />
       )}
+
+      {/* ====================================================
+          ADD TEST MODAL (OFFERS ALL CATALOG TESTS)
+      ==================================================== */}
+      <Modal
+        visible={!!activeBookingForAddTest}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setActiveBookingForAddTest(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {/* MODAL HEADER */}
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>Add Test to Booking</Text>
+                <Text style={styles.modalSubtitle}>
+                  Booking #{activeBookingForAddTest?.tokenNumber || activeBookingForAddTest?.id}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => setActiveBookingForAddTest(null)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* SEARCH INPUT */}
+            <View style={styles.modalSearchWrap}>
+              <Ionicons name="search" size={16} color="#94A3B8" />
+              <TextInput
+                style={styles.modalSearchInput}
+                placeholder="Search blood, organ or package tests..."
+                placeholderTextColor="#94A3B8"
+                value={testSearchQuery}
+                onChangeText={setTestSearchQuery}
+              />
+              {testSearchQuery ? (
+                <TouchableOpacity onPress={() => setTestSearchQuery('')}>
+                  <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            {/* TESTS LIST */}
+            <FlatList
+              data={labTests.filter((test) =>
+                test.name.toLowerCase().includes(testSearchQuery.toLowerCase()) ||
+                (test.description && test.description.toLowerCase().includes(testSearchQuery.toLowerCase()))
+              )}
+              keyExtractor={(item) => item.id}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.modalListContent}
+              renderItem={({ item: testItem }) => {
+                const isAlreadyIn = activeBookingForAddTest?.tests?.some(
+                  (t) => (typeof t === 'string' ? t : t.name) === testItem.name
+                );
+
+                return (
+                  <View style={styles.modalTestItem}>
+                    <View style={styles.modalTestInfo}>
+                      <Text style={styles.modalTestName}>{testItem.name}</Text>
+                      <View style={styles.modalTestMeta}>
+                        <Text style={styles.modalTestPrice}>₹{testItem.price}</Text>
+                        {testItem.mrp ? (
+                          <Text style={styles.modalTestMrp}>₹{testItem.mrp}</Text>
+                        ) : null}
+                        {testItem.parametersCount ? (
+                          <Text style={styles.modalTestParams}>
+                            • {testItem.parametersCount} Parameters
+                          </Text>
+                        ) : null}
+                      </View>
+                      {testItem.fastingRequired && (
+                        <Text style={styles.modalFastingNotice}>• Fasting Required</Text>
+                      )}
+                    </View>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.modalAddBtn,
+                        isAlreadyIn && styles.modalAddBtnDisabled,
+                      ]}
+                      onPress={() => {
+                        if (!isAlreadyIn) {
+                          handleAddTestToBooking(activeBookingForAddTest, testItem);
+                        }
+                      }}
+                      disabled={isAlreadyIn}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons
+                        name={isAlreadyIn ? 'checkmark' : 'add'}
+                        size={14}
+                        color={isAlreadyIn ? '#059669' : '#FFFFFF'}
+                      />
+                      <Text
+                        style={[
+                          styles.modalAddBtnText,
+                          isAlreadyIn && styles.modalAddBtnTextDisabled,
+                        ]}
+                      >
+                        {isAlreadyIn ? 'Added' : 'Add'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -1095,11 +1372,30 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#CCFBF1',
   },
+  testsListHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
   testsListTitle: {
     fontSize: 11,
     fontWeight: '800',
     color: colors.teal,
-    marginBottom: 6,
+  },
+  addTestSmallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#CCFBF1',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 3,
+  },
+  addTestSmallBtnText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: colors.teal,
   },
   testsPillsRow: {
     flexDirection: 'row',
@@ -1123,6 +1419,165 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0F172A',
     flexShrink: 1,
+  },
+  removeTestChipBtn: {
+    marginLeft: 2,
+    padding: 1,
+  },
+  emptyAddTestPrompt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.teal,
+    gap: 4,
+  },
+  emptyAddTestPromptText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.teal,
+  },
+
+  // MODAL STYLES FOR ADD TEST
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '80%',
+    minHeight: 400,
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.navyBlue,
+  },
+  modalSubtitle: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 1,
+  },
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSearchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 8,
+  },
+  modalSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#1E293B',
+    paddingVertical: 0,
+  },
+  modalListContent: {
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 20,
+    gap: 8,
+  },
+  modalTestItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 10,
+  },
+  modalTestInfo: {
+    flex: 1,
+  },
+  modalTestName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 3,
+  },
+  modalTestMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  modalTestPrice: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.teal,
+  },
+  modalTestMrp: {
+    fontSize: 11,
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  modalTestParams: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  modalFastingNotice: {
+    fontSize: 10,
+    color: '#D97706',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  modalAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.teal,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    gap: 4,
+  },
+  modalAddBtnDisabled: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  modalAddBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  modalAddBtnTextDisabled: {
+    color: '#059669',
   },
 
   // SCHEDULE HIGHLIGHT BOX
