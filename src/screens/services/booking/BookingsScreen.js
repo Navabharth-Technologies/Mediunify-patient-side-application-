@@ -205,34 +205,63 @@ const BookingsScreen = ({ navigation, route }) => {
           </Text>
 
           <View style={styles.statusRow}>
-            <Ionicons name="checkmark-circle" size={15} color="#2E7D32" />
-            <Text style={styles.status}>{item.status}</Text>
+            <Ionicons
+              name={item.status === 'Cancelled' ? 'close-circle' : 'checkmark-circle'}
+              size={15}
+              color={item.status === 'Cancelled' ? '#DC2626' : '#2E7D32'}
+            />
+            <Text
+              style={[
+                styles.status,
+                item.status === 'Cancelled' && { color: '#DC2626' },
+              ]}
+            >
+              {item.status}
+            </Text>
             {item.paidAmount && (
-              <Text style={styles.paidAmountText}>• ₹{item.paidAmount} Paid</Text>
+              <Text
+                style={[
+                  styles.paidAmountText,
+                  item.status === 'Cancelled' && { color: '#64748B', textDecorationLine: 'line-through' },
+                ]}
+              >
+                • ₹{item.paidAmount} {item.status === 'Cancelled' ? 'Refunded' : 'Paid'}
+              </Text>
             )}
           </View>
 
           <View style={styles.cardActionsRow}>
-            <TouchableOpacity
-              style={styles.cardDirectionBtn}
-              onPress={() => {
-                const address = item.doctor?.clinicAddress || item.doctor?.clinicName || 'Clinic, Mysore';
-                const lat = item.doctor?.latitude || 12.2858;
-                const lng = item.doctor?.longitude || 76.6341;
-                const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&query=${encodeURIComponent(address)}`;
-                if (Platform.OS === 'web' && typeof window !== 'undefined') {
-                  window.open(mapsUrl, '_blank');
-                } else {
-                  Linking.openURL(mapsUrl);
-                }
-              }}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="navigate" size={12} color="#0284C7" />
-              <Text style={styles.cardDirectionText}>Get Directions</Text>
-            </TouchableOpacity>
+            {item.status !== 'Cancelled' ? (
+              <TouchableOpacity
+                style={styles.cardDirectionBtn}
+                onPress={() => {
+                  const address = item.doctor?.clinicAddress || item.doctor?.clinicName || 'Clinic, Mysore';
+                  const lat = item.doctor?.latitude || 12.2858;
+                  const lng = item.doctor?.longitude || 76.6341;
+                  const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&query=${encodeURIComponent(address)}`;
+                  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                    window.open(mapsUrl, '_blank');
+                  } else {
+                    Linking.openURL(mapsUrl);
+                  }
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="navigate" size={12} color="#0284C7" />
+                <Text style={styles.cardDirectionText}>Get Directions</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.cardDirectionBtn, { backgroundColor: colors.lightTeal }]}
+                onPress={() => navigation.navigate('DoctorList')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="refresh" size={12} color={colors.primary} />
+                <Text style={[styles.cardDirectionText, { color: colors.primary }]}>Rebook</Text>
+              </TouchableOpacity>
+            )}
 
-            <Text style={styles.viewDetailsText}>Tap for Details & Directions ›</Text>
+            <Text style={styles.viewDetailsText}>Tap for Details ›</Text>
           </View>
         </View>
 

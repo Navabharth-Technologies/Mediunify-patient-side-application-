@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,11 +10,15 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 
 const BookingDetailsScreen = ({ navigation, route }) => {
   const appointment = route?.params?.appointment;
+
+  const [currentStatus, setCurrentStatus] = useState(appointment?.status || 'Confirmed');
+  const [isCancelling, setIsCancelling] = useState(false);
 
   if (!appointment) {
     return (
@@ -43,6 +47,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
   const distance = doctor.distance || '0.8 km away';
   const latitude = doctor.latitude || 12.2858;
   const longitude = doctor.longitude || 76.6341;
+  const isCancelled = currentStatus === 'Cancelled';
 
   // Open Google Maps / Apple Maps Directions
   const openDirections = () => {
@@ -94,6 +99,57 @@ const BookingDetailsScreen = ({ navigation, route }) => {
       });
   };
 
+  // Handle Cancel Appointment
+  const handleCancelAppointment = () => {
+    Alert.alert(
+      'Cancel Appointment?',
+      `Are you sure you want to cancel your appointment with ${doctor.name || 'the doctor'} on ${appointment.date}?`,
+      [
+        { text: 'Keep Appointment', style: 'cancel' },
+        {
+          text: 'Yes, Cancel Appointment',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsCancelling(true);
+
+              // 1. Update doctor appointments in AsyncStorage
+              const apptJson = await AsyncStorage.getItem('@unnathi_appointments');
+              if (apptJson) {
+                const storedAppts = JSON.parse(apptJson);
+                const updated = storedAppts.map((a) =>
+                  a.id === appointment.id ? { ...a, status: 'Cancelled' } : a
+                );
+                await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updated));
+              }
+
+              // 2. Update radiology bookings if applicable
+              const radJson = await AsyncStorage.getItem('@radiologyBookings');
+              if (radJson) {
+                const storedRad = JSON.parse(radJson);
+                const updatedRad = storedRad.map((r) =>
+                  r.id === appointment.id ? { ...r, status: 'Cancelled' } : r
+                );
+                await AsyncStorage.setItem('@radiologyBookings', JSON.stringify(updatedRad));
+              }
+
+              setCurrentStatus('Cancelled');
+              setIsCancelling(false);
+
+              Alert.alert(
+                'Appointment Cancelled',
+                `Your appointment has been cancelled successfully.\n\nFee refund (₹${appointment.paidAmount || doctor.fee || 500}) has been initiated to your Unnathi Wallet.`
+              );
+            } catch (err) {
+              setIsCancelling(false);
+              Alert.alert('Error', 'Unable to cancel appointment. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* HEADER */}
@@ -118,25 +174,44 @@ const BookingDetailsScreen = ({ navigation, route }) => {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* SUCCESS BADGE */}
-        <View style={styles.successCard}>
-          <View style={styles.successIconCircle}>
-            <Ionicons name="checkmark-circle" size={36} color="#10B981" />
-          </View>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <View style={styles.tokenRow}>
-              <Text style={styles.confirmed}>Appointment Confirmed</Text>
-              {appointment.tokenNumber ? (
-                <View style={styles.tokenBadge}>
-                  <Text style={styles.tokenText}>Token {appointment.tokenNumber}</Text>
-                </View>
-              ) : null}
+        {/* STATUS BADGE (CONFIRMED VS CANCELLED) */}
+        {isCancelled ? (
+          <View style={styles.cancelledCard}>
+            <View style={styles.cancelledIconCircle}>
+              <Ionicons name="close-circle" size={36} color="#DC2626" />
             </View>
-            <Text style={styles.confirmedSubtitle}>
-              Your clinic visit is confirmed with {doctor.name}.
-            </Text>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <View style={styles.tokenRow}>
+                <Text style={styles.cancelledTitle}>Appointment Cancelled</Text>
+                <View style={styles.cancelledBadge}>
+                  <Text style={styles.cancelledBadgeText}>CANCELLED</Text>
+                </View>
+              </View>
+              <Text style={styles.cancelledSubtitle}>
+                This clinic visit has been cancelled. You can re-book anytime.
+              </Text>
+            </View>
           </View>
-        </View>
+        ) : (
+          <View style={styles.successCard}>
+            <View style={styles.successIconCircle}>
+              <Ionicons name="checkmark-circle" size={36} color="#10B981" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <View style={styles.tokenRow}>
+                <Text style={styles.confirmed}>Appointment Confirmed</Text>
+                {appointment.tokenNumber ? (
+                  <View style={styles.tokenBadge}>
+                    <Text style={styles.tokenText}>Token {appointment.tokenNumber}</Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text style={styles.confirmedSubtitle}>
+                Your clinic visit is confirmed with {doctor.name}.
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* ==================================================
             📍 CLINIC LOCATION & DIRECTIONS CARD (HIGHLIGHTED)
@@ -173,7 +248,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
               activeOpacity={0.88}
             >
               <Ionicons name="navigate" size={18} color="#FFFFFF" />
-              <Text style={styles.getDirectionsText}>Get Directions to Clinic</Text>
+              <Text style={styles.getDirectionsText}>Get Directions</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -232,17 +307,28 @@ const BookingDetailsScreen = ({ navigation, route }) => {
             </View>
 
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Consultation Fee</Text>
-              <Text style={[styles.infoValue, { color: colors.primary }]}>
-                ₹{appointment.paidAmount || doctor.fee || 500}
+              <Text style={styles.infoLabel}>Status</Text>
+              <Text style={[styles.infoValue, { color: isCancelled ? '#DC2626' : '#10B981' }]}>
+                {currentStatus}
               </Text>
             </View>
           </View>
 
+          <View style={styles.feeRow}>
+            <Text style={styles.feeLabel}>Total Consultation Fee:</Text>
+            <Text style={styles.feeValue}>₹{appointment.paidAmount || doctor.fee || 500}</Text>
+          </View>
+
           {appointment.paymentStatus ? (
-            <View style={styles.paymentStatusBadge}>
-              <Ionicons name="shield-checkmark" size={15} color="#059669" />
-              <Text style={styles.paymentStatusText}>{appointment.paymentStatus}</Text>
+            <View style={[styles.paymentStatusBadge, isCancelled && { backgroundColor: '#FEE2E2' }]}>
+              <Ionicons
+                name={isCancelled ? 'close-circle' : 'shield-checkmark'}
+                size={15}
+                color={isCancelled ? '#DC2626' : '#059669'}
+              />
+              <Text style={[styles.paymentStatusText, isCancelled && { color: '#DC2626' }]}>
+                {isCancelled ? 'Booking Cancelled • Refund Initiated' : appointment.paymentStatus}
+              </Text>
             </View>
           ) : null}
         </View>
@@ -283,15 +369,40 @@ const BookingDetailsScreen = ({ navigation, route }) => {
           </View>
         ) : null}
 
-        {/* BOTTOM ACTION BUTTONS */}
-        <TouchableOpacity
-          style={styles.primaryActionBtn}
-          onPress={openDirections}
-          activeOpacity={0.88}
-        >
-          <Ionicons name="navigate-outline" size={20} color="#FFFFFF" />
-          <Text style={styles.primaryActionText}>Get GPS Directions to Clinic</Text>
-        </TouchableOpacity>
+        {/* ==================================================
+            ACTIONS: GET DIRECTIONS, REBOOK, OR CANCEL
+        ================================================== */}
+        {!isCancelled ? (
+          <>
+            <TouchableOpacity
+              style={styles.primaryActionBtn}
+              onPress={openDirections}
+              activeOpacity={0.88}
+            >
+              <Ionicons name="navigate-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.primaryActionText}>Get GPS Directions to Clinic</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={handleCancelAppointment}
+              disabled={isCancelling}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
+              <Text style={styles.cancelButtonText}>Cancel This Appointment</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <TouchableOpacity
+            style={styles.rebookButton}
+            onPress={() => navigation.navigate('DoctorList')}
+            activeOpacity={0.88}
+          >
+            <Ionicons name="refresh" size={18} color="#FFFFFF" />
+            <Text style={styles.rebookButtonText}>Book Another Appointment</Text>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={styles.homeButton}
@@ -389,9 +500,48 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // ==================================================
+  // CANCELLED CARD
+  cancelledCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    marginBottom: 14,
+  },
+  cancelledIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelledTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#991B1B',
+  },
+  cancelledBadge: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  cancelledBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  cancelledSubtitle: {
+    fontSize: 12,
+    color: '#B91C1C',
+    marginTop: 2,
+  },
+
   // DIRECTION CARD
-  // ==================================================
   directionCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
@@ -569,13 +719,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1E293B',
   },
+  feeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 10,
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  feeLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  feeValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.primary,
+  },
   paymentStatusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#ECFDF5',
     padding: 10,
     borderRadius: 10,
-    marginTop: 12,
+    marginTop: 10,
     gap: 6,
   },
   paymentStatusText: {
@@ -595,6 +764,39 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   primaryActionText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  cancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingVertical: 13,
+    borderRadius: 14,
+    gap: 6,
+    marginBottom: 10,
+  },
+  cancelButtonText: {
+    color: '#DC2626',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  rebookButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    borderRadius: 14,
+    gap: 8,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  rebookButtonText: {
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '800',
