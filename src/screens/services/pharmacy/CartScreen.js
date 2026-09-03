@@ -109,6 +109,7 @@ const CartScreen = ({ navigation, route }) => {
   const [labVisitType, setLabVisitType] = useState('HOME_COLLECTION'); // HOME_COLLECTION vs LAB_VISIT
   const [selectedLabSlot, setSelectedLabSlot] = useState(LAB_SAMPLE_SLOTS[0]);
   const [patientAge, setPatientAge] = useState('32');
+  const [patientGender, setPatientGender] = useState('Male');
   // Check if cart has radiology scans (must be done in hospital)
   const hasRadiologyScans = labCart.some(
     (item) =>
