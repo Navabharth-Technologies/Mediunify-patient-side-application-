@@ -237,9 +237,9 @@ const HomeScreen = ({ navigation }) => {
   }, [selectedCityTab, locationSearchQuery]);
 
   // Handle Search Execution
-  const handleSearchSubmit = () => {
-    if (!search.trim()) return;
-    navigation.navigate('GlobalSearch', { query: search.trim() });
+  const handleSearchSubmit = (customQuery) => {
+    const q = typeof customQuery === 'string' ? customQuery : search;
+    navigation.navigate('GlobalSearch', { query: q ? q.trim() : '' });
   };
 
   return (
@@ -374,22 +374,42 @@ const HomeScreen = ({ navigation }) => {
         ========================================== */}
         <View style={styles.searchContainer}>
           <View style={styles.searchBar}>
-            <Ionicons name="search-outline" size={20} color="#94A3B8" />
+            <TouchableOpacity
+              onPress={() => handleSearchSubmit()}
+              activeOpacity={0.7}
+              style={{ padding: 4 }}
+            >
+              <Ionicons name="search" size={20} color={colors.primary} />
+            </TouchableOpacity>
+
             <TextInput
               style={styles.searchInput}
               placeholder="Search doctors, medicines, tests, scans..."
               placeholderTextColor="#94A3B8"
               value={search}
               onChangeText={setSearch}
-              onSubmitEditing={handleSearchSubmit}
+              onSubmitEditing={() => handleSearchSubmit()}
               returnKeyType="search"
             />
+
             {search.length > 0 ? (
-              <TouchableOpacity onPress={() => setSearch('')}>
+              <TouchableOpacity onPress={() => setSearch('')} style={{ padding: 4 }}>
                 <Ionicons name="close-circle" size={18} color="#94A3B8" />
               </TouchableOpacity>
             ) : null}
 
+            {/* SEARCH BUTTON */}
+            {search.trim().length > 0 && (
+              <TouchableOpacity
+                style={styles.searchGoBtn}
+                onPress={() => handleSearchSubmit()}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.searchGoBtnText}>Search</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* RX CAMERA SCAN BUTTON */}
             <TouchableOpacity
               style={styles.scanSearchBtn}
               onPress={() => navigation.navigate('Chatbot')}
@@ -398,6 +418,31 @@ const HomeScreen = ({ navigation }) => {
               <Ionicons name="camera-outline" size={18} color={colors.primary} />
             </TouchableOpacity>
           </View>
+
+          {/* QUICK SEARCH SUGGESTION PILLS */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.quickSearchPillsRow}
+          >
+            {[
+              { label: '🩺 Doctors', query: 'Doctor' },
+              { label: '💊 Medicines', query: 'Medicine' },
+              { label: '🧪 Blood Tests', query: 'Lab' },
+              { label: '🔬 MRI & Scans', query: 'Radiology' },
+              { label: '🏥 Hospitals', query: 'Hospital' },
+              { label: '🎥 Video Consult', query: 'Video' },
+            ].map((pill, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={styles.quickSearchPill}
+                onPress={() => handleSearchSubmit(pill.query)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.quickSearchPillText}>{pill.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
         {/* ==========================================
@@ -1372,12 +1417,29 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderWidth: 1,
     borderColor: '#CBD5E1',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   searchInput: {
     flex: 1,
     marginLeft: 8,
     fontSize: 13,
     color: '#1E293B',
+  },
+  searchGoBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginLeft: 4,
+  },
+  searchGoBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
+    fontWeight: '800',
   },
   scanSearchBtn: {
     width: 32,
@@ -1387,6 +1449,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 6,
+  },
+  quickSearchPillsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingTop: 8,
+    paddingBottom: 2,
+  },
+  quickSearchPill: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  quickSearchPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
   },
 
   // EMERGENCY ROW

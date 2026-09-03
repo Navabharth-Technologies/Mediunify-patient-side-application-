@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 
 import {
   View,
@@ -130,9 +130,15 @@ const searchData = [
 
 const GlobalSearchScreen = ({
   navigation,
+  route,
 }) => {
+  const [query, setQuery] = useState(route?.params?.query || '');
 
-  const [query, setQuery] = useState('');
+  useEffect(() => {
+    if (route?.params?.query !== undefined) {
+      setQuery(route.params.query);
+    }
+  }, [route?.params?.query]);
 
 
   const results = useMemo(() => {
