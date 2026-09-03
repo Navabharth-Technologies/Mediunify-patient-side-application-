@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import {
   Linking,
   Image,
   StatusBar,
+  Animated,
+  PanResponder,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -110,6 +112,38 @@ const HomeScreen = ({ navigation }) => {
   const [walletModalVisible, setWalletModalVisible] = useState(false);
   const [quickTopUpAmount, setQuickTopUpAmount] = useState('500');
   const [emergencyModalVisible, setEmergencyModalVisible] = useState(false);
+
+  // Draggable Floating AI Chatbot
+  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_, gestureState) => {
+          return Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3;
+        },
+        onPanResponderGrant: () => {
+          pan.setOffset({
+            x: pan.x._value,
+            y: pan.y._value,
+          });
+          pan.setValue({ x: 0, y: 0 });
+        },
+        onPanResponderMove: Animated.event(
+          [null, { dx: pan.x, dy: pan.y }],
+          { useNativeDriver: false }
+        ),
+        onPanResponderRelease: (_, gestureState) => {
+          pan.flattenOffset();
+          // If tap without significant drag, open Chatbot
+          if (Math.abs(gestureState.dx) < 6 && Math.abs(gestureState.dy) < 6) {
+            navigation.navigate('Chatbot');
+          }
+        },
+      }),
+    [navigation, pan]
+  );
 
   // Load User Info
   useEffect(() => {
@@ -734,22 +768,32 @@ const HomeScreen = ({ navigation }) => {
       </ScrollView>
 
       {/* ==========================================
-          FLOATING CHATBOT AI ACTION BUTTON (FAB)
+          DRAGGABLE / MOVABLE FLOATING CHATBOT AI BUTTON (FAB)
       ========================================== */}
-      <TouchableOpacity
-        style={styles.floatingChatbotFab}
-        onPress={() => navigation.navigate('Chatbot')}
-        activeOpacity={0.85}
+      <Animated.View
+        style={[
+          styles.floatingChatbotFab,
+          {
+            transform: pan.getTranslateTransform(),
+          },
+        ]}
+        {...panResponder.panHandlers}
       >
-        <View style={styles.fabIconCircle}>
-          <Ionicons name="sparkles" size={20} color="#FFFFFF" />
-          <View style={styles.fabOnlineBadge} />
-        </View>
-        <View style={styles.fabTextColumn}>
-          <Text style={styles.fabTitle}>AI Doctor</Text>
-          <Text style={styles.fabSub}>Ask Health AI</Text>
-        </View>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.fabInnerTouchable}
+          onPress={() => navigation.navigate('Chatbot')}
+          activeOpacity={0.85}
+        >
+          <View style={styles.fabIconCircle}>
+            <Ionicons name="sparkles" size={20} color="#FFFFFF" />
+            <View style={styles.fabOnlineBadge} />
+          </View>
+          <View style={styles.fabTextColumn}>
+            <Text style={styles.fabTitle}>AI Doctor</Text>
+            <Text style={styles.fabSub}>Drag / Tap AI</Text>
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
 
       {/* ==========================================
           EMERGENCY & 24x7 HELPLINE ACTION MODAL
@@ -2276,6 +2320,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 85,
     right: 16,
+    zIndex: 9999,
+    elevation: 12,
+  },
+  fabInnerTouchable: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#0F766E',
@@ -2290,7 +2338,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#FFFFFF',
     gap: 8,
-    zIndex: 9999,
   },
   fabIconCircle: {
     width: 32,
