@@ -372,6 +372,37 @@ export const CartProvider = ({ children }) => {
     }
   };
 
+  const requestProductReturn = async (orderId, returnPayload) => {
+    const updatedOrders = orders.map((order) => {
+      if (order.id === orderId) {
+        return {
+          ...order,
+          status: 'Return Requested',
+          returnDetails: {
+            ...returnPayload,
+            requestedAt: new Date().toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+            pickupStatus: 'Pickup Scheduled (Within 24-48 hrs)',
+            pickupSlot: 'Tomorrow, 10:00 AM - 02:00 PM',
+          },
+        };
+      }
+      return order;
+    });
+
+    setOrders(updatedOrders);
+    try {
+      await AsyncStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(updatedOrders));
+    } catch (e) {
+      console.log('Error saving returned order:', e);
+    }
+  };
+
   const updateAddress = async (address) => {
     setSelectedAddress(address);
     try {
@@ -442,6 +473,7 @@ export const CartProvider = ({ children }) => {
         updateAddress,
         orders,
         addOrder,
+        requestProductReturn,
       }}
     >
       {children}
