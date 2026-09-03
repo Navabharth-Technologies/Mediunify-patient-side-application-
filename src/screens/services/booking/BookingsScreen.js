@@ -430,7 +430,7 @@ const BookingsScreen = ({ navigation, route }) => {
               <Ionicons
                 name={isRadiology ? 'radio' : isLabTest ? 'flask' : 'person'}
                 size={12}
-                color={isRadiology ? '#7C3AED' : isLabTest ? '#059669' : '#2563EB'}
+                color={isRadiology ? '#7C3AED' : isLabTest ? colors.teal : '#2563EB'}
               />
               <Text
                 style={[
@@ -438,36 +438,23 @@ const BookingsScreen = ({ navigation, route }) => {
                   isRadiology
                     ? { color: '#7C3AED' }
                     : isLabTest
-                    ? { color: '#059669' }
+                    ? { color: colors.teal }
                     : { color: '#2563EB' },
                 ]}
               >
                 {isRadiology
                   ? 'Radiology Scan'
                   : isLabTest
-                  ? 'Diagnostic Lab Test'
+                  ? 'Diagnostic Lab'
                   : 'Doctor Consultation'}
               </Text>
             </View>
 
-            {item.tokenNumber && (
+            {item.tokenNumber ? (
               <View style={styles.tokenPill}>
                 <Text style={styles.tokenPillText}>#{item.tokenNumber}</Text>
               </View>
-            )}
-
-            {isLabTest && item.collectionMode && (
-              <View style={styles.collectionModeBadge}>
-                <Ionicons
-                  name={item.collectionMode.includes('Home') ? 'home' : 'business'}
-                  size={10}
-                  color="#065F46"
-                />
-                <Text style={styles.collectionModeText}>
-                  {item.collectionMode.includes('Home') ? 'Home Collection' : 'Lab Visit'}
-                </Text>
-              </View>
-            )}
+            ) : null}
           </View>
 
           {/* STATUS PILL */}
@@ -506,6 +493,20 @@ const BookingsScreen = ({ navigation, route }) => {
           </View>
         </View>
 
+        {/* LAB COLLECTION MODE ROW */}
+        {isLabTest && item.collectionMode && (
+          <View style={styles.collectionModeRow}>
+            <Ionicons
+              name={item.collectionMode.includes('Home') ? 'home' : 'business'}
+              size={12}
+              color={item.collectionMode.includes('Home') ? colors.freshGreen : '#D97706'}
+            />
+            <Text style={styles.collectionModeRowText} numberOfLines={1}>
+              {item.collectionMode} • {item.doctor?.clinicAddress || 'Mysore'}
+            </Text>
+          </View>
+        )}
+
         {/* DOCTOR / CENTER INFO ROW */}
         <View style={styles.doctorInfoRow}>
           <Image
@@ -537,7 +538,7 @@ const BookingsScreen = ({ navigation, route }) => {
             <View style={styles.clinicLocationRow}>
               <Ionicons
                 name={isLabTest && item.collectionMode?.includes('Home') ? 'home' : 'location'}
-                size={13}
+                size={12}
                 color={colors.primary}
               />
               <Text style={styles.clinicLocationText} numberOfLines={1}>
@@ -569,33 +570,34 @@ const BookingsScreen = ({ navigation, route }) => {
         {/* SCHEDULED DATE & TIME HIGHLIGHT BOX */}
         <View style={styles.scheduleBox}>
           <View style={styles.scheduleBoxItem}>
-            <Ionicons name="calendar" size={15} color={colors.primary} />
+            <Ionicons name="calendar" size={14} color={colors.teal} />
             <Text style={styles.scheduleLabel}>Date</Text>
-            <Text style={styles.scheduleValue}>
+            <Text style={styles.scheduleValue} numberOfLines={2}>
               {item.day ? `${item.day}, ` : ''}{item.date?.split(',')[0] || item.date}
             </Text>
           </View>
 
           <View style={styles.scheduleDivider} />
 
-          <View style={styles.scheduleBoxItem}>
-            <Ionicons name="time" size={15} color="#0284C7" />
+          <View style={[styles.scheduleBoxItem, { flex: 1.2 }]}>
+            <Ionicons name="time" size={14} color="#0284C7" />
             <Text style={styles.scheduleLabel}>Time Slot</Text>
-            <Text style={styles.scheduleValue} numberOfLines={1}>
-              {item.time || '04:30 PM'}
+            <Text style={styles.scheduleValue} numberOfLines={2}>
+              {item.time?.replace(' (Fasting)', '') || 'Morning Slot'}
             </Text>
           </View>
 
           <View style={styles.scheduleDivider} />
 
           <View style={styles.scheduleBoxItem}>
-            <Ionicons name="cash" size={15} color="#059669" />
+            <Ionicons name="cash" size={14} color={colors.freshGreen} />
             <Text style={styles.scheduleLabel}>Amount</Text>
             <Text
               style={[
                 styles.scheduleValue,
                 isCancelled && { textDecorationLine: 'line-through', color: '#94A3B8' },
               ]}
+              numberOfLines={1}
             >
               ₹{item.paidAmount || item.doctor?.fee || 500}
             </Text>
@@ -605,8 +607,8 @@ const BookingsScreen = ({ navigation, route }) => {
         {/* PATIENT PROFILE CHIP */}
         {item.patient?.name && (
           <View style={styles.patientRow}>
-            <Ionicons name="person-circle-outline" size={15} color="#64748B" />
-            <Text style={styles.patientText}>
+            <Ionicons name="person-circle-outline" size={15} color={colors.slate} />
+            <Text style={styles.patientText} numberOfLines={2}>
               Patient: <Text style={{ fontWeight: '700', color: '#1E293B' }}>{item.patient.name}</Text>
               {item.patient.gender ? ` • ${item.patient.gender}, ${item.patient.age || '28'} Yrs` : ''}
             </Text>
@@ -994,6 +996,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#065F46',
   },
+  collectionModeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+    marginBottom: 10,
+    gap: 5,
+  },
+  collectionModeRowText: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803D',
+  },
   statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1028,9 +1048,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   doctorAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 16,
+    width: 58,
+    height: 58,
+    borderRadius: 14,
     backgroundColor: '#E2E8F0',
   },
   doctorDetailsWrap: {
@@ -1038,18 +1058,19 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   doctorName: {
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '800',
     color: '#1E293B',
   },
   doctorSpecialty: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
     color: colors.primary,
     marginTop: 1,
+    lineHeight: 16,
   },
   doctorQual: {
-    fontSize: 11,
+    fontSize: 10.5,
     color: '#64748B',
     marginTop: 1,
   },
@@ -1060,7 +1081,8 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   clinicLocationText: {
-    fontSize: 11.5,
+    flex: 1,
+    fontSize: 11,
     color: '#475569',
   },
 
@@ -1094,11 +1116,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#99F6E4',
     gap: 4,
+    maxWidth: '100%',
   },
   testBadgePillText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#0F172A',
+    flexShrink: 1,
   },
 
   // SCHEDULE HIGHLIGHT BOX
@@ -1107,7 +1131,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     borderRadius: 12,
     paddingVertical: 10,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     alignItems: 'center',
@@ -1117,20 +1141,22 @@ const styles = StyleSheet.create({
   scheduleBoxItem: {
     alignItems: 'center',
     flex: 1,
+    paddingHorizontal: 2,
   },
   scheduleLabel: {
-    fontSize: 10,
+    fontSize: 9.5,
     color: '#64748B',
     fontWeight: '700',
     textTransform: 'uppercase',
     marginTop: 2,
   },
   scheduleValue: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '800',
     color: '#1E293B',
     marginTop: 1,
     textAlign: 'center',
+    lineHeight: 15,
   },
   scheduleDivider: {
     width: 1,
@@ -1150,8 +1176,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   patientText: {
-    fontSize: 11.5,
+    flex: 1,
+    fontSize: 11,
     color: '#475569',
+    lineHeight: 16,
   },
 
   headerRightPlaceholder: {
