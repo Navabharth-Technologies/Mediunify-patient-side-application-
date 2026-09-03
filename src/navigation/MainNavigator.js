@@ -119,6 +119,7 @@ import ReportsScreen from '../screens/health/ReportsScreen';
 // ==================================================
 
 import BookingsScreen from '../screens/services/booking/BookingsScreen';
+import BookingDetailsScreen from '../screens/services/booking/BookingDetailsScreen';
 
 
 // ==================================================
@@ -716,6 +717,11 @@ const MainNavigator = ({
         <Stack.Screen
           name="Bookings"
           component={BookingsScreen}
+        />
+
+        <Stack.Screen
+          name="BookingDetails"
+          component={BookingDetailsScreen}
         />
 
 

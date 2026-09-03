@@ -245,36 +245,74 @@ const BookingsScreen = ({ navigation, route }) => {
 
           <View style={styles.cardActionsRow}>
             {item.status !== 'Cancelled' ? (
-              <TouchableOpacity
-                style={styles.cardDirectionBtn}
-                onPress={() => {
-                  const address = item.doctor?.clinicAddress || item.doctor?.clinicName || 'Clinic, Mysore';
-                  const lat = item.doctor?.latitude || 12.2858;
-                  const lng = item.doctor?.longitude || 76.6341;
-                  const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&query=${encodeURIComponent(address)}`;
-                  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-                    window.open(mapsUrl, '_blank');
-                  } else {
-                    Linking.openURL(mapsUrl);
-                  }
-                }}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="navigate" size={12} color="#0284C7" />
-                <Text style={styles.cardDirectionText}>Get Directions</Text>
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity
+                  style={styles.cardDirectionBtn}
+                  onPress={() => {
+                    const address = item.doctor?.clinicAddress || item.doctor?.clinicName || 'Clinic, Mysore';
+                    const lat = item.doctor?.latitude || 12.2858;
+                    const lng = item.doctor?.longitude || 76.6341;
+                    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&query=${encodeURIComponent(address)}`;
+                    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                      window.open(mapsUrl, '_blank');
+                    } else {
+                      Linking.openURL(mapsUrl);
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="navigate" size={12} color="#0284C7" />
+                  <Text style={styles.cardDirectionText}>Directions</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.cardRescheduleBtn}
+                  onPress={() => {
+                    if (isRadiology && item.details) {
+                      navigation.navigate('RadiologyOrderSuccess', {
+                        booking: item.details,
+                      });
+                    } else {
+                      navigation.navigate('BookingDetails', {
+                        appointment: item,
+                      });
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="calendar-outline" size={12} color={colors.primary} />
+                  <Text style={styles.cardRescheduleText}>Reschedule / Cancel</Text>
+                </TouchableOpacity>
+              </>
             ) : (
-              <TouchableOpacity
-                style={[styles.cardDirectionBtn, { backgroundColor: colors.lightTeal }]}
-                onPress={() => navigation.navigate('DoctorList')}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="refresh" size={12} color={colors.primary} />
-                <Text style={[styles.cardDirectionText, { color: colors.primary }]}>Rebook</Text>
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity
+                  style={[styles.cardDirectionBtn, { backgroundColor: colors.lightTeal }]}
+                  onPress={() => navigation.navigate('DoctorList')}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="refresh" size={12} color={colors.primary} />
+                  <Text style={[styles.cardDirectionText, { color: colors.primary }]}>Rebook</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.cardRescheduleBtn}
+                  onPress={() => {
+                    navigation.navigate('BookingDetails', {
+                      appointment: item,
+                    });
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="eye-outline" size={12} color="#64748B" />
+                  <Text style={[styles.cardRescheduleText, { color: '#64748B' }]}>View Details</Text>
+                </TouchableOpacity>
+              </>
             )}
 
-            <Text style={styles.viewDetailsText}>Tap for Details ›</Text>
+            <View style={styles.viewBadge}>
+              <Text style={styles.viewDetailsText}>Details ›</Text>
+            </View>
           </View>
         </View>
 
@@ -551,7 +589,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#E0F2FE',
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 8,
     gap: 4,
   },
@@ -560,10 +598,30 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0284C7',
   },
+  cardRescheduleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.lightTeal,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    gap: 4,
+  },
+  cardRescheduleText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  viewBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
   viewDetailsText: {
     fontSize: 10.5,
-    fontWeight: '600',
-    color: '#64748B',
+    fontWeight: '700',
+    color: '#475569',
   },
 
   empty: {

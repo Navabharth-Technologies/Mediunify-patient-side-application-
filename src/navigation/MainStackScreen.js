@@ -58,6 +58,7 @@ import HealthMonitorScreen from '../screens/health/HealthMonitorScreen';
 import HealthRecordsScreen from '../screens/health/HealthRecordsScreen';
 
 import BookingsScreen from '../screens/services/booking/BookingsScreen';
+import BookingDetailsScreen from '../screens/services/booking/BookingDetailsScreen';
 
 import GlobalSearchScreen from '../screens/search/GlobalSearchScreen';
 
@@ -477,6 +478,11 @@ const MainStackScreen = () => {
         <Stack.Screen
           name="Bookings"
           component={BookingsScreen}
+        />
+
+        <Stack.Screen
+          name="BookingDetails"
+          component={BookingDetailsScreen}
         />
 
         <Stack.Screen
