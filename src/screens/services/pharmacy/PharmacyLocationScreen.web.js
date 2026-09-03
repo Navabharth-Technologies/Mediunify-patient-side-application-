@@ -1,0 +1,396 @@
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
+import * as Location from 'expo-location';
+import { Ionicons } from '@expo/vector-icons';
+
+import colors from '../../../theme/colors';
+import { useCart } from '../../../context/CartContext';
+
+const DEFAULT_LOCATION = {
+  latitude: 12.2958,
+  longitude: 76.6394,
+};
+
+const PharmacyLocationScreen = ({ navigation, route }) => {
+  const { updateAddress, selectedAddress } = useCart();
+
+  const [location, setLocation] = useState(DEFAULT_LOCATION);
+  const [address, setAddress] = useState('Detecting your delivery location...');
+  const [city, setCity] = useState('Mysore');
+  const [pincode, setPincode] = useState('570023');
+  const [stateName, setStateName] = useState('Karnataka');
+
+  const [searchText, setSearchText] = useState('');
+  const [loadingLocation, setLoadingLocation] = useState(false);
+  const [searching, setSearching] = useState(false);
+
+  // Reverse geocode
+  const getAddressFromCoordinates = async (latitude, longitude) => {
+    try {
+      const results = await Location.reverseGeocodeAsync({ latitude, longitude });
+      if (results && results.length > 0) {
+        const place = results[0];
+        const addressParts = [
+          place.name,
+          place.street,
+          place.district,
+          place.subregion,
+          place.city,
+        ].filter(Boolean);
+
+        const formatted = addressParts.join(', ') || 'Selected Location';
+        setAddress(formatted);
+        if (place.city) setCity(place.city);
+        if (place.postalCode) setPincode(place.postalCode);
+        if (place.region) setStateName(place.region);
+      }
+    } catch (err) {
+      setAddress(`Lat: ${latitude.toFixed(4)}, Long: ${longitude.toFixed(4)}`);
+    }
+  };
+
+  // Get Current Location
+  const getCurrentLocation = async () => {
+    try {
+      setLoadingLocation(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Please allow location access to fetch your current location.');
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({});
+      const coords = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      };
+      setLocation(coords);
+      await getAddressFromCoordinates(coords.latitude, coords.longitude);
+    } catch (error) {
+      Alert.alert('Location Error', 'Unable to fetch current location.');
+    } finally {
+      setLoadingLocation(false);
+    }
+  };
+
+  useEffect(() => {
+    getCurrentLocation();
+  }, []);
+
+  const searchLocation = async () => {
+    if (!searchText.trim()) return;
+    try {
+      setSearching(true);
+      const results = await Location.geocodeAsync(searchText);
+      if (!results || results.length === 0) {
+        Alert.alert('Location Not Found', 'Could not find this place. Try another search query.');
+        return;
+      }
+
+      const { latitude, longitude } = results[0];
+      setLocation({ latitude, longitude });
+      await getAddressFromCoordinates(latitude, longitude);
+    } catch (error) {
+      Alert.alert('Search Error', 'Unable to search for this location.');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const confirmLocation = () => {
+    const newAddressObj = {
+      name: selectedAddress.name || 'User',
+      phone: selectedAddress.phone || '9876543210',
+      addressLine: address,
+      city,
+      state: stateName,
+      pincode,
+      tag: selectedAddress.tag || 'Home',
+      latitude: location.latitude,
+      longitude: location.longitude,
+    };
+
+    updateAddress(newAddressObj);
+    if (route?.params?.onLocationSelected) {
+      route.params.onLocationSelected(newAddressObj);
+    }
+    navigation.goBack();
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* HEADER */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="arrow-back" size={22} color={colors.secondary} />
+        </TouchableOpacity>
+
+        <View style={styles.headerTitleWrap}>
+          <Text style={styles.headerTitle}>Select Delivery Location</Text>
+          <Text style={styles.headerSubtitle}>Confirm your delivery address for pharmacy orders</Text>
+        </View>
+
+        <TouchableOpacity
+          style={styles.gpsHeaderBtn}
+          onPress={getCurrentLocation}
+          disabled={loadingLocation}
+          activeOpacity={0.8}
+        >
+          {loadingLocation ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Ionicons name="locate" size={22} color={colors.primary} />
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* SEARCH BAR */}
+      <View style={styles.searchBarContainer}>
+        <Ionicons name="search" size={18} color={colors.primary} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search locality, street, city..."
+          placeholderTextColor="#999"
+          value={searchText}
+          onChangeText={setSearchText}
+          onSubmitEditing={searchLocation}
+          returnKeyType="search"
+        />
+        {searching ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : (
+          <TouchableOpacity onPress={searchLocation} style={styles.searchGoBtn}>
+            <Text style={styles.searchGoText}>Search</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* WEB MAP SIMULATION / LOCATION CARD */}
+      <View style={styles.content}>
+        <View style={styles.mapCard}>
+          <View style={styles.locationIconWrap}>
+            <Ionicons name="location" size={48} color={colors.primary} />
+          </View>
+          <Text style={styles.coordsTitle}>Current Delivery Coordinates</Text>
+          <Text style={styles.coordsText}>
+            Latitude: {location.latitude.toFixed(5)}, Longitude: {location.longitude.toFixed(5)}
+          </Text>
+          <TouchableOpacity style={styles.locateMeBtn} onPress={getCurrentLocation}>
+            <Ionicons name="navigate" size={18} color="#fff" />
+            <Text style={styles.locateMeText}>Use Current GPS Location</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ADDRESS FORM */}
+        <View style={styles.addressCard}>
+          <Text style={styles.cardHeader}>Delivery Address Details</Text>
+          <TextInput
+            style={styles.addressInput}
+            value={address}
+            onChangeText={setAddress}
+            placeholder="Address line"
+            multiline
+          />
+          <View style={styles.row}>
+            <TextInput
+              style={[styles.input, { flex: 1, marginRight: 8 }]}
+              value={city}
+              onChangeText={setCity}
+              placeholder="City"
+            />
+            <TextInput
+              style={[styles.input, { width: 100 }]}
+              value={pincode}
+              onChangeText={setPincode}
+              placeholder="Pincode"
+              keyboardType="number-pad"
+            />
+          </View>
+        </View>
+      </View>
+
+      {/* FOOTER CONFIRM BUTTON */}
+      <View style={styles.footer}>
+        <TouchableOpacity style={styles.confirmBtn} onPress={confirmLocation} activeOpacity={0.85}>
+          <Text style={styles.confirmBtnText}>Confirm Delivery Location</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  backBtn: {
+    padding: 8,
+  },
+  headerTitleWrap: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  gpsHeaderBtn: {
+    padding: 8,
+  },
+  searchBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    margin: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#1E293B',
+  },
+  searchGoBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  searchGoText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  mapCard: {
+    backgroundColor: '#fff',
+    padding: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 16,
+  },
+  locationIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  coordsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 4,
+  },
+  coordsText: {
+    fontSize: 13,
+    color: '#64748B',
+    marginBottom: 16,
+  },
+  locateMeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 8,
+  },
+  locateMeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  addressCard: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  cardHeader: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 12,
+  },
+  addressInput: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
+    minHeight: 60,
+  },
+  row: {
+    flexDirection: 'row',
+  },
+  input: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  footer: {
+    padding: 16,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  confirmBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  confirmBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+});
+
+export default PharmacyLocationScreen;
