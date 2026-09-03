@@ -15,6 +15,16 @@ import colors from '../../theme/colors';
 const HealthRecordsScreen = ({ navigation }) => {
   const categories = [
     {
+      id: 'health_monitor',
+      title: 'Self Health Monitor & Vitals',
+      subtitle: 'Log Blood Sugar, BP, SpO2 & Temp',
+      count: 'Vitals Log',
+      icon: 'pulse',
+      color: '#E11D48',
+      background: '#FFE4E6',
+      route: 'HealthMonitor',
+    },
+    {
       id: 'prescriptions',
       title: 'Doctor Prescriptions',
       subtitle: '3 Active & past prescriptions',

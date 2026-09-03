@@ -54,6 +54,7 @@ import RadiologyReportUploadScreen from '../screens/services/radiology/Radiology
 
 import ChatbotScreen from '../screens/chatbot/ChatbotScreen';
 
+import HealthMonitorScreen from '../screens/health/HealthMonitorScreen';
 import HealthRecordsScreen from '../screens/health/HealthRecordsScreen';
 
 import BookingsScreen from '../screens/services/booking/BookingsScreen';
@@ -476,6 +477,16 @@ const MainStackScreen = () => {
         <Stack.Screen
           name="Bookings"
           component={BookingsScreen}
+        />
+
+        <Stack.Screen
+          name="HealthMonitor"
+          component={HealthMonitorScreen}
+        />
+
+        <Stack.Screen
+          name="HealthRecords"
+          component={HealthRecordsScreen}
         />
 
         <Stack.Screen

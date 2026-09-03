@@ -105,9 +105,10 @@ import ChatbotScreen from '../screens/chatbot/ChatbotScreen';
 
 
 // ==================================================
-// HEALTH
+// HEALTH & MONITOR
 // ==================================================
 
+import HealthMonitorScreen from '../screens/health/HealthMonitorScreen';
 import HealthRecordsScreen from '../screens/health/HealthRecordsScreen';
 import PrescriptionsScreen from '../screens/health/PrescriptionsScreen';
 import ReportsScreen from '../screens/health/ReportsScreen';
@@ -644,8 +645,13 @@ const MainNavigator = ({
 
 
         {/* ==================================================
-            HEALTH RECORDS & REPORTS
+            HEALTH RECORDS & SELF MONITOR
         ================================================== */}
+
+        <Stack.Screen
+          name="HealthMonitor"
+          component={HealthMonitorScreen}
+        />
 
         <Stack.Screen
           name="HealthRecords"

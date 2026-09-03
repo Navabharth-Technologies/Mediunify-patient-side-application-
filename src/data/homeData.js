@@ -190,4 +190,14 @@ export const moreServices = [
     color: colors.lightAqua,
     iconColor: colors.accent,
   },
+
+  {
+    id: '6',
+    title: 'Self Health Monitor',
+    subtitle: 'Log Blood Sugar, BP, SpO2 & Body Vitals',
+    icon: 'pulse-outline',
+    route: 'HealthMonitor',
+    color: colors.lightGreen,
+    iconColor: colors.success,
+  },
 ];

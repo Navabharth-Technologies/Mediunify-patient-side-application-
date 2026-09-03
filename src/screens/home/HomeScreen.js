@@ -788,6 +788,40 @@ const HomeScreen = ({ navigation }) => {
       return;
     }
 
+    // ==================================================
+    // HEALTH MONITOR & VITALS
+    // ==================================================
+
+    const healthMonitorKeywords = [
+      'sugar',
+      'blood sugar',
+      'glucose',
+      'bp',
+      'blood pressure',
+      'vitals',
+      'vital',
+      'health monitor',
+      'monitor',
+      'spo2',
+      'oxygen',
+      'temperature',
+      'fever',
+      'pulse',
+      'bmi',
+      'weight',
+    ];
+
+    if (
+      healthMonitorKeywords.some(
+        keyword => query.includes(keyword)
+      )
+    ) {
+      navigation.navigate(
+        'HealthMonitor'
+      );
+      return;
+    }
+
 
     // ==================================================
     // HEALTH RECORDS
@@ -1592,6 +1626,88 @@ const HomeScreen = ({ navigation }) => {
 
           </View>
 
+        </View>
+
+
+        {/* ==================================================
+            SELF HEALTH MONITOR & VITALS TRACKER
+        ================================================== */}
+
+        <View style={styles.healthMonitorHomeCard}>
+          <View style={styles.healthMonitorHomeHeader}>
+            <View style={styles.healthMonitorIconWrap}>
+              <Ionicons name="pulse" size={22} color="#E11D48" />
+            </View>
+
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.healthMonitorTitle}>Self Health Monitor</Text>
+                <View style={styles.liveBadge}>
+                  <Text style={styles.liveBadgeText}>TRACKER</Text>
+                </View>
+              </View>
+              <Text style={styles.healthMonitorSubtitle}>
+                Log self-tested Blood Sugar, BP, SpO2 & Vitals
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.openMonitorBtn}
+              onPress={() => navigation.navigate('HealthMonitor')}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.openMonitorBtnText}>Open</Text>
+              <Ionicons name="chevron-forward" size={14} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+
+          {/* QUICK VITALS STRIP */}
+          <View style={styles.vitalsStrip}>
+            <TouchableOpacity
+              style={styles.vitalStripItem}
+              onPress={() => navigation.navigate('HealthMonitor')}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.vitalMiniIcon, { backgroundColor: '#FFE4E6' }]}>
+                <Ionicons name="water" size={14} color="#E11D48" />
+              </View>
+              <View>
+                <Text style={styles.vitalMiniLabel}>Sugar (Fasting)</Text>
+                <Text style={styles.vitalMiniVal}>95 <Text style={styles.vitalMiniUnit}>mg/dL</Text></Text>
+              </View>
+              <View style={[styles.vitalMiniBadge, { backgroundColor: '#ECFDF5' }]}>
+                <Text style={[styles.vitalMiniBadgeText, { color: '#10B981' }]}>Normal</Text>
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.vitalStripDivider} />
+
+            <TouchableOpacity
+              style={styles.vitalStripItem}
+              onPress={() => navigation.navigate('HealthMonitor')}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.vitalMiniIcon, { backgroundColor: '#FEE2E2' }]}>
+                <Ionicons name="heart" size={14} color="#EF4444" />
+              </View>
+              <View>
+                <Text style={styles.vitalMiniLabel}>Blood Pressure</Text>
+                <Text style={styles.vitalMiniVal}>120/80 <Text style={styles.vitalMiniUnit}>mmHg</Text></Text>
+              </View>
+              <View style={[styles.vitalMiniBadge, { backgroundColor: '#ECFDF5' }]}>
+                <Text style={[styles.vitalMiniBadgeText, { color: '#10B981' }]}>Optimal</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={styles.logReadingBannerBtn}
+            onPress={() => navigation.navigate('HealthMonitor')}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="add-circle" size={18} color={colors.primary} />
+            <Text style={styles.logReadingBannerText}>+ Update Health Report / Log Reading</Text>
+          </TouchableOpacity>
         </View>
 
 
@@ -3942,6 +4058,160 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.secondary,
     textAlign: 'center',
+  },
+
+  // ==================================================
+  // HEALTH MONITOR HOME CARD STYLES
+  // ==================================================
+
+  healthMonitorHomeCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    marginVertical: 14,
+    borderWidth: 1.5,
+    borderColor: '#FECDD3',
+    shadowColor: '#E11D48',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+
+  healthMonitorHomeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+
+  healthMonitorIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFE4E6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  healthMonitorTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+
+  liveBadge: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+
+  liveBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#E11D48',
+    letterSpacing: 0.5,
+  },
+
+  healthMonitorSubtitle: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2,
+  },
+
+  openMonitorBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E11D48',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    gap: 2,
+  },
+
+  openMonitorBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  vitalsStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
+  },
+
+  vitalStripItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  vitalMiniIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  vitalMiniLabel: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+
+  vitalMiniVal: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+
+  vitalMiniUnit: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+
+  vitalMiniBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 'auto',
+  },
+
+  vitalMiniBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+  },
+
+  vitalStripDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#E2E8F0',
+    marginHorizontal: 8,
+  },
+
+  logReadingBannerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.lightTeal,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+
+  logReadingBannerText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
   },
 
 });
