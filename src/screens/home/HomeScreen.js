@@ -766,16 +766,16 @@ const HomeScreen = ({ navigation }) => {
       <TouchableOpacity
         style={styles.floatingChatbotFab}
         onPress={() => navigation.navigate('Chatbot')}
-        activeOpacity={0.88}
+        activeOpacity={0.85}
       >
-        <View style={styles.fabIconWrap}>
+        <View style={styles.fabIconCircle}>
           <Ionicons name="sparkles" size={20} color="#FFFFFF" />
+          <View style={styles.fabOnlineBadge} />
         </View>
-        <View style={styles.fabTextWrap}>
-          <Text style={styles.fabTitle}>AI Care</Text>
-          <Text style={styles.fabSub}>Ask AI</Text>
+        <View style={styles.fabTextColumn}>
+          <Text style={styles.fabTitle}>AI Doctor</Text>
+          <Text style={styles.fabSub}>Ask Health AI</Text>
         </View>
-        <View style={styles.fabPulseDot} />
       </TouchableOpacity>
 
       {/* ==========================================
@@ -2301,51 +2301,56 @@ const styles = StyleSheet.create({
   // FLOATING CHATBOT FAB
   floatingChatbotFab: {
     position: 'absolute',
-    bottom: 24,
-    right: 18,
+    bottom: 85,
+    right: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    backgroundColor: '#0F766E',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 30,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowColor: '#0F766E',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 12,
     borderWidth: 2,
     borderColor: '#FFFFFF',
     gap: 8,
-    zIndex: 999,
+    zIndex: 9999,
   },
-  fabIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  fabIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
-  fabTextWrap: {
+  fabOnlineBadge: {
+    position: 'absolute',
+    top: -1,
+    right: -1,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#34D399',
+    borderWidth: 1.5,
+    borderColor: '#0F766E',
+  },
+  fabTextColumn: {
     justifyContent: 'center',
   },
   fabTitle: {
-    fontSize: 12.5,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '900',
     color: '#FFFFFF',
   },
   fabSub: {
     fontSize: 9.5,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#A7F3D0',
-  },
-  fabPulseDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#34D399',
-    marginLeft: 2,
   },
 
   // EMERGENCY MODAL OPTIONS
