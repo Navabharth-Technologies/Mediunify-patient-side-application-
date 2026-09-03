@@ -109,7 +109,26 @@ const CartScreen = ({ navigation, route }) => {
   const [labVisitType, setLabVisitType] = useState('HOME_COLLECTION'); // HOME_COLLECTION vs LAB_VISIT
   const [selectedLabSlot, setSelectedLabSlot] = useState(LAB_SAMPLE_SLOTS[0]);
   const [patientAge, setPatientAge] = useState('32');
-  const [patientGender, setPatientGender] = useState('Male');
+  // Check if cart has radiology scans (must be done in hospital)
+  const hasRadiologyScans = labCart.some(
+    (item) =>
+      item.category === 'Radiology' ||
+      item.category === 'Diagnostic Scan' ||
+      item.modality ||
+      item.modalityCode ||
+      item.itemType === 'diagnostic' ||
+      (item.categoryLabel &&
+        !item.categoryLabel.toLowerCase().includes('blood') &&
+        !item.categoryLabel.toLowerCase().includes('urine')) ||
+      item.name?.toLowerCase().includes('mri') ||
+      item.name?.toLowerCase().includes('ct scan') ||
+      item.name?.toLowerCase().includes('x-ray') ||
+      item.name?.toLowerCase().includes('ultrasound') ||
+      item.name?.toLowerCase().includes('mammogram') ||
+      item.name?.toLowerCase().includes('scan') ||
+      item.name?.toLowerCase().includes('ecg') ||
+      item.name?.toLowerCase().includes('echo')
+  );
 
   // Coupon state
   const [couponInput, setCouponInput] = useState('');
@@ -853,73 +872,103 @@ const CartScreen = ({ navigation, route }) => {
                   </View>
                 ))}
 
-                {/* VISIT CHOICE: HOME SAMPLE VS LAB VISIT */}
-                <View style={styles.card}>
-                  <Text style={styles.cardTitle}>Sample Collection Preference</Text>
-                  <View style={styles.visitTypeRow}>
-                    <TouchableOpacity
-                      style={[
-                        styles.visitTypeCard,
-                        labVisitType === 'HOME_COLLECTION' && styles.visitTypeCardActive,
-                      ]}
-                      onPress={() => setLabVisitType('HOME_COLLECTION')}
-                      activeOpacity={0.85}
-                    >
-                      <Ionicons
-                        name="home"
-                        size={20}
-                        color={labVisitType === 'HOME_COLLECTION' ? '#FFFFFF' : colors.primary}
-                      />
-                      <Text
-                        style={[
-                          styles.visitTypeTitle,
-                          labVisitType === 'HOME_COLLECTION' && styles.visitTypeTitleActive,
-                        ]}
-                      >
-                        Home Collection
-                      </Text>
-                      <Text
-                        style={[
-                          styles.visitTypeSubtitle,
-                          labVisitType === 'HOME_COLLECTION' && styles.visitTypeSubtitleActive,
-                        ]}
-                      >
-                        Phlebotomist at doorstep (FREE)
-                      </Text>
-                    </TouchableOpacity>
+                {/* VISIT CHOICE: HOSPITAL VISIT (MANDATORY FOR RADIOLOGY) VS HOME SAMPLE */}
+                {hasRadiologyScans ? (
+                  <View style={styles.hospitalNoticeCard}>
+                    <View style={styles.hospitalNoticeHeader}>
+                      <View style={styles.hospitalNoticeIconCircle}>
+                        <Ionicons name="business" size={22} color="#0284C7" />
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={styles.hospitalNoticeTitle}>
+                          Hospital / Center Visit Mandatory
+                        </Text>
+                        <Text style={styles.hospitalNoticeSubtitle}>
+                          Radiology & imaging scans (MRI, CT, X-Ray, Ultrasound) require heavy hospital machinery and must be conducted on-site at the diagnostic hospital.
+                        </Text>
+                      </View>
+                    </View>
 
-                    <TouchableOpacity
-                      style={[
-                        styles.visitTypeCard,
-                        labVisitType === 'LAB_VISIT' && styles.visitTypeCardActive,
-                      ]}
-                      onPress={() => setLabVisitType('LAB_VISIT')}
-                      activeOpacity={0.85}
-                    >
-                      <Ionicons
-                        name="business"
-                        size={20}
-                        color={labVisitType === 'LAB_VISIT' ? '#FFFFFF' : colors.primary}
-                      />
-                      <Text
-                        style={[
-                          styles.visitTypeTitle,
-                          labVisitType === 'LAB_VISIT' && styles.visitTypeTitleActive,
-                        ]}
-                      >
-                        Visit Diagnostic Lab
-                      </Text>
-                      <Text
-                        style={[
-                          styles.visitTypeSubtitle,
-                          labVisitType === 'LAB_VISIT' && styles.visitTypeSubtitleActive,
-                        ]}
-                      >
-                        Direct fast-track visit
-                      </Text>
-                    </TouchableOpacity>
+                    <View style={styles.hospitalCenterBadge}>
+                      <Ionicons name="location" size={16} color="#0284C7" />
+                      <View style={{ flex: 1, marginLeft: 8 }}>
+                        <Text style={styles.hospitalCenterName}>
+                          {labCart[0]?.labName || 'Unnathi Diagnostic & Imaging Center'}
+                        </Text>
+                        <Text style={styles.hospitalCenterArea}>
+                          {labCart[0]?.labArea || 'Kuvempunagar, Mysore'} • On-site Appointment
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                </View>
+                ) : (
+                  <View style={styles.card}>
+                    <Text style={styles.cardTitle}>Sample Collection Preference</Text>
+                    <View style={styles.visitTypeRow}>
+                      <TouchableOpacity
+                        style={[
+                          styles.visitTypeCard,
+                          labVisitType === 'HOME_COLLECTION' && styles.visitTypeCardActive,
+                        ]}
+                        onPress={() => setLabVisitType('HOME_COLLECTION')}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons
+                          name="home"
+                          size={20}
+                          color={labVisitType === 'HOME_COLLECTION' ? '#FFFFFF' : colors.primary}
+                        />
+                        <Text
+                          style={[
+                            styles.visitTypeTitle,
+                            labVisitType === 'HOME_COLLECTION' && styles.visitTypeTitleActive,
+                          ]}
+                        >
+                          Home Collection
+                        </Text>
+                        <Text
+                          style={[
+                            styles.visitTypeSubtitle,
+                            labVisitType === 'HOME_COLLECTION' && styles.visitTypeSubtitleActive,
+                          ]}
+                        >
+                          Phlebotomist at doorstep (FREE)
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.visitTypeCard,
+                          labVisitType === 'LAB_VISIT' && styles.visitTypeCardActive,
+                        ]}
+                        onPress={() => setLabVisitType('LAB_VISIT')}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons
+                          name="business"
+                          size={20}
+                          color={labVisitType === 'LAB_VISIT' ? '#FFFFFF' : colors.primary}
+                        />
+                        <Text
+                          style={[
+                            styles.visitTypeTitle,
+                            labVisitType === 'LAB_VISIT' && styles.visitTypeTitleActive,
+                          ]}
+                        >
+                          Visit Diagnostic Lab
+                        </Text>
+                        <Text
+                          style={[
+                            styles.visitTypeSubtitle,
+                            labVisitType === 'LAB_VISIT' && styles.visitTypeSubtitleActive,
+                          ]}
+                        >
+                          Direct fast-track visit
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
 
                 {/* SAMPLE DATE & SLOT */}
                 <View style={styles.card}>
@@ -1447,6 +1496,61 @@ const styles = StyleSheet.create({
   },
   visitTypeSubtitleActive: {
     color: '#E0F2FE',
+  },
+
+  // HOSPITAL NOTICE FOR RADIOLOGY
+  hospitalNoticeCard: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: '#93C5FD',
+    marginBottom: 12,
+  },
+  hospitalNoticeHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  hospitalNoticeIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#DBEAFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hospitalNoticeTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1E40AF',
+  },
+  hospitalNoticeSubtitle: {
+    fontSize: 12,
+    color: '#3B82F6',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  hospitalCenterBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    marginTop: 4,
+  },
+  hospitalCenterName: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  hospitalCenterArea: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+    fontWeight: '600',
   },
 
   slotGrid: {

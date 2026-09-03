@@ -68,7 +68,19 @@ const LabBookingScreen = ({ route, navigation }) => {
 
   // Check if any test strictly requires a Hospital/Lab visit
   const requiresHospitalVisit = useMemo(() => {
-    return rawSelectedTests.some((t) => !t.homeCollectionAvailable);
+    return rawSelectedTests.some(
+      (t) =>
+        t.homeCollectionAvailable === false ||
+        t.category === 'Radiology' ||
+        t.category === 'Diagnostic Scan' ||
+        t.modality ||
+        t.itemType === 'diagnostic' ||
+        t.name?.toLowerCase().includes('mri') ||
+        t.name?.toLowerCase().includes('ct scan') ||
+        t.name?.toLowerCase().includes('x-ray') ||
+        t.name?.toLowerCase().includes('ultrasound') ||
+        t.name?.toLowerCase().includes('scan')
+    );
   }, [rawSelectedTests]);
 
   // Collection Mode: 'HOME' (Lab boy visits) or 'LAB_VISIT' (Patient visits diagnostic center)
