@@ -281,31 +281,23 @@ const HomeScreen = ({ navigation }) => {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* ==========================================
-          TOP APP BAR (PROFILE NAME, WALLET, NOTIFS, CART)
+          TOP APP BAR (BRAND LOGO, WALLET, NOTIFS, CART)
       ========================================== */}
       <View style={styles.topBar}>
-        {/* PROFILE ICON & USER NAME (LEFT) */}
-        <TouchableOpacity
-          style={styles.profileHeaderBtn}
-          onPress={() => navigation.navigate('Profile')}
-          activeOpacity={0.85}
-        >
-          <View style={styles.profileAvatarWrap}>
-            <Image
-              source={{
-                uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-              }}
-              style={styles.profileAvatarImg}
-            />
-            <View style={styles.profileOnlineDot} />
-          </View>
-          <View style={styles.profileTextWrap}>
-            <Text style={styles.profileHelloText} numberOfLines={1}>
-              Hello, {userName} 👋
+        {/* BRAND LOGO & APP NAME */}
+        <View style={styles.brandHeaderLeft}>
+          <Image
+            source={require('../../../assets/logo.png')}
+            style={styles.brandLogoImg}
+            resizeMode="contain"
+          />
+          <View style={styles.brandTextWrap}>
+            <Text style={styles.brandLogoTitle}>
+              Medi<Text style={styles.brandLogoAccent}>Unify</Text>
             </Text>
-            <Text style={styles.profileRoleText}>Patient Profile ›</Text>
+            <Text style={styles.brandTagline}>Healthcare</Text>
           </View>
-        </TouchableOpacity>
+        </View>
 
         {/* RIGHT ACTIONS: WALLET, NOTIFS & CART */}
         <View style={styles.topBarRight}>
@@ -346,29 +338,43 @@ const HomeScreen = ({ navigation }) => {
       </View>
 
       {/* ==========================================
-          LOCATION SELECTOR BAR (BELOW PROFILE HEADER)
+          USER PROFILE & LOCATION BAR (BELOW TOP BAR)
       ========================================== */}
-      <View style={styles.locationStripWrap}>
+      <View style={styles.userLocationStrip}>
+        {/* PROFILE GREETING (LEFT) */}
         <TouchableOpacity
-          style={styles.locationPillFull}
+          style={styles.profileHeaderBtn}
+          onPress={() => navigation.navigate('Profile')}
+          activeOpacity={0.85}
+        >
+          <View style={styles.profileAvatarWrap}>
+            <Image
+              source={{
+                uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+              }}
+              style={styles.profileAvatarImg}
+            />
+            <View style={styles.profileOnlineDot} />
+          </View>
+          <View style={styles.profileTextWrap}>
+            <Text style={styles.profileHelloText} numberOfLines={1}>
+              Hello, {userName} 👋
+            </Text>
+            <Text style={styles.profileRoleText}>Patient Account ›</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* LOCATION SELECTOR (RIGHT) */}
+        <TouchableOpacity
+          style={styles.locationPillCompact}
           onPress={() => setLocationModalVisible(true)}
           activeOpacity={0.85}
         >
-          <View style={styles.locationIconWrap}>
-            <Ionicons name="location" size={16} color={colors.primary} />
-          </View>
-          <View style={styles.locationTextWrap}>
-            <Text style={styles.locationLabel}>Delivering & Booking In</Text>
-            <View style={styles.locationNameRow}>
-              <Text style={styles.locationName} numberOfLines={1}>
-                {locationName}
-              </Text>
-              <Ionicons name="chevron-down" size={14} color="#0F766E" />
-            </View>
-          </View>
-          <View style={styles.locationChangeBtn}>
-            <Text style={styles.locationChangeBtnText}>Change</Text>
-          </View>
+          <Ionicons name="location" size={14} color={colors.primary} />
+          <Text style={styles.locationCompactText} numberOfLines={1}>
+            {locationName}
+          </Text>
+          <Ionicons name="chevron-down" size={12} color="#64748B" />
         </TouchableOpacity>
       </View>
 
@@ -1257,32 +1263,72 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     backgroundColor: '#FFFFFF',
   },
+  brandHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  brandLogoImg: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  brandTextWrap: {
+    justifyContent: 'center',
+  },
+  brandLogoTitle: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: colors.teal,
+    letterSpacing: -0.3,
+  },
+  brandLogoAccent: {
+    color: colors.navyBlue,
+  },
+  brandTagline: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: colors.slate,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginTop: -2,
+  },
+  userLocationStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
   profileHeaderBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    maxWidth: '52%',
+    maxWidth: '56%',
   },
   profileAvatarWrap: {
     position: 'relative',
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1.5,
-    borderColor: colors.primary,
+    borderColor: colors.teal,
   },
   profileAvatarImg: {
     width: '100%',
     height: '100%',
-    borderRadius: 19,
+    borderRadius: 18,
   },
   profileOnlineDot: {
     position: 'absolute',
     bottom: -1,
     right: -1,
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
-    backgroundColor: '#10B981',
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.freshGreen,
     borderWidth: 1.5,
     borderColor: '#FFFFFF',
   },
@@ -1291,72 +1337,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   profileHelloText: {
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: '900',
-    color: '#0F172A',
+    color: colors.navyBlue,
   },
   profileRoleText: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '700',
-    color: '#0F766E',
+    color: colors.teal,
     marginTop: 1,
   },
-  locationStripWrap: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  locationPillFull: {
+  locationPillCompact: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: colors.lightTeal,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  locationIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 9,
-    backgroundColor: colors.lightTeal,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  locationTextWrap: {
-    flex: 1,
-    marginLeft: 8,
-  },
-  locationLabel: {
-    fontSize: 9.5,
-    color: '#64748B',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  locationNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderColor: '#CCFBF1',
     gap: 4,
+    maxWidth: '42%',
   },
-  locationName: {
-    fontSize: 12.5,
+  locationCompactText: {
+    fontSize: 11.5,
     fontWeight: '800',
-    color: '#1E293B',
-  },
-  locationChangeBtn: {
-    backgroundColor: '#CCFBF1',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  locationChangeBtnText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#0F766E',
+    color: colors.navyBlue,
+    flexShrink: 1,
   },
   topBarRight: {
     flexDirection: 'row',
