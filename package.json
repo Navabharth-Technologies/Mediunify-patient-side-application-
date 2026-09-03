@@ -5,8 +5,8 @@
   "scripts": {
     "start": "expo start",
     "web": "expo start --web",
-    "predeploy": "npx expo export -p web",
-    "deploy": "gh-pages -d dist"
+    "predeploy": "npx expo export -p web && node -e \"require('fs').writeFileSync('dist/.nojekyll', '')\"",
+    "deploy": "gh-pages -d dist -t"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
