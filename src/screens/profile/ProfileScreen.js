@@ -1,1359 +1,1140 @@
-import React, { useState } from 'react';
-
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  Pressable,
+  TouchableOpacity,
   Alert,
   Platform,
+  StatusBar,
+  Linking,
+  Modal,
 } from 'react-native';
-
 import { Ionicons } from '@expo/vector-icons';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../theme/colors';
-import FloatingCareAI from '../../components/FloatingCareAI';
-
 
 const ProfileScreen = ({ navigation, route }) => {
-
-  // =========================================================
-  // USER
-  // =========================================================
-
+  // User Profile State
   const [user, setUser] = useState({
-    name: route?.params?.updatedUser?.name || 'Hemanth',
+    name: route?.params?.updatedUser?.name || 'Hemanth Gowda',
     email: route?.params?.updatedUser?.email || 'hemanth@example.com',
     phone: route?.params?.updatedUser?.phone || '+91 98765 43210',
+    bloodGroup: 'O+ Positive',
+    age: '28 Yrs',
+    gender: 'Male',
+    abhaId: '91-4521-8890-1234',
+    emergencyContact: '+91 98450 11223 (Father)',
   });
 
+  const [walletBalance, setWalletBalance] = useState(1250);
+  const [carePoints, setCarePoints] = useState(500);
+  const [abhaModalVisible, setAbhaModalVisible] = useState(false);
+  const [copiedAbha, setCopiedAbha] = useState(false);
 
-  // =========================================================
-  // RECEIVE UPDATED USER
-  // =========================================================
+  // Load Saved Data
+  useEffect(() => {
+    loadProfileData();
+  }, []);
 
-  React.useEffect(() => {
-
+  useEffect(() => {
     if (route?.params?.updatedUser) {
-
-      setUser({
-        name: route.params.updatedUser.name || '',
-        email: route.params.updatedUser.email || '',
-        phone: route.params.updatedUser.phone || '',
-      });
-
+      setUser((prev) => ({
+        ...prev,
+        name: route.params.updatedUser.name || prev.name,
+        email: route.params.updatedUser.email || prev.email,
+        phone: route.params.updatedUser.phone || prev.phone,
+      }));
     }
-
   }, [route?.params?.updatedUser]);
 
+  const loadProfileData = async () => {
+    try {
+      const storedName = await AsyncStorage.getItem('userName');
+      const storedEmail = await AsyncStorage.getItem('userEmail');
+      const storedPhone = await AsyncStorage.getItem('userPhone');
+      const savedWallet = await AsyncStorage.getItem('@unnathi_wallet_balance');
 
-  // =========================================================
-  // EDIT PROFILE
-  // =========================================================
+      setUser((prev) => ({
+        ...prev,
+        name: storedName && storedName.trim() ? storedName.trim() : prev.name,
+        email: storedEmail && storedEmail.trim() ? storedEmail.trim() : prev.email,
+        phone: storedPhone && storedPhone.trim() ? storedPhone.trim() : prev.phone,
+      }));
 
-  const handleEditProfile = () => {
-
-    console.log('Edit Profile pressed');
-
-    navigation.navigate('EditProfile', {
-      user: user,
-    });
-
+      if (savedWallet) {
+        setWalletBalance(parseInt(savedWallet, 10) || 1250);
+      }
+    } catch (e) {
+      console.log('Error loading profile data:', e);
+    }
   };
 
-
-  // =========================================================
-  // LOGOUT
-  // =========================================================
+  const handleEditProfile = () => {
+    navigation.navigate('EditProfile', { user });
+  };
 
   const handleLogout = () => {
     Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
+      'Logout from MediUnify',
+      'Are you sure you want to securely log out of your healthcare account?',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Logout',
           style: 'destructive',
-          onPress: () => {
-            console.log('Logout pressed');
-            console.log('Logging out...');
-
+          onPress: async () => {
+            try {
+              await AsyncStorage.multiRemove([
+                'userToken',
+                '@unnathi_active_patient',
+              ]);
+            } catch (e) {
+              console.log('Logout storage clear err:', e);
+            }
             navigation.getParent()?.reset({
               index: 0,
-              routes: [
-                {
-                  name: 'Auth',
-                },
-              ],
+              routes: [{ name: 'Auth' }],
             });
           },
         },
-      ],
+      ]
     );
   };
 
-  // =========================================================
-  // BOTTOM NAVIGATION
-  // =========================================================
-
-  const goHome = () => {
-
-    navigation.navigate('Home');
-
+  const copyAbhaToClipboard = () => {
+    setCopiedAbha(true);
+    setTimeout(() => setCopiedAbha(false), 2500);
   };
-
-
-  const goInPerson = () => {
-
-    navigation.navigate('DoctorList');
-
-  };
-
-
-  const goVideo = () => {
-
-    navigation.navigate('VideoConsultation');
-
-  };
-
-
-  const goProfile = () => {
-
-    navigation.navigate('Profile');
-
-  };
-
-
-  // =========================================================
-  // ACCOUNT OPTIONS
-  // =========================================================
-
-  const profileOptions = [
-    {
-      title: 'Unnathi Health Wallet',
-      subtitle: '₹1,250 Health Cash • 500 Care Points',
-      icon: 'wallet-outline',
-      color: '#059669',
-      background: '#ECFDF5',
-      badge: '₹1,250',
-      route: 'Wallet',
-    },
-    {
-      title: 'Family Profiles',
-      subtitle: 'Manage family members & dependents',
-      icon: 'people-outline',
-      color: colors.primary,
-      background: '#E6F7F7',
-      route: 'FamilyProfiles',
-    },
-    {
-      title: 'My Prescriptions',
-      subtitle: 'Doctor advice, medicines & refills',
-      icon: 'medkit-outline',
-      color: '#5967D8',
-      background: '#EEF0FF',
-      route: 'Prescriptions',
-    },
-    {
-      title: 'Lab & Diagnostic Reports',
-      subtitle: 'CBC, Blood Sugar, Thyroid, X-Ray',
-      icon: 'flask-outline',
-      color: '#1596A5',
-      background: '#E7F7FA',
-      route: 'Reports',
-    },
-    {
-      title: 'Pharmacy Orders',
-      subtitle: 'Order tracking & invoices',
-      icon: 'receipt-outline',
-      color: '#E67E22',
-      background: '#FFF3E0',
-      route: 'MyOrders',
-    },
-    {
-      title: 'Transaction & Payment History',
-      subtitle: 'Invoices, receipts & payment records',
-      icon: 'receipt-outline',
-      color: '#059669',
-      background: '#ECFDF5',
-      route: 'TransactionHistory',
-    },
-    {
-      title: 'Notifications',
-      subtitle: 'Reminders & health updates',
-      icon: 'notifications-outline',
-      color: colors.primary,
-      background: '#E6F7F7',
-      route: 'Notifications',
-    },
-    {
-      title: 'Help & 24/7 Support',
-      subtitle: 'Call helpline & WhatsApp chat',
-      icon: 'headset-outline',
-      color: '#1596A5',
-      background: '#E7F7FA',
-      route: 'HelpSupport',
-    },
-    {
-      title: 'App Settings',
-      subtitle: 'Preferences, security & language',
-      icon: 'settings-outline',
-      color: '#5967D8',
-      background: '#EEF0FF',
-      route: 'Settings',
-    },
-  ];
-
-  // =========================================================
-  // ACCOUNT OPTION PRESS
-  // =========================================================
-
-  const handleOptionPress = (item) => {
-    if (item.route) {
-      navigation.navigate(item.route);
-      return;
-    }
-
-    Alert.alert(item.title, `${item.title} is coming soon.`);
-  };
-
-  // =========================================================
-  // RENDER
-  // =========================================================
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* =====================================================
-          SCROLLABLE CONTENT
-      ===================================================== */}
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* ===================================================
-            HEADER
-        =================================================== */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.headerLabel}>MY ACCOUNT</Text>
-            <Text style={styles.headerTitle}>Profile</Text>
-          </View>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.settingsButton,
-              pressed && styles.pressed,
-            ]}
+      {/* TOP HEADER BAR */}
+      <View style={styles.topHeader}>
+        <View>
+          <Text style={styles.topHeaderBadge}>PATIENT DASHBOARD</Text>
+          <Text style={styles.topHeaderTitle}>My Health Profile</Text>
+        </View>
+
+        <View style={styles.headerActionRow}>
+          <TouchableOpacity
+            style={styles.headerIconBtn}
+            onPress={() => navigation.navigate('Notifications')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="notifications-outline" size={20} color="#1E293B" />
+            <View style={styles.headerDotBadge} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.headerIconBtn}
             onPress={() => navigation.navigate('Settings')}
-            hitSlop={10}
+            activeOpacity={0.8}
           >
-            <Ionicons
-              name="settings-outline"
-              size={21}
-              color={colors.secondary}
-            />
-          </Pressable>
+            <Ionicons name="settings-outline" size={20} color="#1E293B" />
+          </TouchableOpacity>
         </View>
+      </View>
 
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* ==========================================
+            HERO PROFILE CARD (GRADIENT TEAL)
+        ========================================== */}
+        <View style={styles.heroCard}>
+          <View style={styles.heroCardBgOrb1} />
+          <View style={styles.heroCardBgOrb2} />
 
-        {/* ===================================================
-            PROFILE CARD
-        =================================================== */}
+          <View style={styles.heroMainRow}>
+            {/* AVATAR WITH BADGE */}
+            <View style={styles.avatarWrap}>
+              <View style={styles.avatarCircle}>
+                <Ionicons name="person" size={38} color="#FFFFFF" />
+              </View>
+              <View style={styles.verifiedBadge}>
+                <Ionicons name="shield-checkmark" size={12} color="#FFFFFF" />
+              </View>
+            </View>
 
-        <View style={styles.profileCard}>
-
-          {/* AVATAR */}
-
-          <View style={styles.avatar}>
-
-            <Ionicons
-              name="person"
-              size={34}
-              color={colors.white}
-            />
-
+            {/* USER INFO */}
+            <View style={styles.heroInfoColumn}>
+              <View style={styles.verifiedTagRow}>
+                <Text style={styles.verifiedTagText}>ABDM VERIFIED PATIENT</Text>
+              </View>
+              <Text style={styles.heroUserName} numberOfLines={1}>
+                {user.name}
+              </Text>
+              <Text style={styles.heroContactText} numberOfLines={1}>
+                📞 {user.phone}
+              </Text>
+              <Text style={styles.heroContactText} numberOfLines={1}>
+                ✉️ {user.email}
+              </Text>
+            </View>
           </View>
 
+          {/* VITAL TAGS (BLOOD GROUP, AGE, GENDER) */}
+          <View style={styles.vitalTagsRow}>
+            <View style={styles.vitalPill}>
+              <Ionicons name="water" size={13} color="#EF4444" />
+              <Text style={styles.vitalPillText}>{user.bloodGroup}</Text>
+            </View>
 
-          {/* USER INFORMATION */}
+            <View style={styles.vitalPill}>
+              <Ionicons name="calendar-outline" size={13} color="#0D9488" />
+              <Text style={styles.vitalPillText}>{user.age}</Text>
+            </View>
 
-          <View style={styles.userInfo}>
+            <View style={styles.vitalPill}>
+              <Ionicons name="male-female-outline" size={13} color="#3B82F6" />
+              <Text style={styles.vitalPillText}>{user.gender}</Text>
+            </View>
+          </View>
 
-            <Text
-              style={styles.userName}
-              numberOfLines={1}
+          {/* ACTION BUTTONS (EDIT & ABHA CARD) */}
+          <View style={styles.heroActionsRow}>
+            <TouchableOpacity
+              style={styles.heroPrimaryBtn}
+              onPress={handleEditProfile}
+              activeOpacity={0.88}
             >
-              {user.name}
-            </Text>
+              <Ionicons name="create-outline" size={16} color="#0F766E" />
+              <Text style={styles.heroPrimaryBtnText}>Edit Profile</Text>
+            </TouchableOpacity>
 
-            <View style={styles.infoRow}>
-
-              <Ionicons
-                name="mail-outline"
-                size={13}
-                color="#C8D8F2"
-              />
-
-              <Text
-                style={styles.userEmail}
-                numberOfLines={1}
-              >
-                {user.email}
-              </Text>
-
-            </View>
-
-
-            <View style={styles.infoRow}>
-
-              <Ionicons
-                name="call-outline"
-                size={13}
-                color="#C8D8F2"
-              />
-
-              <Text
-                style={styles.userPhone}
-                numberOfLines={1}
-              >
-                {user.phone}
-              </Text>
-
-            </View>
-
+            <TouchableOpacity
+              style={styles.heroSecondaryBtn}
+              onPress={() => setAbhaModalVisible(true)}
+              activeOpacity={0.88}
+            >
+              <Ionicons name="qr-code-outline" size={16} color="#FFFFFF" />
+              <Text style={styles.heroSecondaryBtnText}>View ABHA Card</Text>
+            </TouchableOpacity>
           </View>
-
-
-          {/* =================================================
-              EDIT BUTTON
-          ================================================= */}
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.editButton,
-              pressed && styles.editButtonPressed,
-            ]}
-            onPress={handleEditProfile}
-            hitSlop={10}
-          >
-
-            <Ionicons
-              name="create-outline"
-              size={21}
-              color={colors.primary}
-            />
-
-          </Pressable>
-
         </View>
 
+        {/* ==========================================
+            QUICK STATS & HEALTH STRIP
+        ========================================== */}
+        <View style={styles.quickStatsRow}>
+          {/* WALLET CASH */}
+          <TouchableOpacity
+            style={styles.quickStatCard}
+            onPress={() => navigation.navigate('Wallet')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.statIconCircle, { backgroundColor: '#ECFDF5' }]}>
+              <Ionicons name="wallet" size={18} color="#059669" />
+            </View>
+            <Text style={styles.statValue}>₹{walletBalance.toLocaleString('en-IN')}</Text>
+            <Text style={styles.statLabel}>Health Cash ›</Text>
+          </TouchableOpacity>
 
-        {/* ===================================================
-            ACCOUNT
-        =================================================== */}
+          {/* CARE POINTS */}
+          <TouchableOpacity
+            style={styles.quickStatCard}
+            onPress={() => navigation.navigate('Wallet')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.statIconCircle, { backgroundColor: '#FEF3C7' }]}>
+              <Ionicons name="ribbon" size={18} color="#D97706" />
+            </View>
+            <Text style={styles.statValue}>{carePoints} Pts</Text>
+            <Text style={styles.statLabel}>Care Rewards ›</Text>
+          </TouchableOpacity>
 
+          {/* HEALTH SCORE */}
+          <TouchableOpacity
+            style={styles.quickStatCard}
+            onPress={() => navigation.navigate('HealthMonitor')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.statIconCircle, { backgroundColor: '#EEF2FF' }]}>
+              <Ionicons name="heart-circle" size={18} color="#4F46E5" />
+            </View>
+            <Text style={styles.statValue}>96%</Text>
+            <Text style={styles.statLabel}>Vitals Score ›</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ==========================================
+            SECTION 1: MEDICAL RECORDS & FAMILY
+        ========================================== */}
         <View style={styles.sectionHeader}>
-
-
-
+          <Text style={styles.sectionTitle}>Medical Records & Family</Text>
+          <Text style={styles.sectionSubtitle}>Appointments, prescriptions & loved ones</Text>
         </View>
 
-
-        {/* ===================================================
-            OPTIONS
-        =================================================== */}
-
-        <View style={styles.optionsContainer}>
-
-          {profileOptions.map((item) => (
-
-            <Pressable
-              key={item.title}
-              style={({ pressed }) => [
-                styles.profileOption,
-                pressed && styles.optionPressed,
-              ]}
-              onPress={() => handleOptionPress(item)}
-              android_ripple={{
-                color: '#E8EEF5',
-              }}
-            >
-
-              {/* ICON */}
-
-              <View
-                style={[
-                  styles.optionIcon,
-                  {
-                    backgroundColor: item.background,
-                  },
-                ]}
-              >
-
-                <Ionicons
-                  name={item.icon}
-                  size={23}
-                  color={item.color}
-                />
-
-              </View>
-
-
-              {/* TEXT */}
-
-              <View style={styles.optionInfo}>
-
-                <Text style={styles.optionTitle}>
-                  {item.title}
-                </Text>
-
-                <Text style={styles.optionSubtitle}>
-                  {item.subtitle}
-                </Text>
-
-              </View>
-
-
-              {/* BADGE OR ARROW */}
-              {item.badge && (
-                <View style={styles.optionBadge}>
-                  <Text style={styles.optionBadgeText}>{item.badge}</Text>
-                </View>
-              )}
-
-              <View style={styles.arrowCircle}>
-                <Ionicons
-                  name="chevron-forward"
-                  size={17}
-                  color={colors.slate}
-                />
-              </View>
-
-            </Pressable>
-
-          ))}
-
-        </View>
-
-
-        {/* ===================================================
-            LOGOUT
-        =================================================== */}
-
-        <View style={styles.logoutSection}>
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.logoutButton,
-              pressed && styles.logoutPressed,
-            ]}
-            onPress={handleLogout}
-            hitSlop={5}
+        <View style={styles.cardGroup}>
+          {/* FAMILY PROFILES */}
+          <TouchableOpacity
+            style={styles.groupItem}
+            onPress={() => navigation.navigate('FamilyProfiles')}
+            activeOpacity={0.7}
           >
-
-            {/* LOGOUT ICON */}
-
-            <View style={styles.logoutIcon}>
-
-              <Ionicons
-                name="log-out-outline"
-                size={24}
-                color="#D32F2F"
-              />
-
+            <View style={[styles.itemIconWrap, { backgroundColor: '#E0F2FE' }]}>
+              <Ionicons name="people" size={20} color="#0284C7" />
             </View>
-
-
-            {/* TEXT */}
-
-            <View style={styles.logoutInfo}>
-
-              <Text style={styles.logoutTitle}>
-                Logout
-              </Text>
-
-              <Text style={styles.logoutSubtitle}>
-                Sign out of your Mediunify account
-              </Text>
-
+            <View style={styles.itemTextWrap}>
+              <Text style={styles.itemTitle}>Family Members & Dependents</Text>
+              <Text style={styles.itemSubtitle}>Manage 4 family profiles & medical history</Text>
             </View>
-
-
-            {/* ARROW */}
-
-            <View style={styles.logoutArrow}>
-
-              <Ionicons
-                name="chevron-forward"
-                size={19}
-                color="#D32F2F"
-              />
-
+            <View style={styles.badgePill}>
+              <Text style={styles.badgePillText}>4 Profiles</Text>
             </View>
+            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+          </TouchableOpacity>
 
-          </Pressable>
+          <View style={styles.divider} />
 
+          {/* MY APPOINTMENTS */}
+          <TouchableOpacity
+            style={styles.groupItem}
+            onPress={() => navigation.navigate('Bookings')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.itemIconWrap, { backgroundColor: '#F0FDF4' }]}>
+              <Ionicons name="calendar" size={20} color="#16A34A" />
+            </View>
+            <View style={styles.itemTextWrap}>
+              <Text style={styles.itemTitle}>My Appointments & Slips</Text>
+              <Text style={styles.itemSubtitle}>Doctor visits, home lab tokens & scan slips</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          {/* HEALTH RECORDS & LAB REPORTS */}
+          <TouchableOpacity
+            style={styles.groupItem}
+            onPress={() => navigation.navigate('HealthRecords')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.itemIconWrap, { backgroundColor: '#FAF5FF' }]}>
+              <Ionicons name="folder-open" size={20} color="#9333EA" />
+            </View>
+            <View style={styles.itemTextWrap}>
+              <Text style={styles.itemTitle}>Prescriptions & Lab Reports</Text>
+              <Text style={styles.itemSubtitle}>Encrypted PDF reports, 3T MRI & blood tests</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          {/* VITALS & HEALTH MONITOR */}
+          <TouchableOpacity
+            style={styles.groupItem}
+            onPress={() => navigation.navigate('HealthMonitor')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.itemIconWrap, { backgroundColor: '#FEF2F2' }]}>
+              <Ionicons name="pulse" size={20} color="#DC2626" />
+            </View>
+            <View style={styles.itemTextWrap}>
+              <Text style={styles.itemTitle}>Health Vitals Tracker</Text>
+              <Text style={styles.itemSubtitle}>Daily Fasting Sugar, BP, SpO2 & BMI logs</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+          </TouchableOpacity>
         </View>
 
-
-        {/* ===================================================
-            VERSION
-        =================================================== */}
-
-        <View style={styles.versionContainer}>
-
-          <View style={styles.versionLine} />
-
-          <Text style={styles.brandText}>
-            MEDIUNIFY
-          </Text>
-
-          <Text style={styles.versionText}>
-            Version 1.0.0
-          </Text>
-
+        {/* ==========================================
+            SECTION 2: PAYMENTS, INSURANCE & REWARDS
+        ========================================== */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Payments, Insurance & Rewards</Text>
+          <Text style={styles.sectionSubtitle}>Claims, cashback & GST receipts</Text>
         </View>
 
+        <View style={styles.cardGroup}>
+          {/* HEALTH WALLET */}
+          <TouchableOpacity
+            style={styles.groupItem}
+            onPress={() => navigation.navigate('Wallet')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.itemIconWrap, { backgroundColor: '#ECFDF5' }]}>
+              <Ionicons name="wallet-outline" size={20} color="#059669" />
+            </View>
+            <View style={styles.itemTextWrap}>
+              <Text style={styles.itemTitle}>Unnathi Health Wallet</Text>
+              <Text style={styles.itemSubtitle}>Add money, transfer & instant cashback</Text>
+            </View>
+            <View style={[styles.badgePill, { backgroundColor: '#D1FAE5' }]}>
+              <Text style={[styles.badgePillText, { color: '#047857' }]}>₹{walletBalance}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+          </TouchableOpacity>
 
-        {/* ===================================================
-            EXTRA SPACE
-        =================================================== */}
+          <View style={styles.divider} />
 
-        <View style={styles.bottomSpace} />
+          {/* HEALTH INSURANCE */}
+          <TouchableOpacity
+            style={styles.groupItem}
+            onPress={() => navigation.navigate('HealthInsurance')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.itemIconWrap, { backgroundColor: '#EFF6FF' }]}>
+              <Ionicons name="shield-outline" size={20} color="#2563EB" />
+            </View>
+            <View style={styles.itemTextWrap}>
+              <Text style={styles.itemTitle}>Cashless Health Insurance</Text>
+              <Text style={styles.itemSubtitle}>Pre-auth assistance, TPA & claim tracker</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+          </TouchableOpacity>
 
+          <View style={styles.divider} />
+
+          {/* TRANSACTION HISTORY */}
+          <TouchableOpacity
+            style={styles.groupItem}
+            onPress={() => navigation.navigate('TransactionHistory')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.itemIconWrap, { backgroundColor: '#FFF7ED' }]}>
+              <Ionicons name="receipt-outline" size={20} color="#EA580C" />
+            </View>
+            <View style={styles.itemTextWrap}>
+              <Text style={styles.itemTitle}>Transaction & Invoices</Text>
+              <Text style={styles.itemSubtitle}>Download hospital & pharmacy GST bills</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          {/* REFER & EARN */}
+          <TouchableOpacity
+            style={styles.groupItem}
+            onPress={() => navigation.navigate('ReferEarn')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.itemIconWrap, { backgroundColor: '#FDF2F8' }]}>
+              <Ionicons name="gift-outline" size={20} color="#DB2777" />
+            </View>
+            <View style={styles.itemTextWrap}>
+              <Text style={styles.itemTitle}>Refer & Earn ₹250</Text>
+              <Text style={styles.itemSubtitle}>Invite friends to receive free health cash</Text>
+            </View>
+            <View style={[styles.badgePill, { backgroundColor: '#FCE7F3' }]}>
+              <Text style={[styles.badgePillText, { color: '#BE185D' }]}>Get ₹250</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+          </TouchableOpacity>
+        </View>
+
+        {/* ==========================================
+            SECTION 3: SETTINGS & 24x7 SUPPORT
+        ========================================== */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>App Settings & Helpline</Text>
+          <Text style={styles.sectionSubtitle}>Security, emergency contact & 24/7 care</Text>
+        </View>
+
+        <View style={styles.cardGroup}>
+          {/* SETTINGS */}
+          <TouchableOpacity
+            style={styles.groupItem}
+            onPress={() => navigation.navigate('Settings')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.itemIconWrap, { backgroundColor: '#F1F5F9' }]}>
+              <Ionicons name="settings-outline" size={20} color="#475569" />
+            </View>
+            <View style={styles.itemTextWrap}>
+              <Text style={styles.itemTitle}>App Settings & Security</Text>
+              <Text style={styles.itemSubtitle}>Biometrics, language & notification alerts</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          {/* 24x7 HELPLINE */}
+          <TouchableOpacity
+            style={styles.groupItem}
+            onPress={() => {
+              Alert.alert(
+                '24x7 MediUnify Doctor Support',
+                'Call our medical support helpline for emergency or app assistance.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Call 1800-425-9999',
+                    onPress: () => Linking.openURL('tel:18004259999'),
+                  },
+                ]
+              );
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.itemIconWrap, { backgroundColor: '#FEF2F2' }]}>
+              <Ionicons name="call" size={20} color="#DC2626" />
+            </View>
+            <View style={styles.itemTextWrap}>
+              <Text style={styles.itemTitle}>24x7 Doctor Helpline & SOS</Text>
+              <Text style={styles.itemSubtitle}>Toll-free 1800-425-9999 • Instant Response</Text>
+            </View>
+            <View style={[styles.badgePill, { backgroundColor: '#FEE2E2' }]}>
+              <Text style={[styles.badgePillText, { color: '#B91C1C' }]}>24x7 Live</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+          </TouchableOpacity>
+        </View>
+
+        {/* ==========================================
+            LOGOUT CARD
+        ========================================== */}
+        <TouchableOpacity
+          style={styles.logoutCard}
+          onPress={handleLogout}
+          activeOpacity={0.88}
+        >
+          <View style={styles.logoutIconCircle}>
+            <Ionicons name="log-out-outline" size={22} color="#DC2626" />
+          </View>
+          <View style={styles.logoutTextWrap}>
+            <Text style={styles.logoutTitle}>Sign Out from Account</Text>
+            <Text style={styles.logoutSubtitle}>Safely disconnect on this device</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#EF4444" />
+        </TouchableOpacity>
+
+        {/* COMPLIANCE & VERSION FOOTER */}
+        <View style={styles.footerSection}>
+          <Text style={styles.footerVersion}>MediUnify Patient App • v2.4.0 (Build 120)</Text>
+          <Text style={styles.footerCompliance}>
+            🔒 256-Bit Encrypted Health Records • ABDM & NABH Certified 🇮🇳
+          </Text>
+        </View>
       </ScrollView>
 
-
-      {/* =====================================================
-          CARE AI
-          
-          OUTSIDE SCROLLVIEW
-          ABOVE BOTTOM NAVIGATION
-      ===================================================== */}
-
-      <View
-        style={styles.aiWrapper}
-        pointerEvents="box-none"
+      {/* ==========================================
+          ABHA DIGITAL HEALTH ID MODAL
+      ========================================== */}
+      <Modal
+        visible={abhaModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAbhaModalVisible(false)}
       >
-
-        <FloatingCareAI
-          onPress={() => {
-            console.log('Care AI pressed');
-            navigation.navigate('Chatbot');
-          }}
-        />
-
-      </View>
-
-
-      {/* =====================================================
-          BOTTOM NAVIGATION
-      ===================================================== */}
-
-      <View
-        style={styles.bottomNavWrapper}
-        pointerEvents="box-none"
-      >
-
-        <View style={styles.bottomNav}>
-
-
-          {/* HOME */}
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.bottomItem,
-              pressed && styles.navPressed,
-            ]}
-            onPress={goHome}
-          >
-
-            <Ionicons
-              name="home-outline"
-              size={23}
-              color={colors.secondary}
-            />
-
-            <Text style={styles.bottomText}>
-              Home
-            </Text>
-
-          </Pressable>
-
-
-          {/* IN PERSON */}
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.bottomItem,
-              pressed && styles.navPressed,
-            ]}
-            onPress={goInPerson}
-          >
-
-            <Ionicons
-              name="medical-outline"
-              size={24}
-              color={colors.secondary}
-            />
-
-            <Text style={styles.bottomText}>
-              In-Person
-            </Text>
-
-          </Pressable>
-
-
-          {/* VIDEO */}
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.bottomItem,
-              pressed && styles.navPressed,
-            ]}
-            onPress={goVideo}
-          >
-
-            <Ionicons
-              name="videocam-outline"
-              size={24}
-              color={colors.secondary}
-            />
-
-            <Text style={styles.bottomText}>
-              Video
-            </Text>
-
-          </Pressable>
-
-
-          {/* PROFILE */}
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.bottomItem,
-              pressed && styles.navPressed,
-            ]}
-            onPress={goProfile}
-          >
-
-            <View style={styles.activeIcon}>
-
-              <Ionicons
-                name="person"
-                size={20}
-                color={colors.white}
-              />
-
+        <View style={styles.modalOverlay}>
+          <View style={styles.abhaModalContent}>
+            <View style={styles.abhaModalHeader}>
+              <View>
+                <Text style={styles.abhaNationalTag}>NATIONAL HEALTH AUTHORITY 🇮🇳</Text>
+                <Text style={styles.abhaModalTitle}>Ayushman Bharat Health Card</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setAbhaModalVisible(false)}
+                style={styles.modalCloseBtn}
+              >
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
             </View>
 
-            <Text style={styles.activeText}>
-              Account
-            </Text>
+            {/* ABHA DIGITAL CARD */}
+            <View style={styles.abhaDigitalCard}>
+              <View style={styles.abhaCardTopRow}>
+                <View style={styles.abhaCardLogoBadge}>
+                  <Ionicons name="shield-checkmark" size={16} color="#FFFFFF" />
+                  <Text style={styles.abhaCardLogoText}>ABHA DIGITAL ID</Text>
+                </View>
+                <Text style={styles.abhaGovText}>Govt. of India</Text>
+              </View>
 
-          </Pressable>
+              <View style={styles.abhaCardBody}>
+                <View style={styles.abhaCardAvatar}>
+                  <Ionicons name="person" size={32} color="#FFFFFF" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.abhaCardHolderName}>{user.name}</Text>
+                  <Text style={styles.abhaCardNumberLabel}>ABHA Number:</Text>
+                  <Text style={styles.abhaCardNumberValue}>{user.abhaId}</Text>
+                </View>
+              </View>
 
+              <View style={styles.abhaCardBottomRow}>
+                <Text style={styles.abhaCardSubDetail}>Gender: {user.gender}</Text>
+                <Text style={styles.abhaCardSubDetail}>Blood: {user.bloodGroup}</Text>
+                <Text style={styles.abhaCardSubDetail}>Age: {user.age}</Text>
+              </View>
+            </View>
+
+            {/* COPY & SHARE ACTION BUTTONS */}
+            <TouchableOpacity
+              style={styles.abhaCopyBtn}
+              onPress={copyAbhaToClipboard}
+              activeOpacity={0.88}
+            >
+              <Ionicons
+                name={copiedAbha ? 'checkmark-circle' : 'copy-outline'}
+                size={18}
+                color="#FFFFFF"
+              />
+              <Text style={styles.abhaCopyBtnText}>
+                {copiedAbha ? 'ABHA ID Copied to Clipboard!' : 'Copy ABHA Number'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.abhaDoneBtn}
+              onPress={() => setAbhaModalVisible(false)}
+            >
+              <Text style={styles.abhaDoneBtnText}>Close Card</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-
-      </View>
-
+      </Modal>
     </SafeAreaView>
-
   );
-
 };
 
-
-// =============================================================
-// STYLES
-// =============================================================
+export default ProfileScreen;
 
 const styles = StyleSheet.create({
-
-  // ===========================================================
-  // CONTAINER
-  // ===========================================================
-
   container: {
     flex: 1,
-    backgroundColor: '#F4F8FA',
+    backgroundColor: '#F8FAFC',
   },
 
-
-  scrollView: {
-    flex: 1,
+  // TOP HEADER
+  topHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingTop: Platform.OS === 'android' ? 14 : 10,
+    paddingBottom: 14,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
-
+  topHeaderBadge: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#0F766E',
+    letterSpacing: 0.6,
+  },
+  topHeaderTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginTop: 1,
+  },
+  headerActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerIconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  headerDotBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#DC2626',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
 
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-
-    /*
-     * Space reserved for bottom navigation + Care AI.
-     */
-
-    paddingBottom: 190,
+    paddingBottom: 40,
   },
 
-
-  // ===========================================================
-  // HEADER
-  // ===========================================================
-
-  header: {
-    minHeight: 62,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    justifyContent: 'space-between',
-  },
-
-
-  headerLabel: {
-    fontSize: 10,
-
-    fontWeight: '800',
-
-    letterSpacing: 1.5,
-
-    color: colors.primary,
-  },
-
-
-  headerTitle: {
-    marginTop: 3,
-
-    fontSize: 27,
-
-    fontWeight: '900',
-
-    color: colors.secondary,
-  },
-
-
-  settingsButton: {
-    width: 44,
-    height: 44,
-
-    borderRadius: 22,
-
-    backgroundColor: colors.white,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    borderWidth: 1,
-    borderColor: colors.border,
-
-    elevation: 2,
-
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.06,
-    shadowRadius: 5,
-  },
-
-
-  // ===========================================================
-  // PROFILE CARD
-  // ===========================================================
-
-  profileCard: {
-    marginTop: 14,
-
-    minHeight: 126,
-
-    padding: 16,
-
+  // HERO CARD
+  heroCard: {
+    backgroundColor: '#0F766E',
+    marginHorizontal: 16,
+    marginTop: 16,
     borderRadius: 24,
-
-    backgroundColor: colors.secondary,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    elevation: 5,
-
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 5,
-    },
-    shadowOpacity: 0.13,
-    shadowRadius: 10,
+    padding: 20,
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: '#0F766E',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
   },
-
-
-  avatar: {
-    width: 68,
-    height: 68,
-
-    borderRadius: 34,
-
-    backgroundColor: colors.primary,
-
+  heroCardBgOrb1: {
+    position: 'absolute',
+    top: -30,
+    right: -30,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  heroCardBgOrb2: {
+    position: 'absolute',
+    bottom: -40,
+    left: -20,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  heroMainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatarWrap: {
+    position: 'relative',
+  },
+  avatarCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
-
-    borderWidth: 3,
-
-    borderColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
-
-
-  userInfo: {
-    flex: 1,
-
-    marginLeft: 13,
-
-    marginRight: 8,
-  },
-
-
-  userName: {
-    fontSize: 19,
-
-    fontWeight: '900',
-
-    color: colors.white,
-
-    marginBottom: 5,
-  },
-
-
-  infoRow: {
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    marginTop: 3,
-
-    minWidth: 0,
-  },
-
-
-  userEmail: {
-    flex: 1,
-
-    marginLeft: 5,
-
-    fontSize: 10,
-
-    color: '#DCE8FF',
-  },
-
-
-  userPhone: {
-    flex: 1,
-
-    marginLeft: 5,
-
-    fontSize: 10,
-
-    color: '#DCE8FF',
-  },
-
-
-  // ===========================================================
-  // EDIT
-  // ===========================================================
-
-  editButton: {
-    width: 44,
-    height: 44,
-
-    borderRadius: 22,
-
-    backgroundColor: colors.white,
-
+  verifiedBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#10B981',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-
-    elevation: 4,
-
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
+    borderWidth: 2,
+    borderColor: '#0F766E',
   },
-
-
-  editButtonPressed: {
-    opacity: 0.65,
-
-    transform: [
-      {
-        scale: 0.94,
-      },
-    ],
-  },
-
-
-  // ===========================================================
-  // SECTION
-  // ===========================================================
-
-  sectionHeader: {
-    marginTop: 25,
-
-    marginBottom: 12,
-  },
-
-
-  sectionTitle: {
-    fontSize: 19,
-
-    fontWeight: '900',
-
-    color: colors.secondary,
-  },
-
-
-  sectionSubtitle: {
-    marginTop: 4,
-
-    fontSize: 10,
-
-    color: colors.slate,
-  },
-
-
-  // ===========================================================
-  // OPTIONS
-  // ===========================================================
-
-  optionsContainer: {
-    gap: 10,
-  },
-
-
-  profileOption: {
-    minHeight: 76,
-
-    borderRadius: 18,
-
-    backgroundColor: colors.white,
-
-    paddingHorizontal: 12,
-
-    paddingVertical: 11,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    borderWidth: 1,
-
-    borderColor: colors.border,
-
-    elevation: 2,
-
-    shadowColor: '#000',
-
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-
-    shadowOpacity: 0.035,
-
-    shadowRadius: 5,
-  },
-
-
-  optionPressed: {
-    opacity: 0.72,
-
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
-
-
-  optionIcon: {
-    width: 49,
-    height: 49,
-
-    borderRadius: 16,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-
-  optionInfo: {
+  heroInfoColumn: {
     flex: 1,
-
-    marginLeft: 12,
+    marginLeft: 14,
   },
-
-
-  optionTitle: {
-    fontSize: 14,
-
-    fontWeight: '800',
-
-    color: colors.secondary,
-  },
-
-
-  optionSubtitle: {
-    marginTop: 4,
-
-    fontSize: 10,
-
-    color: colors.slate,
-  },
-
-
-  optionBadge: {
-    backgroundColor: colors.lightTeal,
+  verifiedTagRow: {
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    alignSelf: 'flex-start',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
-    marginRight: 6,
+    borderRadius: 8,
+    marginBottom: 4,
   },
-
-  optionBadgeText: {
-    fontSize: 10,
+  verifiedTagText: {
+    fontSize: 9.5,
     fontWeight: '800',
-    color: colors.primary,
+    color: '#CCFBF1',
+    letterSpacing: 0.5,
+  },
+  heroUserName: {
+    fontSize: 19,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  heroContactText: {
+    fontSize: 12,
+    color: '#E6FFFA',
+    marginTop: 2,
+    fontWeight: '500',
   },
 
-  arrowCircle: {
-    width: 34,
-    height: 34,
+  // VITAL TAGS
+  vitalTagsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  vitalPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    gap: 5,
+  },
+  vitalPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
 
-    borderRadius: 17,
-
-    backgroundColor: '#F7F9FB',
-
+  // HERO ACTION BUTTONS
+  heroActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 14,
+  },
+  heroPrimaryBtn: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+    borderRadius: 14,
+    gap: 6,
   },
-
-
-  // ===========================================================
-  // LOGOUT
-  // ===========================================================
-
-  logoutSection: {
-    marginTop: 22,
-    marginBottom: 8,
+  heroPrimaryBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F766E',
   },
-
-
-  logoutButton: {
-    minHeight: 80,
-
-    borderRadius: 19,
-
-    backgroundColor: '#FFF3F3',
-
-    borderWidth: 1,
-
-    borderColor: '#FFD7D7',
-
-    paddingHorizontal: 13,
-
-    paddingVertical: 12,
-
+  heroSecondaryBtn: {
+    flex: 1,
     flexDirection: 'row',
-
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    gap: 6,
+  },
+  heroSecondaryBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
 
+  // QUICK STATS STRIP
+  quickStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginTop: 14,
+    gap: 10,
+  },
+  quickStatCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
     elevation: 2,
   },
-
-
-  logoutPressed: {
-    opacity: 0.68,
-
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
-
-
-  logoutIcon: {
-    width: 49,
-    height: 49,
-
+  statIconCircle: {
+    width: 32,
+    height: 32,
     borderRadius: 16,
-
-    backgroundColor: '#FFE4E4',
-
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 6,
   },
-
-
-  logoutInfo: {
-    flex: 1,
-
-    marginLeft: 12,
-  },
-
-
-  logoutTitle: {
+  statValue: {
     fontSize: 14,
-
     fontWeight: '900',
-
-    color: '#D32F2F',
+    color: '#0F172A',
+  },
+  statLabel: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#64748B',
+    marginTop: 2,
   },
 
-
-  logoutSubtitle: {
-    marginTop: 4,
-
-    fontSize: 10,
-
-    color: '#A94444',
-  },
-
-
-  logoutArrow: {
-    width: 34,
-    height: 34,
-
-    borderRadius: 17,
-
-    backgroundColor: '#FFE8E8',
-
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-
-  // ===========================================================
-  // VERSION
-  // ===========================================================
-
-  versionContainer: {
-    alignItems: 'center',
-
-    marginTop: 19,
-  },
-
-
-  versionLine: {
-    width: 65,
-
-    height: 1,
-
-    backgroundColor: colors.border,
-
+  // SECTION HEADERS
+  sectionHeader: {
+    paddingHorizontal: 18,
+    marginTop: 22,
     marginBottom: 10,
   },
-
-
-  brandText: {
-    fontSize: 9,
-
+  sectionTitle: {
+    fontSize: 16,
     fontWeight: '900',
-
-    letterSpacing: 1.6,
-
-    color: colors.primary,
+    color: '#0F172A',
+  },
+  sectionSubtitle: {
+    fontSize: 11.5,
+    fontWeight: '500',
+    color: '#64748B',
+    marginTop: 1,
   },
 
-
-  versionText: {
-    marginTop: 3,
-
-    fontSize: 9,
-
-    color: colors.slate,
-  },
-
-
-  // ===========================================================
-  // BOTTOM SPACE
-  // ===========================================================
-
-  bottomSpace: {
-    height: 25,
-  },
-
-
-  // ===========================================================
-  // CARE AI
-  // ===========================================================
-
-  aiWrapper: {
-    position: 'absolute',
-
-    right: 18,
-
-    /*
-     * AI sits above the bottom navigation.
-     */
-
-    bottom: 94,
-
-    zIndex: 50,
-
-    elevation: 50,
-
-    alignItems: 'flex-end',
-  },
-
-
-  // ===========================================================
-  // BOTTOM NAVIGATION
-  // ===========================================================
-
-  bottomNavWrapper: {
-    position: 'absolute',
-
-    left: 0,
-    right: 0,
-    bottom: 0,
-
-    height: 88,
-
-    justifyContent: 'flex-end',
-
-    alignItems: 'center',
-
-    zIndex: 100,
-
-    elevation: 100,
-
-    pointerEvents: 'box-none',
-  },
-
-
-  bottomNav: {
-    position: 'absolute',
-
-    left: 14,
-    right: 14,
-
-    bottom: Platform.OS === 'ios' ? 10 : 11,
-
-    height: 70,
-
-    borderRadius: 26,
-
-    backgroundColor: colors.white,
-
+  // CARD GROUPS
+  cardGroup: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    borderRadius: 20,
     borderWidth: 1,
-
-    borderColor: colors.border,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    justifyContent: 'space-around',
-
-    paddingHorizontal: 5,
-
-    elevation: 12,
-
+    borderColor: '#F1F5F9',
+    overflow: 'hidden',
     shadowColor: '#000',
-
-    shadowOffset: {
-      width: 0,
-      height: 5,
-    },
-
-    shadowOpacity: 0.14,
-
-    shadowRadius: 10,
-
-    zIndex: 101,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 2,
   },
-
-
-  bottomItem: {
-    flex: 1,
-
-    height: 62,
-
+  groupItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  itemIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
     justifyContent: 'center',
-
-    zIndex: 102,
+  },
+  itemTextWrap: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  itemTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  itemSubtitle: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  badgePill: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 6,
+  },
+  badgePillText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#475569',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginLeft: 68,
   },
 
-
-  navPressed: {
-    opacity: 0.65,
+  // LOGOUT CARD
+  logoutCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    marginHorizontal: 16,
+    marginTop: 22,
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: '#FEE2E2',
+  },
+  logoutIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutTextWrap: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  logoutTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#DC2626',
+  },
+  logoutSubtitle: {
+    fontSize: 11.5,
+    color: '#EF4444',
+    marginTop: 2,
   },
 
-
-  bottomText: {
-    marginTop: 4,
-
-    fontSize: 9,
-
+  // FOOTER
+  footerSection: {
+    alignItems: 'center',
+    marginTop: 24,
+    paddingHorizontal: 20,
+  },
+  footerVersion: {
+    fontSize: 11,
     fontWeight: '700',
-
-    color: colors.secondary,
-
+    color: '#94A3B8',
+  },
+  footerCompliance: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 4,
     textAlign: 'center',
   },
 
-
-  activeIcon: {
-    width: 40,
-    height: 34,
-
-    borderRadius: 18,
-
-    backgroundColor: colors.primary,
-
+  // ABHA MODAL
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  abhaModalContent: {
+    backgroundColor: '#FFFFFF',
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  abhaModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  abhaNationalTag: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#0F766E',
+    letterSpacing: 0.5,
+  },
+  abhaModalTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-
-  activeText: {
-    marginTop: 3,
-
-    fontSize: 9,
-
+  abhaDigitalCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 16,
+  },
+  abhaCardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    paddingBottom: 10,
+  },
+  abhaCardLogoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  abhaCardLogoText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  abhaGovText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  abhaCardBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 14,
+  },
+  abhaCardAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#334155',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#0F766E',
+  },
+  abhaCardHolderName: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  abhaCardNumberLabel: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginTop: 4,
+  },
+  abhaCardNumberValue: {
+    fontSize: 13,
     fontWeight: '800',
-
-    color: colors.primary,
+    color: '#2DD4BF',
+    letterSpacing: 0.8,
   },
-
-
-  // ===========================================================
-  // GENERAL PRESS
-  // ===========================================================
-
-  pressed: {
-    opacity: 0.65,
+  abhaCardBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    paddingTop: 10,
   },
-
+  abhaCardSubDetail: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#CBD5E1',
+  },
+  abhaCopyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0F766E',
+    paddingVertical: 12,
+    borderRadius: 14,
+    gap: 8,
+  },
+  abhaCopyBtnText: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  abhaDoneBtn: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  abhaDoneBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#64748B',
+  },
 });
-
-
-export default ProfileScreen;
