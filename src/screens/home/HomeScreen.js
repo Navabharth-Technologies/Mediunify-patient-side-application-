@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useMemo } from 'react';
-
 import {
   View,
   Text,
@@ -14,18 +13,17 @@ import {
   Platform,
   Linking,
   Image,
+  StatusBar,
 } from 'react-native';
-
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import colors from '../../theme/colors';
-
-import LabPackageCard from '../../components/LabPackageCard';
-import FloatingCareAI from '../../components/FloatingCareAI';
-import labPackages from '../../data/labPackages';
-import { consultationServices, quickServices, moreServices } from '../../data/homeData';
+import { useCart } from '../../context/CartContext';
+import doctors from '../../data/doctors';
+import { radiologyLabs } from '../../data/radiologyLabsData';
+import { labPackages, consultationServices, moreServices } from '../../data/homeData';
 
 const POPULAR_MYSORE_AREAS = [
   'Kuvempunagar, Mysore',
@@ -37,29 +35,24 @@ const POPULAR_MYSORE_AREAS = [
   'Bannimantap, Mysore',
   'Nazarbad, Mysore',
   'Hebbal, Mysore',
-  'Agrahara, Mysore',
-  'Devanur, Mysore',
   'Mysore Central',
-  'Bangalore Central',
   'Indiranagar, Bangalore',
   'Koramangala, Bangalore',
-  'Mangalore Central',
 ];
 
 const HomeScreen = ({ navigation }) => {
-  // ==================================================
-  // STATE
-  // ==================================================
+  const { totalCartCount } = useCart();
 
+  // State
   const [search, setSearch] = useState('');
-  const [userName, setUserName] = useState('User');
+  const [userName, setUserName] = useState('Ramesh');
   const [locationName, setLocationName] = useState('Kuvempunagar, Mysore');
   const [locationModalVisible, setLocationModalVisible] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [locationSearchQuery, setLocationSearchQuery] = useState('');
-  const [customLocalityInput, setCustomLocalityInput] = useState('');
   const [locationToast, setLocationToast] = useState(null);
 
+  // Patient Switcher
   const [familyMembers, setFamilyMembers] = useState([
     { id: 'self', name: 'Self', relation: 'Self', isPrimary: true, icon: 'person' },
     { id: 'fam-1', name: 'Sneha', relation: 'Spouse', isPrimary: false, icon: 'woman' },
@@ -67,15 +60,17 @@ const HomeScreen = ({ navigation }) => {
     { id: 'fam-3', name: 'Aarav', relation: 'Son', isPrimary: false, icon: 'happy' },
   ]);
   const [activePatient, setActivePatient] = useState({ id: 'self', name: 'Self', relation: 'Self' });
+
+  // Wallet State
   const [walletBalance, setWalletBalance] = useState(1250);
   const [carePoints, setCarePoints] = useState(500);
   const [walletModalVisible, setWalletModalVisible] = useState(false);
   const [quickTopUpAmount, setQuickTopUpAmount] = useState('500');
 
-
-  // ==================================================
-  // LOAD USER NAME & SAVED LOCATION
-  // ==================================================
+  // Load User Info
+  useEffect(() => {
+    loadUserData();
+  }, []);
 
   const loadUserData = async () => {
     try {
@@ -87,55 +82,17 @@ const HomeScreen = ({ navigation }) => {
       if (savedLoc && savedLoc.trim()) {
         setLocationName(savedLoc.trim());
       }
-
-      // Load saved family profiles if any
-      const savedFamily = await AsyncStorage.getItem('@family_members');
-      if (savedFamily) {
-        const parsed = JSON.parse(savedFamily);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const formatted = [
-            { id: 'self', name: storedName || 'Self', relation: 'Self', isPrimary: true, icon: 'person' },
-            ...parsed.map((m) => ({
-              id: m.id || `fam-${Math.random()}`,
-              name: m.name.split('(')[0].trim(),
-              relation: m.relation || 'Family',
-              isPrimary: false,
-              icon: m.relation === 'Father' || m.gender === 'Male' ? 'man' : 'woman',
-            })),
-          ];
-          setFamilyMembers(formatted);
-        }
-      }
-
-      // Load active patient
-      const savedActive = await AsyncStorage.getItem('@unnathi_active_patient');
-      if (savedActive) {
-        setActivePatient(JSON.parse(savedActive));
-      }
-
-      // Load wallet balance
       const savedWallet = await AsyncStorage.getItem('@unnathi_wallet_balance');
       if (savedWallet) {
         setWalletBalance(parseInt(savedWallet, 10) || 1250);
       }
-    } catch (error) {
-      console.log('Error loading user data:', error);
+      const savedActive = await AsyncStorage.getItem('@unnathi_active_patient');
+      if (savedActive) {
+        setActivePatient(JSON.parse(savedActive));
+      }
+    } catch (e) {
+      console.log('Error loading home user data:', e);
     }
-  };
-
-  const handleQuickAddMoney = async (amt) => {
-    const num = parseInt(amt, 10);
-    if (isNaN(num) || num <= 0) return;
-    const newBal = walletBalance + num;
-    setWalletBalance(newBal);
-    await AsyncStorage.setItem('@unnathi_wallet_balance', newBal.toString());
-    showToast(`₹${num.toLocaleString('en-IN')} added to Wallet!`);
-  };
-
-  const handleSelectPatient = async (patient) => {
-    setActivePatient(patient);
-    await AsyncStorage.setItem('@unnathi_active_patient', JSON.stringify(patient));
-    showToast(`Care & booking set for: ${patient.name} (${patient.relation})`);
   };
 
   const showToast = (msg) => {
@@ -145,1945 +102,545 @@ const HomeScreen = ({ navigation }) => {
     }, 2500);
   };
 
-  useEffect(() => {
-    loadUserData();
-  }, []);
+  const handleSelectPatient = async (patient) => {
+    setActivePatient(patient);
+    await AsyncStorage.setItem('@unnathi_active_patient', JSON.stringify(patient));
+    showToast(`Active profile set to: ${patient.name} (${patient.relation})`);
+  };
 
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      loadUserData();
-    });
-    return unsubscribe;
-  }, [navigation]);
+  const handleQuickAddMoney = async (amt) => {
+    const num = parseInt(amt, 10);
+    if (isNaN(num) || num <= 0) return;
+    const newBal = walletBalance + num;
+    setWalletBalance(newBal);
+    await AsyncStorage.setItem('@unnathi_wallet_balance', newBal.toString());
+    setWalletModalVisible(false);
+    showToast(`₹${num.toLocaleString('en-IN')} added to Wallet!`);
+  };
 
-
-  // ==================================================
-  // GET CURRENT GPS LOCATION
-  // ==================================================
-
-  const getCurrentLocation = async () => {
-
+  // GPS Location Fetch
+  const handleDetectGPSLocation = async () => {
     try {
-
       setLoadingLocation(true);
-
-      const {
-        status,
-        canAskAgain,
-      } =
-        await Location.requestForegroundPermissionsAsync();
-
+      const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-
-        setLocationName(
-          'Location unavailable'
-        );
-
-        if (canAskAgain) {
-
-          Alert.alert(
-            'Location Permission Required',
-            'Please allow Unnathi OneCare to access your location so we can show healthcare services near you.',
-            [
-              {
-                text: 'Cancel',
-                style: 'cancel',
-              },
-              {
-                text: 'Try Again',
-                onPress: getCurrentLocation,
-              },
-            ]
-          );
-
-        } else {
-
-          Alert.alert(
-            'Location Permission Denied',
-            'Location permission has been denied. Please enable it from your phone settings.',
-            [
-              {
-                text: 'Cancel',
-                style: 'cancel',
-              },
-              {
-                text: 'Open Settings',
-                onPress: () => {
-                  Linking.openSettings();
-                },
-              },
-            ]
-          );
-
-        }
-
+        Alert.alert('Permission Denied', 'Please grant location permission to detect your area.');
+        setLoadingLocation(false);
         return;
       }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const [geocode] = await Location.reverseGeocodeAsync({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      });
 
-
-      // ==================================================
-      // CHECK GPS SERVICE
-      // ==================================================
-
-      const servicesEnabled =
-        await Location.hasServicesEnabledAsync();
-
-      if (!servicesEnabled) {
-
-        Alert.alert(
-          'GPS is Disabled',
-          'Please turn on Location/GPS on your phone and try again.',
-          [
-            {
-              text: 'Cancel',
-              style: 'cancel',
-            },
-            {
-              text: 'Open Settings',
-              onPress: () => {
-                Linking.openSettings();
-              },
-            },
-          ]
-        );
-
-        setLocationName(
-          'GPS unavailable'
-        );
-
-        return;
+      if (geocode) {
+        const area = geocode.subregion || geocode.district || geocode.name || 'Kuvempunagar';
+        const city = geocode.city || 'Mysore';
+        const fullLoc = `${area}, ${city}`;
+        setLocationName(fullLoc);
+        await AsyncStorage.setItem('@unnathi_user_location', fullLoc);
+        setLocationModalVisible(false);
+        showToast(`Location set to: ${fullLoc}`);
       }
-
-
-      // ==================================================
-      // GET CURRENT POSITION
-      // ==================================================
-
-      const location =
-        await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
-        });
-
-
-      const {
-        latitude,
-        longitude,
-      } = location.coords;
-
-
-      console.log(
-        'GPS Latitude:',
-        latitude
-      );
-
-      console.log(
-        'GPS Longitude:',
-        longitude
-      );
-
-
-      // ==================================================
-      // REVERSE GEOCODING
-      // ==================================================
-
-      const address =
-        await Location.reverseGeocodeAsync({
-          latitude,
-          longitude,
-        });
-
-
-      if (
-        address &&
-        address.length > 0
-      ) {
-
-        const place = address[0];
-
-        const city =
-          place.city ||
-          place.subregion ||
-          place.district ||
-          place.region;
-
-        const country =
-          place.country;
-
-
-        if (city) {
-          const locStr = `${city}, Mysore`;
-          setLocationName(locStr);
-          await AsyncStorage.setItem('@unnathi_user_location', locStr);
-          showToast(`Location set to: ${locStr}`);
-        } else {
-          setLocationName('Current Location');
-        }
-      } else {
-        setLocationName('Current Location');
-      }
-
-      setLocationModalVisible(false);
-    } catch (error) {
-      console.log('Location Error:', error);
-      setLocationName('Kuvempunagar, Mysore');
-      Alert.alert(
-        'Unable to Get GPS',
-        'Could not detect precise GPS position. You can choose any area from the list.'
-      );
-    } finally {
       setLoadingLocation(false);
+    } catch (e) {
+      setLoadingLocation(false);
+      Alert.alert('Location Error', 'Could not detect GPS location. Please select manually.');
     }
   };
 
-  // ==================================================
-  // GET GPS WHEN HOME SCREEN OPENS
-  // ==================================================
-
-  useEffect(() => {
-    // Only detect if no saved location
-    AsyncStorage.getItem('@unnathi_user_location').then((saved) => {
-      if (!saved) {
-        getCurrentLocation();
-      }
-    });
-  }, []);
-
-  // ==================================================
-  // LOCATION SELECTOR
-  // ==================================================
-
-  const openLocationSelector = () => {
-    setLocationModalVisible(true);
-  };
-
-  // ==================================================
-  // MANUAL LOCATION SELECTION
-  // ==================================================
-
-  const selectManualLocation = async (area) => {
-    setLocationName(area);
-    await AsyncStorage.setItem('@unnathi_user_location', area);
-    setLocationModalVisible(false);
-    setLocationSearchQuery('');
-    showToast(`Location set to: ${area}!`);
-  };
-
-  const handleCustomLocalitySubmit = async () => {
-    if (!customLocalityInput.trim()) return;
-    const custom = `${customLocalityInput.trim()}, Mysore`;
-    setLocationName(custom);
-    await AsyncStorage.setItem('@unnathi_user_location', custom);
-    setLocationModalVisible(false);
-    setCustomLocalityInput('');
-    showToast(`Location set to: ${custom}!`);
-  };
-
-  const filteredLocalities = useMemo(() => {
-    if (!locationSearchQuery.trim()) return POPULAR_MYSORE_AREAS;
-    return POPULAR_MYSORE_AREAS.filter((loc) =>
-      loc.toLowerCase().includes(locationSearchQuery.toLowerCase())
-    );
-  }, [locationSearchQuery]);
-
-
-  // ==================================================
-  // SEARCH FUNCTION
-  // ==================================================
-
+  // Handle Search Execution
   const handleSearchSubmit = () => {
-
-    const query =
-      search
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, ' ');
-
-
-    // ==================================================
-    // EMPTY SEARCH
-    // ==================================================
-
-    if (!query) {
-
-      Alert.alert(
-        'Search',
-        'Please enter something to search.'
-      );
-
-      return;
-
-    }
-
-
-    console.log(
-      'Search Query:',
-      query
-    );
-
-
-    // ==================================================
-    // DOCTORS
-    // ==================================================
-
-    const doctorKeywords = [
-
-      'doctor',
-      'doctors',
-      'dr',
-      'specialist',
-      'specialists',
-      'physician',
-      'physicians',
-
-      'dermatologist',
-      'dermatology',
-
-      'cardiologist',
-      'cardiology',
-
-      'neurologist',
-      'neurology',
-
-      'orthopedic',
-      'orthopaedic',
-      'orthopedics',
-
-      'gynecologist',
-      'gynaecologist',
-      'gynecology',
-
-      'pediatrician',
-      'paediatrician',
-      'pediatrics',
-
-      'dentist',
-      'dentists',
-      'dental',
-
-      'psychiatrist',
-      'psychiatry',
-
-      'surgeon',
-
-      'skin doctor',
-      'heart doctor',
-      'child doctor',
-
-    ];
-
-
-    if (
-      doctorKeywords.some(
-        keyword => query.includes(keyword)
-      )
-    ) {
-
-      navigation.navigate(
-        'DoctorList'
-      );
-
-      return;
-
-    }
-
-
-    // ==================================================
-    // VIDEO CONSULTATION
-    // ==================================================
-
-    const videoKeywords = [
-
-      'video',
-      'video consultation',
-      'video consult',
-      'video doctor',
-
-      'online consultation',
-      'online consult',
-      'online doctor',
-
-      'remote consultation',
-
-      'telemedicine',
-      'telehealth',
-
-    ];
-
-
-    if (
-      videoKeywords.some(
-        keyword => query.includes(keyword)
-      )
-    ) {
-
-      navigation.navigate(
-        'VideoConsultation'
-      );
-
-      return;
-
-    }
-
-
-    // ==================================================
-    // LAB TESTS
-    // ==================================================
-
-    const labKeywords = [
-
-      'lab',
-      'labs',
-      'laboratory',
-
-      'test',
-      'tests',
-
-      'blood',
-      'blood test',
-      'blood tests',
-
-      'urine',
-      'urine test',
-      'urine tests',
-
-      'diagnostic',
-      'diagnostics',
-
-      'health test',
-      'health tests',
-
-      'health check',
-      'health checkup',
-      'health check-up',
-
-      'checkup',
-      'check-up',
-
-      'pathology',
-
-      'cbc',
-      'cbc test',
-
-      'sugar test',
-      'blood sugar',
-
-      'thyroid test',
-      'thyroid',
-
-      'cholesterol test',
-      'cholesterol',
-
-      'vitamin test',
-      'vitamin',
-
-    ];
-
-
-    if (
-      labKeywords.some(
-        keyword => query.includes(keyword)
-      )
-    ) {
-
-      navigation.navigate(
-        'LabTests'
-      );
-
-      return;
-
-    }
-
-
-    // ==================================================
-    // NEARBY HOSPITALS
-    // ==================================================
-
-    const nearbyHospitalKeywords = [
-
-      'nearby hospital',
-      'nearby hospitals',
-
-      'hospital near me',
-      'hospitals near me',
-
-      'nearest hospital',
-      'nearest hospitals',
-
-      'hospital nearby',
-      'hospitals nearby',
-
-    ];
-
-
-    if (
-      nearbyHospitalKeywords.some(
-        keyword => query.includes(keyword)
-      )
-    ) {
-
-      navigation.navigate(
-        'HospitalList'
-      );
-
-      return;
-
-    }
-
-
-    // ==================================================
-    // HOSPITAL / SURGERY
-    // ==================================================
-
-    const hospitalKeywords = [
-
-      'hospital',
-      'hospitals',
-
-      'surgery',
-      'surgeries',
-
-      'operation',
-      'operations',
-
-      'hospital care',
-      'hospital treatment',
-
-      'surgical',
-
-    ];
-
-
-    if (
-      hospitalKeywords.some(
-        keyword => query.includes(keyword)
-      )
-    ) {
-
-      navigation.navigate(
-        'HospitalCare'
-      );
-
-      return;
-
-    }
-
-
-    // ==================================================
-    // PHARMACY / MEDICINES
-    // ==================================================
-
-    const pharmacyKeywords = [
-
-      'pharmacy',
-      'pharmacies',
-
-      'medicine',
-      'medicines',
-
-      'tablet',
-      'tablets',
-
-      'capsule',
-      'capsules',
-
-      'drug',
-      'drugs',
-
-      'prescription',
-      'prescriptions',
-
-      'medication',
-      'medications',
-
-      'medical store',
-      'medical shop',
-
-      'chemist',
-
-    ];
-
-
-    if (
-      pharmacyKeywords.some(
-        keyword => query.includes(keyword)
-      )
-    ) {
-
-      navigation.navigate(
-        'Pharmacy'
-      );
-
-      return;
-
-    }
-
-
-    // ==================================================
-    // IMAGING / SCANS
-    // ==================================================
-
-    const imagingKeywords = [
-
-      'scan',
-      'scans',
-
-      'imaging',
-
-      'xray',
-      'x-ray',
-      'x ray',
-
-      'mri',
-
-      'ct',
-      'ct scan',
-      'ultrasound',
-      'sonography',
-      'radiology scan',
-      'diagnostic imaging',
-      'scan',
-      'scans',
-      'radiology lab',
-      'radiology tests',
-      'radiology service',
-      'radiology',
-      'x-ray',
-      'xray',
-      'mammography',
-      'dexa',
-      'pet-ct',
-      'doppler',
-    ];
-
-    if (
-      imagingKeywords.some(
-        keyword => query.includes(keyword)
-      )
-    ) {
-      navigation.navigate(
-        'RadiologyLabs'
-      );
-      return;
-    }
-
-    // ==================================================
-    // RADIOLOGIST DOCTOR
-    // ==================================================
-
-    const radiologistKeywords = [
-      'radiologist',
-      'radiologists',
-      'radiology doctor',
-      'radiology consultation',
-    ];
-
-    if (
-      radiologistKeywords.some(
-        keyword => query.includes(keyword)
-      )
-    ) {
-      navigation.navigate(
-        'RadiologyLabs'
-      );
-      return;
-    }
-
-    // ==================================================
-    // HEALTH MONITOR & VITALS
-    // ==================================================
-
-    const healthMonitorKeywords = [
-      'sugar',
-      'blood sugar',
-      'glucose',
-      'bp',
-      'blood pressure',
-      'vitals',
-      'vital',
-      'health monitor',
-      'monitor',
-      'spo2',
-      'oxygen',
-      'temperature',
-      'fever',
-      'pulse',
-      'bmi',
-      'weight',
-    ];
-
-    if (
-      healthMonitorKeywords.some(
-        keyword => query.includes(keyword)
-      )
-    ) {
-      navigation.navigate(
-        'HealthMonitor'
-      );
-      return;
-    }
-
-
-    // ==================================================
-    // HEALTH RECORDS
-    // ==================================================
-
-    const healthRecordKeywords = [
-
-      'record',
-      'records',
-
-      'health record',
-      'health records',
-
-      'medical record',
-      'medical records',
-
-      'report',
-      'reports',
-
-      'medical report',
-      'medical reports',
-
-      'prescription history',
-
-      'health history',
-
-    ];
-
-
-    if (
-      healthRecordKeywords.some(
-        keyword => query.includes(keyword)
-      )
-    ) {
-
-      navigation.navigate(
-        'HealthRecords'
-      );
-
-      return;
-
-    }
-
-
-    // ==================================================
-    // BOOKINGS / APPOINTMENTS
-    // ==================================================
-
-    const bookingKeywords = [
-
-      'booking',
-      'bookings',
-
-      'appointment',
-      'appointments',
-
-      'my appointment',
-      'my appointments',
-
-      'my booking',
-      'my bookings',
-
-      'scheduled appointment',
-
-    ];
-
-
-    if (
-      bookingKeywords.some(
-        keyword => query.includes(keyword)
-      )
-    ) {
-
-      navigation.navigate(
-        'Bookings'
-      );
-
-      return;
-
-    }
-
-
-    // ==================================================
-    // EMERGENCY
-    // ==================================================
-
-    const emergencyKeywords = [
-
-      'emergency',
-
-      'ambulance',
-
-      'urgent',
-      'urgent help',
-
-      'emergency help',
-
-      'medical emergency',
-
-      '108',
-
-    ];
-
-
-    if (
-      emergencyKeywords.some(
-        keyword => query.includes(keyword)
-      )
-    ) {
-
-      navigation.navigate(
-        'Emergency'
-      );
-
-      return;
-
-    }
-
-
-    // ==================================================
-    // NO RESULTS
-    // ==================================================
-
-    Alert.alert(
-      'No Results',
-      `No healthcare service found for "${search}".`
-    );
-
+    if (!search.trim()) return;
+    navigation.navigate('GlobalSearch', { query: search.trim() });
   };
-
-
-  // ==================================================
-  // CONSULTATION SERVICES
-  // ==================================================
-
-  const consultationCards = consultationServices;
-
-  // ==================================================
-  // QUICK SERVICES
-  // ==================================================
-
-  const homeQuickServices = quickServices;
-
-  // ==================================================
-  // MORE SERVICES
-  // ==================================================
-
-  const homeMoreServices = moreServices;
-
-
-  // ==================================================
-  // CONSULTATION CARD
-  // ==================================================
-
-  const renderConsultationCard = (service) => (
-    <TouchableOpacity
-        key={service.title}
-        style={[
-          styles.consultationCard,
-          {
-            backgroundColor: service.background || colors.lightTeal,
-            borderColor: service.borderColor || '#A7F3D0',
-          },
-        ]}
-        activeOpacity={0.88}
-        onPress={() => {
-          navigation.navigate(service.route);
-        }}
-      >
-        <View style={styles.consultationTextContainer}>
-          <Text style={styles.consultationTitle}>
-            {service.title}
-          </Text>
-          <Text style={styles.consultationSubtitle}>
-            {service.subtitle}
-          </Text>
-          <View
-            style={[
-              styles.consultationArrow,
-              { backgroundColor: service.iconColor || colors.primary },
-            ]}
-          >
-            <Ionicons name="arrow-forward" size={14} color={colors.white} />
-          </View>
-        </View>
-
-        <View style={styles.consultationIconCircle}>
-          <Ionicons
-            name={service.icon}
-            size={38}
-            color={service.iconColor || colors.primary}
-          />
-        </View>
-      </TouchableOpacity>
-    );
-
-  // ==================================================
-  // QUICK SERVICE
-  // ==================================================
-
-  const renderQuickService = (service) => (
-    <TouchableOpacity
-      key={service.title}
-      style={styles.quickService}
-      activeOpacity={0.85}
-      onPress={() => {
-        navigation.navigate(service.route);
-      }}
-    >
-      <View
-        style={[
-          styles.quickIcon,
-          {
-            backgroundColor: service.background || colors.lightTeal,
-          },
-        ]}
-      >
-        <Ionicons
-          name={service.icon}
-          size={24}
-          color={service.iconColor || colors.primary}
-        />
-      </View>
-
-      <Text style={styles.quickServiceTitle} numberOfLines={1}>
-        {service.title}
-      </Text>
-      <Text style={styles.quickServiceSubtitle} numberOfLines={1}>
-        {service.subtitle || ''}
-      </Text>
-    </TouchableOpacity>
-  );
-
-  // ==================================================
-  // MORE SERVICE
-  // ==================================================
-
-  const renderMoreService = (service) => (
-    <TouchableOpacity
-      key={service.title}
-      style={styles.moreServiceCard}
-      activeOpacity={0.85}
-      onPress={() => {
-        navigation.navigate(service.route);
-      }}
-    >
-      <View
-        style={[
-          styles.moreServiceIcon,
-          {
-            backgroundColor: service.color || colors.lightTeal,
-          },
-        ]}
-      >
-        <Ionicons
-          name={service.icon}
-          size={22}
-          color={service.iconColor || colors.primary}
-        />
-      </View>
-
-      <View style={styles.moreServiceInfo}>
-        <Text style={styles.moreServiceTitle}>
-          {service.title}
-        </Text>
-        <Text style={styles.moreServiceSubtitle}>
-          {service.subtitle}
-        </Text>
-      </View>
-
-      <Ionicons
-        name="chevron-forward"
-        size={18}
-        color={colors.slate}
-      />
-    </TouchableOpacity>
-  );
-
-
-  // ==================================================
-  // CITY OPTION
-  // ==================================================
-
-  const renderCityOption = (city) => (
-
-    <TouchableOpacity
-      key={city}
-      style={styles.cityOption}
-      activeOpacity={0.8}
-      onPress={() =>
-        selectManualLocation(city)
-      }
-    >
-
-      <View
-        style={styles.cityIcon}
-      >
-
-        <Ionicons
-          name="business-outline"
-          size={21}
-          color={colors.primary}
-        />
-
-      </View>
-
-      <Text
-        style={styles.cityText}
-      >
-        {city}
-      </Text>
-
-      <Ionicons
-        name="chevron-forward"
-        size={19}
-        color={colors.slate}
-      />
-
-    </TouchableOpacity>
-
-  );
-
-
-  // ==================================================
-  // BOTTOM NAVIGATION
-  // ==================================================
-
-  const goHome = () => {
-
-    navigation.navigate(
-      'Home'
-    );
-
-  };
-
-
-  const goInPerson = () => {
-
-    navigation.navigate(
-      'DoctorList'
-    );
-
-  };
-
-
-  const goVideo = () => {
-
-    navigation.navigate(
-      'VideoConsultation'
-    );
-
-  };
-
-
-  const goAccount = () => {
-
-    navigation.navigate(
-      'Profile'
-    );
-
-  };
-
-
-  // ==================================================
-  // HOME UI
-  // ==================================================
 
   return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-    <SafeAreaView
-      style={styles.container}
-    >
+      {/* ==========================================
+          TOP APP BAR (LOCATION, WALLET, NOTIFS, CART)
+      ========================================== */}
+      <View style={styles.topBar}>
+        {/* LOCATION SELECTOR */}
+        <TouchableOpacity
+          style={styles.locationPill}
+          onPress={() => setLocationModalVisible(true)}
+          activeOpacity={0.85}
+        >
+          <View style={styles.locationIconWrap}>
+            <Ionicons name="location" size={16} color={colors.primary} />
+          </View>
+          <View style={styles.locationTextWrap}>
+            <Text style={styles.locationLabel}>Location</Text>
+            <View style={styles.locationNameRow}>
+              <Text style={styles.locationName} numberOfLines={1}>
+                {locationName}
+              </Text>
+              <Ionicons name="chevron-down" size={14} color="#64748B" />
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        {/* RIGHT ACTIONS: WALLET & CART */}
+        <View style={styles.topBarRight}>
+          {/* WALLET BUTTON */}
+          <TouchableOpacity
+            style={styles.walletPill}
+            onPress={() => setWalletModalVisible(true)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="wallet-outline" size={16} color={colors.primary} />
+            <Text style={styles.walletPillText}>₹{walletBalance.toLocaleString('en-IN')}</Text>
+          </TouchableOpacity>
+
+          {/* CART BUTTON */}
+          <TouchableOpacity
+            style={styles.iconCircle}
+            onPress={() => navigation.navigate('Cart')}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="cart-outline" size={20} color="#1E293B" />
+            {totalCartCount > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{totalCartCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* TOAST NOTIFICATION */}
+      {locationToast && (
+        <View style={styles.toastCard}>
+          <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+          <Text style={styles.toastText}>{locationToast}</Text>
+        </View>
+      )}
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={
-          styles.scrollContent
-        }
+        contentContainerStyle={styles.scrollContent}
       >
+        {/* ==========================================
+            USER GREETING & PATIENT SWITCHER
+        ========================================== */}
+        <View style={styles.greetingSection}>
+          <View>
+            <Text style={styles.greetingTitle}>Hello, {userName} 👋</Text>
+            <Text style={styles.greetingSubtitle}>How are you feeling today?</Text>
+          </View>
 
-
-        {/* ==================================================
-            USER GREETING + LOCATION HEADER
-        ================================================== */}
-
-        <View style={styles.topBrandBar}>
           <TouchableOpacity
-            style={styles.brandLogoRow}
-            activeOpacity={0.9}
-            onPress={() => navigation.navigate('Home')}
+            style={styles.profileAvatarBtn}
+            onPress={() => navigation.navigate('Profile')}
+            activeOpacity={0.85}
           >
             <Image
-              source={require('../../../assets/logo.png')}
-              style={styles.mainBrandLogo}
-              resizeMode="contain"
+              source={{
+                uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+              }}
+              style={styles.profileAvatarImg}
             />
           </TouchableOpacity>
-
-          <View style={styles.headerRight}>
-            {/* WALLET BUTTON NEXT TO NOTIFICATION */}
-            <TouchableOpacity
-              style={styles.headerWalletPill}
-              activeOpacity={0.8}
-              onPress={() => setWalletModalVisible(true)}
-            >
-              <Ionicons
-                name="wallet"
-                size={15}
-                color={colors.primary}
-              />
-              <Text style={styles.headerWalletText}>
-                ₹{walletBalance.toLocaleString('en-IN')}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.headerIcon}
-              activeOpacity={0.8}
-              onPress={() => navigation.navigate('Notifications')}
-            >
-              <Ionicons
-                name="notifications-outline"
-                size={21}
-                color={colors.secondary}
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.profileHeaderIcon}
-              activeOpacity={0.8}
-              onPress={() => navigation.navigate('Profile')}
-            >
-              <Ionicons
-                name="person-outline"
-                size={20}
-                color={colors.white}
-              />
-            </TouchableOpacity>
-          </View>
         </View>
 
-        {/* ==================================================
-            USER GREETING + LOCATION HEADER
-        ================================================== */}
-
-        <View style={styles.locationHeader}>
-          <TouchableOpacity
-            style={styles.locationLeft}
-            activeOpacity={0.78}
-            onPress={openLocationSelector}
-          >
-            <View style={styles.locationIcon}>
-              <Ionicons name="location" size={18} color={colors.white} />
-            </View>
-
-            <View style={styles.locationDetails}>
-              <Text style={styles.greetingText} numberOfLines={1}>
-                Hello, {userName} 👋
-              </Text>
-
-              <View style={styles.locationChip}>
-                <Text style={styles.locationName} numberOfLines={1}>
-                  {locationName}
-                </Text>
-                <Ionicons
-                  name="chevron-down"
-                  size={13}
-                  color={colors.secondary}
-                  style={{ marginLeft: 3 }}
-                />
-              </View>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.changeAreaPillBtn}
-            onPress={openLocationSelector}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.changeAreaPillText}>Change Area</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ==================================================
-            PATIENT CARE SWITCHER: SELF & FAMILY MEMBERS
-        ================================================== */}
-
-        <View style={styles.patientCareSection}>
-          <View style={styles.patientCareHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="people" size={16} color={colors.secondary} />
-              <Text style={styles.patientCareTitle}>Booking & Care For:</Text>
-            </View>
-
-            <TouchableOpacity
-              onPress={() => navigation.navigate('FamilyProfiles')}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.manageFamilyText}>Manage Family ›</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.patientChipsScroll}
-          >
+        {/* PATIENT SWITCHER CHIPS */}
+        <View style={styles.patientSwitcherRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
             {familyMembers.map((member) => {
               const isSelected = activePatient.id === member.id;
               return (
                 <TouchableOpacity
                   key={member.id}
-                  style={[
-                    styles.patientChip,
-                    isSelected && styles.patientChipActive,
-                  ]}
-                  activeOpacity={0.85}
+                  style={[styles.patientChip, isSelected && styles.patientChipSelected]}
                   onPress={() => handleSelectPatient(member)}
+                  activeOpacity={0.85}
                 >
-                  <View
-                    style={[
-                      styles.patientChipIconBox,
-                      isSelected && styles.patientChipIconBoxActive,
-                    ]}
-                  >
-                    <Ionicons
-                      name={member.icon || 'person'}
-                      size={14}
-                      color={isSelected ? colors.white : colors.primary}
-                    />
-                  </View>
-
-                  <View>
-                    <Text
-                      style={[
-                        styles.patientChipName,
-                        isSelected && styles.patientChipNameActive,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {member.name}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.patientChipRelation,
-                        isSelected && styles.patientChipRelationActive,
-                      ]}
-                    >
-                      {member.relation}
-                    </Text>
-                  </View>
-
-                  {isSelected && (
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={15}
-                      color={colors.white}
-                      style={{ marginLeft: 3 }}
-                    />
-                  )}
+                  <Ionicons
+                    name={member.icon || 'person'}
+                    size={14}
+                    color={isSelected ? '#FFFFFF' : colors.primary}
+                  />
+                  <Text style={[styles.patientChipText, isSelected && styles.patientChipTextSelected]}>
+                    {member.name}
+                  </Text>
+                  {isSelected && <View style={styles.patientActiveDot} />}
                 </TouchableOpacity>
               );
             })}
 
-            {/* ADD FAMILY MEMBER BUTTON */}
             <TouchableOpacity
-              style={styles.addMemberChip}
-              activeOpacity={0.8}
+              style={styles.addPatientChip}
               onPress={() => navigation.navigate('FamilyProfiles')}
+              activeOpacity={0.85}
             >
-              <Ionicons name="add-circle" size={16} color={colors.primary} />
-              <Text style={styles.addMemberChipText}>+ Add Member</Text>
+              <Ionicons name="add" size={16} color={colors.primary} />
+              <Text style={styles.addPatientText}>Add Member</Text>
             </TouchableOpacity>
           </ScrollView>
-
-          {/* ACTIVE PATIENT BANNER IF FAMILY MEMBER SELECTED */}
-          {activePatient.id !== 'self' && (
-            <View style={styles.activePatientBanner}>
-              <Ionicons name="information-circle" size={15} color="#059669" />
-              <Text style={styles.activePatientBannerText}>
-                Active Profile: <Text style={{ fontWeight: '800' }}>{activePatient.name} ({activePatient.relation})</Text> • All test bookings & appointments will be scheduled for this member.
-              </Text>
-            </View>
-          )}
         </View>
 
-        {/* ==================================================
-            UNNATHI HEALTH WALLET WIDGET
-        ================================================== */}
-
-        <View style={styles.walletHomeCard}>
-          <TouchableOpacity
-            style={styles.walletHomeLeft}
-            activeOpacity={0.85}
-            onPress={() => setWalletModalVisible(true)}
-          >
-            <View style={styles.walletHomeIconBox}>
-              <Ionicons name="wallet" size={20} color={colors.primary} />
-            </View>
-
-            <View style={{ marginLeft: 10 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={styles.walletHomeTitle}>Unnathi Wallet</Text>
-                <View style={styles.walletHomePointsBadge}>
-                  <Ionicons name="sparkles" size={10} color="#D97706" />
-                  <Text style={styles.walletHomePointsText}>{carePoints} Pts</Text>
-                </View>
-              </View>
-              <Text style={styles.walletHomeBalance}>
-                ₹{walletBalance.toLocaleString('en-IN')}{' '}
-                <Text style={{ fontSize: 10.5, fontWeight: '600', color: colors.slate }}>
-                  Health Cash
-                </Text>
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          <View style={styles.walletHomeRightBtns}>
-            <TouchableOpacity
-              style={styles.walletHomeAddBtn}
-              activeOpacity={0.8}
-              onPress={() => setWalletModalVisible(true)}
-            >
-              <Ionicons name="add" size={14} color="#FFFFFF" />
-              <Text style={styles.walletHomeAddBtnText}>Add</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.walletHomeReferBtn}
-              activeOpacity={0.8}
-              onPress={() => navigation.navigate('ReferEarn')}
-            >
-              <Ionicons name="gift-outline" size={14} color={colors.secondary} />
-              <Text style={styles.walletHomeReferBtnText}>Earn ₹250</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* ==================================================
-            SEARCH
-        ================================================== */}
-
-        <View
-          style={styles.searchContainer}
-        >
-
-          <Ionicons
-            name="search-outline"
-            size={23}
-            color={colors.slate}
-          />
-
-
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search doctors, hospitals, tests..."
-            placeholderTextColor="#94A3B8"
-            value={search}
-            onChangeText={setSearch}
-            onSubmitEditing={
-              handleSearchSubmit
-            }
-            returnKeyType="search"
-            autoCorrect={false}
-            autoCapitalize="none"
-          />
-
-
-          {search.length > 0 && (
-
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() =>
-                setSearch('')
-              }
-              style={
-                styles.searchClearButton
-              }
-            >
-
-              <Ionicons
-                name="close-circle"
-                size={20}
-                color={colors.slate}
-              />
-
-            </TouchableOpacity>
-
-          )}
-
-
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={
-              handleSearchSubmit
-            }
-            style={styles.searchButton}
-          >
-
-            <Ionicons
-              name="arrow-forward"
-              size={20}
-              color={colors.white}
+        {/* ==========================================
+            SMART HERO SEARCH & SCAN BAR
+        ========================================== */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBar}>
+            <Ionicons name="search-outline" size={20} color="#94A3B8" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search doctors, medicines, tests, scans..."
+              placeholderTextColor="#94A3B8"
+              value={search}
+              onChangeText={setSearch}
+              onSubmitEditing={handleSearchSubmit}
+              returnKeyType="search"
             />
-
-          </TouchableOpacity>
-
-        </View>
-
-
-        {/* ==================================================
-            MAIN BANNER
-        ================================================== */}
-
-        <View
-          style={styles.carePlanCard}
-        >
-
-          <View
-            style={styles.carePlanContent}
-          >
-
-            <Text
-              style={styles.carePlanSmall}
-            >
-              MEDIUNIFY
-            </Text>
-
-            <Text
-              style={styles.carePlanTitle}
-            >
-              Your Health,
-              {'\n'}
-              Our Priority
-            </Text>
-
-            <Text
-              style={styles.carePlanText}
-            >
-              Complete healthcare support
-              {'\n'}
-              in one place.
-            </Text>
+            {search.length > 0 ? (
+              <TouchableOpacity onPress={() => setSearch('')}>
+                <Ionicons name="close-circle" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            ) : null}
 
             <TouchableOpacity
-              style={styles.carePlanButton}
-              activeOpacity={0.85}
-              onPress={() =>
-                navigation.navigate(
-                  'DoctorList'
-                )
-              }
-            >
-
-              <Text
-                style={
-                  styles.carePlanButtonText
-                }
-              >
-                Explore Care
-              </Text>
-
-              <Ionicons
-                name="arrow-forward"
-                size={17}
-                color={colors.white}
-              />
-
-            </TouchableOpacity>
-
-          </View>
-
-
-          <View
-            style={styles.carePlanGraphic}
-          >
-
-            <View
-              style={styles.heartCircle}
-            >
-
-              <Ionicons
-                name="heart"
-                size={55}
-                color={colors.accent}
-              />
-
-            </View>
-
-
-            <View
-              style={styles.graphicCircle}
-            >
-
-              <Ionicons
-                name="medical"
-                size={30}
-                color={colors.white}
-              />
-
-            </View>
-
-          </View>
-
-        </View>
-
-
-        {/* ==================================================
-            SELF HEALTH MONITOR & VITALS TRACKER
-        ================================================== */}
-
-        <View style={styles.healthMonitorHomeCard}>
-          <View style={styles.healthMonitorHomeHeader}>
-            <View style={styles.healthMonitorIconWrap}>
-              <Ionicons name="pulse" size={22} color="#E11D48" />
-            </View>
-
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={styles.healthMonitorTitle}>Self Health Monitor</Text>
-                <View style={styles.liveBadge}>
-                  <Text style={styles.liveBadgeText}>TRACKER</Text>
-                </View>
-              </View>
-              <Text style={styles.healthMonitorSubtitle}>
-                Log self-tested Blood Sugar, BP, SpO2 & Vitals
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.openMonitorBtn}
-              onPress={() => navigation.navigate('HealthMonitor')}
+              style={styles.scanSearchBtn}
+              onPress={() => navigation.navigate('Chatbot')}
               activeOpacity={0.85}
             >
-              <Text style={styles.openMonitorBtnText}>Open</Text>
-              <Ionicons name="chevron-forward" size={14} color="#FFFFFF" />
+              <Ionicons name="camera-outline" size={18} color={colors.primary} />
             </TouchableOpacity>
           </View>
+        </View>
 
-          {/* QUICK VITALS STRIP */}
-          <View style={styles.vitalsStrip}>
-            <TouchableOpacity
-              style={styles.vitalStripItem}
-              onPress={() => navigation.navigate('HealthMonitor')}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.vitalMiniIcon, { backgroundColor: '#FFE4E6' }]}>
-                <Ionicons name="water" size={14} color="#E11D48" />
-              </View>
-              <View>
-                <Text style={styles.vitalMiniLabel}>Sugar (Fasting)</Text>
-                <Text style={styles.vitalMiniVal}>95 <Text style={styles.vitalMiniUnit}>mg/dL</Text></Text>
-              </View>
-              <View style={[styles.vitalMiniBadge, { backgroundColor: '#ECFDF5' }]}>
-                <Text style={[styles.vitalMiniBadgeText, { color: '#10B981' }]}>Normal</Text>
-              </View>
-            </TouchableOpacity>
-
-            <View style={styles.vitalStripDivider} />
-
-            <TouchableOpacity
-              style={styles.vitalStripItem}
-              onPress={() => navigation.navigate('HealthMonitor')}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.vitalMiniIcon, { backgroundColor: '#FEE2E2' }]}>
-                <Ionicons name="heart" size={14} color="#EF4444" />
-              </View>
-              <View>
-                <Text style={styles.vitalMiniLabel}>Blood Pressure</Text>
-                <Text style={styles.vitalMiniVal}>120/80 <Text style={styles.vitalMiniUnit}>mmHg</Text></Text>
-              </View>
-              <View style={[styles.vitalMiniBadge, { backgroundColor: '#ECFDF5' }]}>
-                <Text style={[styles.vitalMiniBadgeText, { color: '#10B981' }]}>Optimal</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
+        {/* ==========================================
+            EMERGENCY SOS & 24x7 DOCTOR BAR
+        ========================================== */}
+        <View style={styles.emergencyRow}>
           <TouchableOpacity
-            style={styles.logReadingBannerBtn}
-            onPress={() => navigation.navigate('HealthMonitor')}
+            style={styles.sosCard}
+            onPress={() => Linking.openURL('tel:108')}
             activeOpacity={0.85}
           >
-            <Ionicons name="add-circle" size={18} color={colors.primary} />
-            <Text style={styles.logReadingBannerText}>+ Update Health Report / Log Reading</Text>
+            <View style={styles.sosIconBox}>
+              <Ionicons name="medical" size={18} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 8 }}>
+              <Text style={styles.sosTitle}>Emergency SOS (108)</Text>
+              <Text style={styles.sosSubtitle}>Instant Ambulance Response</Text>
+            </View>
+            <Ionicons name="call" size={16} color="#DC2626" />
           </TouchableOpacity>
-        </View>
-
-
-        {/* ==================================================
-            CONSULTATION
-        ================================================== */}
-
-        <View
-          style={styles.sectionHeader}
-        >
-
-          <Text
-            style={styles.sectionTitle}
-          >
-            Consult a Doctor
-          </Text>
-
-          <Text
-            style={styles.sectionSubtitle}
-          >
-            Get expert medical care your way
-          </Text>
-
-        </View>
-
-
-        <View
-          style={styles.consultationRow}
-        >
-
-          {consultationCards.map(
-            renderConsultationCard
-          )}
-
-        </View>
-
-
-        {/* ==================================================
-            LAB PACKAGES
-        ================================================== */}
-
-        <View
-          style={styles.labSectionHeader}
-        >
-
-          <View
-            style={styles.labHeaderText}
-          >
-
-            <Text
-              style={styles.sectionTitle}
-            >
-              Lab Test Packages
-            </Text>
-
-            <Text
-              style={styles.sectionSubtitle}
-            >
-              Complete health analysis at affordable prices
-            </Text>
-
-          </View>
-
 
           <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() =>
-              navigation.navigate(
-                'LabTests'
-              )
-            }
+            style={styles.helplineCard}
+            onPress={() => Linking.openURL('tel:18001089999')}
+            activeOpacity={0.85}
           >
+            <View style={styles.helplineIconBox}>
+              <Ionicons name="headset" size={18} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 8 }}>
+              <Text style={styles.helplineTitle}>24x7 Doctor Helpline</Text>
+              <Text style={styles.helplineSubtitle}>Free Instant Assistance</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
 
-            <Text
-              style={styles.viewAll}
-            >
-              View All
-            </Text>
+        {/* ==========================================
+            4 MAJOR HEALTHCARE HUBS (HERO GRID)
+        ========================================== */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Healthcare Services</Text>
+          <Text style={styles.sectionSubtitle}>Complete healthcare at your fingertips</Text>
+        </View>
 
+        <View style={styles.heroGrid}>
+          {/* 1. DOCTOR APPOINTMENTS */}
+          <TouchableOpacity
+            style={[styles.heroCard, { backgroundColor: '#F0FDFA', borderColor: '#CCFBF1' }]}
+            onPress={() => navigation.navigate('DoctorList')}
+            activeOpacity={0.88}
+          >
+            <View style={[styles.heroIconCircle, { backgroundColor: colors.lightTeal }]}>
+              <Ionicons name="person" size={24} color={colors.primary} />
+            </View>
+            <Text style={styles.heroCardTitle}>Book Doctors</Text>
+            <Text style={styles.heroCardSubtitle}>50+ Verified Specialists</Text>
+            <View style={styles.heroBadgeRow}>
+              <Text style={styles.heroBadgeGreen}>Instant Slots</Text>
+              <Ionicons name="arrow-forward-circle" size={20} color={colors.primary} />
+            </View>
           </TouchableOpacity>
 
+          {/* 2. PHARMACY STORE */}
+          <TouchableOpacity
+            style={[styles.heroCard, { backgroundColor: '#FFF7ED', borderColor: '#FFEDD5' }]}
+            onPress={() => navigation.navigate('Pharmacy')}
+            activeOpacity={0.88}
+          >
+            <View style={[styles.heroIconCircle, { backgroundColor: '#FFEDD5' }]}>
+              <Ionicons name="medkit" size={24} color="#EA580C" />
+            </View>
+            <Text style={styles.heroCardTitle}>Order Medicines</Text>
+            <Text style={styles.heroCardSubtitle}>Flat 20% OFF • 30 Mins</Text>
+            <View style={styles.heroBadgeRow}>
+              <Text style={[styles.heroBadgeGreen, { color: '#EA580C', backgroundColor: '#FFEDD5' }]}>
+                Doorstep Delivery
+              </Text>
+              <Ionicons name="arrow-forward-circle" size={20} color="#EA580C" />
+            </View>
+          </TouchableOpacity>
+
+          {/* 3. LAB TESTS */}
+          <TouchableOpacity
+            style={[styles.heroCard, { backgroundColor: '#EFF6FF', borderColor: '#DBEAFE' }]}
+            onPress={() => navigation.navigate('LabTests')}
+            activeOpacity={0.88}
+          >
+            <View style={[styles.heroIconCircle, { backgroundColor: '#DBEAFE' }]}>
+              <Ionicons name="flask" size={24} color="#2563EB" />
+            </View>
+            <Text style={styles.heroCardTitle}>Lab & Blood Tests</Text>
+            <Text style={styles.heroCardSubtitle}>Free Home Collection</Text>
+            <View style={styles.heroBadgeRow}>
+              <Text style={[styles.heroBadgeGreen, { color: '#2563EB', backgroundColor: '#DBEAFE' }]}>
+                100% Certified
+              </Text>
+              <Ionicons name="arrow-forward-circle" size={20} color="#2563EB" />
+            </View>
+          </TouchableOpacity>
+
+          {/* 4. RADIOLOGY & 3T SCANS */}
+          <TouchableOpacity
+            style={[styles.heroCard, { backgroundColor: '#FAF5FF', borderColor: '#F3E8FF' }]}
+            onPress={() => navigation.navigate('RadiologyLabs')}
+            activeOpacity={0.88}
+          >
+            <View style={[styles.heroIconCircle, { backgroundColor: '#F3E8FF' }]}>
+              <Ionicons name="radio" size={24} color="#7C3AED" />
+            </View>
+            <Text style={styles.heroCardTitle}>Radiology & Scans</Text>
+            <Text style={styles.heroCardSubtitle}>3T MRI, CT & Ultrasound</Text>
+            <View style={styles.heroBadgeRow}>
+              <Text style={[styles.heroBadgeGreen, { color: '#7C3AED', backgroundColor: '#F3E8FF' }]}>
+                Hospital Visits
+              </Text>
+              <Ionicons name="arrow-forward-circle" size={20} color="#7C3AED" />
+            </View>
+          </TouchableOpacity>
         </View>
 
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={
-            styles.labPackagesList
-          }
-        >
-
-          {labPackages.map(
-            (item) => (
-
-              <LabPackageCard
-                key={item.id}
-                packageData={item}
-                navigation={navigation}
-              />
-
-            )
-          )}
-
-        </ScrollView>
-
-
-        {/* ==================================================
-            QUICK ACTIONS (4 KEY HUBS)
-        ================================================== */}
-
-        <View style={styles.quickActionsBox}>
-          <View style={styles.quickGrid}>
-            {homeQuickServices.map(renderQuickService)}
-          </View>
-        </View>
-
-
-        {/* ==================================================
-            HEALTH INSURANCE & MEDICLAIM BANNER
-        ================================================== */}
-
-        <View style={styles.insuranceHomeCard}>
-          <View style={styles.insuranceHomeTopRow}>
-            <View style={styles.insuranceHomeBadge}>
-              <Ionicons name="shield-checkmark" size={12} color={colors.primary} />
-              <Text style={styles.insuranceHomeBadgeText}>100% CASHLESS AT 10,000+ HOSPITALS</Text>
-            </View>
-            <View style={styles.taxSavingTag}>
-              <Text style={styles.taxSavingTagText}>Save ₹75k Tax (80D)</Text>
-            </View>
-          </View>
-
-          <Text style={styles.insuranceHomeTitle}>Health Insurance & Mediclaim</Text>
-          <Text style={styles.insuranceHomeSub}>
-            Protect your family with up to ₹25 Lakh cover. Zero room rent capping & 20-minute cashless claim approvals.
-          </Text>
-
-          <View style={styles.insuranceHomeActionsRow}>
-            <TouchableOpacity
-              style={styles.insuranceHomeCallBtn}
-              activeOpacity={0.85}
-              onPress={() => {
-                Linking.openURL('tel:+918212568888');
-              }}
-            >
-              <Ionicons name="call" size={14} color={colors.secondary} />
-              <Text style={styles.insuranceHomeCallBtnText}>Call Enquiry (Free)</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.insuranceHomeBuyBtn}
-              activeOpacity={0.88}
-              onPress={() => navigation.navigate('HealthInsurance')}
-            >
-              <Text style={styles.insuranceHomeBuyBtnText}>Explore & Buy Plans</Text>
-              <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* ==================================================
-            HOME NURSE & CAREGIVER BOOKING CARD
-        ================================================== */}
-
-        <View style={styles.nurseHomeCard}>
-          <View style={styles.nurseHomeTopRow}>
-            <View style={styles.nurseHomeBadge}>
-              <Ionicons name="heart-circle" size={14} color={colors.accent} />
-              <Text style={styles.nurseHomeBadgeText}>VERIFIED GNM & B.SC NURSES</Text>
-            </View>
-            <View style={styles.nurseRateTag}>
-              <Text style={styles.nurseRateTagText}>From ₹349/hr • 1-30 Days</Text>
-            </View>
-          </View>
-
-          <Text style={styles.nurseHomeTitle}>Book Home Nurse & Caregiver</Text>
-          <Text style={styles.nurseHomeSub}>
-            Book certified nurses for 1 Hour, 12-Hour shifts, or 1 to 30 Days. Post-surgery recovery, IV injections, wound dressing, and elderly care at home.
-          </Text>
-
-          <View style={styles.nurseHomeActionsRow}>
-            <TouchableOpacity
-              style={styles.nurseHomeCallBtn}
-              activeOpacity={0.85}
-              onPress={() => Linking.openURL('tel:+918212568888')}
-            >
-              <Ionicons name="call" size={14} color={colors.secondary} />
-              <Text style={styles.nurseHomeCallBtnText}>Enquiry Call</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.nurseHomeBookBtn}
-              activeOpacity={0.88}
-              onPress={() => navigation.navigate('NurseBooking')}
-            >
-              <Text style={styles.nurseHomeBookBtnText}>Book a Nurse Now</Text>
-              <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* ==================================================
-            EMERGENCY
-        ================================================== */}
-
+        {/* ==========================================
+            AI HEALTH ASSISTANT BANNER
+        ========================================== */}
         <TouchableOpacity
-          style={styles.emergencyCard}
+          style={styles.aiBannerCard}
+          onPress={() => navigation.navigate('Chatbot')}
           activeOpacity={0.9}
-          onPress={() =>
-            navigation.navigate(
-              'Emergency'
-            )
-          }
         >
-
-          <View
-            style={styles.emergencyIcon}
-          >
-
-            <Ionicons
-              name="call"
-              size={25}
-              color={colors.white}
-            />
-
+          <View style={styles.aiBannerLeft}>
+            <View style={styles.aiBadge}>
+              <Ionicons name="sparkles" size={14} color="#FFFFFF" />
+              <Text style={styles.aiBadgeText}>AI Health Assistant</Text>
+            </View>
+            <Text style={styles.aiBannerTitle}>Have Health Questions or Prescription?</Text>
+            <Text style={styles.aiBannerSub}>
+              Scan tablets, analyze symptoms, and get instant doctor suggestions.
+            </Text>
+            <View style={styles.aiBannerBtn}>
+              <Text style={styles.aiBannerBtnText}>Chat with Health AI ›</Text>
+            </View>
           </View>
 
-
-          <View
-            style={styles.emergencyInfo}
-          >
-
-            <Text
-              style={styles.emergencyTitle}
-            >
-              Emergency Help
-            </Text>
-
-            <Text
-              style={styles.emergencySubtitle}
-            >
-              Get immediate medical assistance
-            </Text>
-
+          <View style={styles.aiAvatarCircle}>
+            <Ionicons name="chatbubbles" size={36} color="#FFFFFF" />
           </View>
-
-
-          <Ionicons
-            name="chevron-forward"
-            size={24}
-            color={colors.white}
-          />
-
         </TouchableOpacity>
 
-
-        {/* ==================================================
-            PROMOTIONAL BANNER
-        ================================================== */}
-
-        <View
-          style={styles.exploreBanner}
-        >
-
-          <View
-            style={styles.bannerContent}
-          >
-
-            <Text
-              style={styles.bannerSmall}
+        {/* ==========================================
+            HEALTH VITALS & SELF MONITOR WIDGET
+        ========================================== */}
+        <View style={styles.vitalsSection}>
+          <View style={styles.vitalsHeaderRow}>
+            <View>
+              <Text style={styles.sectionTitle}>My Health Monitor</Text>
+              <Text style={styles.sectionSubtitle}>Track your daily vital readings</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.vitalsActionBtn}
+              onPress={() => navigation.navigate('HealthMonitor')}
             >
-              MEDIUNIFY
-            </Text>
-
-            <Text
-              style={styles.bannerTitle}
-            >
-              Everything you need
-              {'\n'}
-              for better health.
-            </Text>
-
-            <Text
-              style={styles.bannerText}
-            >
-              Doctors, hospitals, lab tests,
-              {'\n'}
-              medicines and more.
-            </Text>
-
+              <Ionicons name="add-circle" size={16} color={colors.primary} />
+              <Text style={styles.vitalsActionBtnText}>Log Vitals</Text>
+            </TouchableOpacity>
           </View>
 
-
-          <View
-            style={styles.bannerIllustration}
-          >
-
-            <View
-              style={styles.bannerMedicalCircle}
-            >
-
-              <Ionicons
-                name="medical"
-                size={45}
-                color={colors.white}
-              />
-
+          <View style={styles.vitalsGrid}>
+            <View style={styles.vitalCard}>
+              <Ionicons name="water" size={18} color="#059669" />
+              <Text style={styles.vitalValue}>108 <Text style={styles.vitalUnit}>mg/dL</Text></Text>
+              <Text style={styles.vitalLabel}>Fasting Sugar (Normal)</Text>
             </View>
 
-
-            <View
-              style={styles.bannerPlus}
-            >
-
-              <Ionicons
-                name="add"
-                size={20}
-                color={colors.white}
-              />
-
+            <View style={styles.vitalCard}>
+              <Ionicons name="heart" size={18} color="#DC2626" />
+              <Text style={styles.vitalValue}>118/78 <Text style={styles.vitalUnit}>mmHg</Text></Text>
+              <Text style={styles.vitalLabel}>Blood Pressure (Optimal)</Text>
             </View>
 
+            <View style={styles.vitalCard}>
+              <Ionicons name="pulse" size={18} color="#0284C7" />
+              <Text style={styles.vitalValue}>99% <Text style={styles.vitalUnit}>SpO2</Text></Text>
+              <Text style={styles.vitalLabel}>Oxygen Level (Good)</Text>
+            </View>
+
+            <View style={styles.vitalCard}>
+              <Ionicons name="speedometer" size={18} color="#D97706" />
+              <Text style={styles.vitalValue}>22.4 <Text style={styles.vitalUnit}>BMI</Text></Text>
+              <Text style={styles.vitalLabel}>Body Mass Index</Text>
+            </View>
           </View>
-
         </View>
 
-
-        {/* ==================================================
-            MORE SERVICES
-        ================================================== */}
-
+        {/* ==========================================
+            CONSULTATION MODES (IN-CLINIC & VIDEO)
+        ========================================== */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            More Healthcare Services
-          </Text>
-          <Text style={styles.sectionSubtitle}>
-            Manage all your healthcare needs
-          </Text>
+          <Text style={styles.sectionTitle}>Doctor Consultations</Text>
+          <Text style={styles.sectionSubtitle}>Consult in person or via video call</Text>
         </View>
 
-        <View style={styles.moreServices}>
-          {homeMoreServices.map(renderMoreService)}
+        <View style={styles.consultModesRow}>
+          {consultationServices.map((service) => (
+            <TouchableOpacity
+              key={service.id}
+              style={[styles.consultModeCard, { backgroundColor: service.background || '#F0FDFA' }]}
+              onPress={() => navigation.navigate(service.route)}
+              activeOpacity={0.88}
+            >
+              <View style={styles.consultModeHeader}>
+                <Ionicons name={service.icon} size={26} color={service.iconColor || colors.primary} />
+                <View style={[styles.arrowCircle, { backgroundColor: service.iconColor || colors.primary }]}>
+                  <Ionicons name="arrow-forward" size={12} color="#FFFFFF" />
+                </View>
+              </View>
+              <Text style={styles.consultModeTitle}>{service.title}</Text>
+              <Text style={styles.consultModeSub}>{service.subtitle}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
+        {/* ==========================================
+            TOP DOCTORS NEAR YOU (CAROUSEL)
+        ========================================== */}
+        <View style={styles.sectionHeaderRow}>
+          <View>
+            <Text style={styles.sectionTitle}>Top Doctors Near You</Text>
+            <Text style={styles.sectionSubtitle}>Verified clinicians in Mysore</Text>
+          </View>
+          <TouchableOpacity onPress={() => navigation.navigate('DoctorList')}>
+            <Text style={styles.viewAllText}>View All ›</Text>
+          </TouchableOpacity>
+        </View>
 
-        {/* ==================================================
-            EXTRA SPACE
-        ================================================== */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.doctorsScroll}>
+          {doctors.slice(0, 4).map((doc) => (
+            <TouchableOpacity
+              key={doc.id}
+              style={styles.doctorCard}
+              onPress={() => navigation.navigate('DoctorDetails', { doctor: doc })}
+              activeOpacity={0.88}
+            >
+              <Image source={{ uri: doc.image }} style={styles.doctorImg} />
+              <View style={styles.doctorCardBody}>
+                <Text style={styles.doctorCardName} numberOfLines={1}>{doc.name}</Text>
+                <Text style={styles.doctorCardSpec}>{doc.specialty}</Text>
+                <View style={styles.doctorRatingRow}>
+                  <Ionicons name="star" size={13} color="#F59E0B" />
+                  <Text style={styles.doctorRatingText}>{doc.rating} • {doc.experienceYears} Yrs</Text>
+                </View>
+                <View style={styles.doctorCardFooter}>
+                  <Text style={styles.doctorFeeText}>₹{doc.fee}</Text>
+                  <View style={styles.bookMiniBtn}>
+                    <Text style={styles.bookMiniBtnText}>Book</Text>
+                  </View>
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
 
-        <View
-          style={{
-            height: 130,
-          }}
-        />
+        {/* ==========================================
+            POPULAR HEALTH CHECKUP PACKAGES
+        ========================================== */}
+        <View style={styles.sectionHeaderRow}>
+          <View>
+            <Text style={styles.sectionTitle}>Preventive Health Packages</Text>
+            <Text style={styles.sectionSubtitle}>Comprehensive full body checkups</Text>
+          </View>
+          <TouchableOpacity onPress={() => navigation.navigate('LabTests')}>
+            <Text style={styles.viewAllText}>All Packages ›</Text>
+          </TouchableOpacity>
+        </View>
 
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.packagesScroll}>
+          {labPackages.map((pkg) => (
+            <TouchableOpacity
+              key={pkg.id}
+              style={styles.pkgCard}
+              onPress={() => navigation.navigate('LabTests')}
+              activeOpacity={0.88}
+            >
+              <View style={styles.pkgBadge}>
+                <Text style={styles.pkgBadgeText}>{pkg.discount}</Text>
+              </View>
+              <Ionicons name={pkg.icon || 'fitness'} size={28} color={colors.primary} style={{ marginVertical: 6 }} />
+              <Text style={styles.pkgTitle} numberOfLines={1}>{pkg.title}</Text>
+              <Text style={styles.pkgSub} numberOfLines={1}>{pkg.subtitle}</Text>
+              <View style={styles.pkgPriceRow}>
+                <Text style={styles.pkgPrice}>{pkg.priceStr}</Text>
+                <Text style={styles.pkgOldPrice}>{pkg.oldPrice}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* ==========================================
+            MORE HEALTHCARE HUBS
+        ========================================== */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>More Healthcare Services</Text>
+          <Text style={styles.sectionSubtitle}>Insurance, surgeries & nursing care</Text>
+        </View>
+
+        <View style={styles.moreServicesGrid}>
+          {moreServices.map((svc) => (
+            <TouchableOpacity
+              key={svc.id}
+              style={styles.moreServiceCard}
+              onPress={() => navigation.navigate(svc.route)}
+              activeOpacity={0.85}
+            >
+              <View style={[styles.moreServiceIconCircle, { backgroundColor: svc.color || '#F0FDFA' }]}>
+                <Ionicons name={svc.icon} size={22} color={svc.iconColor || colors.primary} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.moreServiceTitle}>{svc.title}</Text>
+                <Text style={styles.moreServiceSubtitle} numberOfLines={1}>{svc.subtitle}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
 
-
-      {/* ==================================================
-          FLOATING CARE AI
-      ================================================== */}
-
-      <FloatingCareAI
-        onPress={() =>
-          navigation.navigate(
-            'Chatbot'
-          )
-        }
-      />
-
-
-      {/* ==================================================
-          LOCATION SELECTION MODAL
-      ================================================== */}
-
+      {/* ==========================================
+          LOCATION SELECTOR MODAL
+      ========================================== */}
       <Modal
         visible={locationModalVisible}
         transparent
@@ -2091,124 +648,69 @@ const HomeScreen = ({ navigation }) => {
         onRequestClose={() => setLocationModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.locationModal}>
+          <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>Choose Location</Text>
-                <Text style={styles.modalSubtitle}>
-                  Select your area to find nearby doctors, labs & hospitals
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.closeButton}
-                activeOpacity={0.8}
-                onPress={() => setLocationModalVisible(false)}
-              >
-                <Ionicons name="close" size={20} color={colors.secondary} />
+              <Text style={styles.modalTitle}>Select Your Location</Text>
+              <TouchableOpacity onPress={() => setLocationModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#64748B" />
               </TouchableOpacity>
             </View>
 
-            {/* GPS */}
+            {/* GPS DETECT */}
             <TouchableOpacity
-              style={styles.gpsOption}
-              activeOpacity={0.85}
-              onPress={getCurrentLocation}
+              style={styles.gpsDetectBtn}
+              onPress={handleDetectGPSLocation}
               disabled={loadingLocation}
             >
-              <View style={styles.gpsIcon}>
-                {loadingLocation ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <Ionicons name="locate" size={22} color={colors.primary} />
-                )}
-              </View>
-
-              <View style={styles.locationOptionInfo}>
-                <Text style={styles.locationOptionTitle}>
-                  {loadingLocation ? 'Detecting Live Position...' : 'Use My Current Live GPS'}
-                </Text>
-                <Text style={styles.locationOptionSubtitle}>
-                  Auto-detect GPS coordinates and find closest services
-                </Text>
-              </View>
+              {loadingLocation ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="locate" size={18} color="#FFFFFF" />
+                  <Text style={styles.gpsDetectText}>Detect Current GPS Location</Text>
+                </>
+              )}
             </TouchableOpacity>
 
-            {/* SEARCH AREA */}
-            <View style={styles.modalSearchBox}>
-              <Ionicons name="search-outline" size={17} color="#94A3B8" />
-              <TextInput
-                style={styles.modalSearchInput}
-                placeholder="Search neighborhood or street name..."
-                placeholderTextColor="#94A3B8"
-                value={locationSearchQuery}
-                onChangeText={setLocationSearchQuery}
-              />
-              {locationSearchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setLocationSearchQuery('')}>
-                  <Ionicons name="close-circle" size={16} color="#94A3B8" />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* POPULAR AREAS LIST */}
-            <Text style={styles.popularTitle}>Popular Neighborhoods & Cities:</Text>
-            <ScrollView
-              style={{ maxHeight: 220 }}
-              keyboardShouldPersistTaps="always"
-              showsVerticalScrollIndicator={false}
-            >
-              {filteredLocalities.map((loc, idx) => {
-                const isSelected = locationName.toLowerCase().includes(loc.split(',')[0].toLowerCase());
-                return (
-                  <TouchableOpacity
-                    key={idx}
-                    style={[styles.cityOption, isSelected && styles.cityOptionActive]}
-                    activeOpacity={0.8}
-                    onPress={() => selectManualLocation(loc)}
+            <Text style={styles.modalSectionLabel}>Popular Localities in Mysore</Text>
+            <View style={styles.localityChipsGrid}>
+              {POPULAR_MYSORE_AREAS.map((area, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    styles.localityChip,
+                    locationName === area && styles.localityChipActive,
+                  ]}
+                  onPress={async () => {
+                    setLocationName(area);
+                    await AsyncStorage.setItem('@unnathi_user_location', area);
+                    setLocationModalVisible(false);
+                    showToast(`Location set to: ${area}`);
+                  }}
+                >
+                  <Ionicons
+                    name="location-outline"
+                    size={14}
+                    color={locationName === area ? colors.primary : '#64748B'}
+                  />
+                  <Text
+                    style={[
+                      styles.localityChipText,
+                      locationName === area && styles.localityChipTextActive,
+                    ]}
                   >
-                    <View style={[styles.cityIcon, isSelected && { backgroundColor: colors.lightTeal }]}>
-                      <Ionicons
-                        name="location-outline"
-                        size={18}
-                        color={isSelected ? colors.primary : colors.secondary}
-                      />
-                    </View>
-                    <Text style={[styles.cityText, isSelected && { fontWeight: '800', color: colors.primary }]}>
-                      {loc}
-                    </Text>
-                    {isSelected ? (
-                      <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
-                    ) : (
-                      <Ionicons name="chevron-forward" size={16} color={colors.slate} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-
-            {/* CUSTOM LOCATION INPUT */}
-            <View style={styles.customAreaBox}>
-              <TextInput
-                style={styles.customAreaInput}
-                placeholder="Or type custom address (e.g. Vijayanagar 4th Stage)"
-                placeholderTextColor="#94A3B8"
-                value={customLocalityInput}
-                onChangeText={setCustomLocalityInput}
-              />
-              <TouchableOpacity
-                style={styles.customAreaSubmitBtn}
-                onPress={handleCustomLocalitySubmit}
-              >
-                <Text style={styles.customAreaSubmitText}>Apply</Text>
-              </TouchableOpacity>
+                    {area}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* ==================================================
-          WALLET POP-UP MODAL (FLOATING BOTTOM SHEET)
-      ================================================== */}
+      {/* ==========================================
+          WALLET TOP-UP MODAL
+      ========================================== */}
       <Modal
         visible={walletModalVisible}
         transparent
@@ -2216,2005 +718,863 @@ const HomeScreen = ({ navigation }) => {
         onRequestClose={() => setWalletModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.walletModalCard}>
-            {/* MODAL HEADER */}
-            <View style={styles.modalHeaderRow}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <View style={styles.walletModalHeaderIcon}>
-                  <Ionicons name="wallet" size={20} color={colors.primary} />
-                </View>
-                <View>
-                  <Text style={styles.modalTitle}>Unnathi Health Wallet</Text>
-                  <Text style={styles.modalSubtitle}>100% usable on all bookings & orders</Text>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setWalletModalVisible(false)}
-              >
-                <Ionicons name="close" size={20} color={colors.secondary} />
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>MediUnnathi Care Wallet</Text>
+              <TouchableOpacity onPress={() => setWalletModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#64748B" />
               </TouchableOpacity>
             </View>
 
-            {/* BALANCE DISPLAY CARD */}
-            <View style={styles.walletPopupBalanceBox}>
-              <View>
-                <Text style={styles.walletPopupLabel}>TOTAL HEALTH CASH</Text>
-                <Text style={styles.walletPopupBalanceText}>
-                  ₹{walletBalance.toLocaleString('en-IN')}
-                </Text>
-              </View>
-
-              <View style={styles.walletPopupPointsTag}>
-                <Ionicons name="sparkles" size={13} color="#F59E0B" />
-                <Text style={styles.walletPopupPointsText}>{carePoints} Care Pts</Text>
-              </View>
+            <View style={styles.walletModalCard}>
+              <Text style={styles.walletModalLabel}>Available Balance</Text>
+              <Text style={styles.walletModalVal}>₹{walletBalance.toLocaleString('en-IN')}</Text>
+              <Text style={styles.walletModalPts}>🪙 {carePoints} Health Care Points</Text>
             </View>
 
-            {/* QUICK TOP UP CHIPS */}
-            <Text style={styles.walletSectionLabel}>Quick Top-Up via Instant UPI:</Text>
-            <View style={styles.walletQuickChipsRow}>
-              {['500', '1000', '2000', '5000'].map((amt) => (
+            <Text style={styles.modalSectionLabel}>Quick Top-Up Amount</Text>
+            <View style={styles.topUpChipsRow}>
+              {['200', '500', '1000', '2000'].map((amt) => (
                 <TouchableOpacity
                   key={amt}
-                  style={[
-                    styles.walletQuickChip,
-                    quickTopUpAmount === amt && styles.walletQuickChipActive,
-                  ]}
+                  style={[styles.topUpChip, quickTopUpAmount === amt && styles.topUpChipActive]}
                   onPress={() => setQuickTopUpAmount(amt)}
                 >
-                  <Text
-                    style={[
-                      styles.walletQuickChipText,
-                      quickTopUpAmount === amt && styles.walletQuickChipTextActive,
-                    ]}
-                  >
-                    +₹{parseInt(amt, 10).toLocaleString('en-IN')}
+                  <Text style={[styles.topUpChipText, quickTopUpAmount === amt && styles.topUpChipTextActive]}>
+                    + ₹{amt}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            {/* ADD MONEY BUTTON */}
             <TouchableOpacity
-              style={styles.walletPopupAddBtn}
-              activeOpacity={0.88}
+              style={styles.addMoneyBtn}
               onPress={() => handleQuickAddMoney(quickTopUpAmount)}
             >
-              <Ionicons name="add-circle" size={17} color="#FFFFFF" />
-              <Text style={styles.walletPopupAddBtnText}>
-                Add ₹{parseInt(quickTopUpAmount, 10).toLocaleString('en-IN')} to Wallet
-              </Text>
+              <Ionicons name="add-circle" size={18} color="#FFFFFF" />
+              <Text style={styles.addMoneyBtnText}>Add ₹{quickTopUpAmount} to Wallet</Text>
             </TouchableOpacity>
-
-            {/* PASSBOOK SUMMARY ITEMS */}
-            <View style={styles.walletMiniPassbook}>
-              <View style={styles.walletMiniRow}>
-                <Ionicons name="arrow-down-circle" size={16} color="#059669" />
-                <Text style={styles.walletMiniDesc}>+₹250 Referral bonus from Sneha R.</Text>
-                <Text style={styles.walletMiniCredit}>+₹250</Text>
-              </View>
-              <View style={styles.walletMiniRow}>
-                <Ionicons name="gift" size={16} color={colors.primary} />
-                <Text style={styles.walletMiniDesc}>+₹150 Cashback on Lab Test booking</Text>
-                <Text style={styles.walletMiniCredit}>+₹150</Text>
-              </View>
-            </View>
-
-            {/* FOOTER ACTIONS */}
-            <View style={styles.walletPopupFooterRow}>
-              <TouchableOpacity
-                style={styles.walletPopupReferBtn}
-                activeOpacity={0.85}
-                onPress={() => {
-                  setWalletModalVisible(false);
-                  navigation.navigate('ReferEarn');
-                }}
-              >
-                <Ionicons name="gift" size={15} color={colors.secondary} />
-                <Text style={styles.walletPopupReferBtnText}>Refer & Earn ₹250</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.walletPopupFullBtn}
-                activeOpacity={0.85}
-                onPress={() => {
-                  setWalletModalVisible(false);
-                  navigation.navigate('Wallet');
-                }}
-              >
-                <Text style={styles.walletPopupFullBtnText}>Full Passbook ›</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
       </Modal>
-
-
-      {/* ==================================================
-          BOTTOM FLOATING NAVIGATION
-      ================================================== */}
-
-      <View
-        style={
-          styles.bottomNavigationWrapper
-        }
-        pointerEvents="box-none"
-      >
-
-        <View
-          style={styles.bottomNavigation}
-          pointerEvents="auto"
-        >
-
-          {/* HOME */}
-
-          <TouchableOpacity
-            style={styles.bottomItem}
-            activeOpacity={0.7}
-            onPress={goHome}
-            hitSlop={{
-              top: 8,
-              bottom: 8,
-              left: 8,
-              right: 8,
-            }}
-          >
-
-            <View
-              style={styles.activeBottomIcon}
-            >
-
-              <Ionicons
-                name="home"
-                size={23}
-                color={colors.white}
-              />
-
-            </View>
-
-            <Text
-              style={styles.activeBottomText}
-            >
-              Home
-            </Text>
-
-          </TouchableOpacity>
-
-
-          {/* IN-PERSON */}
-
-          <TouchableOpacity
-            style={styles.bottomItem}
-            activeOpacity={0.7}
-            onPress={goInPerson}
-            hitSlop={{
-              top: 8,
-              bottom: 8,
-              left: 8,
-              right: 8,
-            }}
-          >
-
-            <Ionicons
-              name="medical-outline"
-              size={25}
-              color={colors.secondary}
-            />
-
-            <Text
-              style={styles.bottomText}
-            >
-              In-Person
-            </Text>
-
-          </TouchableOpacity>
-
-
-          {/* VIDEO */}
-
-          <TouchableOpacity
-            style={styles.bottomItem}
-            activeOpacity={0.7}
-            onPress={goVideo}
-            hitSlop={{
-              top: 8,
-              bottom: 8,
-              left: 8,
-              right: 8,
-            }}
-          >
-
-            <Ionicons
-              name="videocam-outline"
-              size={25}
-              color={colors.secondary}
-            />
-
-            <Text
-              style={styles.bottomText}
-            >
-              Video
-            </Text>
-
-          </TouchableOpacity>
-
-
-          {/* ACCOUNT */}
-
-          <TouchableOpacity
-            style={styles.bottomItem}
-            activeOpacity={0.7}
-            onPress={goAccount}
-            hitSlop={{
-              top: 8,
-              bottom: 8,
-              left: 8,
-              right: 8,
-            }}
-          >
-
-            <Ionicons
-              name="person-circle-outline"
-              size={26}
-              color={colors.secondary}
-            />
-
-            <Text
-              style={styles.bottomText}
-            >
-              Account
-            </Text>
-
-          </TouchableOpacity>
-
-        </View>
-
-      </View>
-
     </SafeAreaView>
-
   );
-
 };
 
-
-// ==================================================
-// STYLES
-// ==================================================
-
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
-    backgroundColor: '#F4F8FA',
+    backgroundColor: '#F8FAFC',
   },
 
-
-  scrollContent: {
+  // TOP BAR
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 20,
-  },
-
-
-  // ==================================================
-  // TOP BRAND BAR WITH LOGO
-  // ==================================================
-
-  topBrandBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    marginBottom: 6,
-  },
-
-  brandLogoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  mainBrandLogo: {
-    width: 170,
-    height: 52,
-  },
-
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-
-  headerWalletPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.lightTeal,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#99F6E4',
-    gap: 4,
-  },
-
-  headerWalletText: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-
-  // ==================================================
-  // LOCATION + USER HEADER
-  // ==================================================
-
-  locationHeader: {
-    minHeight: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.white,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 10,
-  },
-
-  locationLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-
-  locationIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 9,
-  },
-
-  locationDetails: {
-    flex: 1,
-  },
-
-  greetingText: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: colors.secondary,
-  },
-
-  locationChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
-  },
-
-  locationName: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: colors.primary,
-    maxWidth: 160,
-  },
-
-  changeAreaPillBtn: {
-    backgroundColor: colors.lightTeal,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-
-  changeAreaPillText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-
-  // ==================================================
-  // PATIENT CARE SWITCHER (SELF & FAMILY)
-  // ==================================================
-
-  patientCareSection: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 12,
-  },
-
-  patientCareHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-
-  patientCareTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.secondary,
-  },
-
-  manageFamilyText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-
-  patientChipsScroll: {
-    gap: 8,
-  },
-
-  patientChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    marginRight: 8,
-    gap: 6,
-  },
-
-  patientChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-
-  patientChipIconBox: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.lightTeal,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  patientChipIconBoxActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-  },
-
-  patientChipName: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.secondary,
-  },
-
-  patientChipNameActive: {
-    color: colors.white,
-  },
-
-  patientChipRelation: {
-    fontSize: 9.5,
-    color: colors.slate,
-    marginTop: -1,
-  },
-
-  patientChipRelationActive: {
-    color: '#D1FAE5',
-  },
-
-  addMemberChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.lightTeal,
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    borderStyle: 'dashed',
-    gap: 4,
-  },
-
-  addMemberChipText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-
-  activePatientBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    marginTop: 8,
-    gap: 5,
-  },
-
-  activePatientBannerText: {
-    flex: 1,
-    fontSize: 10,
-    color: '#065F46',
-    lineHeight: 14,
-  },
-
-
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 8,
-  },
-
-
-  headerIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginRight: 8,
-  },
-
-
-  profileHeaderIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.secondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-
-  // ==================================================
-  // UNNATHI WALLET HOME CARD
-  // ==================================================
-
-  walletHomeCard: {
+    paddingVertical: 10,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1.5,
-    borderColor: colors.lightTeal,
-    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  locationPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
+    maxWidth: '55%',
   },
-
-  walletHomeLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-
-  walletHomeIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: colors.lightTeal,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  walletHomeTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.secondary,
-  },
-
-  walletHomePointsBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    gap: 3,
-  },
-
-  walletHomePointsText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#B45309',
-  },
-
-  walletHomeBalance: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: colors.primary,
-    marginTop: 1,
-  },
-
-  walletHomeRightBtns: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-
-  walletHomeAddBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 8,
-    gap: 3,
-  },
-
-  walletHomeAddBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-
-  walletHomeReferBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF3E0',
-    paddingHorizontal: 9,
-    paddingVertical: 7,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#FFE0B2',
-    gap: 4,
-  },
-
-  walletHomeReferBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#E67E22',
-  },
-
-  // ==================================================
-  // SEARCH
-  // ==================================================
-
-  searchContainer: {
-    height: 52,
-    backgroundColor: colors.white,
-    borderRadius: 15,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginTop: 12,
-    marginBottom: 16,
-  },
-
-
-  searchInput: {
-    flex: 1,
-    marginLeft: 9,
-    fontSize: 13,
-    color: colors.text,
-    paddingVertical: 0,
-  },
-
-
-  searchClearButton: {
-    width: 32,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-
-  searchButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 5,
-  },
-
-
-  // ==================================================
-  // MAIN BANNER
-  // ==================================================
-
-  carePlanCard: {
-    height: 190,
-    borderRadius: 24,
-    backgroundColor: colors.secondary,
-    padding: 20,
-    overflow: 'hidden',
-    flexDirection: 'row',
-  },
-
-
-  carePlanContent: {
-    flex: 1,
-    zIndex: 2,
-  },
-
-
-  carePlanSmall: {
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-    color: colors.accent,
-  },
-
-
-  carePlanTitle: {
-    marginTop: 8,
-    fontSize: 26,
-    lineHeight: 30,
-    fontWeight: '900',
-    color: colors.white,
-  },
-
-
-  carePlanText: {
-    marginTop: 7,
-    fontSize: 12,
-    lineHeight: 17,
-    color: '#DCE8FF',
-  },
-
-
-  carePlanButton: {
-    marginTop: 13,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 20,
-    backgroundColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-
-  carePlanButtonText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.white,
-    marginRight: 6,
-  },
-
-
-  carePlanGraphic: {
-    width: 110,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-
-  heartCircle: {
-    width: 82,
-    height: 82,
-    borderRadius: 41,
-    backgroundColor:
-      'rgba(0,194,203,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-
-  graphicCircle: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: -10,
-    marginLeft: 25,
-  },
-
-
-  // ==================================================
-  // SECTION
-  // ==================================================
-
-  sectionHeader: {
-    marginTop: 22,
-    marginBottom: 12,
-  },
-
-
-  sectionTitle: {
-    fontSize: 19,
-    fontWeight: '900',
-    color: colors.secondary,
-  },
-
-
-  sectionSubtitle: {
-    marginTop: 3,
-    fontSize: 11,
-    color: colors.slate,
-  },
-
-
-  // ==================================================
-  // CONSULTATION
-  // ==================================================
-
-  consultationRow: {
-    flexDirection: 'row',
-  },
-
-
-  consultationCard: {
-    flex: 1,
-    minHeight: 145,
-    borderRadius: 20,
-    padding: 16,
-    flexDirection: 'row',
-    overflow: 'hidden',
-    marginRight: 10,
-  },
-
-
-  consultationTextContainer: {
-    flex: 1,
-  },
-
-
-  consultationTitle: {
-    fontSize: 17,
-    lineHeight: 21,
-    fontWeight: '900',
-    color: colors.secondary,
-  },
-
-
-  consultationSubtitle: {
-    marginTop: 7,
-    fontSize: 10,
-    lineHeight: 15,
-    color: colors.slate,
-  },
-
-
-  consultationArrow: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 14,
-  },
-
-
-  consultationIconCircle: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
-    backgroundColor:
-      'rgba(255,255,255,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'flex-end',
-  },
-
-
-  // ==================================================
-  // LAB
-  // ==================================================
-
-  labSectionHeader: {
-    marginTop: 22,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
-
-
-  labHeaderText: {
-    flex: 1,
-    paddingRight: 10,
-  },
-
-
-  viewAll: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: colors.primary,
-    marginBottom: 2,
-  },
-
-
-  labPackagesList: {
-    paddingRight: 8,
-  },
-
-
-  // ==================================================
-  // QUICK SERVICES
-  // ==================================================
-
-  quickActionsBox: {
-    marginTop: 14,
-    backgroundColor: colors.white,
-    borderRadius: 20,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-
-  quickGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-
-  quickService: {
-    width: '24%',
-    minHeight: 96,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 2,
-  },
-
-  quickIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-
-  quickServiceTitle: {
-    textAlign: 'center',
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: colors.secondary,
-  },
-
-  quickServiceSubtitle: {
-    textAlign: 'center',
-    fontSize: 8.5,
-    color: colors.slate,
-    marginTop: 1,
-  },
-
-  // ==================================================
-  // HEALTH INSURANCE HOME CARD
-  // ==================================================
-
-  insuranceHomeCard: {
-    marginTop: 14,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1.5,
-    borderColor: colors.lightTeal,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 2,
-  },
-
-  insuranceHomeTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-
-  insuranceHomeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.lightTeal,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 4,
-  },
-
-  insuranceHomeBadgeText: {
-    fontSize: 9.5,
-    fontWeight: '900',
-    color: colors.primary,
-    letterSpacing: 0.5,
-  },
-
-  taxSavingTag: {
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-
-  taxSavingTagText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: colors.secondary,
-  },
-
-  insuranceHomeTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: colors.secondary,
-  },
-
-  insuranceHomeSub: {
-    fontSize: 11.5,
-    color: colors.slate,
-    lineHeight: 16,
-    marginTop: 3,
-    marginBottom: 12,
-  },
-
-  insuranceHomeActionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-
-  insuranceHomeCallBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    gap: 5,
-  },
-
-  insuranceHomeCallBtnText: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: colors.secondary,
-  },
-
-  insuranceHomeBuyBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    paddingVertical: 10,
-    borderRadius: 10,
-    gap: 6,
-  },
-
-  insuranceHomeBuyBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-
-  // ==================================================
-  // HOME NURSE CARD
-  // ==================================================
-
-  nurseHomeCard: {
-    marginTop: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1.5,
-    borderColor: colors.lightAqua,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 2,
-  },
-
-  nurseHomeTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-
-  nurseHomeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.lightAqua,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 4,
-  },
-
-  nurseHomeBadgeText: {
-    fontSize: 9.5,
-    fontWeight: '900',
-    color: colors.accent,
-    letterSpacing: 0.5,
-  },
-
-  nurseRateTag: {
-    backgroundColor: '#F0FDF4',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-
-  nurseRateTagText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#059669',
-  },
-
-  nurseHomeTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: colors.secondary,
-  },
-
-  nurseHomeSub: {
-    fontSize: 11.5,
-    color: colors.slate,
-    lineHeight: 16,
-    marginTop: 3,
-    marginBottom: 12,
-  },
-
-  nurseHomeActionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-
-  nurseHomeCallBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    gap: 5,
-  },
-
-  nurseHomeCallBtnText: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: colors.secondary,
-  },
-
-  nurseHomeBookBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.accent,
-    paddingVertical: 10,
-    borderRadius: 10,
-    gap: 6,
-  },
-
-  nurseHomeBookBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-
-  // ==================================================
-  // EMERGENCY
-  // ==================================================
-
-  emergencyCard: {
-    marginTop: 14,
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: colors.coral,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: colors.coral,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-
-
-  emergencyIcon: {
-    width: 45,
-    height: 45,
-    borderRadius: 14,
-    backgroundColor:
-      'rgba(255, 255, 255, 0.18)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-
-  emergencyInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-
-
-  emergencyTitle: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: colors.white,
-  },
-
-
-  emergencySubtitle: {
-    marginTop: 3,
-    fontSize: 11,
-    color: colors.white,
-  },
-
-
-  // ==================================================
-  // PROMOTIONAL BANNER
-  // ==================================================
-
-  exploreBanner: {
-    marginTop: 18,
-    minHeight: 155,
-    borderRadius: 22,
-    backgroundColor: colors.primary,
-    padding: 20,
-    flexDirection: 'row',
-    overflow: 'hidden',
-  },
-
-
-  bannerContent: {
-    flex: 1,
-  },
-
-
-  bannerSmall: {
-    fontSize: 10,
-    letterSpacing: 1.2,
-    fontWeight: '800',
-    color: colors.white,
-  },
-
-
-  bannerTitle: {
-    marginTop: 7,
-    fontSize: 20,
-    lineHeight: 25,
-    fontWeight: '900',
-    color: colors.white,
-  },
-
-
-  bannerText: {
-    marginTop: 7,
-    fontSize: 11,
-    lineHeight: 16,
-    color: colors.white,
-  },
-
-
-  bannerIllustration: {
-    width: 95,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-
-  bannerMedicalCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor:
-      'rgba(255,255,255,0.16)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-
-  bannerPlus: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.accent,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: -5,
-    marginLeft: 35,
-  },
-
-
-  // ==================================================
-  // MORE SERVICES
-  // ==================================================
-
-  moreServices: {
-    gap: 10,
-  },
-
-
-  moreServiceCard: {
-    minHeight: 72,
-    backgroundColor: colors.white,
-    borderRadius: 17,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-
-
-  moreServiceIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-
-  moreServiceInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-
-
-  moreServiceTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.secondary,
-  },
-
-
-  moreServiceSubtitle: {
-    marginTop: 3,
-    fontSize: 10,
-    color: colors.slate,
-  },
-
-
-  // ==================================================
-  // LOCATION MODAL
-  // ==================================================
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor:
-      'rgba(0,0,0,0.45)',
-    justifyContent: 'flex-end',
-  },
-
-
-  locationModal: {
-    backgroundColor: colors.white,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom:
-      Platform.OS === 'ios'
-        ? 35
-        : 25,
-  },
-
-
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-
-
-  modalTitle: {
-    fontSize: 21,
-    fontWeight: '900',
-    color: colors.secondary,
-  },
-
-
-  modalSubtitle: {
-    marginTop: 4,
-    fontSize: 11,
-    color: colors.slate,
-  },
-
-
-  closeButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-
-  // ==================================================
-  // GPS
-  // ==================================================
-
-  gpsOption: {
-    minHeight: 76,
-    borderRadius: 18,
-    backgroundColor: '#E9FAFA',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 13,
-    borderWidth: 1,
-    borderColor: '#C5EEEE',
-  },
-
-
-  gpsIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-
-  locationOptionInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-
-
-  locationOptionTitle: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: colors.secondary,
-  },
-
-
-  locationOptionSubtitle: {
-    marginTop: 4,
-    fontSize: 10,
-    color: colors.slate,
-  },
-
-
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: 12,
-  },
-
-  modalSearchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    height: 38,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginTop: 10,
-    marginBottom: 10,
-  },
-
-  modalSearchInput: {
-    flex: 1,
-    marginLeft: 6,
-    fontSize: 12,
-    color: colors.text,
-  },
-
-  popularTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.secondary,
-    marginBottom: 8,
-  },
-
-  cityOption: {
-    minHeight: 48,
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
-    marginBottom: 6,
-    paddingHorizontal: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-  },
-
-  cityOptionActive: {
-    backgroundColor: colors.lightTeal,
-    borderColor: '#A7F3D0',
-  },
-
-  cityIcon: {
+  locationIconWrap: {
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
+    backgroundColor: colors.lightTeal,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-
-  cityText: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 12.5,
+  locationTextWrap: {
+    marginLeft: 8,
+  },
+  locationLabel: {
+    fontSize: 10,
+    color: '#64748B',
     fontWeight: '700',
-    color: colors.secondary,
+    textTransform: 'uppercase',
   },
-
-  customAreaBox: {
+  locationNameRow: {
     flexDirection: 'row',
-    marginTop: 10,
+    alignItems: 'center',
+    gap: 4,
+  },
+  locationName: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  topBarRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
-
-  customAreaInput: {
-    flex: 1,
-    height: 38,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    fontSize: 11.5,
-    color: colors.text,
-  },
-
-  customAreaSubmitBtn: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    justifyContent: 'center',
+  walletPill: {
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.lightTeal,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 4,
   },
-
-  customAreaSubmitText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
+  walletPillText: {
     fontSize: 12,
+    fontWeight: '800',
+    color: colors.primary,
   },
-
-  // ==================================================
-  // WALLET POPUP MODAL STYLES
-  // ==================================================
-
-  walletModalCard: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    padding: 20,
-    paddingBottom: 35,
-  },
-
-  walletModalHeaderIcon: {
+  iconCircle: {
     width: 36,
     height: 36,
-    borderRadius: 12,
-    backgroundColor: colors.lightTeal,
-    justifyContent: 'center',
+    borderRadius: 18,
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    backgroundColor: '#DC2626',
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  cartBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
   },
 
-  walletPopupBalanceBox: {
-    backgroundColor: colors.secondary,
-    borderRadius: 18,
-    padding: 16,
+  toastCard: {
+    position: 'absolute',
+    top: 60,
+    alignSelf: 'center',
+    zIndex: 99,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#064E3B',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  scrollContent: {
+    paddingBottom: 30,
+  },
+
+  // GREETING
+  greetingSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 8,
+  },
+  greetingTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#1E293B',
+  },
+  greetingSubtitle: {
+    fontSize: 12.5,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  profileAvatarBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    overflow: 'hidden',
+  },
+  profileAvatarImg: {
+    width: '100%',
+    height: '100%',
+  },
+
+  // PATIENT SWITCHER
+  patientSwitcherRow: {
+    marginVertical: 6,
+  },
+  patientChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 6,
+  },
+  patientChipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  patientChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  patientChipTextSelected: {
+    color: '#FFFFFF',
+  },
+  patientActiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#A7F3D0',
+  },
+  addPatientChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.lightTeal,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 4,
+  },
+  addPatientText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+
+  // SEARCH BAR
+  searchContainer: {
+    paddingHorizontal: 16,
+    marginTop: 8,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 13,
+    color: '#1E293B',
+  },
+  scanSearchBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: colors.lightTeal,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+  },
+
+  // EMERGENCY ROW
+  emergencyRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 8,
+    marginTop: 10,
+  },
+  sosCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  sosIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#DC2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sosTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#991B1B',
+  },
+  sosSubtitle: {
+    fontSize: 9.5,
+    color: '#DC2626',
+  },
+  helplineCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+  },
+  helplineIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helplineTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#065F46',
+  },
+  helplineSubtitle: {
+    fontSize: 9.5,
+    color: colors.primary,
+  },
+
+  // SECTION HEADERS
+  sectionHeader: {
+    paddingHorizontal: 16,
+    marginTop: 18,
+    marginBottom: 8,
+  },
+  sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 14,
-    marginBottom: 14,
+    paddingHorizontal: 16,
+    marginTop: 18,
+    marginBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#1E293B',
+  },
+  sectionSubtitle: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  viewAllText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
   },
 
-  walletPopupLabel: {
-    fontSize: 9.5,
+  // HERO GRID (4 HUBS)
+  heroGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  heroCard: {
+    width: '48.5%',
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1.5,
+  },
+  heroIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  heroCardTitle: {
+    fontSize: 14,
     fontWeight: '800',
-    color: '#93C5FD',
-    letterSpacing: 1,
+    color: '#1E293B',
+  },
+  heroCardSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+    marginBottom: 8,
+  },
+  heroBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  heroBadgeGreen: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.primary,
+    backgroundColor: '#CCFBF1',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
 
-  walletPopupBalanceText: {
-    fontSize: 26,
+  // AI ASSISTANT BANNER
+  aiBannerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0F766E',
+    marginHorizontal: 16,
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 16,
+  },
+  aiBannerLeft: {
+    flex: 1,
+  },
+  aiBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    gap: 4,
+    marginBottom: 6,
+  },
+  aiBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  aiBannerTitle: {
+    fontSize: 15,
     fontWeight: '900',
     color: '#FFFFFF',
+  },
+  aiBannerSub: {
+    fontSize: 11.5,
+    color: '#CCFBF1',
+    marginTop: 3,
+    lineHeight: 15,
+  },
+  aiBannerBtn: {
+    marginTop: 10,
+    backgroundColor: '#FFFFFF',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  aiBannerBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F766E',
+  },
+  aiAvatarCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 10,
+  },
+
+  // HEALTH VITALS WIDGET
+  vitalsSection: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    borderRadius: 18,
+    padding: 14,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  vitalsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  vitalsActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.lightTeal,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    gap: 4,
+  },
+  vitalsActionBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  vitalsGrid: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  vitalCard: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  vitalValue: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginTop: 4,
+  },
+  vitalUnit: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  vitalLabel: {
+    fontSize: 9.5,
+    color: '#64748B',
     marginTop: 2,
   },
 
-  walletPopupPointsTag: {
+  // CONSULT MODES ROW
+  consultModesRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
-    gap: 4,
+    paddingHorizontal: 16,
+    gap: 10,
   },
-
-  walletPopupPointsText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#FDE68A',
-  },
-
-  walletSectionLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.secondary,
-    marginBottom: 8,
-  },
-
-  walletQuickChipsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 10,
-  },
-
-  walletQuickChip: {
+  consultModeCard: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    paddingVertical: 9,
+    borderRadius: 16,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+  },
+  consultModeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  arrowCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  walletQuickChipActive: {
-    backgroundColor: colors.lightTeal,
-    borderColor: colors.primary,
-  },
-
-  walletQuickChipText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: colors.secondary,
-  },
-
-  walletQuickChipTextActive: {
-    color: colors.primary,
+  consultModeTitle: {
+    fontSize: 13.5,
     fontWeight: '800',
+    color: '#1E293B',
+  },
+  consultModeSub: {
+    fontSize: 10.5,
+    color: '#64748B',
+    marginTop: 2,
   },
 
-  walletPopupAddBtn: {
+  // DOCTORS CAROUSEL
+  doctorsScroll: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  doctorCard: {
+    width: 155,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  doctorImg: {
+    width: '100%',
+    height: 110,
+    backgroundColor: '#E2E8F0',
+  },
+  doctorCardBody: {
+    padding: 10,
+  },
+  doctorCardName: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  doctorCardSpec: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  doctorRatingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginVertical: 4,
+  },
+  doctorRatingText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  doctorCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  doctorFeeText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  bookMiniBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  bookMiniBtnText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+
+  // PACKAGES CAROUSEL
+  packagesScroll: {
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  pkgCard: {
+    width: 165,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  pkgBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  pkgBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  pkgTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  pkgSub: {
+    fontSize: 10.5,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  pkgPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
+  pkgPrice: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  pkgOldPrice: {
+    fontSize: 11,
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+
+  // MORE SERVICES
+  moreServicesGrid: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  moreServiceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  moreServiceIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreServiceTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  moreServiceSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+  },
+
+  // MODAL STYLES
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  gpsDetectBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
     paddingVertical: 12,
     borderRadius: 12,
-    gap: 6,
-    marginBottom: 12,
+    gap: 8,
+    marginBottom: 16,
   },
-
-  walletPopupAddBtnText: {
+  gpsDetectText: {
+    color: '#FFFFFF',
     fontSize: 13,
-    fontWeight: '900',
-    color: '#FFFFFF',
+    fontWeight: '700',
   },
-
-  walletMiniPassbook: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 6,
-    marginBottom: 14,
+  modalSectionLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+    marginBottom: 10,
+    textTransform: 'uppercase',
   },
-
-  walletMiniRow: {
+  localityChipsGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  walletMiniDesc: {
-    flex: 1,
-    fontSize: 11,
-    color: colors.secondary,
-    marginLeft: 6,
-  },
-
-  walletMiniCredit: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: '#059669',
-  },
-
-  walletPopupFooterRow: {
-    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
-
-  walletPopupReferBtn: {
-    flex: 1,
+  localityChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFF3E0',
-    paddingVertical: 11,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#FFE0B2',
-    gap: 5,
+    borderColor: '#E2E8F0',
+    gap: 4,
   },
-
-  walletPopupReferBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#E67E22',
+  localityChipActive: {
+    backgroundColor: colors.lightTeal,
+    borderColor: colors.primary,
   },
-
-  walletPopupFullBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F1F5F9',
-    paddingVertical: 11,
-    borderRadius: 10,
+  localityChipText: {
+    fontSize: 11.5,
+    color: '#475569',
   },
-
-  walletPopupFullBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.secondary,
-  },
-
-
-  // ==================================================
-  // BOTTOM NAVIGATION WRAPPER
-  // ==================================================
-
-  bottomNavigationWrapper: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 100,
-    zIndex: 100,
-    elevation: 100,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    pointerEvents: 'box-none',
-  },
-
-
-  // ==================================================
-  // BOTTOM NAVIGATION
-  // ==================================================
-
-  bottomNavigation: {
-    position: 'absolute',
-    left: 14,
-    right: 14,
-    bottom: 12,
-    height: 72,
-    borderRadius: 28,
-    backgroundColor: colors.white,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-
-    zIndex: 101,
-    elevation: 101,
-
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 5,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-  },
-
-
-  // ==================================================
-  // BOTTOM ITEM
-  // ==================================================
-
-  bottomItem: {
-    flex: 1,
-    height: 65,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 102,
-  },
-
-
-  activeBottomIcon: {
-    width: 42,
-    height: 35,
-    borderRadius: 20,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-
-  activeBottomText: {
-    marginTop: 2,
-    fontSize: 9,
-    fontWeight: '800',
+  localityChipTextActive: {
     color: colors.primary,
-  },
-
-
-  bottomText: {
-    marginTop: 3,
-    fontSize: 9,
     fontWeight: '700',
-    color: colors.secondary,
-    textAlign: 'center',
   },
 
-  // ==================================================
-  // HEALTH MONITOR HOME CARD STYLES
-  // ==================================================
-
-  healthMonitorHomeCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+  // WALLET MODAL
+  walletModalCard: {
+    backgroundColor: colors.lightTeal,
     padding: 16,
-    marginVertical: 14,
-    borderWidth: 1.5,
-    borderColor: '#FECDD3',
-    shadowColor: '#E11D48',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-
-  healthMonitorHomeHeader: {
-    flexDirection: 'row',
+    borderRadius: 14,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
-
-  healthMonitorIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFE4E6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  healthMonitorTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#1E293B',
-  },
-
-  liveBadge: {
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-
-  liveBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#E11D48',
-    letterSpacing: 0.5,
-  },
-
-  healthMonitorSubtitle: {
-    fontSize: 11.5,
-    color: '#64748B',
-    marginTop: 2,
-  },
-
-  openMonitorBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E11D48',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
-    gap: 2,
-  },
-
-  openMonitorBtnText: {
-    color: '#FFFFFF',
+  walletModalLabel: {
     fontSize: 12,
-    fontWeight: '700',
-  },
-
-  vitalsStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 12,
-  },
-
-  vitalStripItem: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-
-  vitalMiniIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  vitalMiniLabel: {
-    fontSize: 10,
-    color: '#64748B',
+    color: '#065F46',
     fontWeight: '600',
   },
-
-  vitalMiniVal: {
+  walletModalVal: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: colors.primary,
+    marginVertical: 4,
+  },
+  walletModalPts: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  topUpChipsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  topUpChip: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  topUpChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  topUpChipText: {
     fontSize: 13,
     fontWeight: '800',
     color: '#1E293B',
   },
-
-  vitalMiniUnit: {
-    fontSize: 10,
-    color: '#64748B',
-    fontWeight: '500',
+  topUpChipTextActive: {
+    color: '#FFFFFF',
   },
-
-  vitalMiniBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginLeft: 'auto',
-  },
-
-  vitalMiniBadgeText: {
-    fontSize: 9,
-    fontWeight: '700',
-  },
-
-  vitalStripDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: '#E2E8F0',
-    marginHorizontal: 8,
-  },
-
-  logReadingBannerBtn: {
+  addMoneyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.lightTeal,
-    paddingVertical: 10,
-    borderRadius: 10,
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
     gap: 6,
   },
-
-  logReadingBannerText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.primary,
+  addMoneyBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
   },
-
 });
-
 
 export default HomeScreen;
