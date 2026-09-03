@@ -18,45 +18,45 @@ import colors from '../theme/colors';
 import HomeScreen from '../screens/home/HomeScreen';
 import NotificationsScreen from '../screens/home/NotificationsScreen';
 
-import DoctorListScreen from '../screens/doctors/DoctorListScreen';
-import DoctorDetailsScreen from '../screens/doctors/DoctorDetailsScreen';
-import DoctorBookingScreen from '../screens/doctors/DoctorBookingScreen';
+import DoctorListScreen from '../screens/services/doctors/DoctorListScreen';
+import DoctorDetailsScreen from '../screens/services/doctors/DoctorDetailsScreen';
+import DoctorBookingScreen from '../screens/services/doctors/DoctorBookingScreen';
 
-import HospitalListScreen from '../screens/hospitals/HospitalListScreen';
+import HospitalListScreen from '../screens/services/hospitals/HospitalListScreen';
 
-import VideoBookingScreen from '../screens/services/VideoBookingScreen';
-import VideoConsultationScreen from '../screens/services/VideoConsultationScreen';
+import VideoBookingScreen from '../screens/services/videocall/VideoBookingScreen';
+import VideoConsultationScreen from '../screens/services/videocall/VideoConsultationScreen';
 
-import LabTestsScreen from '../screens/services/LabTestsScreen';
-import LabBookingScreen from '../screens/services/LabBookingScreen';
+import LabTestsScreen from '../screens/services/lab/LabTestsScreen';
+import LabBookingScreen from '../screens/services/lab/LabBookingScreen';
 
-import PharmacyScreen from '../screens/services/PharmacyScreen';
-import PharmacyUploadScreen from '../screens/services/PharmacyUploadScreen';
+import PharmacyScreen from '../screens/services/pharmacy/PharmacyScreen';
+import PharmacyLocationScreen from '../screens/services/pharmacy/PharmacyLocationScreen';
 
-import ImagingScreen from '../screens/services/ImagingScreen';
+import ImagingScreen from '../screens/services/radiology/ImagingScreen';
 
-import HospitalCareScreen from '../screens/services/HospitalCareScreen';
-import HospitalSurgeryDetailsScreen from '../screens/services/HospitalSurgeryDetailsScreen';
-import SurgeryQuoteRequestScreen from '../screens/services/SurgeryQuoteRequestScreen';
-import HealthInsuranceScreen from '../screens/services/HealthInsuranceScreen';
-import NurseBookingScreen from '../screens/services/NurseBookingScreen';
-import EmergencyScreen from '../screens/services/EmergencyScreen';
+import HospitalCareScreen from '../screens/services/hospitals/HospitalCareScreen';
+import HospitalSurgeryDetailsScreen from '../screens/services/hospitals/HospitalSurgeryDetailsScreen';
+import SurgeryQuoteRequestScreen from '../screens/services/hospitals/SurgeryQuoteRequestScreen';
+import HealthInsuranceScreen from '../screens/services/insurance/HealthInsuranceScreen';
+import NurseBookingScreen from '../screens/services/nurse/NurseBookingScreen';
+import EmergencyScreen from '../screens/services/emergency/EmergencyScreen';
 
-import RadiologyLabsScreen from '../screens/services/RadiologyLabsScreen';
-import RadiologyLabDetailsScreen from '../screens/services/RadiologyLabDetailsScreen';
-import RadiologyBookingScreen from '../screens/services/RadiologyBookingScreen';
-import RadiologyPaymentScreen from '../screens/services/RadiologyPaymentScreen';
-import RadiologyOrderSuccessScreen from '../screens/services/RadiologyOrderSuccessScreen';
+import RadiologyLabsScreen from '../screens/services/radiology/RadiologyLabsScreen';
+import RadiologyLabDetailsScreen from '../screens/services/radiology/RadiologyLabDetailsScreen';
+import RadiologyBookingScreen from '../screens/services/radiology/RadiologyBookingScreen';
+import RadiologyPaymentScreen from '../screens/services/radiology/RadiologyPaymentScreen';
+import RadiologyOrderSuccessScreen from '../screens/services/radiology/RadiologyOrderSuccessScreen';
 
-import RadiologistListScreen from '../screens/services/RadiologistListScreen';
-import RadiologistBookingScreen from '../screens/services/RadiologistBookingScreen';
-import RadiologyReportUploadScreen from '../screens/services/RadiologyReportUploadScreen';
+import RadiologistListScreen from '../screens/services/radiology/RadiologistListScreen';
+import RadiologistBookingScreen from '../screens/services/radiology/RadiologistBookingScreen';
+import RadiologyReportUploadScreen from '../screens/services/radiology/RadiologyReportUploadScreen';
 
 import ChatbotScreen from '../screens/chatbot/ChatbotScreen';
 
 import HealthRecordsScreen from '../screens/health/HealthRecordsScreen';
 
-import BookingsScreen from '../screens/bookings/BookingsScreen';
+import BookingsScreen from '../screens/services/booking/BookingsScreen';
 
 import GlobalSearchScreen from '../screens/search/GlobalSearchScreen';
 
@@ -419,8 +419,8 @@ const MainStackScreen = () => {
         />
 
         <Stack.Screen
-          name="PharmacyUpload"
-          component={PharmacyUploadScreen}
+          name="PharmacyLocation"
+          component={PharmacyLocationScreen}
         />
 
         <Stack.Screen
