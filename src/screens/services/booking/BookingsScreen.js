@@ -122,9 +122,131 @@ const BookingsScreen = ({ navigation, route }) => {
   const [appointments, setAppointments] = useState(DEFAULT_SAMPLE_APPOINTMENTS);
   const [selectedTab, setSelectedTab] = useState('All');
 
+  // Normalize an appointment item so lab tests, radiology, and doctor visits are all correctly structured
+  const normalizeAppointment = (item) => {
+    const isLab =
+      item.type === 'Lab Test' ||
+      item.type === 'Diagnostic Lab Test' ||
+      item.type === 'Lab' ||
+      (Array.isArray(item.tests) && item.tests.length > 0);
+
+    const isRad = item.type === 'Radiology';
+
+    if (isLab) {
+      const testsList = Array.isArray(item.tests) ? item.tests : [];
+      const testNames = testsList.map((t) => (typeof t === 'string' ? t : t.name)).filter(Boolean);
+      const centerName =
+        item.labCenter?.name ||
+        item.doctor?.name ||
+        'MediUnify Pathology & Diagnostics Hub';
+      const clinicAddress =
+        item.address ||
+        item.labCenter?.address ||
+        item.doctor?.clinicAddress ||
+        (item.collectionMode?.includes('Home') ? 'Doorstep Home Sample Collection, Mysore' : 'Kuvempunagar, Mysore');
+
+      return {
+        ...item,
+        type: 'Diagnostic Lab Test',
+        tokenNumber: item.tokenNumber || 'LAB-88',
+        collectionMode:
+          item.collectionMode ||
+          (item.address ? 'Home Sample Collection' : 'Visit Diagnostic Center'),
+        tests: testsList,
+        doctor: {
+          name: centerName,
+          specialty:
+            testNames.length > 0
+              ? `Lab Tests • ${testNames.join(', ')}`
+              : item.doctor?.specialty || 'Diagnostic Profile Screening',
+          qualification: 'NABL & ICMR Certified Diagnostics',
+          clinicName: item.labCenter?.name || item.doctor?.clinicName || 'MediUnify Pathology Hub',
+          clinicAddress: clinicAddress,
+          clinicArea: item.labCenter?.area || item.doctor?.clinicArea || 'Mysore',
+          phone: item.labCenter?.phone || item.doctor?.phone || '+91 821 245 9901',
+          latitude: 12.2858,
+          longitude: 76.6341,
+          fee: item.totalAmount || item.paidAmount || item.doctor?.fee || 499,
+          image:
+            item.doctor?.image ||
+            'https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&q=80&w=300',
+        },
+        day: item.day || 'Scheduled',
+        date: item.date || 'Scheduled Date',
+        time: item.slot || item.time || 'Morning Slot',
+        status: item.status || 'Confirmed',
+        paidAmount: item.totalAmount || item.paidAmount || 499,
+        paymentStatus: item.paymentStatus || 'Paid Online',
+        patient: item.patient || { name: 'Patient (Self)', age: '28', gender: 'Male' },
+        details: item,
+      };
+    }
+
+    if (isRad) {
+      return {
+        ...item,
+        type: 'Radiology',
+        tokenNumber: item.tokenNumber || 'RAD-101',
+        doctor: {
+          name: item.lab?.name || item.doctor?.name || 'MediUnify Diagnostic & Imaging Center',
+          specialty:
+            item.doctor?.specialty ||
+            `Radiology • ${item.tests?.map((t) => t.categoryLabel || t.name).join(', ') || '3T Scan'}`,
+          qualification: 'NABL & NABH Accredited Center',
+          clinicName: item.lab?.name || item.doctor?.clinicName || 'MediUnify Diagnostic Center',
+          clinicAddress: item.lab?.address || item.doctor?.clinicAddress || 'Kalidasa Road, Mysore',
+          clinicArea: item.lab?.area || item.doctor?.clinicArea || 'Mysore',
+          phone: item.lab?.phone || item.doctor?.phone || '+91 821 245 9901',
+          latitude: 12.2958,
+          longitude: 76.6394,
+          fee: item.payment?.paidAmount || item.paidAmount || item.doctor?.fee || 1999,
+          image:
+            item.doctor?.image ||
+            'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&q=80&w=300',
+        },
+        day: item.day || item.appointmentDate?.split(',')[0] || 'Scheduled',
+        date: item.date || item.appointmentDate || 'Scheduled Date',
+        time: item.time || item.appointmentSlot || 'Scheduled Slot',
+        status: item.status || 'Confirmed',
+        paidAmount: item.payment?.paidAmount || item.paidAmount || 1999,
+        paymentStatus:
+          item.paymentStatus ||
+          (item.payment?.method ? `Paid via ${item.payment.method}` : 'Paid Online'),
+        patient: item.patient || item.patientDetails || { name: 'Self', age: '28', gender: 'Male' },
+        details: item,
+      };
+    }
+
+    // Default Doctor appointment
+    return {
+      ...item,
+      type: item.type || 'Doctor Consultation',
+      doctor: {
+        name: item.doctor?.name || 'Medical Specialist',
+        specialty: item.doctor?.specialty || 'General Medicine',
+        qualification: item.doctor?.qualification || 'MBBS, MD',
+        clinicName: item.doctor?.clinicName || 'MediUnify Healthcare Clinic',
+        clinicAddress: item.doctor?.clinicAddress || 'Kuvempunagar, Mysore',
+        clinicArea: item.doctor?.clinicArea || 'Mysore',
+        phone: item.doctor?.phone || '+91 821 245 9901',
+        fee: item.paidAmount || item.doctor?.fee || 500,
+        image:
+          item.doctor?.image ||
+          'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300',
+      },
+      day: item.day || 'Today',
+      date: item.date || 'Today, 04:30 PM',
+      time: item.time || '04:30 PM',
+      status: item.status || 'Confirmed',
+      paidAmount: item.paidAmount || 500,
+      paymentStatus: item.paymentStatus || 'Pay at Clinic',
+      patient: item.patient || { name: 'Self', age: '28', gender: 'Male' },
+    };
+  };
+
   const loadAppointments = async () => {
     try {
-      // 1. Load doctor appointments
+      // 1. Load doctor & direct bookings
       const apptJson = await AsyncStorage.getItem('@unnathi_appointments');
       const storedAppts = apptJson ? JSON.parse(apptJson) : [];
 
@@ -132,86 +254,27 @@ const BookingsScreen = ({ navigation, route }) => {
       const labJson = await AsyncStorage.getItem('@labBookings');
       const storedLabs = labJson ? JSON.parse(labJson) : [];
 
-      const formattedLabs = storedLabs.map((l) => ({
-        id: l.id,
-        tokenNumber: l.tokenNumber || 'LAB-88',
-        type: 'Lab Test',
-        collectionMode: l.collectionMode || 'Home Sample Collection',
-        tests: l.tests || [],
-        doctor: {
-          name: l.labCenter?.name || 'Unnathi Pathology & Diagnostic Lab',
-          specialty: `Lab Tests • ${l.tests?.map((t) => t.name).join(', ') || 'Diagnostic Blood Profile'}`,
-          qualification: 'NABL Certified Diagnostics',
-          clinicName: l.labCenter?.name || 'Unnathi Pathology Hub',
-          clinicAddress: l.address || l.labCenter?.address || 'Doorstep Home Collection, Mysore',
-          clinicArea: l.labCenter?.area || 'Mysore',
-          phone: l.labCenter?.phone || '+91 821 245 9901',
-          latitude: 12.2858,
-          longitude: 76.6341,
-          fee: l.totalAmount || l.paidAmount || 499,
-          image: 'https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&q=80&w=300',
-        },
-        day: l.day || 'Scheduled',
-        date: l.date,
-        time: l.slot || l.time,
-        status: l.status || 'Confirmed',
-        paidAmount: l.totalAmount || l.paidAmount,
-        paymentStatus: l.paymentStatus || 'Paid Online',
-        patient: l.patient || { name: 'Ramesh (Self)', age: '28', gender: 'Male' },
-        details: l,
-      }));
-
       // 3. Load radiology bookings
       const radJson = await AsyncStorage.getItem('@radiologyBookings');
       const storedRad = radJson ? JSON.parse(radJson) : [];
 
-      const formattedRad = storedRad.map((r) => ({
-        id: r.id,
-        doctor: {
-          name: r.lab?.name || 'Diagnostic Center',
-          specialty: `Radiology • ${r.tests?.map((t) => t.categoryLabel || t.name).join(', ')}`,
-          qualification: 'NABL Accredited Center',
-          clinicName: r.lab?.name || 'Diagnostic Center',
-          clinicAddress: r.lab?.address || 'Mysore Diagnostic Hub',
-          clinicArea: r.lab?.area || 'Mysore',
-          phone: r.lab?.phone || '+91 821 245 9901',
-          latitude: r.lab?.latitude || 12.2958,
-          longitude: r.lab?.longitude || 76.6394,
-          image: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&q=80&w=300',
-        },
-        day: r.appointmentDate?.split(',')[0] || 'Scheduled',
-        date: r.appointmentDate,
-        time: r.appointmentSlot,
-        status: r.status || 'Confirmed',
-        type: 'Radiology',
-        tokenNumber: r.tokenNumber,
-        paidAmount: r.payment?.paidAmount,
-        paymentStatus: r.payment?.method ? `Paid via ${r.payment.method}` : 'Paid Online',
-        details: r,
-        patient: {
-          name: r.patientDetails?.name || 'Self',
-          age: r.patientDetails?.age || '28',
-          gender: r.patientDetails?.gender || 'Male',
-          reason: 'Radiology Scan Investigation',
-        },
-      }));
-
       // Combine and eliminate duplicates
-      const all = [...storedAppts, ...formattedLabs, ...formattedRad];
-      if (all.length === 0) {
-        all.push(...DEFAULT_SAMPLE_APPOINTMENTS);
+      const rawAll = [...storedAppts, ...storedLabs, ...storedRad];
+      if (rawAll.length === 0) {
+        rawAll.push(...DEFAULT_SAMPLE_APPOINTMENTS);
       }
 
       const uniqueMap = new Map();
-      all.forEach((item) => {
+      rawAll.forEach((item) => {
         if (!uniqueMap.has(item.id)) {
-          uniqueMap.set(item.id, item);
+          uniqueMap.set(item.id, normalizeAppointment(item));
         }
       });
 
       // Also include route.params.newAppointment if passed
       if (route?.params?.newAppointment) {
-        uniqueMap.set(route.params.newAppointment.id, route.params.newAppointment);
+        const normNew = normalizeAppointment(route.params.newAppointment);
+        uniqueMap.set(normNew.id, normNew);
       }
 
       setAppointments(Array.from(uniqueMap.values()));
@@ -460,10 +523,10 @@ const BookingsScreen = ({ navigation, route }) => {
 
           <View style={styles.doctorDetailsWrap}>
             <Text style={styles.doctorName} numberOfLines={1}>
-              {item.doctor?.name}
+              {item.doctor?.name || 'MediUnify Healthcare Hub'}
             </Text>
-            <Text style={styles.doctorSpecialty} numberOfLines={1}>
-              {item.doctor?.specialty}
+            <Text style={styles.doctorSpecialty} numberOfLines={2}>
+              {item.doctor?.specialty || (isLabTest ? 'Diagnostic Screening' : 'General Consultation')}
             </Text>
             {item.doctor?.qualification ? (
               <Text style={styles.doctorQual} numberOfLines={1}>
@@ -483,6 +546,25 @@ const BookingsScreen = ({ navigation, route }) => {
             </View>
           </View>
         </View>
+
+        {/* LAB TESTS INCLUDED PILLS GRID */}
+        {isLabTest && item.tests && item.tests.length > 0 && (
+          <View style={styles.testsListWrap}>
+            <Text style={styles.testsListTitle}>
+              Tests Included ({item.tests.length}):
+            </Text>
+            <View style={styles.testsPillsRow}>
+              {item.tests.map((t, tIdx) => (
+                <View key={tIdx} style={styles.testBadgePill}>
+                  <Ionicons name="flask" size={10} color={colors.teal} />
+                  <Text style={styles.testBadgePillText} numberOfLines={1}>
+                    {typeof t === 'string' ? t : t.name}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* SCHEDULED DATE & TIME HIGHLIGHT BOX */}
         <View style={styles.scheduleBox}>
@@ -980,6 +1062,43 @@ const styles = StyleSheet.create({
   clinicLocationText: {
     fontSize: 11.5,
     color: '#475569',
+  },
+
+  // TESTS LIST CHIPS
+  testsListWrap: {
+    backgroundColor: '#F0FDFA',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+  },
+  testsListTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.teal,
+    marginBottom: 6,
+  },
+  testsPillsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  testBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    gap: 4,
+  },
+  testBadgePillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0F172A',
   },
 
   // SCHEDULE HIGHLIGHT BOX
