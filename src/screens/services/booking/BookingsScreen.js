@@ -8,13 +8,47 @@ import {
   TouchableOpacity,
   Alert,
   StatusBar,
+  Linking,
+  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 
+const DEFAULT_SAMPLE_APPOINTMENTS = [
+  {
+    id: 'appt-demo-1',
+    tokenNumber: 'TK-24',
+    type: 'In-Person',
+    doctor: {
+      name: 'Dr. Ananya Rao',
+      specialty: 'General Physician',
+      clinicName: 'Unnathi Multispeciality Clinic',
+      clinicAddress: 'No. 24, 5th Cross, Near Vishwamanava Double Road, Kuvempunagar, Mysore - 570023',
+      clinicArea: 'Kuvempunagar, Mysore',
+      phone: '+91 821 245 9901',
+      latitude: 12.2858,
+      longitude: 76.6341,
+      distance: '0.8 km away',
+      fee: 500,
+    },
+    day: 'Today',
+    date: 'Today, 04:30 PM',
+    time: '04:30 PM',
+    status: 'Confirmed',
+    paidAmount: 500,
+    paymentStatus: 'Pay at Clinic Reception',
+    patient: {
+      name: 'User',
+      age: '28',
+      gender: 'Male',
+      reason: 'Regular Health Checkup & Fever Consultation',
+    },
+  },
+];
+
 const BookingsScreen = ({ navigation, route }) => {
-  const [appointments, setAppointments] = useState([]);
+  const [appointments, setAppointments] = useState(DEFAULT_SAMPLE_APPOINTMENTS);
   const [selectedTab, setSelectedTab] = useState('All');
 
   const loadAppointments = async () => {
@@ -32,6 +66,12 @@ const BookingsScreen = ({ navigation, route }) => {
         doctor: {
           name: r.lab?.name || 'Diagnostic Center',
           specialty: `Radiology • ${r.tests?.map((t) => t.categoryLabel || t.name).join(', ')}`,
+          clinicName: r.lab?.name || 'Diagnostic Center',
+          clinicAddress: r.lab?.address || 'Mysore Diagnostic Hub',
+          clinicArea: r.lab?.area || 'Mysore',
+          phone: r.lab?.phone || '+91 821 245 9901',
+          latitude: r.lab?.latitude || 12.2958,
+          longitude: r.lab?.longitude || 76.6394,
         },
         day: r.appointmentDate?.split(',')[0] || 'Scheduled',
         date: r.appointmentDate,
@@ -45,6 +85,10 @@ const BookingsScreen = ({ navigation, route }) => {
 
       // Combine and eliminate duplicates
       const all = [...storedAppts, ...formattedRad];
+      if (all.length === 0) {
+        all.push(...DEFAULT_SAMPLE_APPOINTMENTS);
+      }
+
       const uniqueMap = new Map();
       all.forEach((item) => {
         if (!uniqueMap.has(item.id)) {
@@ -147,6 +191,15 @@ const BookingsScreen = ({ navigation, route }) => {
             {item.doctor?.specialty}
           </Text>
 
+          {item.doctor?.clinicName ? (
+            <View style={styles.clinicRow}>
+              <Ionicons name="location-outline" size={13} color="#0284C7" />
+              <Text style={styles.clinicText} numberOfLines={1}>
+                {item.doctor.clinicName} • {item.doctor.clinicArea || 'Mysore'}
+              </Text>
+            </View>
+          ) : null}
+
           <Text style={styles.date}>
             <Ionicons name="time-outline" size={12} color="#78909C" /> {item.day ? `${item.day}, ` : ''}{item.date} • {item.time}
           </Text>
@@ -158,9 +211,32 @@ const BookingsScreen = ({ navigation, route }) => {
               <Text style={styles.paidAmountText}>• ₹{item.paidAmount} Paid</Text>
             )}
           </View>
+
+          <View style={styles.cardActionsRow}>
+            <TouchableOpacity
+              style={styles.cardDirectionBtn}
+              onPress={() => {
+                const address = item.doctor?.clinicAddress || item.doctor?.clinicName || 'Clinic, Mysore';
+                const lat = item.doctor?.latitude || 12.2858;
+                const lng = item.doctor?.longitude || 76.6341;
+                const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&query=${encodeURIComponent(address)}`;
+                if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                  window.open(mapsUrl, '_blank');
+                } else {
+                  Linking.openURL(mapsUrl);
+                }
+              }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="navigate" size={12} color="#0284C7" />
+              <Text style={styles.cardDirectionText}>Get Directions</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.viewDetailsText}>Tap for Details & Directions ›</Text>
+          </View>
         </View>
 
-        <Ionicons name="chevron-forward" size={18} color="#90A4AE" />
+        <Ionicons name="chevron-forward" size={18} color="#90A4AE" style={{ alignSelf: 'center' }} />
       </TouchableOpacity>
     );
   };
@@ -405,6 +481,47 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     marginLeft: 6,
+  },
+
+  clinicRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  clinicText: {
+    fontSize: 11,
+    color: '#0284C7',
+    fontWeight: '600',
+  },
+
+  cardActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  cardDirectionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  cardDirectionText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  viewDetailsText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#64748B',
   },
 
   empty: {
