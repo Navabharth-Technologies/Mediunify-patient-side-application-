@@ -422,20 +422,20 @@ const BookingsScreen = ({ navigation, route }) => {
               style={[
                 styles.statusDot,
                 isCancelled
-                  ? { backgroundColor: '#DC2626' }
+                  ? { backgroundColor: colors.coral }
                   : isRescheduled
-                  ? { backgroundColor: colors.primary }
-                  : { backgroundColor: '#10B981' },
+                  ? { backgroundColor: colors.aqua }
+                  : { backgroundColor: colors.freshGreen },
               ]}
             />
             <Text
               style={[
                 styles.statusPillText,
                 isCancelled
-                  ? { color: '#DC2626' }
+                  ? { color: colors.coral }
                   : isRescheduled
-                  ? { color: colors.primary }
-                  : { color: '#047857' },
+                  ? { color: colors.aqua }
+                  : { color: colors.freshGreen },
               ]}
             >
               {item.status}
@@ -781,7 +781,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1E293B',
+    color: colors.navyBlue,
   },
   headerSubtitle: {
     fontSize: 11.5,

@@ -199,7 +199,7 @@ const ProfileScreen = ({ navigation, route }) => {
               onPress={handleEditProfile}
               activeOpacity={0.88}
             >
-              <Ionicons name="create-outline" size={16} color="#0F766E" />
+              <Ionicons name="create-outline" size={16} color={colors.teal} />
               <Text style={styles.heroPrimaryBtnText}>Edit Profile</Text>
             </TouchableOpacity>
 
@@ -539,13 +539,13 @@ const styles = StyleSheet.create({
   topHeaderBadge: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#0F766E',
+    color: colors.teal,
     letterSpacing: 0.6,
   },
   topHeaderTitle: {
     fontSize: 20,
     fontWeight: '900',
-    color: '#0F172A',
+    color: colors.navyBlue,
     marginTop: 1,
   },
   headerActionRow: {
@@ -569,7 +569,7 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: '#DC2626',
+    backgroundColor: colors.coral,
     borderWidth: 1.5,
     borderColor: '#FFFFFF',
   },
@@ -580,14 +580,14 @@ const styles = StyleSheet.create({
 
   // HERO CARD
   heroCard: {
-    backgroundColor: '#0F766E',
+    backgroundColor: colors.teal,
     marginHorizontal: 16,
     marginTop: 16,
     borderRadius: 24,
     padding: 20,
     overflow: 'hidden',
     position: 'relative',
-    shadowColor: '#0F766E',
+    shadowColor: colors.teal,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
     shadowRadius: 12,
@@ -632,14 +632,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -2,
     right: -2,
-    backgroundColor: '#10B981',
+    backgroundColor: colors.freshGreen,
     width: 20,
     height: 20,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#0F766E',
+    borderColor: colors.teal,
   },
   heroInfoColumn: {
     flex: 1,
@@ -716,7 +716,7 @@ const styles = StyleSheet.create({
   heroPrimaryBtnText: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#0F766E',
+    color: colors.teal,
   },
   heroSecondaryBtn: {
     flex: 1,

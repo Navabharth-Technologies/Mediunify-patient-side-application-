@@ -281,44 +281,44 @@ const HealthRecordsScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('Prescriptions')}
             activeOpacity={0.88}
           >
-            <View style={[styles.shortcutIcon, { backgroundColor: '#CCFBF1' }]}>
-              <Ionicons name="medkit" size={20} color="#0F766E" />
+            <View style={[styles.shortcutIcon, { backgroundColor: '#E6F8F4' }]}>
+              <Ionicons name="medkit" size={20} color={colors.teal} />
             </View>
             <Text style={styles.shortcutTitle}>Doctor Rx</Text>
             <Text style={styles.shortcutSub}>3 Prescriptions ›</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.shortcutCard, { backgroundColor: '#EFF6FF', borderColor: '#DBEAFE' }]}
+            style={[styles.shortcutCard, { backgroundColor: '#E8EEF9', borderColor: '#DBEAFE' }]}
             onPress={() => navigation.navigate('Reports')}
             activeOpacity={0.88}
           >
             <View style={[styles.shortcutIcon, { backgroundColor: '#DBEAFE' }]}>
-              <Ionicons name="flask" size={20} color="#1D4ED8" />
+              <Ionicons name="flask" size={20} color={colors.navyBlue} />
             </View>
             <Text style={styles.shortcutTitle}>Lab Reports</Text>
             <Text style={styles.shortcutSub}>4 Blood Tests ›</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.shortcutCard, { backgroundColor: '#FAF5FF', borderColor: '#F3E8FF' }]}
+            style={[styles.shortcutCard, { backgroundColor: '#E5F9FA', borderColor: '#CCFBF1' }]}
             onPress={() => navigation.navigate('Reports')}
             activeOpacity={0.88}
           >
-            <View style={[styles.shortcutIcon, { backgroundColor: '#F3E8FF' }]}>
-              <Ionicons name="scan" size={20} color="#7E22CE" />
+            <View style={[styles.shortcutIcon, { backgroundColor: '#CCFBF1' }]}>
+              <Ionicons name="scan" size={20} color={colors.aqua} />
             </View>
             <Text style={styles.shortcutTitle}>3T Scans</Text>
             <Text style={styles.shortcutSub}>MRI / CT Scans ›</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.shortcutCard, { backgroundColor: '#FEF2F2', borderColor: '#FEE2E2' }]}
+            style={[styles.shortcutCard, { backgroundColor: '#FFF1EB', borderColor: '#FEE2E2' }]}
             onPress={() => navigation.navigate('HealthMonitor')}
             activeOpacity={0.88}
           >
             <View style={[styles.shortcutIcon, { backgroundColor: '#FEE2E2' }]}>
-              <Ionicons name="pulse" size={20} color="#B91C1C" />
+              <Ionicons name="pulse" size={20} color={colors.coral} />
             </View>
             <Text style={styles.shortcutTitle}>Vitals Log</Text>
             <Text style={styles.shortcutSub}>Sugar & BP ›</Text>
@@ -634,7 +634,7 @@ const HealthRecordsScreen = ({ navigation }) => {
 
                 {/* SIMULATED PDF VIEW */}
                 <View style={styles.pdfPreviewBox}>
-                  <Ionicons name="document-text" size={48} color="#0F766E" />
+                  <Ionicons name="document-text" size={48} color={colors.teal} />
                   <Text style={styles.pdfPreviewName}>{activeDoc.title}</Text>
                   <Text style={styles.pdfPreviewMeta}>
                     {activeDoc.facility} • {activeDoc.date}
@@ -656,7 +656,7 @@ const HealthRecordsScreen = ({ navigation }) => {
                     }}
                     activeOpacity={0.88}
                   >
-                    <Ionicons name="download-outline" size={16} color="#0F766E" />
+                    <Ionicons name="download-outline" size={16} color={colors.teal} />
                     <Text style={styles.downloadModalBtnText}>Download PDF</Text>
                   </TouchableOpacity>
 
@@ -715,18 +715,18 @@ const styles = StyleSheet.create({
   headerBadge: {
     fontSize: 9.5,
     fontWeight: '800',
-    color: '#0F766E',
+    color: colors.teal,
     letterSpacing: 0.6,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#0F172A',
+    color: colors.navyBlue,
   },
   uploadHeaderBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F766E',
+    backgroundColor: colors.teal,
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 20,
@@ -769,14 +769,14 @@ const styles = StyleSheet.create({
 
   // HERO BANNER
   heroBanner: {
-    backgroundColor: '#0F766E',
+    backgroundColor: colors.teal,
     marginHorizontal: 16,
     marginTop: 14,
     borderRadius: 22,
     padding: 18,
     overflow: 'hidden',
     position: 'relative',
-    shadowColor: '#0F766E',
+    shadowColor: colors.teal,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.22,
     shadowRadius: 10,
@@ -829,7 +829,7 @@ const styles = StyleSheet.create({
   heroRecordsPillText: {
     fontSize: 10.5,
     fontWeight: '900',
-    color: '#0F766E',
+    color: colors.navyBlue,
   },
   heroTitle: {
     fontSize: 19,

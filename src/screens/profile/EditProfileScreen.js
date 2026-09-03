@@ -177,7 +177,7 @@ const EditProfileScreen = ({ navigation, route }) => {
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Full Name</Text>
             <View style={styles.inputWrap}>
-              <Ionicons name="person-outline" size={18} color="#0F766E" />
+              <Ionicons name="person-outline" size={18} color={colors.teal} />
               <TextInput
                 style={styles.textInput}
                 value={name}
@@ -192,7 +192,7 @@ const EditProfileScreen = ({ navigation, route }) => {
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Email Address</Text>
             <View style={styles.inputWrap}>
-              <Ionicons name="mail-outline" size={18} color="#0F766E" />
+              <Ionicons name="mail-outline" size={18} color={colors.teal} />
               <TextInput
                 style={styles.textInput}
                 value={email}
@@ -209,7 +209,7 @@ const EditProfileScreen = ({ navigation, route }) => {
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Mobile Phone Number</Text>
             <View style={styles.inputWrap}>
-              <Ionicons name="call-outline" size={18} color="#0F766E" />
+              <Ionicons name="call-outline" size={18} color={colors.teal} />
               <TextInput
                 style={styles.textInput}
                 value={phone}
@@ -251,7 +251,7 @@ const EditProfileScreen = ({ navigation, route }) => {
             <View style={[styles.inputGroup, { width: 100 }]}>
               <Text style={styles.inputLabel}>Age</Text>
               <View style={styles.inputWrap}>
-                <Ionicons name="calendar-outline" size={18} color="#0F766E" />
+                <Ionicons name="calendar-outline" size={18} color={colors.teal} />
                 <TextInput
                   style={styles.textInput}
                   value={age}
@@ -331,7 +331,7 @@ const EditProfileScreen = ({ navigation, route }) => {
             <Ionicons
               name={showPasswordSection ? 'chevron-up' : 'chevron-down'}
               size={18}
-              color="#0F766E"
+              color={colors.teal}
             />
             <Text style={styles.passwordToggleText}>
               {showPasswordSection ? 'Hide' : 'Change'}
@@ -342,7 +342,7 @@ const EditProfileScreen = ({ navigation, route }) => {
         {showPasswordSection && (
           <View style={styles.passwordCard}>
             <View style={styles.securityPill}>
-              <Ionicons name="shield-checkmark" size={14} color="#059669" />
+              <Ionicons name="shield-checkmark" size={14} color={colors.freshGreen} />
               <Text style={styles.securityPillText}>256-Bit Encrypted Password Change</Text>
             </View>
 
@@ -350,7 +350,7 @@ const EditProfileScreen = ({ navigation, route }) => {
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Current Password</Text>
               <View style={styles.inputWrap}>
-                <Ionicons name="lock-closed-outline" size={18} color="#0F766E" />
+                <Ionicons name="lock-closed-outline" size={18} color={colors.teal} />
                 <TextInput
                   style={styles.textInput}
                   value={currentPassword}
@@ -373,7 +373,7 @@ const EditProfileScreen = ({ navigation, route }) => {
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>New Password</Text>
               <View style={styles.inputWrap}>
-                <Ionicons name="key-outline" size={18} color="#0F766E" />
+                <Ionicons name="key-outline" size={18} color={colors.teal} />
                 <TextInput
                   style={styles.textInput}
                   value={newPassword}
@@ -396,7 +396,7 @@ const EditProfileScreen = ({ navigation, route }) => {
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Confirm New Password</Text>
               <View style={styles.inputWrap}>
-                <Ionicons name="checkmark-circle-outline" size={18} color="#0F766E" />
+                <Ionicons name="checkmark-circle-outline" size={18} color={colors.teal} />
                 <TextInput
                   style={styles.textInput}
                   value={confirmPassword}
@@ -497,18 +497,18 @@ const styles = StyleSheet.create({
   headerBadge: {
     fontSize: 9.5,
     fontWeight: '800',
-    color: '#0F766E',
+    color: colors.teal,
     letterSpacing: 0.6,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#0F172A',
+    color: colors.navyBlue,
   },
   saveHeaderBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F766E',
+    backgroundColor: colors.teal,
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
@@ -527,12 +527,12 @@ const styles = StyleSheet.create({
   // AVATAR CARD
   avatarCard: {
     alignItems: 'center',
-    backgroundColor: '#0F766E',
+    backgroundColor: colors.teal,
     marginHorizontal: 16,
     marginTop: 14,
     paddingVertical: 20,
     borderRadius: 22,
-    shadowColor: '#0F766E',
+    shadowColor: colors.teal,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.2,
     shadowRadius: 10,
@@ -662,8 +662,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   genderPillActive: {
-    backgroundColor: '#0F766E',
-    borderColor: '#0F766E',
+    backgroundColor: colors.teal,
+    borderColor: colors.teal,
   },
   genderPillText: {
     fontSize: 11.5,
@@ -691,8 +691,8 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   bloodPillActive: {
-    backgroundColor: '#EF4444',
-    borderColor: '#EF4444',
+    backgroundColor: colors.coral,
+    borderColor: colors.coral,
   },
   bloodPillText: {
     fontSize: 11,
@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
   passwordToggleText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#0F766E',
+    color: colors.teal,
   },
   passwordCard: {
     backgroundColor: '#FFFFFF',
@@ -728,7 +728,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#CCFBF1',
     marginTop: 4,
-    shadowColor: '#0F766E',
+    shadowColor: colors.teal,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 6,
@@ -748,7 +748,7 @@ const styles = StyleSheet.create({
   securityPillText: {
     fontSize: 10.5,
     fontWeight: '800',
-    color: '#059669',
+    color: colors.freshGreen,
   },
   passwordHintRow: {
     flexDirection: 'row',
@@ -767,13 +767,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0F766E',
+    backgroundColor: colors.teal,
     marginHorizontal: 16,
     marginTop: 22,
     paddingVertical: 14,
     borderRadius: 18,
     gap: 8,
-    shadowColor: '#0F766E',
+    shadowColor: colors.teal,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
