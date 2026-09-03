@@ -9,16 +9,53 @@ import {
   Linking,
   Platform,
   Alert,
+  Modal,
+  TextInput,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 
+const generateBookingDates = () => {
+  const dates = [];
+  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  for (let i = 0; i < 10; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    dates.push({
+      dateStr: d.toISOString().split('T')[0],
+      dayName: i === 0 ? 'Today' : i === 1 ? 'Tmrw' : daysOfWeek[d.getDay()],
+      dayNum: d.getDate(),
+      month: months[d.getMonth()],
+      fullText: `${daysOfWeek[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]}`,
+    });
+  }
+  return dates;
+};
+
+const RESCHEDULE_SLOTS = {
+  morning: ['09:30 AM', '10:30 AM', '11:45 AM', '12:30 PM'],
+  evening: ['04:30 PM', '05:30 PM', '06:45 PM', '07:45 PM', '08:30 PM'],
+};
+
 const BookingDetailsScreen = ({ navigation, route }) => {
   const appointment = route?.params?.appointment;
 
   const [currentStatus, setCurrentStatus] = useState(appointment?.status || 'Confirmed');
+  const [currentDate, setCurrentDate] = useState(appointment?.date || 'Today, 04:30 PM');
+  const [currentDay, setCurrentDay] = useState(appointment?.day || 'Today');
+  const [currentTime, setCurrentTime] = useState(appointment?.time || '04:30 PM');
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // Reschedule Modal State
+  const bookingDates = generateBookingDates();
+  const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState(bookingDates[0]);
+  const [rescheduleTime, setRescheduleTime] = useState(RESCHEDULE_SLOTS.evening[0]);
+  const [rescheduleReason, setRescheduleReason] = useState('');
+  const [isSavingReschedule, setIsSavingReschedule] = useState(false);
 
   if (!appointment) {
     return (
@@ -48,6 +85,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
   const latitude = doctor.latitude || 12.2858;
   const longitude = doctor.longitude || 76.6341;
   const isCancelled = currentStatus === 'Cancelled';
+  const isRescheduled = currentStatus === 'Rescheduled';
 
   // Open Google Maps / Apple Maps Directions
   const openDirections = () => {
@@ -103,7 +141,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
   const handleCancelAppointment = () => {
     Alert.alert(
       'Cancel Appointment?',
-      `Are you sure you want to cancel your appointment with ${doctor.name || 'the doctor'} on ${appointment.date}?`,
+      `Are you sure you want to cancel your appointment with ${doctor.name || 'the doctor'} on ${currentDate}?`,
       [
         { text: 'Keep Appointment', style: 'cancel' },
         {
@@ -150,6 +188,73 @@ const BookingDetailsScreen = ({ navigation, route }) => {
     );
   };
 
+  // Confirm Reschedule
+  const handleConfirmReschedule = async () => {
+    if (!rescheduleTime) {
+      Alert.alert('Select Time Slot', 'Please select a new time slot.');
+      return;
+    }
+
+    try {
+      setIsSavingReschedule(true);
+
+      const newDateStr = rescheduleDate.fullText;
+      const newDayStr = rescheduleDate.dayName;
+      const newTimeStr = rescheduleTime;
+
+      // 1. Update in @unnathi_appointments
+      const apptJson = await AsyncStorage.getItem('@unnathi_appointments');
+      if (apptJson) {
+        const storedAppts = JSON.parse(apptJson);
+        const updated = storedAppts.map((a) =>
+          a.id === appointment.id
+            ? {
+                ...a,
+                date: newDateStr,
+                day: newDayStr,
+                time: newTimeStr,
+                status: 'Rescheduled',
+                rescheduleReason: rescheduleReason || undefined,
+              }
+            : a
+        );
+        await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updated));
+      }
+
+      // 2. Update in @radiologyBookings
+      const radJson = await AsyncStorage.getItem('@radiologyBookings');
+      if (radJson) {
+        const storedRad = JSON.parse(radJson);
+        const updatedRad = storedRad.map((r) =>
+          r.id === appointment.id
+            ? {
+                ...r,
+                appointmentDate: newDateStr,
+                appointmentSlot: newTimeStr,
+                status: 'Rescheduled',
+              }
+            : r
+        );
+        await AsyncStorage.setItem('@radiologyBookings', JSON.stringify(updatedRad));
+      }
+
+      setCurrentDate(newDateStr);
+      setCurrentDay(newDayStr);
+      setCurrentTime(newTimeStr);
+      setCurrentStatus('Rescheduled');
+      setIsSavingReschedule(false);
+      setIsRescheduleOpen(false);
+
+      Alert.alert(
+        'Appointment Rescheduled! 🎉',
+        `Your clinic visit with ${doctor.name} has been rescheduled to ${newDateStr} at ${newTimeStr}.`
+      );
+    } catch (e) {
+      setIsSavingReschedule(false);
+      Alert.alert('Error', 'Failed to reschedule. Please try again.');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* HEADER */}
@@ -174,7 +279,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* STATUS BADGE (CONFIRMED VS CANCELLED) */}
+        {/* STATUS BADGE (CONFIRMED VS RESCHEDULED VS CANCELLED) */}
         {isCancelled ? (
           <View style={styles.cancelledCard}>
             <View style={styles.cancelledIconCircle}>
@@ -193,21 +298,29 @@ const BookingDetailsScreen = ({ navigation, route }) => {
             </View>
           </View>
         ) : (
-          <View style={styles.successCard}>
-            <View style={styles.successIconCircle}>
-              <Ionicons name="checkmark-circle" size={36} color="#10B981" />
+          <View style={[styles.successCard, isRescheduled && { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+            <View style={[styles.successIconCircle, isRescheduled && { backgroundColor: '#DBEAFE' }]}>
+              <Ionicons
+                name={isRescheduled ? 'calendar' : 'checkmark-circle'}
+                size={34}
+                color={isRescheduled ? colors.primary : '#10B981'}
+              />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
               <View style={styles.tokenRow}>
-                <Text style={styles.confirmed}>Appointment Confirmed</Text>
+                <Text style={[styles.confirmed, isRescheduled && { color: colors.primary }]}>
+                  {isRescheduled ? 'Appointment Rescheduled' : 'Appointment Confirmed'}
+                </Text>
                 {appointment.tokenNumber ? (
-                  <View style={styles.tokenBadge}>
+                  <View style={[styles.tokenBadge, isRescheduled && { backgroundColor: colors.primary }]}>
                     <Text style={styles.tokenText}>Token {appointment.tokenNumber}</Text>
                   </View>
                 ) : null}
               </View>
-              <Text style={styles.confirmedSubtitle}>
-                Your clinic visit is confirmed with {doctor.name}.
+              <Text style={[styles.confirmedSubtitle, isRescheduled && { color: '#1E40AF' }]}>
+                {isRescheduled
+                  ? `Updated slot confirmed for ${currentDate} at ${currentTime}.`
+                  : `Your clinic visit is confirmed with ${doctor.name}.`}
               </Text>
             </View>
           </View>
@@ -292,13 +405,13 @@ const BookingDetailsScreen = ({ navigation, route }) => {
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Date & Day</Text>
               <Text style={styles.infoValue}>
-                {appointment.day ? `${appointment.day}, ` : ''}{appointment.date}
+                {currentDay ? `${currentDay}, ` : ''}{currentDate}
               </Text>
             </View>
 
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Scheduled Time</Text>
-              <Text style={styles.infoValue}>{appointment.time}</Text>
+              <Text style={styles.infoValue}>{currentTime}</Text>
             </View>
 
             <View style={styles.infoItem}>
@@ -308,7 +421,18 @@ const BookingDetailsScreen = ({ navigation, route }) => {
 
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Status</Text>
-              <Text style={[styles.infoValue, { color: isCancelled ? '#DC2626' : '#10B981' }]}>
+              <Text
+                style={[
+                  styles.infoValue,
+                  {
+                    color: isCancelled
+                      ? '#DC2626'
+                      : isRescheduled
+                      ? colors.primary
+                      : '#10B981',
+                  },
+                ]}
+              >
                 {currentStatus}
               </Text>
             </View>
@@ -320,14 +444,42 @@ const BookingDetailsScreen = ({ navigation, route }) => {
           </View>
 
           {appointment.paymentStatus ? (
-            <View style={[styles.paymentStatusBadge, isCancelled && { backgroundColor: '#FEE2E2' }]}>
+            <View
+              style={[
+                styles.paymentStatusBadge,
+                isCancelled && { backgroundColor: '#FEE2E2' },
+                isRescheduled && { backgroundColor: '#EFF6FF' },
+              ]}
+            >
               <Ionicons
-                name={isCancelled ? 'close-circle' : 'shield-checkmark'}
+                name={
+                  isCancelled
+                    ? 'close-circle'
+                    : isRescheduled
+                    ? 'time-outline'
+                    : 'shield-checkmark'
+                }
                 size={15}
-                color={isCancelled ? '#DC2626' : '#059669'}
+                color={
+                  isCancelled
+                    ? '#DC2626'
+                    : isRescheduled
+                    ? colors.primary
+                    : '#059669'
+                }
               />
-              <Text style={[styles.paymentStatusText, isCancelled && { color: '#DC2626' }]}>
-                {isCancelled ? 'Booking Cancelled • Refund Initiated' : appointment.paymentStatus}
+              <Text
+                style={[
+                  styles.paymentStatusText,
+                  isCancelled && { color: '#DC2626' },
+                  isRescheduled && { color: colors.primary },
+                ]}
+              >
+                {isCancelled
+                  ? 'Booking Cancelled • Refund Initiated'
+                  : isRescheduled
+                  ? 'Rescheduled • Confirmed Slot'
+                  : appointment.paymentStatus}
               </Text>
             </View>
           ) : null}
@@ -370,7 +522,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         ) : null}
 
         {/* ==================================================
-            ACTIONS: GET DIRECTIONS, REBOOK, OR CANCEL
+            ACTIONS: GET DIRECTIONS, RESCHEDULE, OR CANCEL
         ================================================== */}
         {!isCancelled ? (
           <>
@@ -383,15 +535,27 @@ const BookingDetailsScreen = ({ navigation, route }) => {
               <Text style={styles.primaryActionText}>Get GPS Directions to Clinic</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={handleCancelAppointment}
-              disabled={isCancelling}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
-              <Text style={styles.cancelButtonText}>Cancel This Appointment</Text>
-            </TouchableOpacity>
+            {/* RESCHEDULE & CANCEL BUTTON ROW */}
+            <View style={styles.actionsTwinRow}>
+              <TouchableOpacity
+                style={styles.rescheduleTwinBtn}
+                onPress={() => setIsRescheduleOpen(true)}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="calendar" size={17} color={colors.primary} />
+                <Text style={styles.rescheduleTwinText}>Reschedule Slot</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.cancelTwinBtn}
+                onPress={handleCancelAppointment}
+                disabled={isCancelling}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="close-circle-outline" size={17} color="#DC2626" />
+                <Text style={styles.cancelTwinText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
           </>
         ) : (
           <TouchableOpacity
@@ -412,6 +576,197 @@ const BookingDetailsScreen = ({ navigation, route }) => {
           <Text style={styles.homeButtonText}>Back to Home</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* ==================================================
+          RESCHEDULE APPOINTMENT MODAL
+      ================================================== */}
+      <Modal
+        visible={isRescheduleOpen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsRescheduleOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {/* MODAL HEADER */}
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Reschedule Appointment</Text>
+                <Text style={styles.modalSubtitle}>With {doctor.name || 'Doctor'}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => setIsRescheduleOpen(false)}
+              >
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* SELECT DATE */}
+              <Text style={styles.modalSectionLabel}>1. Select New Date</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.dateScroll}
+              >
+                {bookingDates.map((item, index) => {
+                  const isSelected = rescheduleDate.dateStr === item.dateStr;
+                  return (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.dateCard,
+                        isSelected && styles.dateCardActive,
+                      ]}
+                      onPress={() => setRescheduleDate(item)}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.dayName,
+                          isSelected && styles.dayNameActive,
+                        ]}
+                      >
+                        {item.dayName}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.dayNum,
+                          isSelected && styles.dayNumActive,
+                        ]}
+                      >
+                        {item.dayNum}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.monthName,
+                          isSelected && styles.monthNameActive,
+                        ]}
+                      >
+                        {item.month}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {/* SELECT TIME SLOT */}
+              <Text style={styles.modalSectionLabel}>2. Select New Time Slot</Text>
+
+              {/* MORNING */}
+              <Text style={styles.slotCategoryLabel}>☀️ Morning Slots</Text>
+              <View style={styles.slotsGrid}>
+                {RESCHEDULE_SLOTS.morning.map((slot, index) => {
+                  const isSelected = rescheduleTime === slot;
+                  return (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.slotChip,
+                        isSelected && styles.slotChipActive,
+                      ]}
+                      onPress={() => setRescheduleTime(slot)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons
+                        name="time-outline"
+                        size={14}
+                        color={isSelected ? '#FFFFFF' : '#64748B'}
+                      />
+                      <Text
+                        style={[
+                          styles.slotText,
+                          isSelected && styles.slotTextActive,
+                        ]}
+                      >
+                        {slot}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* EVENING */}
+              <Text style={[styles.slotCategoryLabel, { marginTop: 12 }]}>🌆 Evening Slots</Text>
+              <View style={styles.slotsGrid}>
+                {RESCHEDULE_SLOTS.evening.map((slot, index) => {
+                  const isSelected = rescheduleTime === slot;
+                  return (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.slotChip,
+                        isSelected && styles.slotChipActive,
+                      ]}
+                      onPress={() => setRescheduleTime(slot)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons
+                        name="time-outline"
+                        size={14}
+                        color={isSelected ? '#FFFFFF' : '#64748B'}
+                      />
+                      <Text
+                        style={[
+                          styles.slotText,
+                          isSelected && styles.slotTextActive,
+                        ]}
+                      >
+                        {slot}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* OPTIONAL REASON */}
+              <Text style={[styles.modalSectionLabel, { marginTop: 16 }]}>
+                3. Reason for Reschedule (Optional)
+              </Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="e.g., Change in schedule, unexpected travel..."
+                placeholderTextColor="#94A3B8"
+                value={rescheduleReason}
+                onChangeText={setRescheduleReason}
+              />
+
+              {/* SUMMARY BOX */}
+              <View style={styles.modalSummaryBox}>
+                <Ionicons name="information-circle-outline" size={18} color={colors.primary} />
+                <Text style={styles.modalSummaryText}>
+                  Your appointment will be shifted to{' '}
+                  <Text style={{ fontWeight: '800', color: colors.primary }}>
+                    {rescheduleDate.fullText} at {rescheduleTime}
+                  </Text>
+                  . No additional fee will be charged.
+                </Text>
+              </View>
+
+              {/* MODAL ACTIONS */}
+              <View style={styles.modalActionsRow}>
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
+                  onPress={() => setIsRescheduleOpen(false)}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.modalConfirmBtn}
+                  onPress={handleConfirmReschedule}
+                  disabled={isSavingReschedule}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+                  <Text style={styles.modalConfirmText}>Confirm Reschedule</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -752,11 +1107,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#059669',
   },
+
   primaryActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary,
+    backgroundColor: '#0284C7',
     paddingVertical: 14,
     borderRadius: 14,
     gap: 8,
@@ -768,7 +1124,32 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
   },
-  cancelButton: {
+
+  // TWIN ACTIONS
+  actionsTwinRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+  },
+  rescheduleTwinBtn: {
+    flex: 1.3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.lightTeal,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    paddingVertical: 13,
+    borderRadius: 14,
+    gap: 6,
+  },
+  rescheduleTwinText: {
+    color: colors.primary,
+    fontSize: 13.5,
+    fontWeight: '700',
+  },
+  cancelTwinBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -778,13 +1159,13 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     borderRadius: 14,
     gap: 6,
-    marginBottom: 10,
   },
-  cancelButtonText: {
+  cancelTwinText: {
     color: '#DC2626',
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '700',
   },
+
   rebookButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -835,6 +1216,194 @@ const styles = StyleSheet.create({
   backHomeText: {
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+
+  // ==================================================
+  // RESCHEDULE MODAL STYLES
+  // ==================================================
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 12,
+    marginBottom: 14,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSectionLabel: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginBottom: 10,
+  },
+  dateScroll: {
+    gap: 8,
+    paddingBottom: 14,
+  },
+  dateCard: {
+    width: 65,
+    height: 75,
+    borderRadius: 14,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 4,
+  },
+  dateCardActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  dayName: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  dayNameActive: {
+    color: '#E0F2FE',
+  },
+  dayNum: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginVertical: 2,
+  },
+  dayNumActive: {
+    color: '#FFFFFF',
+  },
+  monthName: {
+    fontSize: 10,
+    color: '#94A3B8',
+    fontWeight: '700',
+  },
+  monthNameActive: {
+    color: '#E0F2FE',
+  },
+  slotCategoryLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 8,
+  },
+  slotsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  slotChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
+    gap: 6,
+  },
+  slotChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  slotText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  slotTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  modalInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 13,
+    color: '#1E293B',
+  },
+  modalSummaryBox: {
+    flexDirection: 'row',
+    backgroundColor: '#EFF6FF',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 14,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    alignItems: 'center',
+  },
+  modalSummaryText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#1E40AF',
+    lineHeight: 17,
+  },
+  modalActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 18,
+    paddingBottom: 10,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  modalConfirmBtn: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 13,
+    borderRadius: 12,
+    gap: 6,
+  },
+  modalConfirmText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });
 

@@ -206,14 +206,27 @@ const BookingsScreen = ({ navigation, route }) => {
 
           <View style={styles.statusRow}>
             <Ionicons
-              name={item.status === 'Cancelled' ? 'close-circle' : 'checkmark-circle'}
+              name={
+                item.status === 'Cancelled'
+                  ? 'close-circle'
+                  : item.status === 'Rescheduled'
+                  ? 'calendar'
+                  : 'checkmark-circle'
+              }
               size={15}
-              color={item.status === 'Cancelled' ? '#DC2626' : '#2E7D32'}
+              color={
+                item.status === 'Cancelled'
+                  ? '#DC2626'
+                  : item.status === 'Rescheduled'
+                  ? colors.primary
+                  : '#2E7D32'
+              }
             />
             <Text
               style={[
                 styles.status,
                 item.status === 'Cancelled' && { color: '#DC2626' },
+                item.status === 'Rescheduled' && { color: colors.primary },
               ]}
             >
               {item.status}
