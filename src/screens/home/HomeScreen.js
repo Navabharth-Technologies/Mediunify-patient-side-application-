@@ -530,33 +530,6 @@ const HomeScreen = ({ navigation }) => {
         </View>
 
         {/* ==========================================
-            AI HEALTH ASSISTANT BANNER
-        ========================================== */}
-        <TouchableOpacity
-          style={styles.aiBannerCard}
-          onPress={() => navigation.navigate('Chatbot')}
-          activeOpacity={0.9}
-        >
-          <View style={styles.aiBannerLeft}>
-            <View style={styles.aiBadge}>
-              <Ionicons name="sparkles" size={14} color="#FFFFFF" />
-              <Text style={styles.aiBadgeText}>AI Health Assistant</Text>
-            </View>
-            <Text style={styles.aiBannerTitle}>Have Health Questions or Prescription?</Text>
-            <Text style={styles.aiBannerSub}>
-              Scan tablets, analyze symptoms, and get instant doctor suggestions.
-            </Text>
-            <View style={styles.aiBannerBtn}>
-              <Text style={styles.aiBannerBtnText}>Chat with Health AI ›</Text>
-            </View>
-          </View>
-
-          <View style={styles.aiAvatarCircle}>
-            <Ionicons name="chatbubbles" size={36} color="#FFFFFF" />
-          </View>
-        </TouchableOpacity>
-
-        {/* ==========================================
             HEALTH VITALS & SELF MONITOR WIDGET
         ========================================== */}
         <View style={styles.vitalsSection}>
