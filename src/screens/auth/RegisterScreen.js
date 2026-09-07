@@ -35,12 +35,15 @@ const RegisterScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [referralCode, setReferralCode] = useState('');
   const [dob, setDob] = useState('');
   const [age, setAge] = useState('');
   const [gender, setGender] = useState('Male');
   const [bloodGroup, setBloodGroup] = useState('O+ Positive');
   const [emergencyContact, setEmergencyContact] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
   // Helper: Calculate age from DOB (DD/MM/YYYY)
   const calculateAgeFromDob = (dobStr) => {
@@ -108,12 +111,14 @@ const RegisterScreen = ({ navigation }) => {
     const trimmedEmail = email.trim().toLowerCase();
     const cleanPhone10 = phone.replace(/[^0-9]/g, '').slice(0, 10);
     const trimmedPassword = password.trim();
+    const trimmedConfirmPassword = confirmPassword.trim();
+    const trimmedReferralCode = referralCode.trim().toUpperCase();
 
     // 1. Check for required fields
-    if (!trimmedName || !trimmedEmail || !cleanPhone10 || !trimmedPassword) {
+    if (!trimmedName || !trimmedEmail || !cleanPhone10 || !trimmedPassword || !trimmedConfirmPassword) {
       Alert.alert(
         'Missing Information',
-        'Please enter your full name, email, 10-digit mobile number, and password.'
+        'Please enter your full name, email, 10-digit mobile number, password, and confirm password.'
       );
       return;
     }
@@ -163,8 +168,17 @@ const RegisterScreen = ({ navigation }) => {
       return;
     }
 
+    // 6. Validate Double Password Verification (Confirm Password Match)
+    if (trimmedPassword !== trimmedConfirmPassword) {
+      Alert.alert(
+        'Passwords Do Not Match',
+        'The password and confirm password entries do not match. Please verify and ensure both passwords are identical.'
+      );
+      return;
+    }
+
     try {
-      // 6. Check for DUPLICATE ACCOUNTS (Email, Phone, or Name already exists)
+      // 7. Check for DUPLICATE ACCOUNTS (Email, Phone, or Name already exists)
       const regCredsStr = await AsyncStorage.getItem('@unnathi_registered_credentials');
       let registeredCreds = {};
       if (regCredsStr) {
@@ -238,12 +252,14 @@ const RegisterScreen = ({ navigation }) => {
         gender: gender || 'Male',
         bloodGroup: bloodGroup || 'O+ Positive',
         emergencyContact: emergencyContact.trim() || `${formattedPhone} (Family)`,
+        referralCode: trimmedReferralCode || null,
       };
 
       const accountCredentials = {
         email: trimmedEmail,
         phone: cleanPhone10,
         password: trimmedPassword,
+        referralCode: trimmedReferralCode || null,
         userData,
         createdAt: Date.now(),
       };
@@ -303,6 +319,11 @@ const RegisterScreen = ({ navigation }) => {
       navigation.navigate('OTP');
     }
   };
+
+  const isPasswordFilled = password.length > 0;
+  const isConfirmFilled = confirmPassword.length > 0;
+  const isPasswordMatch = isPasswordFilled && isConfirmFilled && password === confirmPassword && password.length >= 6;
+  const isPasswordMismatch = isPasswordFilled && isConfirmFilled && password !== confirmPassword;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -427,14 +448,35 @@ const RegisterScreen = ({ navigation }) => {
 
           {/* PASSWORD */}
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>
-              Account Password <Text style={styles.requiredStar}>*</Text>
-            </Text>
-            <View style={styles.inputWrapper}>
+            <View style={styles.labelRow}>
+              <Text style={styles.inputLabel}>
+                Account Password <Text style={styles.requiredStar}>*</Text>
+              </Text>
+              {password.length > 0 && (
+                <Text
+                  style={[
+                    styles.charCountText,
+                    password.length >= 6 ? styles.charCountValid : styles.charCountWarning,
+                  ]}
+                >
+                  {password.length >= 6 ? '✓ Min 6 met' : `${password.length}/6 chars`}
+                </Text>
+              )}
+            </View>
+            <View
+              style={[
+                styles.inputWrapper,
+                password.length > 0 && password.length < 6
+                  ? styles.inputWrapperWarning
+                  : password.length >= 6
+                  ? styles.inputWrapperValid
+                  : null,
+              ]}
+            >
               <Ionicons name="lock-closed-outline" size={18} color="#64748B" style={styles.inputIcon} />
               <TextInput
                 style={[styles.textInput, { flex: 1 }]}
-                placeholder="Create a secure password"
+                placeholder="Create secure password (min 6 chars)"
                 placeholderTextColor="#94A3B8"
                 value={password}
                 onChangeText={setPassword}
@@ -451,6 +493,74 @@ const RegisterScreen = ({ navigation }) => {
                 />
               </TouchableOpacity>
             </View>
+            {password.length > 0 && password.length < 6 ? (
+              <Text style={styles.inlineWarningText}>
+                ⚠️ Password must be at least 6 characters long
+              </Text>
+            ) : null}
+          </View>
+
+          {/* CONFIRM PASSWORD (VERIFY PASSWORD TWO TIMES) */}
+          <View style={styles.inputGroup}>
+            <View style={styles.labelRow}>
+              <Text style={styles.inputLabel}>
+                Confirm Password <Text style={styles.requiredStar}>*</Text>
+              </Text>
+              {isPasswordMatch ? (
+                <Text style={styles.charCountValid}>✓ Passwords Match</Text>
+              ) : isPasswordMismatch ? (
+                <Text style={styles.charCountWarning}>⚠️ Passwords Differ</Text>
+              ) : null}
+            </View>
+            <View
+              style={[
+                styles.inputWrapper,
+                isPasswordMismatch
+                  ? styles.inputWrapperWarning
+                  : isPasswordMatch
+                  ? styles.inputWrapperValid
+                  : null,
+              ]}
+            >
+              <Ionicons
+                name="shield-checkmark-outline"
+                size={18}
+                color={isPasswordMatch ? '#10B981' : isPasswordMismatch ? '#F59E0B' : '#64748B'}
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={[styles.textInput, { flex: 1 }]}
+                placeholder="Re-enter your password to verify"
+                placeholderTextColor="#94A3B8"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!showConfirmPassword}
+              />
+              {isPasswordMatch ? (
+                <Ionicons name="checkmark-circle" size={18} color="#10B981" style={{ marginRight: 6 }} />
+              ) : isPasswordMismatch ? (
+                <Ionicons name="alert-circle" size={18} color="#F59E0B" style={{ marginRight: 6 }} />
+              ) : null}
+              <TouchableOpacity
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                style={styles.eyeBtn}
+              >
+                <Ionicons
+                  name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={18}
+                  color="#64748B"
+                />
+              </TouchableOpacity>
+            </View>
+            {isPasswordMatch ? (
+              <Text style={styles.inlineSuccessText}>
+                ✓ Password verified! Both entries match.
+              </Text>
+            ) : isPasswordMismatch ? (
+              <Text style={styles.inlineWarningText}>
+                ⚠️ Passwords do not match yet. Please double-check.
+              </Text>
+            ) : null}
           </View>
         </View>
 
@@ -583,6 +693,62 @@ const RegisterScreen = ({ navigation }) => {
                 <Ionicons name="checkmark-circle" size={18} color="#10B981" />
               ) : null}
             </View>
+          </View>
+        </View>
+
+        {/* SECTION 3: REFERRAL CODE (OPTIONAL) */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeadingRow}>
+            <Text style={styles.sectionHeading}>🎁 Referral Code</Text>
+            <View style={styles.optionalPill}>
+              <Text style={styles.optionalPillText}>Optional</Text>
+            </View>
+          </View>
+          <Text style={styles.referralHint}>
+            Have a friend or doctor referral code? Enter it below to earn ₹250 welcome credits in your MediUnify Health Wallet.
+          </Text>
+
+          <View style={styles.inputGroup}>
+            <View
+              style={[
+                styles.inputWrapper,
+                referralCode.trim().length > 0 ? styles.inputWrapperValid : null,
+              ]}
+            >
+              <Ionicons
+                name="gift-outline"
+                size={18}
+                color={referralCode.trim().length > 0 ? colors.primary : '#64748B'}
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={[styles.textInput, { textTransform: 'uppercase', letterSpacing: 1.2 }]}
+                placeholder="Enter code (e.g. MEDI250)"
+                placeholderTextColor="#94A3B8"
+                value={referralCode}
+                onChangeText={(text) => setReferralCode(text.toUpperCase().replace(/\s/g, ''))}
+                autoCapitalize="characters"
+                maxLength={16}
+              />
+              {referralCode.trim().length > 0 ? (
+                <TouchableOpacity
+                  onPress={() => setReferralCode('')}
+                  style={styles.clearCodeBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            {referralCode.trim().length > 0 ? (
+              <View style={styles.referralAppliedBadge}>
+                <Ionicons name="sparkles" size={14} color="#059669" />
+                <Text style={styles.referralAppliedText}>
+                  Bonus Code Applied: <Text style={styles.referralCodeHighlight}>{referralCode.trim()}</Text> (+₹250 Health Cash on verification)
+                </Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -861,6 +1027,65 @@ const styles = StyleSheet.create({
     color: '#D97706',
     fontWeight: '600',
     marginTop: 5,
+  },
+  inlineSuccessText: {
+    fontSize: 11.5,
+    color: '#059669',
+    fontWeight: '700',
+    marginTop: 5,
+  },
+  sectionHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  optionalPill: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  optionalPillText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  referralHint: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 17,
+    marginBottom: 12,
+  },
+  clearCodeBtn: {
+    padding: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  referralAppliedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    marginTop: 8,
+    gap: 6,
+  },
+  referralAppliedText: {
+    fontSize: 11.5,
+    color: '#065F46',
+    fontWeight: '600',
+    flex: 1,
+  },
+  referralCodeHighlight: {
+    fontWeight: '800',
+    color: '#047857',
+    letterSpacing: 0.5,
   },
 });
 

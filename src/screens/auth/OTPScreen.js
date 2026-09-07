@@ -22,14 +22,40 @@ const OTPScreen = ({ navigation, route }) => {
 
     if (otp === '123456') {
       setVerifying(true);
+      const passedUser = route?.params?.userData;
       try {
-        const passedUser = route?.params?.userData;
         if (passedUser) {
           await AsyncStorage.setItem('user', JSON.stringify(passedUser));
           await AsyncStorage.setItem('@unnathi_primary_user', JSON.stringify(passedUser));
           await AsyncStorage.setItem('userName', passedUser.name);
           await AsyncStorage.setItem('userEmail', passedUser.email);
           await AsyncStorage.setItem('userPhone', passedUser.phone);
+
+          // If a referral code was provided during registration, credit ₹250 bonus into the Health Wallet!
+          if (passedUser.referralCode) {
+            const currentBalStr = await AsyncStorage.getItem('@unnathi_wallet_balance');
+            const currentBal = currentBalStr ? parseInt(currentBalStr, 10) : 1250;
+            const newBal = currentBal + 250;
+            await AsyncStorage.setItem('@unnathi_wallet_balance', newBal.toString());
+
+            const storedTxStr = await AsyncStorage.getItem('@unnathi_wallet_transactions');
+            let existingTx = [];
+            if (storedTxStr) {
+              try {
+                existingTx = JSON.parse(storedTxStr);
+              } catch (e) {}
+            }
+            const referralBonusTx = {
+              id: `tx-ref-${Date.now()}`,
+              title: 'Referral Welcome Bonus',
+              subtitle: `Code "${passedUser.referralCode}" applied on registration`,
+              amount: '+₹250',
+              type: 'credit',
+              date: 'Just now',
+              icon: 'gift-outline',
+            };
+            await AsyncStorage.setItem('@unnathi_wallet_transactions', JSON.stringify([referralBonusTx, ...existingTx]));
+          }
         }
         await AsyncStorage.setItem('isLoggedIn', 'true');
         await AsyncStorage.setItem('userToken', `auth_token_${Date.now()}`);
@@ -38,11 +64,14 @@ const OTPScreen = ({ navigation, route }) => {
       }
       setVerifying(false);
 
-      const registeredName = route?.params?.userData?.name || 'User';
+      const registeredName = passedUser?.name || 'User';
+      const hasReferral = passedUser?.referralCode;
 
       Alert.alert(
         'Account Verified 🎉',
-        `Welcome to MediUnify, ${registeredName}! Your account details have been saved.`,
+        hasReferral
+          ? `Welcome to MediUnify, ${registeredName}!\n\nReferral code "${passedUser.referralCode}" applied successfully. ₹250 Welcome Bonus has been credited to your Health Wallet!`
+          : `Welcome to MediUnify, ${registeredName}! Your account details have been saved.`,
         [
           {
             text: 'Get Started',
