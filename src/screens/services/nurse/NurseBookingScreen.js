@@ -179,9 +179,6 @@ const NurseBookingScreen = ({ navigation }) => {
       if (!loadedFam || loadedFam.length === 0) {
         loadedFam = [
           { id: 'self', name: `${primaryName} (Self)`, relation: 'Self', age: primaryAge, gender: primaryGender, isPrimary: true },
-          { id: 'fam-1', name: 'Sneha Ramesh', relation: 'Spouse', age: '29', gender: 'Female', isPrimary: false },
-          { id: 'fam-2', name: 'Suresh Kumar', relation: 'Father', age: '62', gender: 'Male', isPrimary: false },
-          { id: 'fam-3', name: 'Aarav Kumar', relation: 'Son', age: '4', gender: 'Male', isPrimary: false },
         ];
       }
       setFamilyList(loadedFam);

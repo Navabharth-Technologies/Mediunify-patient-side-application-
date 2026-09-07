@@ -342,13 +342,18 @@ const EditProfileScreen = ({ navigation, route }) => {
       await AsyncStorage.setItem('@unnathi_registered_credentials', JSON.stringify(registeredCreds));
 
       // Sync family members self profile
-      const savedFam = await AsyncStorage.getItem('@unnathi_family_members');
+      const userKey = (trimmedEmail || cleanPhone10 || 'default').toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const userFamKey = `@unnathi_family_members_${userKey}`;
+      const savedFam = (await AsyncStorage.getItem(userFamKey)) || (await AsyncStorage.getItem('@unnathi_family_members'));
+      let updatedFam = [];
       if (savedFam) {
         try {
           const parsed = JSON.parse(savedFam);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            const updatedFam = parsed.map((m) => {
+            let foundSelf = false;
+            updatedFam = parsed.map((m) => {
               if (m.id === 'self' || m.isPrimary || m.relation === 'Self') {
+                foundSelf = true;
                 return {
                   ...m,
                   name: `${trimmedName} (Self)`,
@@ -360,10 +365,47 @@ const EditProfileScreen = ({ navigation, route }) => {
               }
               return m;
             });
-            await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(updatedFam));
+            if (!foundSelf) {
+              updatedFam.unshift({
+                id: 'self',
+                name: `${trimmedName} (Self)`,
+                displayName: `${trimmedName.split(' ')[0]} (Self)`,
+                relation: 'Self',
+                age: finalAge,
+                gender: gender || 'Male',
+                bloodGroup: bloodGroup ? bloodGroup.split(' ')[0] : 'O+',
+                allergies: 'None',
+                conditions: 'None',
+                icon: 'person',
+                themeColor: '#00B894',
+                bgLight: '#E6F8F4',
+                isPrimary: true,
+              });
+            }
           }
         } catch (e) {}
       }
+
+      if (updatedFam.length === 0) {
+        updatedFam = [{
+          id: 'self',
+          name: `${trimmedName} (Self)`,
+          displayName: `${trimmedName.split(' ')[0]} (Self)`,
+          relation: 'Self',
+          age: finalAge,
+          gender: gender || 'Male',
+          bloodGroup: bloodGroup ? bloodGroup.split(' ')[0] : 'O+',
+          allergies: 'None',
+          conditions: 'None',
+          icon: 'person',
+          themeColor: '#00B894',
+          bgLight: '#E6F8F4',
+          isPrimary: true,
+        }];
+      }
+
+      await AsyncStorage.setItem(userFamKey, JSON.stringify(updatedFam));
+      await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(updatedFam));
 
       setSaving(false);
       setOtpModalVisible(false);

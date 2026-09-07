@@ -19,76 +19,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import colors from '../../theme/colors';
 
-const INITIAL_MEMBERS = [
-  {
-    id: 'self',
-    name: 'Ramesh Kumar (Self)',
-    displayName: 'Ramesh (Self)',
-    relation: 'Self',
-    age: '32 yrs',
-    gender: 'Male',
-    bloodGroup: 'O+',
-    allergies: 'None',
-    conditions: 'None',
-    icon: 'person',
-    themeColor: '#00B894',
-    bgLight: '#E6F8F4',
-    isPrimary: true,
-  },
-  {
-    id: 'fam-1',
-    name: 'Sneha Ramesh',
-    displayName: 'Sneha',
-    relation: 'Spouse',
-    age: '29 yrs',
-    gender: 'Female',
-    bloodGroup: 'B+',
-    allergies: 'Penicillin',
-    conditions: 'None',
-    icon: 'heart',
-    themeColor: '#EC4899',
-    bgLight: '#FDF2F8',
-    isPrimary: false,
-  },
-  {
-    id: 'fam-2',
-    name: 'Suresh Kumar',
-    displayName: 'Father',
-    relation: 'Father',
-    age: '62 yrs',
-    gender: 'Male',
-    bloodGroup: 'O+',
-    allergies: 'Dust & Pollen',
-    conditions: 'Hypertension',
-    icon: 'shield-checkmark',
-    themeColor: '#3B82F6',
-    bgLight: '#EFF6FF',
-    isPrimary: false,
-  },
-  {
-    id: 'fam-3',
-    name: 'Aarav Kumar',
-    displayName: 'Aarav',
-    relation: 'Son',
-    age: '4 yrs',
-    gender: 'Male',
-    bloodGroup: 'O+',
-    allergies: 'None',
-    conditions: 'None',
-    icon: 'happy',
-    themeColor: '#F59E0B',
-    bgLight: '#FFFBEB',
-    isPrimary: false,
-  },
-];
-
 const RELATIONSHIPS = ['Spouse', 'Father', 'Mother', 'Son', 'Daughter', 'Sibling', 'Grandparent', 'Other'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 const FamilyProfilesScreen = ({ navigation }) => {
-  const [members, setMembers] = useState(INITIAL_MEMBERS);
+  const [members, setMembers] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeMemberId, setActiveMemberId] = useState('self');
+  const [currentUserKey, setCurrentUserKey] = useState('default');
 
   // Form states
   const [name, setName] = useState('');
@@ -113,11 +51,15 @@ const FamilyProfilesScreen = ({ navigation }) => {
       const storedPrimary = await AsyncStorage.getItem('@unnathi_primary_user');
       const storedUser = await AsyncStorage.getItem('user');
       const storedName = await AsyncStorage.getItem('userName');
+      const storedEmail = await AsyncStorage.getItem('userEmail');
+      const storedPhone = await AsyncStorage.getItem('userPhone');
 
       let primaryOwnerName = '';
-      let primaryOwnerAge = '28 yrs';
+      let primaryOwnerAge = '28 Yrs';
       let primaryOwnerGender = 'Male';
       let primaryOwnerBlood = 'O+';
+      let primaryOwnerEmail = storedEmail || '';
+      let primaryOwnerPhone = storedPhone || '';
 
       if (storedPrimary) {
         try {
@@ -126,39 +68,89 @@ const FamilyProfilesScreen = ({ navigation }) => {
           if (p?.age) primaryOwnerAge = p.age;
           if (p?.gender) primaryOwnerGender = p.gender;
           if (p?.bloodGroup) primaryOwnerBlood = p.bloodGroup.split(' ')[0];
+          if (p?.email) primaryOwnerEmail = p.email;
+          if (p?.phone) primaryOwnerPhone = p.phone;
         } catch (e) {}
       }
       if (!primaryOwnerName && storedUser) {
         try {
           const u = JSON.parse(storedUser);
           if (u?.name && u.name.trim()) primaryOwnerName = u.name.trim();
+          if (u?.age) primaryOwnerAge = u.age;
+          if (u?.gender) primaryOwnerGender = u.gender;
+          if (u?.bloodGroup) primaryOwnerBlood = u.bloodGroup.split(' ')[0];
+          if (u?.email) primaryOwnerEmail = u.email;
+          if (u?.phone) primaryOwnerPhone = u.phone;
         } catch (e) {}
       }
       if (!primaryOwnerName && storedName && storedName.trim()) {
         primaryOwnerName = storedName.trim();
       }
 
-      const savedFam = await AsyncStorage.getItem('@unnathi_family_members');
-      let currentMembers = INITIAL_MEMBERS;
-      if (savedFam) {
+      const effectiveName = primaryOwnerName || 'User';
+      const cleanDisplayName = effectiveName.split(' ')[0];
+      const userKey = (primaryOwnerEmail || primaryOwnerPhone || effectiveName).toLowerCase().replace(/[^a-z0-9]/g, '_');
+      setCurrentUserKey(userKey);
+
+      const primaryMember = {
+        id: 'self',
+        name: `${effectiveName} (Self)`,
+        displayName: `${cleanDisplayName} (Self)`,
+        relation: 'Self',
+        age: primaryOwnerAge,
+        gender: primaryOwnerGender,
+        bloodGroup: primaryOwnerBlood,
+        allergies: 'None',
+        conditions: 'None',
+        icon: 'person',
+        themeColor: '#00B894',
+        bgLight: '#E6F8F4',
+        isPrimary: true,
+      };
+
+      // 2. Load account-specific family members
+      const userFamKey = `@unnathi_family_members_${userKey}`;
+      const savedUserFam = await AsyncStorage.getItem(userFamKey);
+      let currentMembers = null;
+
+      if (savedUserFam) {
         try {
-          const parsed = JSON.parse(savedFam);
+          const parsed = JSON.parse(savedUserFam);
           if (Array.isArray(parsed) && parsed.length > 0) {
             currentMembers = parsed;
           }
         } catch (e) {}
       }
 
-      // If we have an account owner name, dynamically sync the self/primary profile
-      if (primaryOwnerName) {
-        const cleanDisplayName = primaryOwnerName.split(' ')[0];
+      // Fallback: check session family members only if it belongs to this user
+      if (!currentMembers) {
+        const savedGlobalFam = await AsyncStorage.getItem('@unnathi_family_members');
+        if (savedGlobalFam) {
+          try {
+            const parsedG = JSON.parse(savedGlobalFam);
+            if (Array.isArray(parsedG) && parsedG.length > 0) {
+              const firstMem = parsedG[0];
+              // Only reuse if the primary member matches the current account holder
+              if (firstMem?.name && firstMem.name.toLowerCase().includes(cleanDisplayName.toLowerCase())) {
+                currentMembers = parsedG;
+              }
+            }
+          } catch (e) {}
+        }
+      }
+
+      // If still no member list for this account, strictly initialize with ONLY the account holder (Self)
+      if (!currentMembers || currentMembers.length === 0) {
+        currentMembers = [primaryMember];
+      } else {
+        // Sync primary self profile
         let hasSelf = false;
         currentMembers = currentMembers.map((m) => {
           if (m.id === 'self' || m.isPrimary || m.relation === 'Self') {
             hasSelf = true;
             return {
               ...m,
-              name: `${primaryOwnerName} (Self)`,
+              name: `${effectiveName} (Self)`,
               displayName: `${cleanDisplayName} (Self)`,
               age: primaryOwnerAge,
               gender: primaryOwnerGender,
@@ -169,36 +161,31 @@ const FamilyProfilesScreen = ({ navigation }) => {
         });
 
         if (!hasSelf) {
-          currentMembers.unshift({
-            id: 'self',
-            name: `${primaryOwnerName} (Self)`,
-            displayName: `${cleanDisplayName} (Self)`,
-            relation: 'Self',
-            age: primaryOwnerAge,
-            gender: primaryOwnerGender,
-            bloodGroup: primaryOwnerBlood,
-            allergies: 'None',
-            conditions: 'None',
-            icon: 'person',
-            themeColor: '#00B894',
-            bgLight: '#E6F8F4',
-            isPrimary: true,
-          });
+          currentMembers.unshift(primaryMember);
         }
-
-        await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(currentMembers));
       }
+
+      // Persist isolated lists
+      await AsyncStorage.setItem(userFamKey, JSON.stringify(currentMembers));
+      await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(currentMembers));
 
       setMembers(currentMembers);
 
       const savedActive = await AsyncStorage.getItem('@unnathi_active_patient');
+      let activeFound = false;
       if (savedActive) {
         try {
           const parsedActive = JSON.parse(savedActive);
-          if (parsedActive?.id) {
+          if (parsedActive?.id && currentMembers.some((m) => m.id === parsedActive.id)) {
             setActiveMemberId(parsedActive.id);
+            activeFound = true;
           }
         } catch (e) {}
+      }
+
+      if (!activeFound) {
+        setActiveMemberId(currentMembers[0].id);
+        await AsyncStorage.setItem('@unnathi_active_patient', JSON.stringify(currentMembers[0]));
       }
     } catch (e) {
       console.log('Error loading family profiles:', e);
@@ -212,7 +199,6 @@ const FamilyProfilesScreen = ({ navigation }) => {
       const cleanName = (member.displayName || member.name).replace(/\s*\([Ss]elf\)/g, '').split(' ')[0];
       await AsyncStorage.setItem('userName', cleanName);
     }
-    const cleanName = (member.displayName || member.name).replace(/\s*\([Ss]elf\)/g, '').split(' ')[0];
     Alert.alert('Active Patient Selected 🩺', `${member.name} is now selected for appointments & orders.`);
   };
 
@@ -240,6 +226,9 @@ const FamilyProfilesScreen = ({ navigation }) => {
 
     const updated = [...members, newMember];
     setMembers(updated);
+
+    const userFamKey = `@unnathi_family_members_${currentUserKey}`;
+    await AsyncStorage.setItem(userFamKey, JSON.stringify(updated));
     await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(updated));
     await AsyncStorage.setItem('@unnathi_active_patient', JSON.stringify(newMember));
     setActiveMemberId(newMember.id);
@@ -265,9 +254,11 @@ const FamilyProfilesScreen = ({ navigation }) => {
         onPress: async () => {
           const updated = members.filter((m) => m.id !== member.id);
           setMembers(updated);
+          const userFamKey = `@unnathi_family_members_${currentUserKey}`;
+          await AsyncStorage.setItem(userFamKey, JSON.stringify(updated));
           await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(updated));
           if (activeMemberId === member.id) {
-            const fallback = updated[0] || INITIAL_MEMBERS[0];
+            const fallback = updated[0];
             setActiveMemberId(fallback.id);
             await AsyncStorage.setItem('@unnathi_active_patient', JSON.stringify(fallback));
           }

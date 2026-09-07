@@ -182,29 +182,60 @@ const LoginScreen = ({ navigation }) => {
       await AsyncStorage.setItem('userEmail', existingEmail);
       await AsyncStorage.setItem('userPhone', existingPhone);
 
-      // Sync family members self profile
-      const savedFam = await AsyncStorage.getItem('@unnathi_family_members');
+      // Account-specific family members isolation
+      const userKey = (existingEmail || cleanPhone10 || 'default').toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const userFamKey = `@unnathi_family_members_${userKey}`;
+      const savedFam = await AsyncStorage.getItem(userFamKey);
+      let userFamilyList = [];
       if (savedFam) {
         try {
-          const parsed = JSON.parse(savedFam);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const updatedFam = parsed.map((m) => {
-              if (m.id === 'self' || m.isPrimary || m.relation === 'Self') {
-                return {
-                  ...m,
-                  name: `${userFullName} (Self)`,
-                  displayName: `${userFullName.split(' ')[0]} (Self)`,
-                  bloodGroup: existingBlood ? existingBlood.split(' ')[0] : m.bloodGroup,
-                  age: existingAge || m.age,
-                  gender: existingGender || m.gender,
-                };
-              }
-              return m;
-            });
-            await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(updatedFam));
-          }
+          userFamilyList = JSON.parse(savedFam);
         } catch (e) {}
       }
+
+      const primaryMember = {
+        id: 'self',
+        name: `${userFullName} (Self)`,
+        displayName: userFullName.split(' ')[0],
+        relation: 'Self',
+        age: existingAge || '28 Yrs',
+        gender: existingGender || 'Male',
+        bloodGroup: existingBlood ? existingBlood.split(' ')[0] : 'O+',
+        allergies: 'None',
+        conditions: 'None',
+        icon: 'person',
+        themeColor: '#00B894',
+        bgLight: '#E6F8F4',
+        isPrimary: true,
+      };
+
+      if (!Array.isArray(userFamilyList) || userFamilyList.length === 0) {
+        userFamilyList = [primaryMember];
+      } else {
+        // Sync self profile
+        let foundSelf = false;
+        userFamilyList = userFamilyList.map((m) => {
+          if (m.id === 'self' || m.isPrimary || m.relation === 'Self') {
+            foundSelf = true;
+            return {
+              ...m,
+              name: `${userFullName} (Self)`,
+              displayName: `${userFullName.split(' ')[0]} (Self)`,
+              bloodGroup: existingBlood ? existingBlood.split(' ')[0] : m.bloodGroup,
+              age: existingAge || m.age,
+              gender: existingGender || m.gender,
+            };
+          }
+          return m;
+        });
+        if (!foundSelf) {
+          userFamilyList.unshift(primaryMember);
+        }
+      }
+
+      await AsyncStorage.setItem(userFamKey, JSON.stringify(userFamilyList));
+      await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(userFamilyList));
+      await AsyncStorage.setItem('@unnathi_active_patient', JSON.stringify(userFamilyList[0] || primaryMember));
 
 
       // ==========================================

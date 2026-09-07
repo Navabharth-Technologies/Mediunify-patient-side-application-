@@ -93,27 +93,6 @@ const HealthRecordsScreen = ({ navigation }) => {
             relation: 'Self',
             isPrimary: true,
           },
-          {
-            id: 'fam-1',
-            name: 'Sneha Ramesh',
-            displayName: 'Sneha',
-            relation: 'Spouse',
-            isPrimary: false,
-          },
-          {
-            id: 'fam-2',
-            name: 'Suresh Kumar',
-            displayName: 'Father',
-            relation: 'Father',
-            isPrimary: false,
-          },
-          {
-            id: 'fam-3',
-            name: 'Aarav Kumar',
-            displayName: 'Aarav',
-            relation: 'Son',
-            isPrimary: false,
-          },
         ];
       } else {
         // Sync 'self' profile with current primary account holder name

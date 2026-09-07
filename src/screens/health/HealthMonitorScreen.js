@@ -147,6 +147,7 @@ const HealthMonitorScreen = ({ navigation }) => {
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [modalVisible, setModalVisible] = useState(false);
   const [activePatient, setActivePatient] = useState('Self');
+  const [familyOptions, setFamilyOptions] = useState(['Self']);
 
   // Modal Form State
   const [formType, setFormType] = useState('sugar');
@@ -226,6 +227,19 @@ const HealthMonitorScreen = ({ navigation }) => {
         if (Array.isArray(parsed) && parsed.length > 0) {
           setVitalsList(parsed);
         }
+      }
+      const storedFamily = await AsyncStorage.getItem('@unnathi_family_members');
+      if (storedFamily) {
+        try {
+          const parsedFam = JSON.parse(storedFamily);
+          if (Array.isArray(parsedFam) && parsedFam.length > 0) {
+            const opts = parsedFam.map((m) => {
+              if (m.isPrimary || m.relation === 'Self' || m.id === 'self') return 'Self';
+              return `${m.name.split(' ')[0]} (${m.relation})`;
+            });
+            setFamilyOptions(opts);
+          }
+        } catch (e) {}
       }
     } catch (e) {
       console.log('Error loading vitals:', e);
@@ -534,7 +548,7 @@ const HealthMonitorScreen = ({ navigation }) => {
           <TouchableOpacity
             style={styles.switchPatientBtn}
             onPress={() => {
-              const options = ['Self', 'Sneha (Spouse)', 'Suresh Kumar (Father)'];
+              const options = familyOptions && familyOptions.length > 0 ? familyOptions : ['Self'];
               const nextIdx = (options.indexOf(activePatient) + 1) % options.length;
               setActivePatient(options[nextIdx]);
             }}

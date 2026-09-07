@@ -298,18 +298,10 @@ const RegisterScreen = ({ navigation }) => {
       };
       await AsyncStorage.setItem('@unnathi_active_patient', JSON.stringify(primaryMember));
 
-      // 4. Update @unnathi_family_members list
-      const savedFam = await AsyncStorage.getItem('@unnathi_family_members');
-      let currentFam = [];
-      if (savedFam) {
-        try {
-          const parsed = JSON.parse(savedFam);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            currentFam = parsed.filter((m) => m.id !== 'self' && !m.isPrimary && m.relation !== 'Self');
-          }
-        } catch (e) {}
-      }
-      const updatedFam = [primaryMember, ...currentFam];
+      // 4. Initialize clean isolated family members list for this account ONLY
+      const userKey = (trimmedEmail || cleanPhone10 || 'default').toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const updatedFam = [primaryMember];
+      await AsyncStorage.setItem(`@unnathi_family_members_${userKey}`, JSON.stringify(updatedFam));
       await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(updatedFam));
 
       // 5. Navigate to OTP with created account details
