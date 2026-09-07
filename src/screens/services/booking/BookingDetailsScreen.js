@@ -11,8 +11,10 @@ import {
   Alert,
   Modal,
   TextInput,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 
@@ -49,6 +51,13 @@ const BookingDetailsScreen = ({ navigation, route }) => {
   const [currentTime, setCurrentTime] = useState(appointment?.time || '04:30 PM');
   const [isCancelling, setIsCancelling] = useState(false);
 
+  // Document Upload State
+  const initialDocs = appointment?.documents || (appointment?.patient?.reportUri ? [{ id: 'doc-init', name: 'Prescription / Medical Record', uri: appointment.patient.reportUri, date: 'Attached with booking', type: 'Medical Report' }] : []);
+  const [documents, setDocuments] = useState(initialDocs);
+  const [isDocModalOpen, setIsDocModalOpen] = useState(false);
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+  const [previewDocUri, setPreviewDocUri] = useState(null);
+
   // Reschedule Modal State
   const bookingDates = generateBookingDates();
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
@@ -74,14 +83,59 @@ const BookingDetailsScreen = ({ navigation, route }) => {
     );
   }
 
-  const doctor = appointment.doctor || {};
-  const clinicName = doctor.clinicName || 'MediUnify Multispeciality Clinic';
+  const isRadiology =
+    appointment.type === 'Radiology' ||
+    appointment.bookingType === 'Radiology' ||
+    appointment.type === 'Radiology Scan' ||
+    appointment.details?.bookingType === 'Radiology' ||
+    appointment.details?.type === 'Radiology';
+
+  const isVideo =
+    !isRadiology &&
+    (appointment.type === 'Video Consultation' ||
+    appointment.type === 'Video' ||
+    appointment.type === 'TeleConsultation' ||
+    !!appointment.videoRoomLink);
+
+  const isLabTest =
+    !isRadiology &&
+    !isVideo &&
+    (appointment.type === 'Lab Test' ||
+    appointment.type === 'Diagnostic Lab Test' ||
+    appointment.type === 'Lab' ||
+    (Array.isArray(appointment.tests) && appointment.tests.length > 0));
+
+  const testsList =
+    Array.isArray(appointment.tests) && appointment.tests.length > 0
+      ? appointment.tests
+      : Array.isArray(appointment.details?.tests) && appointment.details.tests.length > 0
+      ? appointment.details.tests
+      : appointment.test
+      ? [appointment.test]
+      : [];
+
+  const doctor = appointment.doctor || appointment.details?.doctor || {};
+  const labInfo = appointment.lab || appointment.details?.lab || {};
+  const clinicName =
+    labInfo.name ||
+    doctor.clinicName ||
+    doctor.name ||
+    (isVideo
+      ? 'MediUnify Virtual TeleHealth Room'
+      : isRadiology
+      ? 'Unnathi Diagnostic & Imaging Center'
+      : 'Unnathi Multispeciality Clinic');
   const clinicAddress =
+    labInfo.address ||
     doctor.clinicAddress ||
-    'No. 24, 5th Cross, Near Vishwamanava Double Road, Kuvempunagar, Mysore - 570023';
-  const clinicArea = doctor.clinicArea || 'Kuvempunagar, Mysore';
-  const clinicPhone = doctor.phone || '+91 821 245 9901';
-  const distance = doctor.distance || '0.8 km away';
+    (isVideo
+      ? 'Online Video Consultation Room (Live HD Encrypted)'
+      : isRadiology
+      ? 'No. 112, Kalidasa Road, Jayalakshmipuram, Mysore - 570012'
+      : 'No. 24, 5th Cross, Near Vishwamanava Double Road, Kuvempunagar, Mysore - 570023');
+  const clinicArea = labInfo.area || doctor.clinicArea || (isVideo ? 'Virtual Care Hub' : isRadiology ? 'Jayalakshmipuram, Mysore' : 'Kuvempunagar, Mysore');
+  const clinicPhone = labInfo.phone || doctor.phone || '+91 821 251 4400';
+  const distance = doctor.distance || (isVideo ? 'Instant Online' : isRadiology ? '1.4 km away' : '0.8 km away');
   const latitude = doctor.latitude || 12.2858;
   const longitude = doctor.longitude || 76.6341;
   const isCancelled = currentStatus === 'Cancelled';
@@ -89,6 +143,10 @@ const BookingDetailsScreen = ({ navigation, route }) => {
 
   // Open Google Maps / Apple Maps Directions
   const openDirections = () => {
+    if (isVideo) {
+      navigation.navigate('VideoMeeting', { appointment, doctor });
+      return;
+    }
     const destinationQuery = encodeURIComponent(`${clinicName}, ${clinicAddress}`);
     const webMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&query=${destinationQuery}`;
 
@@ -161,7 +219,17 @@ const BookingDetailsScreen = ({ navigation, route }) => {
                 await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updated));
               }
 
-              // 2. Update radiology bookings if applicable
+              // 2. Update video bookings if applicable
+              const vidJson = await AsyncStorage.getItem('@videoBookings');
+              if (vidJson) {
+                const storedVid = JSON.parse(vidJson);
+                const updatedVid = storedVid.map((v) =>
+                  v.id === appointment.id ? { ...v, status: 'Cancelled' } : v
+                );
+                await AsyncStorage.setItem('@videoBookings', JSON.stringify(updatedVid));
+              }
+
+              // 3. Update radiology bookings if applicable
               const radJson = await AsyncStorage.getItem('@radiologyBookings');
               if (radJson) {
                 const storedRad = JSON.parse(radJson);
@@ -176,7 +244,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
 
               Alert.alert(
                 'Appointment Cancelled',
-                `Your appointment has been cancelled successfully.\n\nFee refund (₹${appointment.paidAmount || doctor.fee || 500}) has been initiated to your MediUnify Wallet.`
+                `Your appointment has been cancelled successfully.\n\nFee refund (₹${appointment.paidAmount || doctor.fee || 450}) has been initiated to your MediUnify Wallet.`
               );
             } catch (err) {
               setIsCancelling(false);
@@ -221,7 +289,25 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updated));
       }
 
-      // 2. Update in @radiologyBookings
+      // 2. Update in @videoBookings
+      const vidJson = await AsyncStorage.getItem('@videoBookings');
+      if (vidJson) {
+        const storedVid = JSON.parse(vidJson);
+        const updatedVid = storedVid.map((v) =>
+          v.id === appointment.id
+            ? {
+                ...v,
+                date: newDateStr,
+                day: newDayStr,
+                time: newTimeStr,
+                status: 'Rescheduled',
+              }
+            : v
+        );
+        await AsyncStorage.setItem('@videoBookings', JSON.stringify(updatedVid));
+      }
+
+      // 3. Update in @radiologyBookings
       const radJson = await AsyncStorage.getItem('@radiologyBookings');
       if (radJson) {
         const storedRad = JSON.parse(radJson);
@@ -247,11 +333,104 @@ const BookingDetailsScreen = ({ navigation, route }) => {
 
       Alert.alert(
         'Appointment Rescheduled! 🎉',
-        `Your clinic visit with ${doctor.name} has been rescheduled to ${newDateStr} at ${newTimeStr}.`
+        `Your consultation with ${doctor.name} has been rescheduled to ${newDateStr} at ${newTimeStr}.`
       );
     } catch (e) {
       setIsSavingReschedule(false);
       Alert.alert('Error', 'Failed to reschedule. Please try again.');
+    }
+  };
+
+  // Pick Document / Photo
+  const handlePickDocument = async (isCamera) => {
+    try {
+      setIsUploadingDoc(true);
+      let result;
+      if (isCamera) {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          setIsUploadingDoc(false);
+          Alert.alert('Permission Needed', 'Please allow camera access to capture documents.');
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          quality: 0.85,
+          allowsEditing: true,
+        });
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          setIsUploadingDoc(false);
+          Alert.alert('Permission Needed', 'Please allow photo library access to upload documents.');
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.85,
+          allowsEditing: true,
+        });
+      }
+
+      setIsUploadingDoc(false);
+
+      if (!result.canceled && result.assets?.[0]) {
+        const newDoc = {
+          id: `doc-${Date.now()}`,
+          name: `${isCamera ? 'Photo_Scan_' : 'Medical_Doc_'}${Date.now().toString().slice(-4)}.jpg`,
+          uri: result.assets[0].uri,
+          date: 'Just now',
+          type: 'Patient Record',
+        };
+
+        const updatedDocs = [newDoc, ...documents];
+        setDocuments(updatedDocs);
+        setIsDocModalOpen(false);
+
+        // Update in AsyncStorage
+        const apptJson = await AsyncStorage.getItem('@unnathi_appointments');
+        if (apptJson) {
+          const stored = JSON.parse(apptJson);
+          const updated = stored.map((a) =>
+            a.id === appointment.id ? { ...a, documents: updatedDocs } : a
+          );
+          await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updated));
+        }
+
+        if (isVideo) {
+          const vidJson = await AsyncStorage.getItem('@videoBookings');
+          if (vidJson) {
+            const storedVid = JSON.parse(vidJson);
+            const updatedVid = storedVid.map((v) =>
+              v.id === appointment.id ? { ...v, documents: updatedDocs } : v
+            );
+            await AsyncStorage.setItem('@videoBookings', JSON.stringify(updatedVid));
+          }
+        }
+
+        Alert.alert(
+          'Document Uploaded! 📄',
+          `"${newDoc.name}" has been attached to your appointment record.`
+        );
+      }
+    } catch (err) {
+      setIsUploadingDoc(false);
+      console.log('Error uploading document:', err);
+      Alert.alert('Upload Error', 'Failed to upload document. Please try again.');
+    }
+  };
+
+  // Delete Document
+  const handleDeleteDocument = async (docId) => {
+    const updatedDocs = documents.filter((d) => d.id !== docId);
+    setDocuments(updatedDocs);
+
+    const apptJson = await AsyncStorage.getItem('@unnathi_appointments');
+    if (apptJson) {
+      const stored = JSON.parse(apptJson);
+      const updated = stored.map((a) =>
+        a.id === appointment.id ? { ...a, documents: updatedDocs } : a
+      );
+      await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updated));
     }
   };
 
@@ -267,14 +446,20 @@ const BookingDetailsScreen = ({ navigation, route }) => {
           <Ionicons name="arrow-back" size={22} color={colors.secondary} />
         </TouchableOpacity>
 
-        <Text style={styles.title}>Appointment & Directions</Text>
+        <Text style={styles.title}>{isVideo ? 'Video Consultation' : 'Appointment Details'}</Text>
 
         <TouchableOpacity
           style={styles.headerShareBtn}
-          onPress={openDirections}
+          onPress={() => {
+            if (isVideo) {
+              navigation.navigate('VideoMeeting', { appointment, doctor });
+            } else {
+              openDirections();
+            }
+          }}
           activeOpacity={0.8}
         >
-          <Ionicons name="navigate-circle-outline" size={26} color={colors.primary} />
+          <Ionicons name={isVideo ? 'videocam' : 'navigate-circle-outline'} size={24} color={isVideo ? '#7C3AED' : colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -283,113 +468,155 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         {isCancelled ? (
           <View style={styles.cancelledCard}>
             <View style={styles.cancelledIconCircle}>
-              <Ionicons name="close-circle" size={36} color="#DC2626" />
+              <Ionicons name="close-circle" size={32} color="#DC2626" />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
               <View style={styles.tokenRow}>
-                <Text style={styles.cancelledTitle}>Appointment Cancelled</Text>
+                <Text style={styles.cancelledTitle}>Cancelled</Text>
                 <View style={styles.cancelledBadge}>
                   <Text style={styles.cancelledBadgeText}>CANCELLED</Text>
                 </View>
               </View>
               <Text style={styles.cancelledSubtitle}>
-                This clinic visit has been cancelled. You can re-book anytime.
+                This booking has been cancelled.
               </Text>
             </View>
           </View>
         ) : (
-          <View style={[styles.successCard, isRescheduled && { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
-            <View style={[styles.successIconCircle, isRescheduled && { backgroundColor: '#DBEAFE' }]}>
-              <Ionicons
-                name={isRescheduled ? 'calendar' : 'checkmark-circle'}
-                size={34}
-                color={isRescheduled ? colors.primary : '#10B981'}
-              />
-            </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
+          <View style={[styles.statusBanner, isRescheduled && styles.statusBannerRescheduled]}>
+            <View style={styles.statusLeft}>
               <View style={styles.tokenRow}>
-                <Text style={[styles.confirmed, isRescheduled && { color: colors.primary }]}>
-                  {isRescheduled ? 'Appointment Rescheduled' : 'Appointment Confirmed'}
+                <Text style={styles.tokenNumber}>
+                  #{appointment.tokenNumber || (isRadiology ? 'RAD-109' : isLabTest ? 'LAB-88' : 'APP-42')}
                 </Text>
-                {appointment.tokenNumber ? (
-                  <View style={[styles.tokenBadge, isRescheduled && { backgroundColor: colors.primary }]}>
-                    <Text style={styles.tokenText}>Token {appointment.tokenNumber}</Text>
-                  </View>
-                ) : null}
+                <View style={[styles.confirmedBadge, isRescheduled && styles.rescheduledBadge]}>
+                  <Text style={[styles.confirmedBadgeText, isRescheduled && styles.rescheduledBadgeText]}>
+                    {currentStatus.toUpperCase()}
+                  </Text>
+                </View>
               </View>
-              <Text style={[styles.confirmedSubtitle, isRescheduled && { color: '#1E40AF' }]}>
-                {isRescheduled
-                  ? `Updated slot confirmed for ${currentDate} at ${currentTime}.`
-                  : `Your clinic visit is confirmed with ${doctor.name}.`}
-              </Text>
+              <Text style={styles.bookingIdText}>Booking ID: {appointment.id || 'BK-7890'}</Text>
+            </View>
+            <View style={[styles.statusIconCircle, isRescheduled && styles.statusIconCircleRescheduled]}>
+              <Ionicons
+                name={isRescheduled ? 'time' : 'checkmark-circle'}
+                size={24}
+                color={isRescheduled ? colors.primary : '#059669'}
+              />
             </View>
           </View>
         )}
 
-        {/* ==================================================
-            📍 CLINIC LOCATION & DIRECTIONS CARD (HIGHLIGHTED)
-        ================================================== */}
-        <View style={styles.directionCard}>
-          <View style={styles.directionCardHeader}>
-            <View style={styles.mapIconCircle}>
-              <Ionicons name="location" size={22} color="#FFFFFF" />
+        {/* CLINIC / DIAGNOSTIC CENTER / VIDEO CONSULTATION DIRECTIONS & LOCATION */}
+        {isVideo ? (
+          <View style={[styles.directionCard, { borderColor: '#DDD6FE', backgroundColor: '#FAF5FF' }]}>
+            <View style={styles.directionCardHeader}>
+              <View style={[styles.mapIconCircle, { backgroundColor: '#7C3AED' }]}>
+                <Ionicons name="videocam" size={20} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={[styles.directionHeaderLabel, { color: '#7C3AED' }]}>LIVE TELEHEALTH CONSULTATION</Text>
+                <Text style={styles.clinicName}>{clinicName}</Text>
+              </View>
+              <View style={[styles.distanceBadge, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
+                <Ionicons name="shield-checkmark" size={12} color="#059669" />
+                <Text style={[styles.distanceBadgeText, { color: '#059669' }]}>Encrypted</Text>
+              </View>
             </View>
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={styles.directionHeaderLabel}>CLINIC LOCATION & ROUTE</Text>
-              <Text style={styles.clinicName}>{clinicName}</Text>
+
+            {/* VIDEO ROOM FEATURES */}
+            <View style={[styles.addressBox, { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EDE9FE' }]}>
+              <Ionicons name="document-attach" size={18} color="#7C3AED" style={{ marginTop: 2 }} />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={[styles.clinicAddressText, { color: '#1E293B', fontWeight: '700' }]}>
+                  In-Call Document Upload Enabled
+                </Text>
+                <Text style={[styles.clinicAreaText, { color: '#64748B' }]}>
+                  Upload reports or symptom photos to doctor in-call.
+                </Text>
+              </View>
             </View>
-            <View style={styles.distanceBadge}>
-              <Ionicons name="car-outline" size={12} color="#059669" />
-              <Text style={styles.distanceBadgeText}>{distance}</Text>
+
+            {/* ENTER VIDEO ROOM ACTION BUTTON */}
+            <View style={styles.directionBtnRow}>
+              <TouchableOpacity
+                style={[styles.getDirectionsBtn, { backgroundColor: '#7C3AED', flex: 1 }]}
+                onPress={() => navigation.navigate('VideoMeeting', { appointment, doctor })}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="videocam" size={17} color="#FFFFFF" />
+                <Text style={styles.getDirectionsText}>Join Video Call</Text>
+                <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+              </TouchableOpacity>
             </View>
           </View>
+        ) : (
+          <View style={styles.directionCard}>
+            <View style={styles.directionCardHeader}>
+              <View style={[styles.mapIconCircle, isRadiology && { backgroundColor: '#7C3AED' }]}>
+                <Ionicons name={isRadiology ? 'scan-outline' : 'location'} size={20} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={[styles.directionHeaderLabel, isRadiology && { color: '#7C3AED' }]}>
+                  {isRadiology ? 'IMAGING & SCAN CENTER LOCATION' : isLabTest ? 'DIAGNOSTIC CENTER LOCATION' : 'CLINIC LOCATION'}
+                </Text>
+                <Text style={styles.clinicName}>{clinicName}</Text>
+              </View>
+              <View style={styles.distanceBadge}>
+                <Ionicons name="car-outline" size={12} color="#059669" />
+                <Text style={styles.distanceBadgeText}>{distance}</Text>
+              </View>
+            </View>
 
-          {/* ADDRESS DETAILS */}
-          <View style={styles.addressBox}>
-            <Ionicons name="business-outline" size={18} color={colors.slate} style={{ marginTop: 2 }} />
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={styles.clinicAddressText}>{clinicAddress}</Text>
-              <Text style={styles.clinicAreaText}>Area: {clinicArea}</Text>
+            {/* ADDRESS DETAILS */}
+            <View style={styles.addressBox}>
+              <Ionicons name="business-outline" size={16} color={colors.slate} style={{ marginTop: 2 }} />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.clinicAddressText}>{clinicAddress}</Text>
+                <Text style={styles.clinicAreaText}>{clinicArea}</Text>
+              </View>
+            </View>
+
+            {/* MAP DIRECTION ACTION BUTTONS */}
+            <View style={styles.directionBtnRow}>
+              <TouchableOpacity
+                style={[styles.getDirectionsBtn, isRadiology && { backgroundColor: '#7C3AED' }]}
+                onPress={openDirections}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="navigate" size={16} color="#FFFFFF" />
+                <Text style={styles.getDirectionsText}>Directions</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.callClinicBtn}
+                onPress={callClinic}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="call" size={15} color={colors.primary} />
+                <Text style={styles.callClinicText}>Call Center</Text>
+              </TouchableOpacity>
             </View>
           </View>
+        )}
 
-          {/* MAP DIRECTION ACTION BUTTONS */}
-          <View style={styles.directionBtnRow}>
-            <TouchableOpacity
-              style={styles.getDirectionsBtn}
-              onPress={openDirections}
-              activeOpacity={0.88}
-            >
-              <Ionicons name="navigate" size={18} color="#FFFFFF" />
-              <Text style={styles.getDirectionsText}>Get Directions</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.callClinicBtn}
-              onPress={callClinic}
-              activeOpacity={0.88}
-            >
-              <Ionicons name="call" size={17} color={colors.primary} />
-              <Text style={styles.callClinicText}>Call Clinic</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* DOCTOR INFO CARD */}
+        {/* DOCTOR / CENTER INFO CARD */}
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
-            <Ionicons name="medkit-outline" size={20} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Doctor Details</Text>
+            <Ionicons name={isRadiology ? 'scan-outline' : isLabTest ? 'flask-outline' : 'medkit-outline'} size={18} color={isRadiology ? '#7C3AED' : colors.primary} />
+            <Text style={styles.sectionTitle}>
+              {isRadiology ? 'Diagnostic & Imaging Center' : isLabTest ? 'Pathology & Diagnostic Hub' : 'Doctor'}
+            </Text>
           </View>
 
           <View style={styles.doctorInfoRow}>
-            <View style={styles.doctorAvatarBox}>
-              <Ionicons name="person" size={26} color={colors.primary} />
+            <View style={[styles.doctorAvatarBox, isRadiology && { backgroundColor: '#F3E8FF' }]}>
+              <Ionicons name={isRadiology ? 'radio' : isLabTest ? 'flask' : 'person'} size={24} color={isRadiology ? '#7C3AED' : colors.primary} />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.doctorName}>{doctor.name}</Text>
-              <Text style={styles.specialty}>{doctor.specialty}</Text>
-              <Text style={styles.doctorHospital}>{clinicName}</Text>
+              <Text style={styles.doctorName}>{clinicName || doctor.name}</Text>
+              <Text style={styles.specialty}>{doctor.specialty || (isRadiology ? 'High-Precision 3T MRI, CT & Ultrasound Center' : 'Diagnostics')}</Text>
+              <Text style={styles.doctorHospital}>{doctor.qualification || (isRadiology ? 'NABL & NABH Accredited Center' : clinicAddress)}</Text>
             </View>
           </View>
         </View>
@@ -397,26 +624,26 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         {/* APPOINTMENT SCHEDULE & TIME */}
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
-            <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Appointment Schedule</Text>
+            <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+            <Text style={styles.sectionTitle}>Schedule</Text>
           </View>
 
           <View style={styles.infoGrid}>
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Date & Day</Text>
+              <Text style={styles.infoLabel}>Date</Text>
               <Text style={styles.infoValue}>
                 {currentDay ? `${currentDay}, ` : ''}{currentDate}
               </Text>
             </View>
 
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Scheduled Time</Text>
+              <Text style={styles.infoLabel}>Slot</Text>
               <Text style={styles.infoValue}>{currentTime}</Text>
             </View>
 
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Consultation Type</Text>
-              <Text style={styles.infoValue}>{appointment.type || 'In-Person Visit'}</Text>
+              <Text style={styles.infoLabel}>Type</Text>
+              <Text style={styles.infoValue}>{isRadiology ? 'Radiology Scan' : isLabTest ? 'Diagnostic Lab Test' : appointment.type || 'In-Person'}</Text>
             </View>
 
             <View style={styles.infoItem}>
@@ -439,11 +666,11 @@ const BookingDetailsScreen = ({ navigation, route }) => {
           </View>
 
           <View style={styles.feeRow}>
-            <Text style={styles.feeLabel}>Total Consultation Fee:</Text>
-            <Text style={styles.feeValue}>₹{appointment.paidAmount || doctor.fee || 500}</Text>
+            <Text style={styles.feeLabel}>Total Amount:</Text>
+            <Text style={styles.feeValue}>₹{appointment.paidAmount || appointment.payment?.paidAmount || doctor.fee || 1999}</Text>
           </View>
 
-          {appointment.paymentStatus ? (
+          {appointment.paymentStatus || appointment.payment?.paymentStatus ? (
             <View
               style={[
                 styles.paymentStatusBadge,
@@ -459,7 +686,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
                     ? 'time-outline'
                     : 'shield-checkmark'
                 }
-                size={15}
+                size={14}
                 color={
                   isCancelled
                     ? '#DC2626'
@@ -476,10 +703,10 @@ const BookingDetailsScreen = ({ navigation, route }) => {
                 ]}
               >
                 {isCancelled
-                  ? 'Booking Cancelled • Refund Initiated'
+                  ? 'Cancelled • Refund Initiated'
                   : isRescheduled
-                  ? 'Rescheduled • Confirmed Slot'
-                  : appointment.paymentStatus}
+                  ? 'Rescheduled Slot'
+                  : appointment.paymentStatus || appointment.payment?.paymentStatus || 'Paid Online via UPI'}
               </Text>
             </View>
           ) : null}
@@ -489,17 +716,17 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         {appointment.patient ? (
           <View style={styles.card}>
             <View style={styles.cardHeaderRow}>
-              <Ionicons name="person-outline" size={20} color={colors.primary} />
-              <Text style={styles.sectionTitle}>Patient Information</Text>
+              <Ionicons name="person-outline" size={18} color={colors.primary} />
+              <Text style={styles.sectionTitle}>Patient</Text>
             </View>
             <View style={styles.infoGrid}>
               <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Patient Name</Text>
+                <Text style={styles.infoLabel}>Name</Text>
                 <Text style={styles.infoValue}>{appointment.patient.name}</Text>
               </View>
               {appointment.patient.phone ? (
                 <View style={styles.infoItem}>
-                  <Text style={styles.infoLabel}>Contact Number</Text>
+                  <Text style={styles.infoLabel}>Phone</Text>
                   <Text style={styles.infoValue}>{appointment.patient.phone}</Text>
                 </View>
               ) : null}
@@ -513,7 +740,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
               ) : null}
               {appointment.patient.reason ? (
                 <View style={[styles.infoItem, { width: '100%' }]}>
-                  <Text style={styles.infoLabel}>Reason for Visit</Text>
+                  <Text style={styles.infoLabel}>Reason</Text>
                   <Text style={styles.infoValue}>{appointment.patient.reason}</Text>
                 </View>
               ) : null}
@@ -522,17 +749,259 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         ) : null}
 
         {/* ==================================================
+            🧪 INCLUDED LAB TESTS & RADIOLOGY SCANS
+        ================================================== */}
+        {(isRadiology || isLabTest || testsList.length > 0) && (
+          <View style={styles.card}>
+            <View style={styles.cardHeaderRow}>
+              <View style={styles.testHeaderLeft}>
+                <Ionicons
+                  name={isRadiology ? 'scan-outline' : 'flask'}
+                  size={18}
+                  color={isRadiology ? '#7C3AED' : colors.teal}
+                />
+                <Text style={styles.sectionTitle}>
+                  {isRadiology
+                    ? `Included Radiology Scans (${testsList.length || 1})`
+                    : `Included Diagnostic Tests (${testsList.length || 1})`}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.nablBadge,
+                  isRadiology && { backgroundColor: '#F3E8FF', borderColor: '#DDD6FE' },
+                ]}
+              >
+                <Ionicons
+                  name="shield-checkmark"
+                  size={12}
+                  color={isRadiology ? '#7C3AED' : '#047857'}
+                />
+                <Text
+                  style={[
+                    styles.nablBadgeText,
+                    isRadiology && { color: '#7C3AED' },
+                  ]}
+                >
+                  {isRadiology ? 'NABH & NABL' : 'NABL & ICMR'}
+                </Text>
+              </View>
+            </View>
+
+            {/* TEST / SCAN ITEMS LIST */}
+            <View style={styles.testItemsContainer}>
+              {testsList.length > 0 ? (
+                testsList.map((testItem, idx) => {
+                  const testObj = typeof testItem === 'string' ? { name: testItem } : testItem;
+                  const testName = testObj.name || testObj.title || testObj.testName || 'Diagnostic Scan';
+                  const scanCategory = testObj.categoryLabel || testObj.modality || testObj.category || (isRadiology ? 'Radiology Scan' : 'Blood Test');
+                  const duration = testObj.duration || (isRadiology ? '15-30 Mins' : '10 Mins');
+                  const prep = testObj.instructions || testObj.preparation || (isRadiology ? 'Wear comfortable clothes, remove metal & jewelry' : (testObj.fastingRequired ? 'Fasting (8-10 Hrs)' : 'No Fasting Required'));
+
+                  return (
+                    <View key={idx} style={styles.testDetailRow}>
+                      <View
+                        style={[
+                          styles.testNumberCircle,
+                          isRadiology && { backgroundColor: '#F3E8FF' },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.testNumberText,
+                            isRadiology && { color: '#7C3AED' },
+                          ]}
+                        >
+                          {idx + 1}
+                        </Text>
+                      </View>
+                      <View style={styles.testInfoCol}>
+                        <Text style={styles.testDetailName}>{testName}</Text>
+                        <View style={styles.testTagsWrap}>
+                          <View
+                            style={[
+                              styles.sampleTagPill,
+                              isRadiology && { backgroundColor: '#EDE9FE' },
+                            ]}
+                          >
+                            <Ionicons
+                              name={isRadiology ? 'radio-outline' : 'water-outline'}
+                              size={10}
+                              color={isRadiology ? '#7C3AED' : '#DC2626'}
+                            />
+                            <Text
+                              style={[
+                                styles.sampleTagText,
+                                isRadiology && { color: '#7C3AED' },
+                              ]}
+                            >
+                              {scanCategory}
+                            </Text>
+                          </View>
+                          <View style={styles.fastingTagPill}>
+                            <Ionicons name="time-outline" size={10} color="#D97706" />
+                            <Text style={styles.fastingTagText}>
+                              {duration}
+                            </Text>
+                          </View>
+                          <View style={styles.tatTagPill}>
+                            <Ionicons name="document-text-outline" size={10} color="#2563EB" />
+                            <Text style={styles.tatTagText}>
+                              {isRadiology ? 'HD Digital Film & Report' : 'Results in 12-24 Hrs'}
+                            </Text>
+                          </View>
+                        </View>
+                        {prep ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                            <Ionicons name="information-circle-outline" size={11} color="#64748B" />
+                            <Text style={{ fontSize: 11, color: '#64748B', marginLeft: 3 }}>
+                              Prep: {prep}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      {(testObj.price || testObj.mrp) ? (
+                        <Text style={styles.testPriceText}>₹{testObj.price || testObj.mrp}</Text>
+                      ) : null}
+                    </View>
+                  );
+                })
+              ) : (
+                <View style={styles.testDetailRow}>
+                  <View style={styles.testNumberCircle}>
+                    <Text style={styles.testNumberText}>1</Text>
+                  </View>
+                  <View style={styles.testInfoCol}>
+                    <Text style={styles.testDetailName}>
+                      {isRadiology ? 'Radiology Scan & Imaging' : 'Comprehensive Diagnostic Profile'}
+                    </Text>
+                    <Text style={styles.sampleTagText}>
+                      {isRadiology ? '3T MRI / CT / Ultrasound Scan • NABH Accredited' : 'Sample: Blood & Urine • NABL Certified'}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* ASSURANCE BANNER */}
+            <View style={styles.labAssuranceBanner}>
+              <Ionicons
+                name="checkmark-circle"
+                size={15}
+                color={isRadiology ? '#7C3AED' : '#059669'}
+              />
+              <Text style={styles.labAssuranceText}>
+                {isRadiology
+                  ? 'High-precision 3T/128-Slice imaging verified by Senior MD Radiologists.'
+                  : 'Barcoded & temperature-controlled vacutainers used for 100% sample integrity.'}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* ==================================================
+            📁 MEDICAL RECORDS & UPLOADED DOCUMENTS CARD
+        ================================================== */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <Ionicons name="document-text-outline" size={18} color={colors.primary} />
+            <Text style={styles.sectionTitle}>Medical Records & Documents</Text>
+          </View>
+
+          <View style={styles.docsActionTopRow}>
+            <Text style={styles.docsCountText}>
+              {documents.length} File{documents.length === 1 ? '' : 's'} Attached
+            </Text>
+            <TouchableOpacity
+              style={styles.uploadDocBtnSmall}
+              onPress={() => setIsDocModalOpen(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="cloud-upload-outline" size={14} color={colors.primary} />
+              <Text style={styles.uploadDocBtnSmallText}>+ Upload File</Text>
+            </TouchableOpacity>
+          </View>
+
+          {documents.length === 0 ? (
+            <TouchableOpacity
+              style={styles.emptyDocBox}
+              onPress={() => setIsDocModalOpen(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="cloud-upload-outline" size={32} color="#94A3B8" />
+              <Text style={styles.emptyDocTitle}>Upload Previous Reports or Photos</Text>
+              <Text style={styles.emptyDocSub}>
+                Attach prescriptions, lab reports, or symptom images for doctor's review.
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.docsListWrap}>
+              {documents.map((doc, dIdx) => (
+                <View key={doc.id || dIdx} style={styles.docCardItem}>
+                  {doc.uri ? (
+                    <TouchableOpacity
+                      onPress={() => setPreviewDocUri(doc.uri)}
+                      activeOpacity={0.85}
+                    >
+                      <Image source={{ uri: doc.uri }} style={styles.docCardThumb} />
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.docCardThumbPlaceholder}>
+                      <Ionicons name="document-text" size={22} color={colors.primary} />
+                    </View>
+                  )}
+
+                  <View style={styles.docCardMeta}>
+                    <Text style={styles.docCardName} numberOfLines={1}>
+                      {doc.name || `Document_${dIdx + 1}.jpg`}
+                    </Text>
+                    <Text style={styles.docCardDate}>{doc.date || 'Attached'}</Text>
+                  </View>
+
+                  <View style={styles.docCardBtnRow}>
+                    {doc.uri ? (
+                      <TouchableOpacity
+                        style={styles.docActionIconBtn}
+                        onPress={() => setPreviewDocUri(doc.uri)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="eye-outline" size={16} color={colors.primary} />
+                      </TouchableOpacity>
+                    ) : null}
+                    <TouchableOpacity
+                      style={styles.docActionIconBtnDelete}
+                      onPress={() => handleDeleteDocument(doc.id)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* ==================================================
             ACTIONS: GET DIRECTIONS, RESCHEDULE, OR CANCEL
         ================================================== */}
         {!isCancelled ? (
           <>
             <TouchableOpacity
-              style={styles.primaryActionBtn}
-              onPress={openDirections}
+              style={[styles.primaryActionBtn, isVideo && { backgroundColor: '#7C3AED' }]}
+              onPress={() => {
+                if (isVideo) {
+                  navigation.navigate('VideoMeeting', { appointment, doctor });
+                } else {
+                  openDirections();
+                }
+              }}
               activeOpacity={0.88}
             >
-              <Ionicons name="navigate-outline" size={20} color="#FFFFFF" />
-              <Text style={styles.primaryActionText}>Get GPS Directions to Clinic</Text>
+              <Ionicons name={isVideo ? 'videocam' : 'navigate-outline'} size={18} color="#FFFFFF" />
+              <Text style={styles.primaryActionText}>
+                {isVideo ? 'Join Video Call Room' : 'Get Directions'}
+              </Text>
             </TouchableOpacity>
 
             {/* RESCHEDULE & CANCEL BUTTON ROW */}
@@ -542,8 +1011,8 @@ const BookingDetailsScreen = ({ navigation, route }) => {
                 onPress={() => setIsRescheduleOpen(true)}
                 activeOpacity={0.88}
               >
-                <Ionicons name="calendar" size={17} color={colors.primary} />
-                <Text style={styles.rescheduleTwinText}>Reschedule Slot</Text>
+                <Ionicons name="calendar" size={16} color={colors.primary} />
+                <Text style={styles.rescheduleTwinText}>Reschedule</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -552,7 +1021,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
                 disabled={isCancelling}
                 activeOpacity={0.88}
               >
-                <Ionicons name="close-circle-outline" size={17} color="#DC2626" />
+                <Ionicons name="close-circle-outline" size={16} color="#DC2626" />
                 <Text style={styles.cancelTwinText}>Cancel</Text>
               </TouchableOpacity>
             </View>
@@ -563,8 +1032,8 @@ const BookingDetailsScreen = ({ navigation, route }) => {
             onPress={() => navigation.navigate('DoctorList')}
             activeOpacity={0.88}
           >
-            <Ionicons name="refresh" size={18} color="#FFFFFF" />
-            <Text style={styles.rebookButtonText}>Book Another Appointment</Text>
+            <Ionicons name="refresh" size={17} color="#FFFFFF" />
+            <Text style={styles.rebookButtonText}>Book Again</Text>
           </TouchableOpacity>
         )}
 
@@ -765,6 +1234,96 @@ const BookingDetailsScreen = ({ navigation, route }) => {
               </View>
             </ScrollView>
           </View>
+        </View>
+      </Modal>
+
+      {/* ====================================================
+          DOCUMENT UPLOAD ACTION MODAL
+      ==================================================== */}
+      <Modal
+        visible={isDocModalOpen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsDocModalOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '60%' }]}>
+            {/* MODAL HEADER */}
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Upload Medical File</Text>
+                <Text style={styles.modalSubtitle}>Prescription, scan or symptom photo</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => setIsDocModalOpen(false)}
+              >
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.uploadOptionsContainer}>
+              <TouchableOpacity
+                style={[styles.uploadOptionCard, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}
+                onPress={() => handlePickDocument(true)}
+                disabled={isUploadingDoc}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.uploadOptionIconBox, { backgroundColor: '#DCFCE7' }]}>
+                  <Ionicons name="camera" size={24} color="#059669" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.uploadOptionTitle, { color: '#059669' }]}>Take Photo</Text>
+                  <Text style={styles.uploadOptionSub}>Use camera to scan paper report or symptoms</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#059669" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.uploadOptionCard, { backgroundColor: '#F0FDFA', borderColor: '#99F6E4' }]}
+                onPress={() => handlePickDocument(false)}
+                disabled={isUploadingDoc}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.uploadOptionIconBox, { backgroundColor: colors.lightTeal }]}>
+                  <Ionicons name="images" size={24} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.uploadOptionTitle, { color: colors.primary }]}>Photo Library / Files</Text>
+                  <Text style={styles.uploadOptionSub}>Select existing photos or scans from device</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ====================================================
+          FULL SCREEN DOCUMENT PREVIEW MODAL
+      ==================================================== */}
+      <Modal
+        visible={!!previewDocUri}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setPreviewDocUri(null)}
+      >
+        <View style={styles.previewOverlay}>
+          <TouchableOpacity
+            style={styles.previewCloseBtn}
+            onPress={() => setPreviewDocUri(null)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="close-circle" size={34} color="#FFFFFF" />
+          </TouchableOpacity>
+
+          {previewDocUri ? (
+            <Image
+              source={{ uri: previewDocUri }}
+              style={styles.previewImage}
+              resizeMode="contain"
+            />
+          ) : null}
         </View>
       </Modal>
     </SafeAreaView>
@@ -1404,6 +1963,298 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+
+  // MEDICAL DOCUMENTS SECTION STYLES
+  docsActionTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  docsCountText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  uploadDocBtnSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    gap: 4,
+  },
+  uploadDocBtnSmallText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  emptyDocBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+  },
+  emptyDocTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#475569',
+    marginTop: 6,
+  },
+  emptyDocSub: {
+    fontSize: 11.5,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  docsListWrap: {
+    gap: 8,
+  },
+  docCardItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    padding: 8,
+    gap: 10,
+  },
+  docCardThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 6,
+    backgroundColor: '#E2E8F0',
+  },
+  docCardThumbPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 6,
+    backgroundColor: colors.lightTeal,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  docCardMeta: {
+    flex: 1,
+  },
+  docCardName: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  docCardDate: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  docCardBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  docActionIconBtn: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: '#F0FDFA',
+  },
+  docActionIconBtnDelete: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: '#FEF2F2',
+  },
+
+  // UPLOAD OPTIONS MODAL
+  uploadOptionsContainer: {
+    gap: 12,
+    marginTop: 16,
+    paddingBottom: 10,
+  },
+  uploadOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    gap: 12,
+  },
+  uploadOptionIconBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadOptionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  uploadOptionSub: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2,
+  },
+
+  // DIAGNOSTIC LAB TESTS STYLES
+  testHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  nablBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  nablBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#047857',
+  },
+  testItemsContainer: {
+    marginTop: 10,
+    gap: 10,
+  },
+  testDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 10,
+  },
+  testNumberCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#CCFBF1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  testNumberText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#0F766E',
+  },
+  testInfoCol: {
+    flex: 1,
+  },
+  testDetailName: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#1E293B',
+    lineHeight: 18,
+  },
+  testTagsWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  sampleTagPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  sampleTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  fastingTagPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  fastingTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#B45309',
+  },
+  tatTagPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  tatTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#1D4ED8',
+  },
+  testPriceText: {
+    fontSize: 13.5,
+    fontWeight: '900',
+    color: '#0F766E',
+    marginTop: 2,
+  },
+  labAssuranceBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#ECFDF5',
+    padding: 10,
+    borderRadius: 10,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#D1FAE5',
+  },
+  labAssuranceText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#065F46',
+    flex: 1,
+    lineHeight: 15,
+  },
+
+  // PREVIEW OVERLAY
+  previewOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  previewCloseBtn: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+  },
+  previewImage: {
+    width: '100%',
+    height: '80%',
   },
 });
 

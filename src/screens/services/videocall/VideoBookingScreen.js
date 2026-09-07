@@ -68,10 +68,11 @@ const VideoBookingScreen = ({ route, navigation }) => {
 
   // Payment
   const [selectedUpi, setSelectedUpi] = useState('gpay');
-  const [paymentMethod, setPaymentMethod] = useState('UPI'); // 'UPI' | 'CARD'
+  const [paymentMethod, setPaymentMethod] = useState('WALLET'); // 'WALLET' | 'UPI'
+  const [walletBalance, setWalletBalance] = useState(1250);
   const [isBooking, setIsBooking] = useState(false);
 
-  // Load saved user
+  // Load saved user and wallet
   useEffect(() => {
     loadUserData();
   }, []);
@@ -82,6 +83,8 @@ const VideoBookingScreen = ({ route, navigation }) => {
       if (storedName && storedName.trim()) {
         setPatientName(storedName.trim());
       }
+      const bal = await AsyncStorage.getItem('@unnathi_wallet_balance');
+      if (bal) setWalletBalance(parseInt(bal, 10) || 1250);
     } catch (e) {
       console.log('Error loading user data:', e);
     }
@@ -154,6 +157,21 @@ const VideoBookingScreen = ({ route, navigation }) => {
       return;
     }
 
+    if (paymentMethod === 'WALLET') {
+      const fee = doctor.fee || 450;
+      if (walletBalance < fee) {
+        Alert.alert(
+          'Insufficient Wallet Balance 💳',
+          `Your MediUnify Wallet has ₹${walletBalance.toLocaleString('en-IN')}, but consultation fee is ₹${fee.toLocaleString('en-IN')}.\n\nPlease top up your wallet or select UPI.`,
+          [
+            { text: 'Top Up Wallet', onPress: () => navigation.navigate('Wallet') },
+            { text: 'Pay via UPI', onPress: () => setPaymentMethod('UPI') },
+          ]
+        );
+        return;
+      }
+    }
+
     setIsBooking(true);
 
     try {
@@ -162,6 +180,30 @@ const VideoBookingScreen = ({ route, navigation }) => {
       const bookingId = `VID-${Math.floor(100000 + Math.random() * 900000)}`;
       const tokenNumber = `TK-${Math.floor(10 + Math.random() * 90)}`;
       const videoRoomLink = `https://telehealth.unnathi.org/room/${bookingId}`;
+      const fee = doctor.fee || 450;
+
+      // Deduct from wallet if paid via wallet
+      if (paymentMethod === 'WALLET') {
+        const newBal = Math.max(0, walletBalance - fee);
+        setWalletBalance(newBal);
+        try {
+          await AsyncStorage.setItem('@unnathi_wallet_balance', newBal.toString());
+          const storedTx = await AsyncStorage.getItem('@unnathi_wallet_transactions');
+          const existingTx = storedTx ? JSON.parse(storedTx) : [];
+          const newTx = {
+            id: `tx-${Date.now()}`,
+            title: 'Paid for Video Consultation',
+            subtitle: `Consultation with ${doctor.name} (${doctor.specialty})`,
+            amount: `-₹${fee}`,
+            type: 'debit',
+            date: 'Just Now',
+            icon: 'videocam-outline',
+          };
+          await AsyncStorage.setItem('@unnathi_wallet_transactions', JSON.stringify([newTx, ...existingTx]));
+        } catch (e) {
+          console.log('Error updating wallet:', e);
+        }
+      }
 
       const newVideoBooking = {
         id: bookingId,
@@ -178,8 +220,9 @@ const VideoBookingScreen = ({ route, navigation }) => {
         date: selectedDate.fullText,
         time: selectedTime,
         status: 'Confirmed',
-        paidAmount: doctor.fee || 450,
-        paymentStatus: 'Paid Online (UPI)',
+        paidAmount: fee,
+        paymentStatus: paymentMethod === 'WALLET' ? 'Paid via MediUnify Wallet' : 'Paid Online (UPI)',
+        paymentMethod: paymentMethod === 'WALLET' ? 'MediUnify Health Wallet' : 'UPI',
         videoRoomLink,
         patient: {
           name: patientName,
@@ -211,10 +254,19 @@ const VideoBookingScreen = ({ route, navigation }) => {
 
       Alert.alert(
         'Video Consultation Confirmed! 📹',
-        `Your online appointment with ${doctor.name} is booked for ${selectedDate.fullText} at ${selectedTime}.\n\nBooking ID: ${bookingId}\nToken: ${tokenNumber}\n\nJoin link will be available in your appointments and SMS.`,
+        `Your online appointment with ${doctor.name} is booked for ${selectedDate.fullText} at ${selectedTime}.\n\nBooking ID: ${bookingId}\nRoom Token: ${tokenNumber}\n\nYou can join the video meeting room right now to speak with the doctor and upload your photos or medical reports!`,
         [
           {
-            text: 'View Appointments',
+            text: '📹 Join Video Call Now',
+            onPress: () => {
+              navigation.navigate('VideoMeeting', {
+                appointment: newVideoBooking,
+                doctor: newVideoBooking.doctor,
+              });
+            },
+          },
+          {
+            text: 'Go to My Bookings',
             onPress: () => {
               navigation.navigate('Bookings', {
                 newAppointment: newVideoBooking,
@@ -222,7 +274,7 @@ const VideoBookingScreen = ({ route, navigation }) => {
             },
           },
           {
-            text: 'Back to Home',
+            text: 'Home',
             onPress: () => {
               navigation.navigate('Home');
             },
@@ -251,13 +303,13 @@ const VideoBookingScreen = ({ route, navigation }) => {
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Schedule Video Call</Text>
-          <Text style={styles.headerSubtitle}>100% Private HD Tele-Consultation</Text>
+          <Text style={styles.headerTitle}>Video Consultation</Text>
+          <Text style={styles.headerSubtitle}>Private & Encrypted</Text>
         </View>
 
         <View style={styles.secureBadge}>
           <Ionicons name="shield-checkmark" size={12} color="#059669" />
-          <Text style={styles.secureBadgeText}>Encrypted</Text>
+          <Text style={styles.secureBadgeText}>HD Ready</Text>
         </View>
       </View>
 
@@ -274,7 +326,7 @@ const VideoBookingScreen = ({ route, navigation }) => {
                 <Text style={styles.summaryDocName}>{doctor.name}</Text>
                 <Ionicons name="checkmark-circle" size={15} color={colors.primary} />
               </View>
-              <Text style={styles.summaryDocSpec}>{doctor.specialty} • {doctor.experience}</Text>
+              <Text style={styles.summaryDocSpec}>{doctor.specialty} • {doctor.experience || '10+ Yrs'}</Text>
               <Text style={styles.summaryLanguages}>
                 🗣 {doctor.languages ? doctor.languages.join(', ') : 'English, Kannada, Hindi'}
               </Text>
@@ -285,16 +337,16 @@ const VideoBookingScreen = ({ route, navigation }) => {
 
           <View style={styles.summaryInclusionsRow}>
             <View style={styles.inclusionItem}>
-              <Ionicons name="videocam" size={14} color={colors.primary} />
-              <Text style={styles.inclusionText}>HD Video Call</Text>
+              <Ionicons name="videocam" size={13} color={colors.primary} />
+              <Text style={styles.inclusionText}>HD Call</Text>
             </View>
             <View style={styles.inclusionItem}>
-              <Ionicons name="document-text" size={14} color={colors.secondary} />
+              <Ionicons name="document-text" size={13} color={colors.secondary} />
               <Text style={styles.inclusionText}>e-Prescription</Text>
             </View>
             <View style={styles.inclusionItem}>
-              <Ionicons name="refresh" size={14} color="#059669" />
-              <Text style={styles.inclusionText}>3 Days Free Chat</Text>
+              <Ionicons name="chatbubbles" size={13} color="#059669" />
+              <Text style={styles.inclusionText}>Free Chat</Text>
             </View>
           </View>
         </View>
@@ -302,8 +354,8 @@ const VideoBookingScreen = ({ route, navigation }) => {
         {/* 1. SELECT DATE */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
-            <Ionicons name="calendar-outline" size={18} color={colors.secondary} />
-            <Text style={styles.sectionTitle}>1. Select Video Date</Text>
+            <Ionicons name="calendar-outline" size={17} color={colors.secondary} />
+            <Text style={styles.sectionTitle}>Select Date</Text>
           </View>
 
           <ScrollView
@@ -335,9 +387,9 @@ const VideoBookingScreen = ({ route, navigation }) => {
           </ScrollView>
 
           <View style={styles.selectedDateBadge}>
-            <Ionicons name="calendar" size={13} color={colors.primary} />
+            <Ionicons name="calendar" size={12} color={colors.primary} />
             <Text style={styles.selectedDateBadgeText}>
-              Selected Date: {selectedDate.fullText}
+              {selectedDate.fullText}
             </Text>
           </View>
         </View>
@@ -345,11 +397,10 @@ const VideoBookingScreen = ({ route, navigation }) => {
         {/* 2. SELECT TIME SLOT */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
-            <Ionicons name="time-outline" size={18} color={colors.secondary} />
-            <Text style={styles.sectionTitle}>2. Choose Video Call Time Slot</Text>
+            <Ionicons name="time-outline" size={17} color={colors.secondary} />
+            <Text style={styles.sectionTitle}>Select Slot</Text>
           </View>
 
-          <Text style={styles.slotGroupLabel}>Available Slots for {selectedDate.dayName}</Text>
           <View style={styles.slotsGrid}>
             {(doctor.slots && doctor.slots.length > 0 ? doctor.slots : DEFAULT_VIDEO_SLOTS.morning.concat(DEFAULT_VIDEO_SLOTS.evening)).map((slot, sIdx) => {
               const isSelected = selectedTime === slot;
@@ -372,15 +423,15 @@ const VideoBookingScreen = ({ route, navigation }) => {
         {/* 3. PATIENT DETAILS */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
-            <Ionicons name="person-outline" size={18} color={colors.secondary} />
-            <Text style={styles.sectionTitle}>3. Patient Information</Text>
+            <Ionicons name="person-outline" size={17} color={colors.secondary} />
+            <Text style={styles.sectionTitle}>Patient Details</Text>
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.inputLabel}>Patient Full Name *</Text>
+            <Text style={styles.inputLabel}>Full Name *</Text>
             <TextInput
               style={styles.textInput}
-              placeholder="e.g. Ramesh Kumar"
+              placeholder="Enter patient name"
               value={patientName}
               onChangeText={setPatientName}
             />
@@ -420,10 +471,10 @@ const VideoBookingScreen = ({ route, navigation }) => {
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.inputLabel}>Mobile Phone Number *</Text>
+            <Text style={styles.inputLabel}>Mobile Number *</Text>
             <TextInput
               style={styles.textInput}
-              placeholder="10-digit mobile number"
+              placeholder="10-digit number"
               keyboardType="phone-pad"
               maxLength={10}
               value={patientPhone}
@@ -432,26 +483,26 @@ const VideoBookingScreen = ({ route, navigation }) => {
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.inputLabel}>Health Problem / Symptoms for Doctor</Text>
+            <Text style={styles.inputLabel}>Reason (Optional)</Text>
             <TextInput
               style={[styles.textInput, styles.textArea]}
-              placeholder="Describe your health issue, symptoms, or medications you're taking..."
+              placeholder="Brief symptoms or concern..."
               multiline
-              numberOfLines={3}
+              numberOfLines={2}
               value={consultReason}
               onChangeText={setConsultReason}
             />
           </View>
 
           {/* ATTACH PREVIOUS REPORT */}
-          <Text style={styles.inputLabel}>Attach Medical Report / Photo (Optional)</Text>
+          <Text style={styles.inputLabel}>Attach Report / Photo (Optional)</Text>
           {uploadedReport ? (
             <View style={styles.reportPreviewRow}>
               <Image source={{ uri: uploadedReport }} style={styles.reportImg} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.reportAttachedText}>Report File Attached</Text>
+                <Text style={styles.reportAttachedText}>File Attached</Text>
                 <TouchableOpacity onPress={() => setUploadedReport(null)}>
-                  <Text style={styles.removeReportText}>Remove File</Text>
+                  <Text style={styles.removeReportText}>Remove</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -461,15 +512,15 @@ const VideoBookingScreen = ({ route, navigation }) => {
                 style={styles.uploadBtn}
                 onPress={() => pickReportImage(false)}
               >
-                <Ionicons name="images-outline" size={18} color={colors.primary} />
-                <Text style={styles.uploadBtnText}>Upload from Gallery</Text>
+                <Ionicons name="images-outline" size={16} color={colors.primary} />
+                <Text style={styles.uploadBtnText}>Gallery / PDF</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.uploadBtn}
                 onPress={() => pickReportImage(true)}
               >
-                <Ionicons name="camera-outline" size={18} color={colors.secondary} />
-                <Text style={styles.uploadBtnText}>Snap Photo</Text>
+                <Ionicons name="camera-outline" size={16} color={colors.secondary} />
+                <Text style={styles.uploadBtnText}>Take Photo</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -478,52 +529,131 @@ const VideoBookingScreen = ({ route, navigation }) => {
         {/* 4. PAYMENT METHOD */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
-            <Ionicons name="card-outline" size={18} color={colors.secondary} />
-            <Text style={styles.sectionTitle}>4. Instant Online Payment</Text>
+            <Ionicons name="card-outline" size={17} color={colors.secondary} />
+            <Text style={styles.sectionTitle}>Select Payment Method</Text>
           </View>
 
-          <View style={styles.upiGrid}>
-            {UPI_OPTIONS.map((upi) => {
-              const isSelected = selectedUpi === upi.id;
-              return (
-                <TouchableOpacity
-                  key={upi.id}
-                  style={[styles.upiItem, isSelected && styles.upiItemActive]}
-                  onPress={() => setSelectedUpi(upi.id)}
-                >
-                  <Ionicons name={upi.icon} size={18} color={upi.color} />
-                  <Text style={[styles.upiItemText, isSelected && styles.upiItemTextActive]}>
-                    {upi.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+          {/* METHOD TOGGLES */}
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+            <TouchableOpacity
+              style={[
+                styles.methodToggleBtn,
+                paymentMethod === 'WALLET' && styles.methodToggleBtnActive,
+              ]}
+              onPress={() => setPaymentMethod('WALLET')}
+            >
+              <Ionicons
+                name="wallet"
+                size={16}
+                color={paymentMethod === 'WALLET' ? '#FFFFFF' : '#059669'}
+              />
+              <Text
+                style={[
+                  styles.methodToggleText,
+                  paymentMethod === 'WALLET' && styles.methodToggleTextActive,
+                ]}
+              >
+                MediUnify Wallet
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.methodToggleBtn,
+                paymentMethod === 'UPI' && styles.methodToggleBtnActive,
+              ]}
+              onPress={() => setPaymentMethod('UPI')}
+            >
+              <Ionicons
+                name="flash"
+                size={16}
+                color={paymentMethod === 'UPI' ? '#FFFFFF' : colors.primary}
+              />
+              <Text
+                style={[
+                  styles.methodToggleText,
+                  paymentMethod === 'UPI' && styles.methodToggleTextActive,
+                ]}
+              >
+                Instant UPI Pay
+              </Text>
+            </TouchableOpacity>
           </View>
+
+          {paymentMethod === 'WALLET' ? (
+            <View style={styles.walletBox}>
+              <View style={styles.walletRow}>
+                <Text style={styles.walletLabel}>
+                  Available Balance: <Text style={{ fontWeight: '900', color: '#059669' }}>₹{walletBalance.toLocaleString('en-IN')}</Text>
+                </Text>
+                {walletBalance >= (doctor.fee || 450) ? (
+                  <View style={styles.sufficientBadge}>
+                    <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                    <Text style={styles.sufficientText}>Sufficient</Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.topUpBtn}
+                    onPress={() => navigation.navigate('Wallet')}
+                  >
+                    <Text style={styles.topUpBtnText}>+ Top Up</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              {walletBalance >= (doctor.fee || 450) ? (
+                <Text style={styles.walletPerkNote}>
+                  ✓ 1-Click Pay: ₹{doctor.fee || 450} will be instantly debited from your MediUnify Wallet.
+                </Text>
+              ) : (
+                <Text style={styles.walletLowNote}>
+                  ⚠️ Insufficient balance (Need ₹{(doctor.fee || 450) - walletBalance} more). Please top up or switch to UPI.
+                </Text>
+              )}
+            </View>
+          ) : (
+            <View style={styles.upiGrid}>
+              {UPI_OPTIONS.map((upi) => {
+                const isSelected = selectedUpi === upi.id;
+                return (
+                  <TouchableOpacity
+                    key={upi.id}
+                    style={[styles.upiItem, isSelected && styles.upiItemActive]}
+                    onPress={() => setSelectedUpi(upi.id)}
+                  >
+                    <Ionicons name={upi.icon} size={18} color={upi.color} />
+                    <Text style={[styles.upiItemText, isSelected && styles.upiItemTextActive]}>
+                      {upi.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         {/* 5. INVOICE BREAKDOWN */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Consultation Bill</Text>
+          <Text style={styles.sectionTitle}>Summary</Text>
           <View style={styles.billLine}>
-            <Text style={styles.billLabel}>Standard Tele-Consult Fee</Text>
+            <Text style={styles.billLabel}>Consultation Fee</Text>
             <Text style={styles.billVal}>₹{doctor.mrpFee || 650}</Text>
           </View>
           <View style={styles.billLine}>
-            <Text style={[styles.billLabel, { color: '#059669' }]}>TeleHealth Special Discount</Text>
+            <Text style={[styles.billLabel, { color: '#059669' }]}>Special Discount</Text>
             <Text style={[styles.billVal, { color: '#059669', fontWeight: '700' }]}>
               - ₹{(doctor.mrpFee || 650) - (doctor.fee || 450)}
             </Text>
           </View>
           <View style={styles.billLine}>
-            <Text style={styles.billLabel}>Digital Prescription & Follow-up</Text>
+            <Text style={styles.billLabel}>e-Prescription & Chat</Text>
             <Text style={[styles.billVal, { color: '#059669' }]}>FREE</Text>
           </View>
           <View style={styles.billDivider} />
           <View style={styles.billTotalLine}>
             <View>
-              <Text style={styles.billTotalLabel}>Total Amount</Text>
+              <Text style={styles.billTotalLabel}>Total</Text>
               <Text style={styles.billSavedText}>
-                You save ₹{(doctor.mrpFee || 650) - (doctor.fee || 450)}
+                Save ₹{(doctor.mrpFee || 650) - (doctor.fee || 450)}
               </Text>
             </View>
             <Text style={styles.billTotalAmount}>₹{doctor.fee || 450}</Text>
@@ -534,7 +664,7 @@ const VideoBookingScreen = ({ route, navigation }) => {
       {/* BOTTOM ACTION BAR */}
       <View style={styles.bottomBar}>
         <View style={styles.bottomCol}>
-          <Text style={styles.bottomFeeLabel}>Total Payable</Text>
+          <Text style={styles.bottomFeeLabel}>Total</Text>
           <Text style={styles.bottomFeeValue}>₹{doctor.fee || 450}</Text>
         </View>
 
@@ -548,8 +678,8 @@ const VideoBookingScreen = ({ route, navigation }) => {
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
             <>
-              <Text style={styles.confirmBtnText}>Pay & Start Video Slot</Text>
-              <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+              <Text style={styles.confirmBtnText}>Confirm Video Call</Text>
+              <Ionicons name="videocam" size={17} color="#FFFFFF" />
             </>
           )}
         </TouchableOpacity>
@@ -1049,6 +1179,84 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  methodToggleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  methodToggleBtnActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  methodToggleText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.secondary,
+  },
+  methodToggleTextActive: {
+    color: '#FFFFFF',
+  },
+  walletBox: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 12,
+    padding: 12,
+  },
+  walletRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  walletLabel: {
+    fontSize: 12,
+    color: '#065F46',
+    fontWeight: '600',
+  },
+  sufficientBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 4,
+  },
+  sufficientText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  topUpBtn: {
+    backgroundColor: '#059669',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  topUpBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  walletPerkNote: {
+    fontSize: 11,
+    color: '#047857',
+    marginTop: 6,
+    fontWeight: '500',
+  },
+  walletLowNote: {
+    fontSize: 11,
+    color: '#DC2626',
+    marginTop: 6,
+    fontWeight: '600',
   },
 });
 

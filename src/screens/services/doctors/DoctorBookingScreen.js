@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,9 @@ import {
   Alert,
   ActivityIndicator,
   StatusBar,
+  Platform,
+  KeyboardAvoidingView,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -56,8 +59,39 @@ const DoctorBookingScreen = ({ route, navigation }) => {
   const [consultReason, setConsultReason] = useState('');
 
   // Payment method
-  const [paymentOption, setPaymentOption] = useState('PAY_AT_CLINIC');
+  const [paymentOption, setPaymentOption] = useState('WALLET'); // 'WALLET' | 'PAY_AT_CLINIC' | 'PAY_ONLINE'
+  const [walletBalance, setWalletBalance] = useState(1250);
   const [isBooking, setIsBooking] = useState(false);
+
+  useEffect(() => {
+    loadUserData();
+    loadWallet();
+  }, []);
+
+  const loadWallet = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('@unnathi_wallet_balance');
+      if (stored !== null) {
+        setWalletBalance(parseInt(stored, 10) || 0);
+      } else {
+        await AsyncStorage.setItem('@unnathi_wallet_balance', '1250');
+        setWalletBalance(1250);
+      }
+    } catch (e) {
+      console.log('Error loading wallet in doctor booking:', e);
+    }
+  };
+
+  const loadUserData = async () => {
+    try {
+      const storedName = await AsyncStorage.getItem('userName');
+      if (storedName && storedName.trim()) {
+        setPatientName(storedName.trim());
+      }
+    } catch (e) {
+      console.log('Error loading user data:', e);
+    }
+  };
 
   if (!doctor) {
     return (
@@ -91,6 +125,8 @@ const DoctorBookingScreen = ({ route, navigation }) => {
       return;
     }
 
+    const feeAmount = doctor.fee || 500;
+
     setIsBooking(true);
 
     try {
@@ -98,6 +134,43 @@ const DoctorBookingScreen = ({ route, navigation }) => {
 
       const bookingId = `DOC-${Math.floor(100000 + Math.random() * 900000)}`;
       const tokenNumber = `TK-${Math.floor(10 + Math.random() * 90)}`;
+
+      // Wallet payment deduction
+      if (paymentOption === 'WALLET') {
+        if (walletBalance < feeAmount) {
+          setIsBooking(false);
+          Alert.alert(
+            'Insufficient MediUnify Wallet Balance',
+            `Your current wallet balance is ₹${walletBalance}, but consultation fee is ₹${feeAmount}.\n\nPlease top up your wallet or choose another payment method.`,
+            [
+              { text: 'Top Up Wallet', onPress: () => navigation.navigate('Wallet') },
+              { text: 'OK', style: 'cancel' }
+            ]
+          );
+          return;
+        }
+
+        const newBal = walletBalance - feeAmount;
+        await AsyncStorage.setItem('@unnathi_wallet_balance', String(newBal));
+        setWalletBalance(newBal);
+
+        try {
+          const existingTxJson = await AsyncStorage.getItem('@unnathi_wallet_transactions');
+          const existingTx = existingTxJson ? JSON.parse(existingTxJson) : [];
+          const newTx = {
+            id: `tx-doc-${Date.now()}`,
+            title: `Doctor Consultation: ${doctor.name}`,
+            subtitle: `In-Person Clinic Visit (Booking: ${bookingId})`,
+            amount: `-₹${feeAmount}`,
+            type: 'debit',
+            date: 'Just now',
+            icon: 'person-outline',
+          };
+          await AsyncStorage.setItem('@unnathi_wallet_transactions', JSON.stringify([newTx, ...existingTx]));
+        } catch (errTx) {
+          console.log('Error recording doctor wallet transaction:', errTx);
+        }
+      }
 
       const newAppointment = {
         id: bookingId,
@@ -118,8 +191,19 @@ const DoctorBookingScreen = ({ route, navigation }) => {
         date: selectedDate.fullText,
         time: selectedTime,
         status: 'Confirmed',
-        paidAmount: doctor.fee || 500,
-        paymentStatus: paymentOption === 'PAY_AT_CLINIC' ? 'Pay at Clinic Reception' : 'Paid Online (UPI)',
+        paidAmount: feeAmount,
+        paymentStatus:
+          paymentOption === 'WALLET'
+            ? 'Paid via MediUnify Health Wallet'
+            : paymentOption === 'PAY_AT_CLINIC'
+            ? 'Pay at Clinic Reception'
+            : 'Paid Online (UPI)',
+        paymentMethod:
+          paymentOption === 'WALLET'
+            ? 'MediUnify Health Wallet'
+            : paymentOption === 'PAY_AT_CLINIC'
+            ? 'Pay at Clinic'
+            : 'UPI / Online Card',
         patient: {
           name: patientName,
           age: patientAge,
@@ -181,17 +265,23 @@ const DoctorBookingScreen = ({ route, navigation }) => {
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Book In-Person Visit</Text>
+          <Text style={styles.headerTitle}>Book Appointment</Text>
           <Text style={styles.headerSubtitle}>{doctor.clinicName}</Text>
         </View>
 
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
       >
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={styles.scrollContent}
+        >
         {/* DOCTOR & CLINIC SUMMARY CARD */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryHeader}>
@@ -200,8 +290,8 @@ const DoctorBookingScreen = ({ route, navigation }) => {
             </View>
             <View style={styles.summaryInfoCol}>
               <Text style={styles.summaryDocName}>{doctor.name}</Text>
-              <Text style={styles.summaryDocSpec}>{doctor.specialty} • {doctor.experience || `${doctor.experienceYears} Yrs Exp`}</Text>
-              <Text style={styles.summaryClinicLoc}>🏥 {doctor.clinicName} ({doctor.clinicArea})</Text>
+              <Text style={styles.summaryDocSpec}>{doctor.specialty} • {doctor.experience || `${doctor.experienceYears} Yrs`}</Text>
+              <Text style={styles.summaryClinicLoc}>📍 {doctor.clinicArea || doctor.clinicName}</Text>
             </View>
           </View>
         </View>
@@ -209,8 +299,8 @@ const DoctorBookingScreen = ({ route, navigation }) => {
         {/* 1. APPOINTMENT DATE */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
-            <Ionicons name="calendar-outline" size={18} color={colors.secondary} />
-            <Text style={styles.sectionTitle}>1. Select Consultation Date</Text>
+            <Ionicons name="calendar-outline" size={17} color={colors.secondary} />
+            <Text style={styles.sectionTitle}>Select Date</Text>
           </View>
 
           <ScrollView
@@ -245,9 +335,9 @@ const DoctorBookingScreen = ({ route, navigation }) => {
           </ScrollView>
 
           <View style={styles.selectedDateBadge}>
-            <Ionicons name="calendar" size={13} color={colors.primary} />
+            <Ionicons name="calendar" size={12} color={colors.primary} />
             <Text style={styles.selectedDateBadgeText}>
-              Selected: {selectedDate.fullText}
+              {selectedDate.fullText}
             </Text>
           </View>
         </View>
@@ -255,11 +345,11 @@ const DoctorBookingScreen = ({ route, navigation }) => {
         {/* 2. TIME SLOT */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
-            <Ionicons name="time-outline" size={18} color={colors.secondary} />
-            <Text style={styles.sectionTitle}>2. In-Clinic Slot</Text>
+            <Ionicons name="time-outline" size={17} color={colors.secondary} />
+            <Text style={styles.sectionTitle}>Select Slot</Text>
           </View>
 
-          <Text style={styles.slotGroupLabel}>Morning Sessions (09:00 AM - 01:00 PM)</Text>
+          <Text style={styles.slotGroupLabel}>Morning</Text>
           <View style={styles.slotsGrid}>
             {(doctor.slots && doctor.slots.length > 0 ? doctor.slots.slice(0, 3) : IN_CLINIC_SLOTS.morning).map((slot, sIdx) => {
               const isSelected = selectedTime === slot;
@@ -278,7 +368,7 @@ const DoctorBookingScreen = ({ route, navigation }) => {
             })}
           </View>
 
-          <Text style={styles.slotGroupLabel}>Evening Sessions (04:30 PM - 08:30 PM)</Text>
+          <Text style={styles.slotGroupLabel}>Evening</Text>
           <View style={styles.slotsGrid}>
             {(doctor.slots && doctor.slots.length > 3 ? doctor.slots.slice(3) : IN_CLINIC_SLOTS.evening).map((slot, sIdx) => {
               const isSelected = selectedTime === slot;
@@ -301,15 +391,15 @@ const DoctorBookingScreen = ({ route, navigation }) => {
         {/* 3. PATIENT DETAILS */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
-            <Ionicons name="person-outline" size={18} color={colors.secondary} />
-            <Text style={styles.sectionTitle}>3. Patient Information</Text>
+            <Ionicons name="person-outline" size={17} color={colors.secondary} />
+            <Text style={styles.sectionTitle}>Patient Details</Text>
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.inputLabel}>Patient Full Name *</Text>
+            <Text style={styles.inputLabel}>Full Name *</Text>
             <TextInput
               style={styles.textInput}
-              placeholder="Full name"
+              placeholder="Enter patient name"
               value={patientName}
               onChangeText={setPatientName}
             />
@@ -349,10 +439,10 @@ const DoctorBookingScreen = ({ route, navigation }) => {
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.inputLabel}>Phone Number *</Text>
+            <Text style={styles.inputLabel}>Mobile Number *</Text>
             <TextInput
               style={styles.textInput}
-              placeholder="10-digit mobile number"
+              placeholder="10-digit number"
               keyboardType="phone-pad"
               maxLength={10}
               value={patientPhone}
@@ -361,12 +451,12 @@ const DoctorBookingScreen = ({ route, navigation }) => {
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.inputLabel}>Symptoms / Health Concern (Optional)</Text>
+            <Text style={styles.inputLabel}>Reason (Optional)</Text>
             <TextInput
               style={[styles.textInput, styles.textArea]}
-              placeholder="Describe symptoms or reason for in-person consultation..."
+              placeholder="Brief reason for visit..."
               multiline
-              numberOfLines={3}
+              numberOfLines={2}
               value={consultReason}
               onChangeText={setConsultReason}
             />
@@ -376,48 +466,103 @@ const DoctorBookingScreen = ({ route, navigation }) => {
         {/* 4. PAYMENT METHOD */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
-            <Ionicons name="card-outline" size={18} color={colors.secondary} />
-            <Text style={styles.sectionTitle}>4. Payment Option</Text>
+            <Ionicons name="card-outline" size={17} color={colors.secondary} />
+            <Text style={styles.sectionTitle}>Payment</Text>
           </View>
 
+          {/* 1. MEDIUNIFY HEALTH WALLET */}
+          <TouchableOpacity
+            style={[styles.payOption, paymentOption === 'WALLET' && styles.payOptionActiveWallet]}
+            onPress={() => setPaymentOption('WALLET')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.radio, paymentOption === 'WALLET' && styles.radioWallet]}>
+              {paymentOption === 'WALLET' && <View style={styles.radioInnerWallet} />}
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.payOptionTitle}>MediUnify Health Wallet</Text>
+                <View style={styles.walletFastBadge}>
+                  <Ionicons name="flash" size={9} color="#FFFFFF" />
+                  <Text style={styles.walletFastBadgeText}>1-CLICK</Text>
+                </View>
+              </View>
+              <Text
+                style={[
+                  styles.payOptionSub,
+                  {
+                    color: walletBalance >= (doctor.fee || 500) ? '#059669' : '#DC2626',
+                    fontWeight: '600',
+                  },
+                ]}
+              >
+                Available: ₹{walletBalance}{' '}
+                {walletBalance < (doctor.fee || 500) ? '(Insufficient)' : '✓ Instant Checkout'}
+              </Text>
+            </View>
+            <Ionicons name="wallet" size={20} color={colors.primary} />
+          </TouchableOpacity>
+
+          {paymentOption === 'WALLET' && walletBalance < (doctor.fee || 500) && (
+            <View style={styles.topUpBanner}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.topUpTitle}>Add money to complete consultation</Text>
+                <Text style={styles.topUpSub}>
+                  Need ₹{(doctor.fee || 500) - walletBalance} more
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.topUpBtn}
+                onPress={() => navigation.navigate('Wallet')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.topUpBtnText}>+ Top Up</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* 2. PAY AT CLINIC */}
           <TouchableOpacity
             style={[styles.payOption, paymentOption === 'PAY_AT_CLINIC' && styles.payOptionActive]}
             onPress={() => setPaymentOption('PAY_AT_CLINIC')}
+            activeOpacity={0.85}
           >
             <View style={styles.radio}>
               {paymentOption === 'PAY_AT_CLINIC' && <View style={styles.radioInner} />}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.payOptionTitle}>Pay at Clinic Reception</Text>
-              <Text style={styles.payOptionSub}>Pay cash, UPI, or card on your appointment visit</Text>
+              <Text style={styles.payOptionSub}>Cash, UPI, or Card on visit</Text>
             </View>
-            <Ionicons name="cash-outline" size={20} color="#059669" />
+            <Ionicons name="cash-outline" size={18} color="#059669" />
           </TouchableOpacity>
 
+          {/* 3. PAY ONLINE */}
           <TouchableOpacity
             style={[styles.payOption, paymentOption === 'PAY_ONLINE' && styles.payOptionActive]}
             onPress={() => setPaymentOption('PAY_ONLINE')}
+            activeOpacity={0.85}
           >
             <View style={styles.radio}>
               {paymentOption === 'PAY_ONLINE' && <View style={styles.radioInner} />}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.payOptionTitle}>Pay Online (Instant UPI / Card)</Text>
-              <Text style={styles.payOptionSub}>Google Pay, PhonePe, Paytm, Cards</Text>
+              <Text style={styles.payOptionTitle}>Pay Online UPI / Cards</Text>
+              <Text style={styles.payOptionSub}>UPI, Cards & NetBanking</Text>
             </View>
-            <Ionicons name="phone-portrait-outline" size={20} color={colors.primary} />
+            <Ionicons name="phone-portrait-outline" size={18} color={colors.primary} />
           </TouchableOpacity>
         </View>
 
         {/* 5. BILL SUMMARY */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Consultation Bill</Text>
+          <Text style={styles.sectionTitle}>Summary</Text>
           <View style={styles.billLine}>
-            <Text style={styles.billLabel}>Doctor Consultation Fee</Text>
+            <Text style={styles.billLabel}>Consultation Fee</Text>
             <Text style={styles.billVal}>₹{doctor.fee || 500}</Text>
           </View>
           <View style={styles.billLine}>
-            <Text style={styles.billLabel}>Clinic Registration & Token Fee</Text>
+            <Text style={styles.billLabel}>Token & Registration</Text>
             <Text style={[styles.billVal, { color: '#059669' }]}>FREE</Text>
           </View>
           <View style={styles.billDivider} />
@@ -431,7 +576,7 @@ const DoctorBookingScreen = ({ route, navigation }) => {
       {/* BOTTOM ACTION BAR */}
       <View style={styles.bottomBar}>
         <View style={styles.bottomCol}>
-          <Text style={styles.bottomFeeLabel}>Total Fee</Text>
+          <Text style={styles.bottomFeeLabel}>Total</Text>
           <Text style={styles.bottomFeeValue}>₹{doctor.fee || 500}</Text>
         </View>
 
@@ -445,12 +590,13 @@ const DoctorBookingScreen = ({ route, navigation }) => {
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
             <>
-              <Text style={styles.confirmBtnText}>Confirm In-Person Visit</Text>
-              <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+              <Text style={styles.confirmBtnText}>Confirm Booking</Text>
+              <Ionicons name="checkmark-circle" size={17} color="#FFFFFF" />
             </>
           )}
         </TouchableOpacity>
       </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -731,6 +877,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderColor: colors.primary,
   },
+  payOptionActiveWallet: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#059669',
+    borderWidth: 1.5,
+  },
   radio: {
     width: 18,
     height: 18,
@@ -740,11 +891,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  radioWallet: {
+    borderColor: '#059669',
+  },
   radioInner: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: colors.primary,
+  },
+  radioInnerWallet: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#059669',
   },
   payOptionTitle: {
     fontSize: 12,
@@ -755,6 +915,54 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.textSecondary,
     marginTop: 2,
+  },
+  walletFastBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#059669',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+    gap: 2,
+  },
+  walletFastBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  topUpBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+    marginTop: -2,
+  },
+  topUpTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  topUpSub: {
+    fontSize: 10,
+    color: '#991B1B',
+    marginTop: 2,
+  },
+  topUpBtn: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  topUpBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
   },
 
   // BILL

@@ -15,6 +15,9 @@ import {
   StatusBar,
   ScrollView,
   ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -132,6 +135,7 @@ const DoctorListScreen = ({ navigation, route }) => {
 
   // Handle Select Location from list
   const handleSelectLocality = (loc) => {
+    Keyboard.dismiss();
     setUserLocality(loc.full);
     setUserCoords({ latitude: loc.latitude, longitude: loc.longitude });
     setLocationModalVisible(false);
@@ -141,6 +145,7 @@ const DoctorListScreen = ({ navigation, route }) => {
 
   // Handle Custom Location Set
   const handleSetCustomLocation = () => {
+    Keyboard.dismiss();
     if (!customLocalityInput.trim()) return;
     const name = customLocalityInput.trim();
     setUserLocality(name);
@@ -600,131 +605,186 @@ const DoctorListScreen = ({ navigation, route }) => {
         visible={locationModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setLocationModalVisible(false)}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setLocationModalVisible(false);
+        }}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.locationModalCard}>
-            {/* MODAL HEADER */}
-            <View style={styles.modalHeaderRow}>
-              <View style={styles.locationModalIconBox}>
-                <Ionicons name="location" size={22} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={styles.modalHeaderTitle}>Select Location</Text>
-                <Text style={styles.modalHeaderSub}>Find doctors in your neighborhood</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.modalCloseBtn}
-                onPress={() => setLocationModalVisible(false)}
-              >
-                <Ionicons name="close" size={20} color={colors.secondary} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="always"
-              style={{ maxHeight: 460 }}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={Keyboard.dismiss}
+          >
+            <TouchableOpacity
+              style={[styles.locationModalCard, { maxHeight: '88%' }]}
+              activeOpacity={1}
+              onPress={() => {}}
             >
-              {/* GPS CURRENT LOCATION BUTTON */}
-              <TouchableOpacity
-                style={styles.currentGpsBtn}
-                activeOpacity={0.85}
-                onPress={detectLocation}
-                disabled={loadingGps}
-              >
-                {loadingGps ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <View style={styles.gpsIconCircle}>
-                    <Ionicons name="navigate" size={16} color="#FFFFFF" />
-                  </View>
-                )}
+              {/* MODAL HEADER */}
+              <View style={styles.modalHeaderRow}>
+                <View style={styles.locationModalIconBox}>
+                  <Ionicons name="location" size={22} color={colors.primary} />
+                </View>
                 <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={styles.currentGpsTitle}>Use My Current Live GPS</Text>
-                  <Text style={styles.currentGpsSub}>
-                    {loadingGps ? 'Fetching GPS coordinates...' : 'Auto-detect position and calculate distances'}
-                  </Text>
+                  <Text style={styles.modalHeaderTitle}>Select Location</Text>
+                  <Text style={styles.modalHeaderSub}>Find doctors in your neighborhood</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-              </TouchableOpacity>
-
-              {/* SEARCH LOCALITY INPUT */}
-              <View style={styles.localitySearchBox}>
-                <Ionicons name="search-outline" size={17} color={colors.textSecondary} />
-                <TextInput
-                  style={styles.localitySearchInput}
-                  placeholder="Search area, locality, or city..."
-                  placeholderTextColor="#94A3B8"
-                  value={locationSearchQuery}
-                  onChangeText={setLocationSearchQuery}
-                />
-                {locationSearchQuery.length > 0 && (
-                  <TouchableOpacity onPress={() => setLocationSearchQuery('')}>
-                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                  style={styles.modalCloseBtn}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setLocationModalVisible(false);
+                  }}
+                >
+                  <Ionicons name="close" size={20} color={colors.secondary} />
+                </TouchableOpacity>
               </View>
 
-              {/* POPULAR LOCALITIES LIST */}
-              <Text style={styles.popularLocTitle}>Select Area / Locality</Text>
-              <View style={styles.localitiesListContainer}>
-                {filteredLocalities.map((loc) => {
-                  const isSelected = userLocality === loc.full;
-                  return (
-                    <TouchableOpacity
-                      key={loc.id}
-                      style={[styles.localityRow, isSelected && styles.localityRowActive]}
-                      activeOpacity={0.7}
-                      onPress={() => handleSelectLocality(loc)}
-                    >
-                      <View style={[styles.localityPinCircle, isSelected && styles.localityPinCircleActive]}>
-                        <Ionicons
-                          name={isSelected ? 'location' : 'location-outline'}
-                          size={16}
-                          color={isSelected ? colors.primary : colors.textSecondary}
-                        />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.localityName, isSelected && styles.localityNameActive]}>
-                          {loc.name}
-                        </Text>
-                        <Text style={styles.localityCity}>{loc.city}</Text>
-                      </View>
-                      {isSelected && (
-                        <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                bounces={false}
+              >
+                {/* LIVE MAP PICKER BUTTON */}
+                <TouchableOpacity
+                  style={styles.liveMapPickBtn}
+                  activeOpacity={0.88}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setLocationModalVisible(false);
+                    navigation.navigate('PharmacyLocation', {
+                      onLocationSelected: (selectedLoc) => {
+                        const full = selectedLoc.addressLine || `${selectedLoc.city}`;
+                        setUserLocality(full);
+                        if (selectedLoc.latitude && selectedLoc.longitude) {
+                          setUserCoords({
+                            latitude: selectedLoc.latitude,
+                            longitude: selectedLoc.longitude,
+                          });
+                        }
+                        showToast(`Location set from Live Map: ${full}`);
+                      },
+                    });
+                  }}
+                >
+                  <View style={styles.liveMapIconBox}>
+                    <Ionicons name="map" size={18} color="#FFFFFF" />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.liveMapBtnTitle}>Pick Location on Live Map 📍</Text>
+                    <Text style={styles.liveMapBtnSub}>Drag & drop marker on real-time map</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                </TouchableOpacity>
 
-              {/* CUSTOM ADDRESS MANUAL ENTRY */}
-              <View style={styles.customLocBox}>
-                <Text style={styles.customLocLabel}>Or Type Any Custom Area / Street</Text>
-                <View style={styles.customLocInputRow}>
+                {/* GPS CURRENT LOCATION BUTTON */}
+                <TouchableOpacity
+                  style={styles.currentGpsBtn}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    detectLocation();
+                  }}
+                  disabled={loadingGps}
+                >
+                  {loadingGps ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <View style={styles.gpsIconCircle}>
+                      <Ionicons name="navigate" size={16} color="#FFFFFF" />
+                    </View>
+                  )}
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.currentGpsTitle}>Use My Current Live GPS</Text>
+                    <Text style={styles.currentGpsSub}>
+                      {loadingGps ? 'Fetching GPS coordinates...' : 'Auto-detect position and calculate distances'}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                </TouchableOpacity>
+
+                {/* SEARCH LOCALITY INPUT */}
+                <View style={styles.localitySearchBox}>
+                  <Ionicons name="search-outline" size={17} color={colors.textSecondary} />
                   <TextInput
-                    style={styles.customLocInput}
-                    placeholder="e.g. Ring Road, Bogadi, Mysore"
+                    style={styles.localitySearchInput}
+                    placeholder="Search area, locality, or city..."
                     placeholderTextColor="#94A3B8"
-                    value={customLocalityInput}
-                    onChangeText={setCustomLocalityInput}
+                    value={locationSearchQuery}
+                    onChangeText={setLocationSearchQuery}
                   />
-                  <TouchableOpacity
-                    style={[
-                      styles.customLocApplyBtn,
-                      !customLocalityInput.trim() && { opacity: 0.5 },
-                    ]}
-                    disabled={!customLocalityInput.trim()}
-                    onPress={handleSetCustomLocation}
-                  >
-                    <Text style={styles.customLocApplyText}>Set</Text>
-                  </TouchableOpacity>
+                  {locationSearchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setLocationSearchQuery('')}>
+                      <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                    </TouchableOpacity>
+                  )}
                 </View>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
+
+                {/* POPULAR LOCALITIES LIST */}
+                <Text style={styles.popularLocTitle}>Select Area / Locality</Text>
+                <View style={styles.localitiesListContainer}>
+                  {filteredLocalities.map((loc) => {
+                    const isSelected = userLocality === loc.full;
+                    return (
+                      <TouchableOpacity
+                        key={loc.id}
+                        style={[styles.localityRow, isSelected && styles.localityRowActive]}
+                        activeOpacity={0.7}
+                        onPress={() => handleSelectLocality(loc)}
+                      >
+                        <View style={[styles.localityPinCircle, isSelected && styles.localityPinCircleActive]}>
+                          <Ionicons
+                            name={isSelected ? 'location' : 'location-outline'}
+                            size={16}
+                            color={isSelected ? colors.primary : colors.textSecondary}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.localityName, isSelected && styles.localityNameActive]}>
+                            {loc.name}
+                          </Text>
+                          <Text style={styles.localityCity}>{loc.city}</Text>
+                        </View>
+                        {isSelected && (
+                          <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* CUSTOM ADDRESS MANUAL ENTRY */}
+                <View style={styles.customLocBox}>
+                  <Text style={styles.customLocLabel}>Or Type Any Custom Area / Street</Text>
+                  <View style={styles.customLocInputRow}>
+                    <TextInput
+                      style={styles.customLocInput}
+                      placeholder="e.g. Ring Road, Bogadi, Mysore"
+                      placeholderTextColor="#94A3B8"
+                      value={customLocalityInput}
+                      onChangeText={setCustomLocalityInput}
+                    />
+                    <TouchableOpacity
+                      style={[
+                        styles.customLocApplyBtn,
+                        !customLocalityInput.trim() && { opacity: 0.5 },
+                      ]}
+                      disabled={!customLocalityInput.trim()}
+                      onPress={handleSetCustomLocation}
+                    >
+                      <Text style={styles.customLocApplyText}>Set</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </ScrollView>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ==================================================
@@ -1549,6 +1609,40 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lightTeal,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  // LIVE MAP PICKER
+  liveMapPickBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#99F6E4',
+    marginBottom: 10,
+  },
+  liveMapIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  liveMapBtnTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F766E',
+  },
+  liveMapBtnSub: {
+    fontSize: 10.5,
+    color: '#0D9488',
+    marginTop: 2,
   },
   currentGpsBtn: {
     flexDirection: 'row',

@@ -48,6 +48,7 @@ import HospitalListScreen from '../screens/services/hospitals/HospitalListScreen
 
 import VideoBookingScreen from '../screens/services/videocall/VideoBookingScreen';
 import VideoConsultationScreen from '../screens/services/videocall/VideoConsultationScreen';
+import VideoMeetingScreen from '../screens/services/videocall/VideoMeetingScreen';
 
 import LabTestsScreen from '../screens/services/lab/LabTestsScreen';
 import LabBookingScreen from '../screens/services/lab/LabBookingScreen';
@@ -58,6 +59,7 @@ import LabBookingScreen from '../screens/services/lab/LabBookingScreen';
 // ==================================================
 
 import PharmacyScreen from '../screens/services/pharmacy/PharmacyScreen';
+import PharmacyStoreDetailScreen from '../screens/services/pharmacy/PharmacyStoreDetailScreen';
 import PharmacyLocationScreen from '../screens/services/pharmacy/PharmacyLocationScreen';
 import ProductDetailsScreen from '../screens/services/pharmacy/ProductDetailsScreen';
 import CartScreen from '../screens/services/pharmacy/CartScreen';
@@ -564,6 +566,11 @@ const MainNavigator = ({
           component={VideoBookingScreen}
         />
 
+        <Stack.Screen
+          name="VideoMeeting"
+          component={VideoMeetingScreen}
+        />
+
 
         {/* ==================================================
             LAB TESTS
@@ -587,6 +594,11 @@ const MainNavigator = ({
         <Stack.Screen
           name="Pharmacy"
           component={PharmacyScreen}
+        />
+
+        <Stack.Screen
+          name="PharmacyStoreDetail"
+          component={PharmacyStoreDetailScreen}
         />
 
         <Stack.Screen

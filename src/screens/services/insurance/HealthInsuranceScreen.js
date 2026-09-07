@@ -28,8 +28,8 @@ const HealthInsuranceScreen = ({ navigation }) => {
 
   // Call Enquiry Modal
   const [callbackModalVisible, setCallbackModalVisible] = useState(false);
-  const [enquiryName, setEnquiryName] = useState('Hemanth Kumar');
-  const [enquiryPhone, setEnquiryPhone] = useState('+91 98765 43210');
+  const [enquiryName, setEnquiryName] = useState('Ramesh Kumar');
+  const [enquiryPhone, setEnquiryPhone] = useState('+91 98450 12345');
   const [enquiryType, setEnquiryType] = useState('Family Floater Plan');
 
   // Buy Policy Modal

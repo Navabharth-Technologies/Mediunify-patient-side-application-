@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,73 +10,172 @@ import {
   Modal,
   TextInput,
   Alert,
+  StatusBar,
+  Platform,
+  ToastAndroid,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import colors from '../../theme/colors';
-
-const LANGUAGES = [
-  { id: 'en', name: 'English (Default)' },
-  { id: 'kn', name: 'ಕನ್ನಡ (Kannada)' },
-  { id: 'hi', name: 'हिन्दी (Hindi)' },
-  { id: 'te', name: 'తెలుగు (Telugu)' },
-  { id: 'ta', name: 'தமிழ் (Tamil)' },
-];
+import { useTheme } from '../../context/ThemeContext';
 
 const SettingsScreen = ({ navigation }) => {
-  // Notification toggles
-  const [pushNotifs, setPushNotifs] = useState(true);
-  const [whatsappUpdates, setWhatsappUpdates] = useState(true);
-  const [smsAlerts, setSmsAlerts] = useState(false);
+  const {
+    isDarkMode,
+    toggleDarkMode,
+    language,
+    changeLanguage,
+    t,
+    notifications,
+    updateNotifications,
+    biometricEnabled,
+    toggleBiometric,
+    theme,
+    LANGUAGES,
+  } = useTheme();
 
-  // Security toggles
-  const [biometricEnabled, setBiometricEnabled] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
-
-  // Language state
-  const [selectedLanguage, setSelectedLanguage] = useState('English (Default)');
+  // Modals
   const [showLangModal, setShowLangModal] = useState(false);
-
-  // Password Modal
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+
+  // Password fields
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showOldPass, setShowOldPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
 
-  const handleClearCache = () => {
-    Alert.alert('Clear Cache', 'Do you want to clear temporary offline cache and cached images (28.4 MB)?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Clear',
-        style: 'destructive',
-        onPress: () => Alert.alert('Cache Cleared! 🧹', '28.4 MB temporary storage freed.'),
-      },
-    ]);
+  // Toast / Status banner
+  const [toastMessage, setToastMessage] = useState('');
+  const [cacheSize, setCacheSize] = useState('28.4 MB');
+
+  const showFeedback = (msg) => {
+    setToastMessage(msg);
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(msg, ToastAndroid.SHORT);
+    }
+    setTimeout(() => {
+      setToastMessage('');
+    }, 3000);
   };
 
-  const handleUpdatePassword = () => {
-    if (!oldPassword || !newPassword || !confirmPassword) {
-      Alert.alert('Error', 'Please fill all password fields.');
+  const handleClearCache = () => {
+    Alert.alert(
+      t('clear_cache'),
+      'Do you want to clear temporary offline cache, search suggestions, and temporary images (' + cacheSize + ')?',
+      [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: 'Clear Cache',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Clear temporary keys
+              const allKeys = await AsyncStorage.getAllKeys();
+              const tempKeys = allKeys.filter(
+                (k) =>
+                  k.startsWith('@unnathi_temp_') ||
+                  k.startsWith('@unnathi_search_history') ||
+                  k.startsWith('@unnathi_cached_')
+              );
+              if (tempKeys.length > 0) {
+                await AsyncStorage.multiRemove(tempKeys);
+              }
+              setCacheSize('0.0 KB');
+              Alert.alert(
+                t('cache_cleared_title'),
+                t('cache_cleared_msg')
+              );
+              showFeedback('Cache freed successfully! 🧹');
+            } catch (e) {
+              console.log('Error clearing cache:', e);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!oldPassword.trim() || !newPassword.trim() || !confirmPassword.trim()) {
+      Alert.alert('Error', 'Please fill in all password fields.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      Alert.alert('Weak Password', 'New password must be at least 6 characters long.');
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert('Error', 'New password and confirm password do not match.');
+      Alert.alert('Mismatch', 'New password and confirm password do not match.');
       return;
     }
-    setShowPasswordModal(false);
-    setOldPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    Alert.alert('Password Updated! 🔒', 'Your account password has been changed successfully.');
+
+    try {
+      // Fetch stored primary user & registered users directory
+      const storedPrimary = await AsyncStorage.getItem('@unnathi_primary_user');
+      const regUsersStr = await AsyncStorage.getItem('@unnathi_registered_users');
+      let registeredUsers = {};
+      if (regUsersStr) {
+        try {
+          registeredUsers = JSON.parse(regUsersStr);
+        } catch (e) {}
+      }
+
+      let activeEmail = '';
+      if (storedPrimary) {
+        const parsed = JSON.parse(storedPrimary);
+        activeEmail = (parsed.email || '').toLowerCase().trim();
+      }
+
+      if (!activeEmail) {
+        const storedEmail = await AsyncStorage.getItem('userEmail');
+        if (storedEmail) activeEmail = storedEmail.toLowerCase().trim();
+      }
+
+      // Check existing password if user exists in registry
+      if (activeEmail && registeredUsers[activeEmail]) {
+        const currentSavedPass = registeredUsers[activeEmail].password;
+        if (currentSavedPass && currentSavedPass !== oldPassword) {
+          Alert.alert('Incorrect Password', 'The current password you entered is incorrect.');
+          return;
+        }
+
+        // Update password in registry
+        registeredUsers[activeEmail].password = newPassword;
+        await AsyncStorage.setItem('@unnathi_registered_users', JSON.stringify(registeredUsers));
+      }
+
+      // Update primary user object
+      if (storedPrimary) {
+        const parsed = JSON.parse(storedPrimary);
+        parsed.password = newPassword;
+        await AsyncStorage.setItem('@unnathi_primary_user', JSON.stringify(parsed));
+      }
+
+      setShowPasswordModal(false);
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      Alert.alert('Password Updated! 🔒', 'Your account password has been updated securely.');
+      showFeedback('Password changed successfully! 🔒');
+    } catch (e) {
+      console.log('Error updating password:', e);
+      Alert.alert('Error', 'Could not update password. Please try again.');
+    }
   };
 
   const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout from MediUnify?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert('Logout', 'Are you sure you want to log out from MediUnify?', [
+      { text: t('cancel'), style: 'cancel' },
       {
         text: 'Logout',
         style: 'destructive',
-        onPress: () => {
+        onPress: async () => {
+          try {
+            await AsyncStorage.multiRemove(['userToken', '@unnathi_active_patient']);
+          } catch (e) {}
           navigation.getParent()?.reset({
             index: 0,
             routes: [{ name: 'Auth' }],
@@ -86,194 +185,366 @@ const SettingsScreen = ({ navigation }) => {
     ]);
   };
 
+  const currentLangObj = LANGUAGES.find((l) => l.code === language) || LANGUAGES[0];
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.headerBg}
+      />
+
       {/* HEADER */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: theme.headerBg, borderBottomColor: theme.border },
+        ]}
+      >
         <TouchableOpacity
-          style={styles.backBtn}
+          style={[styles.backBtn, { backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9' }]}
           onPress={() => navigation.goBack()}
           activeOpacity={0.8}
         >
-          <Ionicons name="arrow-back" size={22} color={colors.secondary} />
+          <Ionicons name="arrow-back" size={22} color={isDarkMode ? '#F8FAFC' : colors.secondary} />
         </TouchableOpacity>
 
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>App Settings</Text>
-          <Text style={styles.headerSubtitle}>Preferences, security & system</Text>
+          <Text style={[styles.headerTitle, { color: isDarkMode ? '#F8FAFC' : colors.secondary }]}>
+            {t('app_settings')}
+          </Text>
+          <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
+            {t('settings_subtitle')}
+          </Text>
         </View>
         <View style={{ width: 40 }} />
       </View>
+
+      {/* FEEDBACK TOAST BANNER */}
+      {!!toastMessage && (
+        <View style={styles.toastBanner}>
+          <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </View>
+      )}
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* NOTIFICATIONS SECTION */}
-        <Text style={styles.sectionHeader}>Notifications & Alerts</Text>
-        <View style={styles.card}>
+        {/* ==================================================
+            SECTION 1: REGIONAL & DISPLAY (DARK MODE + LANGUAGE)
+        ================================================== */}
+        <Text style={[styles.sectionHeader, { color: theme.textSecondary }]}>
+          {t('regional_display')}
+        </Text>
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          {/* DARK MODE SWITCH */}
           <View style={styles.settingRow}>
             <View style={styles.settingLeft}>
-              <Ionicons name="notifications-outline" size={20} color={colors.primary} />
+              <View
+                style={[
+                  styles.iconWrap,
+                  { backgroundColor: isDarkMode ? '#312E81' : '#EEF2FF' },
+                ]}
+              >
+                <Ionicons
+                  name={isDarkMode ? 'moon' : 'moon-outline'}
+                  size={20}
+                  color={isDarkMode ? '#818CF8' : '#4F46E5'}
+                />
+              </View>
               <View style={styles.settingInfo}>
-                <Text style={styles.settingTitle}>Push Notifications</Text>
-                <Text style={styles.settingSub}>Appointment reminders & health tips</Text>
+                <View style={styles.titleWithBadge}>
+                  <Text style={[styles.settingTitle, { color: theme.text }]}>
+                    {t('dark_mode')}
+                  </Text>
+                  <View
+                    style={[
+                      styles.modeBadge,
+                      { backgroundColor: isDarkMode ? '#064E3B' : '#F0FDF4' },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.modeBadgeText,
+                        { color: isDarkMode ? '#34D399' : '#16A34A' },
+                      ]}
+                    >
+                      {isDarkMode ? 'ON 🌙' : 'OFF ☀️'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={[styles.settingSub, { color: theme.textSecondary }]}>
+                  {t('dark_mode_sub')}
+                </Text>
               </View>
             </View>
             <Switch
-              value={pushNotifs}
-              onValueChange={setPushNotifs}
-              trackColor={{ false: '#E0E0E0', true: '#B3EFE6' }}
-              thumbColor={pushNotifs ? colors.primary : '#FFFFFF'}
+              value={isDarkMode}
+              onValueChange={(val) => {
+                toggleDarkMode(val);
+                showFeedback(val ? t('theme_switched_dark') : t('theme_switched_light'));
+              }}
+              trackColor={{ false: '#CBD5E1', true: '#00B894' }}
+              thumbColor={isDarkMode ? '#FFFFFF' : '#FFFFFF'}
             />
           </View>
 
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-          <View style={styles.settingRow}>
-            <View style={styles.settingLeft}>
-              <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
-              <View style={styles.settingInfo}>
-                <Text style={styles.settingTitle}>WhatsApp Prescription & Bills</Text>
-                <Text style={styles.settingSub}>Receive order tracking on WhatsApp</Text>
-              </View>
-            </View>
-            <Switch
-              value={whatsappUpdates}
-              onValueChange={setWhatsappUpdates}
-              trackColor={{ false: '#E0E0E0', true: '#B3EFE6' }}
-              thumbColor={whatsappUpdates ? colors.primary : '#FFFFFF'}
-            />
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.settingRow}>
-            <View style={styles.settingLeft}>
-              <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.secondary} />
-              <View style={styles.settingInfo}>
-                <Text style={styles.settingTitle}>SMS Notifications</Text>
-                <Text style={styles.settingSub}>Critical OTPs and hospital confirmations</Text>
-              </View>
-            </View>
-            <Switch
-              value={smsAlerts}
-              onValueChange={setSmsAlerts}
-              trackColor={{ false: '#E0E0E0', true: '#B3EFE6' }}
-              thumbColor={smsAlerts ? colors.primary : '#FFFFFF'}
-            />
-          </View>
-        </View>
-
-        {/* SECURITY SECTION */}
-        <Text style={styles.sectionHeader}>Security & Authentication</Text>
-        <View style={styles.card}>
-          <TouchableOpacity
-            style={styles.settingRow}
-            activeOpacity={0.7}
-            onPress={() => setShowPasswordModal(true)}
-          >
-            <View style={styles.settingLeft}>
-              <Ionicons name="key-outline" size={20} color={colors.primary} />
-              <View style={styles.settingInfo}>
-                <Text style={styles.settingTitle}>Change Password</Text>
-                <Text style={styles.settingSub}>Update your account login password</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.slate} />
-          </TouchableOpacity>
-
-          <View style={styles.divider} />
-
-          <View style={styles.settingRow}>
-            <View style={styles.settingLeft}>
-              <Ionicons name="finger-print-outline" size={20} color={colors.primary} />
-              <View style={styles.settingInfo}>
-                <Text style={styles.settingTitle}>Biometric & Face ID Unlock</Text>
-                <Text style={styles.settingSub}>Fast biometric authentication</Text>
-              </View>
-            </View>
-            <Switch
-              value={biometricEnabled}
-              onValueChange={setBiometricEnabled}
-              trackColor={{ false: '#E0E0E0', true: '#B3EFE6' }}
-              thumbColor={biometricEnabled ? colors.primary : '#FFFFFF'}
-            />
-          </View>
-        </View>
-
-        {/* PREFERENCES & LANGUAGE */}
-        <Text style={styles.sectionHeader}>Regional & Display</Text>
-        <View style={styles.card}>
+          {/* APP LANGUAGE SELECTOR */}
           <TouchableOpacity
             style={styles.settingRow}
             activeOpacity={0.7}
             onPress={() => setShowLangModal(true)}
           >
             <View style={styles.settingLeft}>
-              <Ionicons name="language-outline" size={20} color={colors.primary} />
+              <View
+                style={[
+                  styles.iconWrap,
+                  { backgroundColor: isDarkMode ? '#064E3B' : '#E6F8F4' },
+                ]}
+              >
+                <Ionicons name="language-outline" size={20} color={colors.primary} />
+              </View>
               <View style={styles.settingInfo}>
-                <Text style={styles.settingTitle}>App Language</Text>
-                <Text style={styles.settingSub}>{selectedLanguage}</Text>
+                <Text style={[styles.settingTitle, { color: theme.text }]}>
+                  {t('app_language')}
+                </Text>
+                <Text style={[styles.settingSub, { color: theme.textSecondary }]}>
+                  {currentLangObj.flag} {currentLangObj.native} ({currentLangObj.name})
+                </Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.slate} />
+            <View style={styles.langRightWrap}>
+              <View style={styles.activeLangPill}>
+                <Text style={styles.activeLangPillText}>{currentLangObj.code.toUpperCase()}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={theme.textSecondary} />
+            </View>
           </TouchableOpacity>
+        </View>
 
-          <View style={styles.divider} />
-
+        {/* ==================================================
+            SECTION 2: NOTIFICATIONS & ALERTS
+        ================================================== */}
+        <Text style={[styles.sectionHeader, { color: theme.textSecondary }]}>
+          {t('notifications_alerts')}
+        </Text>
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          {/* PUSH NOTIFICATIONS */}
           <View style={styles.settingRow}>
             <View style={styles.settingLeft}>
-              <Ionicons name="moon-outline" size={20} color={colors.secondary} />
+              <View
+                style={[
+                  styles.iconWrap,
+                  { backgroundColor: isDarkMode ? '#064E3B' : '#E6F8F4' },
+                ]}
+              >
+                <Ionicons name="notifications-outline" size={20} color={colors.primary} />
+              </View>
               <View style={styles.settingInfo}>
-                <Text style={styles.settingTitle}>Dark Mode (Beta)</Text>
-                <Text style={styles.settingSub}>Switch between light and dark themes</Text>
+                <Text style={[styles.settingTitle, { color: theme.text }]}>
+                  {t('push_notifications')}
+                </Text>
+                <Text style={[styles.settingSub, { color: theme.textSecondary }]}>
+                  {t('push_sub')}
+                </Text>
               </View>
             </View>
             <Switch
-              value={darkMode}
-              onValueChange={setDarkMode}
-              trackColor={{ false: '#E0E0E0', true: '#B3EFE6' }}
-              thumbColor={darkMode ? colors.primary : '#FFFFFF'}
+              value={notifications.push}
+              onValueChange={(val) => {
+                updateNotifications('push', val);
+                showFeedback(val ? 'Push alerts enabled 🔔' : 'Push alerts disabled 🔕');
+              }}
+              trackColor={{ false: '#CBD5E1', true: '#00B894' }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
+
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
+          {/* WHATSAPP UPDATES */}
+          <View style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconWrap, { backgroundColor: '#DCFCE7' }]}>
+                <Ionicons name="logo-whatsapp" size={20} color="#16A34A" />
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingTitle, { color: theme.text }]}>
+                  {t('whatsapp_updates')}
+                </Text>
+                <Text style={[styles.settingSub, { color: theme.textSecondary }]}>
+                  {t('whatsapp_sub')}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={notifications.whatsapp}
+              onValueChange={(val) => {
+                updateNotifications('whatsapp', val);
+                showFeedback(val ? 'WhatsApp updates on 💬' : 'WhatsApp updates off');
+              }}
+              trackColor={{ false: '#CBD5E1', true: '#00B894' }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
+
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
+          {/* SMS NOTIFICATIONS */}
+          <View style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <View
+                style={[
+                  styles.iconWrap,
+                  { backgroundColor: isDarkMode ? '#1E3A8A' : '#EFF6FF' },
+                ]}
+              >
+                <Ionicons name="chatbubble-ellipses-outline" size={20} color="#3B82F6" />
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingTitle, { color: theme.text }]}>
+                  {t('sms_alerts')}
+                </Text>
+                <Text style={[styles.settingSub, { color: theme.textSecondary }]}>
+                  {t('sms_sub')}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={notifications.sms}
+              onValueChange={(val) => {
+                updateNotifications('sms', val);
+                showFeedback(val ? 'SMS alerts enabled 📱' : 'SMS alerts disabled');
+              }}
+              trackColor={{ false: '#CBD5E1', true: '#00B894' }}
+              thumbColor="#FFFFFF"
             />
           </View>
         </View>
 
-        {/* STORAGE & DATA */}
-        <Text style={styles.sectionHeader}>Data & Storage</Text>
-        <View style={styles.card}>
+        {/* ==================================================
+            SECTION 3: SECURITY & AUTHENTICATION
+        ================================================== */}
+        <Text style={[styles.sectionHeader, { color: theme.textSecondary }]}>
+          {t('security_auth')}
+        </Text>
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          {/* CHANGE PASSWORD */}
+          <TouchableOpacity
+            style={styles.settingRow}
+            activeOpacity={0.7}
+            onPress={() => setShowPasswordModal(true)}
+          >
+            <View style={styles.settingLeft}>
+              <View
+                style={[
+                  styles.iconWrap,
+                  { backgroundColor: isDarkMode ? '#701A75' : '#FDF4FF' },
+                ]}
+              >
+                <Ionicons name="key-outline" size={20} color="#A855F7" />
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingTitle, { color: theme.text }]}>
+                  {t('change_password')}
+                </Text>
+                <Text style={[styles.settingSub, { color: theme.textSecondary }]}>
+                  {t('change_pass_sub')}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.textSecondary} />
+          </TouchableOpacity>
+
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
+          {/* BIOMETRICS */}
+          <View style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <View
+                style={[
+                  styles.iconWrap,
+                  { backgroundColor: isDarkMode ? '#064E3B' : '#E6F8F4' },
+                ]}
+              >
+                <Ionicons name="finger-print-outline" size={20} color={colors.primary} />
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingTitle, { color: theme.text }]}>
+                  {t('biometric_unlock')}
+                </Text>
+                <Text style={[styles.settingSub, { color: theme.textSecondary }]}>
+                  {t('biometric_sub')}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={biometricEnabled}
+              onValueChange={(val) => {
+                toggleBiometric(val);
+                showFeedback(val ? 'Biometric login active 🔐' : 'Biometrics disabled');
+              }}
+              trackColor={{ false: '#CBD5E1', true: '#00B894' }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
+        </View>
+
+        {/* ==================================================
+            SECTION 4: DATA & STORAGE
+        ================================================== */}
+        <Text style={[styles.sectionHeader, { color: theme.textSecondary }]}>
+          {t('data_storage')}
+        </Text>
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <TouchableOpacity
             style={styles.settingRow}
             activeOpacity={0.7}
             onPress={handleClearCache}
           >
             <View style={styles.settingLeft}>
-              <Ionicons name="trash-bin-outline" size={20} color="#E53935" />
+              <View style={[styles.iconWrap, { backgroundColor: '#FEF2F2' }]}>
+                <Ionicons name="trash-bin-outline" size={20} color="#EF4444" />
+              </View>
               <View style={styles.settingInfo}>
-                <Text style={styles.settingTitle}>Clear App Cache</Text>
-                <Text style={styles.settingSub}>Free up 28.4 MB of temporary storage</Text>
+                <Text style={[styles.settingTitle, { color: theme.text }]}>
+                  {t('clear_cache')}
+                </Text>
+                <Text style={[styles.settingSub, { color: theme.textSecondary }]}>
+                  {t('clear_cache_sub')} ({cacheSize})
+                </Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.slate} />
+            <Ionicons name="chevron-forward" size={18} color={theme.textSecondary} />
           </TouchableOpacity>
         </View>
 
-        {/* LOGOUT & ACCOUNT */}
+        {/* ==================================================
+            LOGOUT BUTTON
+        ================================================== */}
         <TouchableOpacity
-          style={styles.logoutBtn}
+          style={[styles.logoutBtn, { backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF', borderColor: '#FCA5A5' }]}
           activeOpacity={0.85}
           onPress={handleLogout}
         >
-          <Ionicons name="log-out-outline" size={20} color="#E53935" />
-          <Text style={styles.logoutText}>Log Out of MediUnify Care</Text>
+          <Ionicons name="log-out-outline" size={20} color="#DC2626" />
+          <Text style={styles.logoutText}>{t('logout_btn')}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.appVersion}>MediUnify Healthcare App • v2.4.0 (Build 418)</Text>
+        <Text style={[styles.appVersion, { color: theme.textSecondary }]}>
+          {t('app_version')}
+        </Text>
 
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* LANGUAGE SELECTOR MODAL */}
+      {/* ==================================================
+          LANGUAGE SELECTOR MODAL
+      ================================================== */}
       <Modal
         visible={showLangModal}
         transparent
@@ -281,42 +552,80 @@ const SettingsScreen = ({ navigation }) => {
         onRequestClose={() => setShowLangModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: theme.card, borderColor: theme.border }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select App Language</Text>
-              <TouchableOpacity onPress={() => setShowLangModal(false)}>
-                <Ionicons name="close" size={22} color={colors.secondary} />
+              <View>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>
+                  {t('select_language')}
+                </Text>
+                <Text style={[styles.modalSub, { color: theme.textSecondary }]}>
+                  Choose your preferred regional language
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.closeModalBtn, { backgroundColor: isDarkMode ? '#334155' : '#F1F5F9' }]}
+                onPress={() => setShowLangModal(false)}
+              >
+                <Ionicons name="close" size={20} color={theme.text} />
               </TouchableOpacity>
             </View>
 
-            {LANGUAGES.map((lang) => (
-              <TouchableOpacity
-                key={lang.id}
-                style={styles.langOption}
-                activeOpacity={0.8}
-                onPress={() => {
-                  setSelectedLanguage(lang.name);
-                  setShowLangModal(false);
-                }}
-              >
-                <Text
+            {LANGUAGES.map((lang) => {
+              const isSelected = language === lang.code;
+              return (
+                <TouchableOpacity
+                  key={lang.id}
                   style={[
-                    styles.langText,
-                    selectedLanguage === lang.name && styles.langTextActive,
+                    styles.langOption,
+                    {
+                      backgroundColor: isSelected
+                        ? isDarkMode
+                          ? '#064E3B'
+                          : '#E6F8F4'
+                        : isDarkMode
+                        ? '#0F172A'
+                        : '#F8FAFC',
+                      borderColor: isSelected ? colors.primary : theme.border,
+                    },
                   ]}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    changeLanguage(lang.code);
+                    setShowLangModal(false);
+                    showFeedback(`${t('lang_changed_msg')} ${lang.native}! 🌐`);
+                  }}
                 >
-                  {lang.name}
-                </Text>
-                {selectedLanguage === lang.name && (
-                  <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
-                )}
-              </TouchableOpacity>
-            ))}
+                  <View style={styles.langOptionLeft}>
+                    <Text style={styles.flagEmoji}>{lang.flag}</Text>
+                    <View>
+                      <Text
+                        style={[
+                          styles.langNativeText,
+                          { color: isSelected ? colors.primary : theme.text },
+                        ]}
+                      >
+                        {lang.native}
+                      </Text>
+                      <Text style={[styles.langSubName, { color: theme.textSecondary }]}>
+                        {lang.name}
+                      </Text>
+                    </View>
+                  </View>
+                  {isSelected ? (
+                    <Ionicons name="checkmark-circle" size={22} color={colors.primary} />
+                  ) : (
+                    <View style={[styles.radioCircle, { borderColor: theme.border }]} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       </Modal>
 
-      {/* CHANGE PASSWORD MODAL */}
+      {/* ==================================================
+          CHANGE PASSWORD MODAL
+      ================================================== */}
       <Modal
         visible={showPasswordModal}
         transparent
@@ -324,47 +633,96 @@ const SettingsScreen = ({ navigation }) => {
         onRequestClose={() => setShowPasswordModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: theme.card, borderColor: theme.border }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Change Password</Text>
-              <TouchableOpacity onPress={() => setShowPasswordModal(false)}>
-                <Ionicons name="close" size={22} color={colors.secondary} />
+              <View>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>
+                  {t('change_password')}
+                </Text>
+                <Text style={[styles.modalSub, { color: theme.textSecondary }]}>
+                  Secure your healthcare records & account
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.closeModalBtn, { backgroundColor: isDarkMode ? '#334155' : '#F1F5F9' }]}
+                onPress={() => setShowPasswordModal(false)}
+              >
+                <Ionicons name="close" size={20} color={theme.text} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.inputLabel}>Current Password</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Enter current password"
-              secureTextEntry
-              value={oldPassword}
-              onChangeText={setOldPassword}
-            />
+            {/* CURRENT PASSWORD */}
+            <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+              {t('current_password')}
+            </Text>
+            <View style={[styles.inputBoxWrap, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+              <TextInput
+                style={[styles.modalInput, { color: theme.text }]}
+                placeholder="Enter current password"
+                placeholderTextColor={theme.textSecondary}
+                secureTextEntry={!showOldPass}
+                value={oldPassword}
+                onChangeText={setOldPassword}
+              />
+              <TouchableOpacity onPress={() => setShowOldPass(!showOldPass)}>
+                <Ionicons
+                  name={showOldPass ? 'eye-off-outline' : 'eye-outline'}
+                  size={18}
+                  color={theme.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
 
-            <Text style={styles.inputLabel}>New Password</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Min 8 characters"
-              secureTextEntry
-              value={newPassword}
-              onChangeText={setNewPassword}
-            />
+            {/* NEW PASSWORD */}
+            <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+              {t('new_password')}
+            </Text>
+            <View style={[styles.inputBoxWrap, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+              <TextInput
+                style={[styles.modalInput, { color: theme.text }]}
+                placeholder="Min 6 characters"
+                placeholderTextColor={theme.textSecondary}
+                secureTextEntry={!showNewPass}
+                value={newPassword}
+                onChangeText={setNewPassword}
+              />
+              <TouchableOpacity onPress={() => setShowNewPass(!showNewPass)}>
+                <Ionicons
+                  name={showNewPass ? 'eye-off-outline' : 'eye-outline'}
+                  size={18}
+                  color={theme.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
 
-            <Text style={styles.inputLabel}>Confirm New Password</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Re-enter new password"
-              secureTextEntry
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-            />
+            {/* CONFIRM PASSWORD */}
+            <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+              {t('confirm_password')}
+            </Text>
+            <View style={[styles.inputBoxWrap, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+              <TextInput
+                style={[styles.modalInput, { color: theme.text }]}
+                placeholder="Re-enter new password"
+                placeholderTextColor={theme.textSecondary}
+                secureTextEntry={!showConfirmPass}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+              />
+              <TouchableOpacity onPress={() => setShowConfirmPass(!showConfirmPass)}>
+                <Ionicons
+                  name={showConfirmPass ? 'eye-off-outline' : 'eye-outline'}
+                  size={18}
+                  color={theme.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity
               style={styles.savePassBtn}
               activeOpacity={0.85}
               onPress={handleUpdatePassword}
             >
-              <Text style={styles.savePassText}>Update Password</Text>
+              <Text style={styles.savePassText}>{t('update_password_btn')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -373,10 +731,11 @@ const SettingsScreen = ({ navigation }) => {
   );
 };
 
+export default SettingsScreen;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F4F8FA',
   },
   header: {
     minHeight: 60,
@@ -384,15 +743,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    backgroundColor: colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F4F8FA',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -402,31 +758,47 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: '900',
-    color: colors.secondary,
   },
   headerSubtitle: {
     fontSize: 10,
-    color: colors.slate,
     fontWeight: '600',
+    marginTop: 2,
+  },
+  toastBanner: {
+    backgroundColor: '#0F766E',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
   scrollContent: {
     padding: 16,
   },
   sectionHeader: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
-    color: colors.slate,
     textTransform: 'uppercase',
+    letterSpacing: 0.8,
     marginBottom: 8,
     marginTop: 10,
   },
   card: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 14,
-    marginBottom: 14,
+    marginBottom: 16,
     borderWidth: 1,
-    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
   settingRow: {
     flexDirection: 'row',
@@ -440,57 +812,90 @@ const styles = StyleSheet.create({
     gap: 12,
     flex: 1,
   },
+  iconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   settingInfo: {
     flex: 1,
+  },
+  titleWithBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   settingTitle: {
     fontSize: 13,
     fontWeight: '800',
-    color: colors.secondary,
+  },
+  modeBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  modeBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
   },
   settingSub: {
-    fontSize: 10,
-    color: colors.slate,
+    fontSize: 11,
     marginTop: 2,
+    fontWeight: '500',
   },
   divider: {
     height: 1,
-    backgroundColor: '#F0F4F6',
     marginVertical: 10,
+  },
+  langRightWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  activeLangPill: {
+    backgroundColor: '#CCFBF1',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  activeLangPillText: {
+    color: '#0F766E',
+    fontSize: 11,
+    fontWeight: '900',
   },
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFF0F0',
-    height: 48,
-    borderRadius: 14,
     gap: 8,
-    marginTop: 12,
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginTop: 8,
     borderWidth: 1,
-    borderColor: '#FFD6D6',
   },
   logoutText: {
+    color: '#DC2626',
     fontSize: 13,
-    fontWeight: '900',
-    color: '#E53935',
+    fontWeight: '800',
   },
   appVersion: {
     textAlign: 'center',
-    fontSize: 10,
-    color: colors.slate,
+    fontSize: 11,
     marginTop: 18,
+    fontWeight: '600',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: colors.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     padding: 20,
+    borderWidth: 1,
     maxHeight: '80%',
   },
   modalHeader: {
@@ -498,63 +903,90 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+    paddingBottom: 10,
   },
   modalTitle: {
     fontSize: 17,
     fontWeight: '900',
-    color: colors.secondary,
+  },
+  modalSub: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  closeModalBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   langOption: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F4F6',
+    justifyContent: 'space-between',
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 10,
+    borderWidth: 1.5,
   },
-  langText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.secondary,
+  langOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  langTextActive: {
-    color: colors.primary,
-    fontWeight: '900',
+  flagEmoji: {
+    fontSize: 22,
+  },
+  langNativeText: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  langSubName: {
+    fontSize: 11,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  radioCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
   },
   inputLabel: {
     fontSize: 11,
     fontWeight: '800',
-    color: colors.slate,
-    marginBottom: 4,
-    marginTop: 8,
+    marginTop: 10,
+    marginBottom: 6,
     textTransform: 'uppercase',
   },
-  modalInput: {
-    backgroundColor: '#F8FAFB',
-    borderRadius: 10,
+  inputBoxWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: 12,
     paddingHorizontal: 12,
-    height: 44,
+    height: 48,
+  },
+  modalInput: {
+    flex: 1,
     fontSize: 13,
-    color: colors.secondary,
     fontWeight: '600',
-    marginBottom: 8,
   },
   savePassBtn: {
-    backgroundColor: colors.primary,
-    height: 48,
+    backgroundColor: '#00B894',
+    paddingVertical: 14,
     borderRadius: 14,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 16,
-    marginBottom: 16,
+    marginTop: 20,
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   savePassText: {
-    color: colors.white,
-    fontSize: 13,
+    color: '#FFFFFF',
+    fontSize: 14,
     fontWeight: '900',
   },
 });
-
-export default SettingsScreen;

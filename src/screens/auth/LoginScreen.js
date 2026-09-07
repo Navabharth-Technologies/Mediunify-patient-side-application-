@@ -9,6 +9,10 @@ import {
   TouchableOpacity,
   Alert,
   Image,
+  Platform,
+  KeyboardAvoidingView,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -23,65 +27,184 @@ const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  React.useEffect(() => {
+    const loadLastSaved = async () => {
+      try {
+        const storedEmail = await AsyncStorage.getItem('userEmail');
+        if (storedEmail && storedEmail.trim()) {
+          setEmail(storedEmail.trim());
+        }
+      } catch (e) {}
+    };
+    loadLastSaved();
+  }, []);
+
   // ==========================================
   // LOGIN
   // ==========================================
 
   const handleLogin = async () => {
+    const inputVal = email.trim();
+    const inputPassword = password.trim();
 
-    if (!email.trim() || !password.trim()) {
-
+    if (!inputVal || !inputPassword) {
       Alert.alert(
         'Missing Information',
-        'Please enter your email and password.'
+        'Please enter your registered email/phone and password.'
       );
-
       return;
     }
 
     try {
+      const cleanPhone = inputVal.replace(/[^0-9]/g, '');
+      const cleanPhone10 = cleanPhone.length >= 10 ? cleanPhone.slice(-10) : cleanPhone;
+      const lowerEmail = inputVal.toLowerCase();
 
-      // ==========================================
-      // CREATE USER NAME FROM EMAIL
-      // ==========================================
+      // 1. Check registered credentials store
+      const regCredsStr = await AsyncStorage.getItem('@unnathi_registered_credentials');
+      let registeredCreds = {};
+      if (regCredsStr) {
+        try {
+          registeredCreds = JSON.parse(regCredsStr);
+        } catch (e) {}
+      }
 
-      const emailValue = email.trim();
+      const matchingCred =
+        registeredCreds[lowerEmail] ||
+        (cleanPhone10.length === 10 ? registeredCreds[cleanPhone10] : null);
 
-      let userName =
-        emailValue
-          .split('@')[0]
-          .replace(/[._-]/g, ' ')
-          .trim();
+      if (matchingCred) {
+        // Enforce password match
+        if (matchingCred.password && matchingCred.password !== inputPassword) {
+          Alert.alert(
+            'Incorrect Password',
+            'The password you entered is incorrect. Please verify and try again.',
+            [
+              { text: 'Try Again' },
+              { text: 'Forgot Password?', onPress: () => navigation.navigate('ForgotPassword') },
+            ]
+          );
+          return;
+        }
+      }
 
-      // Capitalize each word
-      userName = userName
-        .split(' ')
-        .filter(Boolean)
-        .map(
-          word =>
-            word.charAt(0).toUpperCase() +
-            word.slice(1).toLowerCase()
-        )
-        .join(' ');
+      // 2. Load registered user data
+      const regUsersStr = await AsyncStorage.getItem('@unnathi_registered_users');
+      let registeredUsers = {};
+      if (regUsersStr) {
+        try {
+          registeredUsers = JSON.parse(regUsersStr);
+        } catch (e) {}
+      }
 
+      const foundReg =
+        (matchingCred && matchingCred.userData) ||
+        registeredUsers[lowerEmail] ||
+        (cleanPhone10.length === 10 ? registeredUsers[cleanPhone10] : null);
+
+      let userFullName = '';
+      let existingEmail = lowerEmail.includes('@') ? lowerEmail : (foundReg?.email || 'user@example.com');
+      let existingPhone = cleanPhone10.length === 10 ? `+91 ${cleanPhone10}` : (foundReg?.phone || '+91 98450 12345');
+      let existingBlood = 'O+ Positive';
+      let existingAge = '28 Yrs';
+      let existingGender = 'Male';
+      let existingEmergency = `${existingPhone} (Family)`;
+      let existingDob = '15/08/1998';
+
+      if (foundReg && foundReg.name && !foundReg.name.includes('@')) {
+        userFullName = foundReg.name.trim();
+        if (foundReg.email) existingEmail = foundReg.email;
+        if (foundReg.phone) existingPhone = foundReg.phone;
+        if (foundReg.bloodGroup) existingBlood = foundReg.bloodGroup;
+        if (foundReg.age) existingAge = foundReg.age;
+        if (foundReg.gender) existingGender = foundReg.gender;
+        if (foundReg.emergencyContact) existingEmergency = foundReg.emergencyContact;
+        if (foundReg.dob) existingDob = foundReg.dob;
+      }
+
+      // Check existing storage if not in registered map
+      if (!userFullName) {
+        const storedPrimary = await AsyncStorage.getItem('@unnathi_primary_user');
+        const storedUser = await AsyncStorage.getItem('user');
+        const storedName = await AsyncStorage.getItem('userName');
+
+        let parsed = null;
+        if (storedPrimary) {
+          try { parsed = JSON.parse(storedPrimary); } catch (e) {}
+        } else if (storedUser) {
+          try { parsed = JSON.parse(storedUser); } catch (e) {}
+        }
+
+        if (parsed?.name && !parsed.name.includes('@') && (!parsed?.email || parsed.email.toLowerCase() === lowerEmail)) {
+          userFullName = parsed.name.trim();
+          if (parsed.email) existingEmail = parsed.email;
+          if (parsed.phone) existingPhone = parsed.phone;
+          if (parsed.bloodGroup) existingBlood = parsed.bloodGroup;
+          if (parsed.age) existingAge = parsed.age;
+          if (parsed.gender) existingGender = parsed.gender;
+          if (parsed.emergencyContact) existingEmergency = parsed.emergencyContact;
+          if (parsed.dob) existingDob = parsed.dob;
+        } else if (storedName && !storedName.includes('@') && storedName.trim()) {
+          userFullName = storedName.trim();
+        }
+      }
+
+      // Fallback: format clean readable full name
+      if (!userFullName) {
+        const rawPart = lowerEmail.includes('@')
+          ? lowerEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/[0-9]/g, '').trim() || lowerEmail.split('@')[0].replace(/[._-]/g, ' ').trim()
+          : `User ${cleanPhone10.slice(-4)}`;
+        userFullName = rawPart
+          .split(' ')
+          .filter(Boolean)
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ') || 'User Profile';
+      }
 
       // ==========================================
       // SAVE USER DATA
       // ==========================================
 
       const userData = {
-
-        name: userName,
-
-        email: emailValue,
-
+        name: userFullName,
+        email: existingEmail,
+        phone: existingPhone,
+        dob: existingDob,
+        bloodGroup: existingBlood,
+        age: existingAge,
+        gender: existingGender,
+        emergencyContact: existingEmergency,
       };
 
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+      await AsyncStorage.setItem('@unnathi_primary_user', JSON.stringify(userData));
+      await AsyncStorage.setItem('userName', userFullName);
+      await AsyncStorage.setItem('userEmail', existingEmail);
+      await AsyncStorage.setItem('userPhone', existingPhone);
 
-      await AsyncStorage.setItem(
-        'user',
-        JSON.stringify(userData)
-      );
+      // Sync family members self profile
+      const savedFam = await AsyncStorage.getItem('@unnathi_family_members');
+      if (savedFam) {
+        try {
+          const parsed = JSON.parse(savedFam);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const updatedFam = parsed.map((m) => {
+              if (m.id === 'self' || m.isPrimary || m.relation === 'Self') {
+                return {
+                  ...m,
+                  name: `${userFullName} (Self)`,
+                  displayName: `${userFullName.split(' ')[0]} (Self)`,
+                  bloodGroup: existingBlood ? existingBlood.split(' ')[0] : m.bloodGroup,
+                  age: existingAge || m.age,
+                  gender: existingGender || m.gender,
+                };
+              }
+              return m;
+            });
+            await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(updatedFam));
+          }
+        } catch (e) {}
+      }
 
 
       // ==========================================
@@ -153,168 +276,104 @@ const LoginScreen = ({ navigation }) => {
 
 
   return (
-
-    <SafeAreaView
-      style={styles.safeArea}
-    >
-
-      <ScrollView
-        contentContainerStyle={
-          styles.content
-        }
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
       >
-
-        {/* LOGO */}
-
-        <View
-          style={styles.logoContainer}
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
         >
+          {/* LOGO */}
+          <View style={styles.logoContainer}>
+            <Image
+              source={require('../../../assets/logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
 
-          <Image
-            source={
-              require('../../../assets/logo.png')
-            }
-            style={styles.logo}
-            resizeMode="contain"
+          {/* HEADER */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.subtitle}>
+              Login to your MediUnify account.
+            </Text>
+          </View>
+
+          {/* EMAIL OR PHONE */}
+          <CustomInput
+            label="Email or Mobile Phone"
+            placeholder="Enter your email or 10-digit phone"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
           />
 
-        </View>
+          {/* PASSWORD WITH EYE TOGGLE */}
+          <CustomInput
+            label="Password"
+            placeholder="Enter your password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            isPassword
+          />
 
-
-        {/* HEADER */}
-
-        <View
-          style={styles.header}
-        >
-
-          <Text
-            style={styles.title}
-          >
-            Welcome Back
-          </Text>
-
-          <Text
-            style={styles.subtitle}
-          >
-            Login to your Unnathi OneCare account.
-          </Text>
-
-        </View>
-
-
-        {/* EMAIL */}
-
-        <CustomInput
-          label="Email"
-          placeholder="Enter your email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-
-
-        {/* PASSWORD */}
-
-        <CustomInput
-          label="Password"
-          placeholder="Enter your password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
-
-
-        {/* FORGOT PASSWORD */}
-
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={handleForgotPassword}
-        >
-
-          <Text
-            style={styles.forgot}
-          >
-            Forgot Password?
-          </Text>
-
-        </TouchableOpacity>
-
-
-        {/* LOGIN BUTTON */}
-
-        <CustomButton
-          title="Login"
-          onPress={handleLogin}
-        />
-
-
-        {/* REGISTER */}
-
-        <View
-          style={styles.registerContainer}
-        >
-
-          <Text
-            style={styles.registerText}
-          >
-            Don't have an account?
-          </Text>
-
+          {/* FORGOT PASSWORD */}
           <TouchableOpacity
             activeOpacity={0.7}
-            onPress={handleRegister}
+            onPress={handleForgotPassword}
+            style={styles.forgotBtn}
           >
-
-            <Text
-              style={styles.registerLink}
-            >
-              {' '}Create Account
-            </Text>
-
+            <Text style={styles.forgot}>Forgot Password?</Text>
           </TouchableOpacity>
 
-        </View>
+          {/* LOGIN BUTTON */}
+          <CustomButton
+            title="Login"
+            onPress={() => {
+              Keyboard.dismiss();
+              handleLogin();
+            }}
+          />
 
-      </ScrollView>
-
+          {/* REGISTER */}
+          <View style={styles.registerContainer}>
+            <Text style={styles.registerText}>Don't have an account?</Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={handleRegister}
+            >
+              <Text style={styles.registerLink}> Create Account</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
-
   );
-
 };
 
-
-// ==========================================
-// STYLES
-// ==========================================
-
 const styles = StyleSheet.create({
-
   safeArea: {
-
     flex: 1,
-
-    backgroundColor:
-      colors.white,
-
+    backgroundColor: colors.white,
   },
-
   content: {
-
     flexGrow: 1,
-
-    justifyContent:
-      'center',
-
-    paddingHorizontal:
-      24,
-
-    paddingVertical:
-      30,
-
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+  },
+  forgotBtn: {
+    alignSelf: 'flex-end',
+    marginBottom: 20,
+    marginTop: 4,
   },
 
   logoContainer: {

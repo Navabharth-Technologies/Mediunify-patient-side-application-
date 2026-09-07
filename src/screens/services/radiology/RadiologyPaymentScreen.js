@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -33,10 +33,21 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
 
   const { removeFromCart } = useCart();
 
-  const [paymentMethod, setPaymentMethod] = useState('UPI');
+  const [paymentMethod, setPaymentMethod] = useState('WALLET');
+  const [walletBalance, setWalletBalance] = useState(1250);
   const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
   const [upiIdInput, setUpiIdInput] = useState('');
   const [selectedBank, setSelectedBank] = useState('HDFC Bank');
+
+  // Load wallet balance
+  useEffect(() => {
+    (async () => {
+      try {
+        const bal = await AsyncStorage.getItem('@unnathi_wallet_balance');
+        if (bal) setWalletBalance(parseInt(bal, 10) || 1250);
+      } catch (e) {}
+    })();
+  }, []);
 
   // Card details
   const [cardNumber, setCardNumber] = useState('');
@@ -86,6 +97,20 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
 
   // Process & Confirm Booking
   const handleConfirmAndPay = async () => {
+    if (paymentMethod === 'WALLET') {
+      if (walletBalance < finalPayable) {
+        Alert.alert(
+          'Insufficient Wallet Balance 💳',
+          `Your MediUnify Wallet has ₹${walletBalance.toLocaleString('en-IN')}, but the test fee is ₹${finalPayable.toLocaleString('en-IN')}.\n\nPlease top up or select UPI / Cards / Pay at Lab.`,
+          [
+            { text: 'Top Up Wallet', onPress: () => navigation.navigate('Wallet') },
+            { text: 'Change Method', style: 'cancel' },
+          ]
+        );
+        return;
+      }
+    }
+
     setIsProcessing(true);
 
     try {
@@ -94,6 +119,29 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
 
       const bookingId = `RAD-${Math.floor(100000 + Math.random() * 900000)}`;
       const tokenNumber = `TK-${Math.floor(10 + Math.random() * 90)}`;
+
+      // Deduct from wallet if paid via wallet
+      if (paymentMethod === 'WALLET') {
+        const newBal = Math.max(0, walletBalance - finalPayable);
+        setWalletBalance(newBal);
+        try {
+          await AsyncStorage.setItem('@unnathi_wallet_balance', newBal.toString());
+          const storedTx = await AsyncStorage.getItem('@unnathi_wallet_transactions');
+          const existingTx = storedTx ? JSON.parse(storedTx) : [];
+          const newTx = {
+            id: `tx-${Date.now()}`,
+            title: 'Paid for Diagnostic Scan Booking',
+            subtitle: `Booking #${bookingId} • ${lab?.name || 'Radiology Lab'}`,
+            amount: `-₹${finalPayable}`,
+            type: 'debit',
+            date: 'Just Now',
+            icon: 'pulse-outline',
+          };
+          await AsyncStorage.setItem('@unnathi_wallet_transactions', JSON.stringify([newTx, ...existingTx]));
+        } catch (e) {
+          console.log('Error updating wallet:', e);
+        }
+      }
 
       const confirmedBooking = {
         id: bookingId,
@@ -124,8 +172,18 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
         })),
         patient,
         payment: {
-          method: paymentMethod === 'LAB_COUNTER' ? 'Pay at Lab Counter' : paymentMethod,
-          status: paymentMethod === 'LAB_COUNTER' ? 'Pay on Visit' : 'Paid Online',
+          method:
+            paymentMethod === 'WALLET'
+              ? 'MediUnify Health Wallet'
+              : paymentMethod === 'LAB_COUNTER'
+              ? 'Pay at Lab Counter'
+              : paymentMethod,
+          status:
+            paymentMethod === 'WALLET'
+              ? 'Paid Online (MediUnify Wallet)'
+              : paymentMethod === 'LAB_COUNTER'
+              ? 'Pay on Visit'
+              : 'Paid Online',
           paidAmount: finalPayable,
           mrpTotal: pricing?.mrpTotal || basePayable,
           savings: (pricing?.totalSavings || 0) + couponDiscount,
@@ -320,6 +378,61 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
             <Ionicons name="card-outline" size={18} color={colors.secondary} />
             <Text style={styles.sectionTitle}>Select Payment Method</Text>
           </View>
+
+          {/* OPTION 0: MEDIUNIFY WALLET */}
+          <TouchableOpacity
+            style={[
+              styles.paymentOptionCard,
+              paymentMethod === 'WALLET' && styles.paymentOptionActive,
+            ]}
+            activeOpacity={0.88}
+            onPress={() => setPaymentMethod('WALLET')}
+          >
+            <View style={styles.paymentOptionHeader}>
+              <View style={styles.radioCircle}>
+                {paymentMethod === 'WALLET' && <View style={styles.radioSelected} />}
+              </View>
+              <View style={styles.paymentOptionTitleCol}>
+                <Text style={styles.paymentMethodTitle}>MediUnify Health Wallet</Text>
+                <Text style={styles.paymentMethodSubtitle}>1-Click Instant Zero-OTP Payment</Text>
+              </View>
+              <View style={[styles.fastTag, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
+                <Text style={[styles.fastTagText, { color: '#059669' }]}>RECOMMENDED</Text>
+              </View>
+            </View>
+
+            {paymentMethod === 'WALLET' && (
+              <View style={styles.walletDetailsWrap}>
+                <View style={styles.walletBalRow}>
+                  <Text style={styles.walletBalText}>
+                    Available Balance: <Text style={{ fontWeight: '900', color: '#059669' }}>₹{walletBalance.toLocaleString('en-IN')}</Text>
+                  </Text>
+                  {walletBalance >= finalPayable ? (
+                    <View style={styles.sufficientBadge}>
+                      <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                      <Text style={styles.sufficientText}>Sufficient</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.topUpBtn}
+                      onPress={() => navigation.navigate('Wallet')}
+                    >
+                      <Text style={styles.topUpBtnText}>+ Top Up</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {walletBalance >= finalPayable ? (
+                  <Text style={styles.walletPerkNote}>
+                    ✓ Instant Confirmation: ₹{finalPayable} will be debited with zero OTP hassle.
+                  </Text>
+                ) : (
+                  <Text style={styles.walletLowBalNote}>
+                    ⚠️ Low Balance (Need ₹{finalPayable - walletBalance} more). Please top up or select UPI/Card.
+                  </Text>
+                )}
+              </View>
+            )}
+          </TouchableOpacity>
 
           {/* OPTION 1: UPI */}
           <TouchableOpacity
@@ -1086,6 +1199,62 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
+  },
+  walletDetailsWrap: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#A7F3D0',
+    backgroundColor: '#ECFDF5',
+    padding: 10,
+    borderRadius: 10,
+  },
+  walletBalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  walletBalText: {
+    fontSize: 12,
+    color: '#065F46',
+    fontWeight: '600',
+  },
+  sufficientBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 4,
+  },
+  sufficientText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  topUpBtn: {
+    backgroundColor: '#059669',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  topUpBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  walletPerkNote: {
+    fontSize: 11,
+    color: '#047857',
+    marginTop: 6,
+    fontWeight: '500',
+  },
+  walletLowBalNote: {
+    fontSize: 11,
+    color: '#DC2626',
+    marginTop: 6,
+    fontWeight: '600',
   },
 });
 

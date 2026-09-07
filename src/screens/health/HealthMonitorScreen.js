@@ -84,7 +84,9 @@ const INITIAL_VITALS = [
     type: 'weight',
     title: 'Weight & BMI',
     value: '68',
-    height: '172',
+    height: "172 cm (5'8\")",
+    heightCm: '172',
+    heightFt: "5'8\"",
     bmi: '23.0',
     unit: 'kg',
     status: 'Normal BMI',
@@ -156,8 +158,60 @@ const HealthMonitorScreen = ({ navigation }) => {
   const [spo2Val, setSpo2Val] = useState('');
   const [tempVal, setTempVal] = useState('');
   const [weightVal, setWeightVal] = useState('');
+  const [heightUnit, setHeightUnit] = useState('cm'); // 'cm' | 'ft'
   const [heightVal, setHeightVal] = useState('170');
+  const [heightFeet, setHeightFeet] = useState('5');
+  const [heightInches, setHeightInches] = useState('7');
   const [notesVal, setNotesVal] = useState('');
+
+  // Height conversion helpers
+  const convertCmToFtIn = (cm) => {
+    const num = parseFloat(cm);
+    if (isNaN(num) || num <= 0) return { feet: '5', inches: '7' };
+    const totalInches = num / 2.54;
+    const feet = Math.floor(totalInches / 12);
+    const inches = Math.round(totalInches % 12);
+    return { feet: feet.toString(), inches: inches.toString() };
+  };
+
+  const convertFtInToCm = (ft, inc) => {
+    const f = parseFloat(ft) || 0;
+    const i = parseFloat(inc) || 0;
+    const totalInches = f * 12 + i;
+    const cm = Math.round(totalInches * 2.54);
+    return cm.toString();
+  };
+
+  const handleHeightCmChange = (text) => {
+    setHeightVal(text);
+    const { feet, inches } = convertCmToFtIn(text);
+    setHeightFeet(feet);
+    setHeightInches(inches);
+  };
+
+  const handleHeightFeetChange = (text) => {
+    setHeightFeet(text);
+    const cm = convertFtInToCm(text, heightInches);
+    setHeightVal(cm);
+  };
+
+  const handleHeightInchesChange = (text) => {
+    setHeightInches(text);
+    const cm = convertFtInToCm(heightFeet, text);
+    setHeightVal(cm);
+  };
+
+  const handleUnitToggle = (unit) => {
+    setHeightUnit(unit);
+    if (unit === 'ft') {
+      const { feet, inches } = convertCmToFtIn(heightVal);
+      setHeightFeet(feet);
+      setHeightInches(inches);
+    } else {
+      const cm = convertFtInToCm(heightFeet, heightInches);
+      setHeightVal(cm);
+    }
+  };
 
   // Load from AsyncStorage
   useEffect(() => {
@@ -248,12 +302,38 @@ const HealthMonitorScreen = ({ navigation }) => {
   // Get Latest Values for Dashboard Cards
   const latestVitals = useMemo(() => {
     const getLatest = (type) => vitalsList.find((v) => v.type === type);
+    const latestWeightItem = getLatest('weight');
+    let weightHeightInfo = { cm: '172', ft: "5'8\"", display: "172 cm (5'8\")" };
+    if (latestWeightItem) {
+      if (latestWeightItem.heightCm) {
+        const ftIn = convertCmToFtIn(latestWeightItem.heightCm);
+        weightHeightInfo = {
+          cm: String(latestWeightItem.heightCm),
+          ft: `${ftIn.feet}'${ftIn.inches}"`,
+          display: `${latestWeightItem.heightCm} cm (${ftIn.feet}'${ftIn.inches}")`,
+        };
+      } else if (latestWeightItem.height) {
+        const numericMatch = String(latestWeightItem.height).match(/\d+/);
+        if (numericMatch) {
+          const cmVal = numericMatch[0];
+          const ftIn = convertCmToFtIn(cmVal);
+          weightHeightInfo = {
+            cm: cmVal,
+            ft: `${ftIn.feet}'${ftIn.inches}"`,
+            display: `${cmVal} cm (${ftIn.feet}'${ftIn.inches}")`,
+          };
+        }
+      }
+    }
+
     return {
       sugar: getLatest('sugar') || { value: '--', unit: 'mg/dL', status: 'Not logged', statusColor: '#94A3B8' },
       bp: getLatest('bp') || { value: '--/--', unit: 'mmHg', status: 'Not logged', statusColor: '#94A3B8' },
       spo2: getLatest('spo2') || { value: '--', unit: '%', status: 'Not logged', statusColor: '#94A3B8' },
       temp: getLatest('temp') || { value: '--', unit: '°F', status: 'Not logged', statusColor: '#94A3B8' },
-      weight: getLatest('weight') || { value: '--', unit: 'kg', bmi: '--', status: 'Not logged', statusColor: '#94A3B8' },
+      weight: latestWeightItem
+        ? { ...latestWeightItem, heightInfo: weightHeightInfo }
+        : { value: '--', unit: 'kg', bmi: '--', status: 'Not logged', statusColor: '#94A3B8', heightInfo: weightHeightInfo },
     };
   }, [vitalsList]);
 
@@ -359,13 +439,19 @@ const HealthMonitorScreen = ({ navigation }) => {
         Alert.alert('Required', 'Please enter your weight in kg.');
         return;
       }
-      const evalRes = evaluateBMI(weightVal, heightVal || '170');
+      const effectiveCm = heightUnit === 'cm' ? (heightVal.trim() || '170') : convertFtInToCm(heightFeet, heightInches);
+      const evalRes = evaluateBMI(weightVal, effectiveCm || '170');
+      const ftInObj = convertCmToFtIn(effectiveCm || '170');
+      const heightDisplay = `${effectiveCm} cm (${ftInObj.feet}'${ftInObj.inches}")`;
+
       newEntry = {
         id: `v-${Date.now()}`,
         type: 'weight',
         title: 'Weight & BMI',
         value: weightVal.trim(),
-        height: heightVal.trim() || '170',
+        height: heightDisplay,
+        heightCm: effectiveCm,
+        heightFt: `${ftInObj.feet} ft ${ftInObj.inches} in`,
         bmi: evalRes.bmi,
         unit: 'kg',
         status: evalRes.status,
@@ -374,7 +460,7 @@ const HealthMonitorScreen = ({ navigation }) => {
         date: dateStr,
         timestamp: Date.now(),
         patient: activePatient,
-        notes: notesVal.trim() || `BMI: ${evalRes.bmi}`,
+        notes: notesVal.trim() || `Height: ${heightDisplay} • BMI: ${evalRes.bmi}`,
       };
     }
 
@@ -572,9 +658,9 @@ const HealthMonitorScreen = ({ navigation }) => {
             <Text style={styles.vitalsDate}>{latestVitals.temp.date || 'Tap + to log'}</Text>
           </TouchableOpacity>
 
-          {/* WEIGHT & BMI */}
+          {/* WEIGHT, HEIGHT & BMI */}
           <TouchableOpacity
-            style={[styles.vitalsCard, { width: '100%', borderColor: '#BBF7D0' }]}
+            style={[styles.vitalsCard, styles.weightHeightCard]}
             onPress={() => {
               setFormType('weight');
               setModalVisible(true);
@@ -582,21 +668,65 @@ const HealthMonitorScreen = ({ navigation }) => {
             activeOpacity={0.9}
           >
             <View style={styles.cardTop}>
-              <View style={[styles.iconCircle, { backgroundColor: '#DCFCE7' }]}>
-                <Ionicons name="scale" size={20} color="#16A34A" />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={[styles.iconCircle, { backgroundColor: '#DCFCE7' }]}>
+                  <Ionicons name="scale" size={20} color="#16A34A" />
+                </View>
+                <View>
+                  <Text style={styles.vitalsLabel}>Weight & Height</Text>
+                  <Text style={styles.weightSubLabel}>Body Composition & BMI</Text>
+                </View>
               </View>
               <View style={[styles.badge, { backgroundColor: latestVitals.weight.statusBg || '#ECFDF5' }]}>
                 <Text style={[styles.badgeText, { color: latestVitals.weight.statusColor || '#10B981' }]}>
-                  {latestVitals.weight.status} (BMI: {latestVitals.weight.bmi || '22.5'})
+                  {latestVitals.weight.status || 'Normal'}
                 </Text>
               </View>
             </View>
-            <Text style={styles.vitalsLabel}>Body Weight</Text>
-            <View style={styles.valueRow}>
-              <Text style={styles.vitalsValue}>{latestVitals.weight.value}</Text>
-              <Text style={styles.vitalsUnit}> {latestVitals.weight.unit}</Text>
+
+            {/* 3-Column Metrics: Weight | Height (cm + ft) | BMI */}
+            <View style={styles.weightHeightGrid}>
+              <View style={styles.metricColumn}>
+                <Text style={styles.metricTitle}>Weight</Text>
+                <View style={styles.valueRow}>
+                  <Text style={styles.vitalsValue}>{latestVitals.weight.value}</Text>
+                  <Text style={styles.vitalsUnit}> {latestVitals.weight.unit || 'kg'}</Text>
+                </View>
+                <Text style={styles.metricSubInfo}>Body Mass</Text>
+              </View>
+
+              <View style={styles.metricDivider} />
+
+              <View style={styles.metricColumn}>
+                <Text style={styles.metricTitle}>Height</Text>
+                <View style={styles.valueRow}>
+                  <Text style={styles.vitalsValue}>{latestVitals.weight.heightInfo?.cm || '172'}</Text>
+                  <Text style={styles.vitalsUnit}> cm</Text>
+                </View>
+                <Text style={styles.heightFtSubText}>
+                  {latestVitals.weight.heightInfo?.ft ? `${latestVitals.weight.heightInfo.ft} ft/in` : "5'8\" ft/in"}
+                </Text>
+              </View>
+
+              <View style={styles.metricDivider} />
+
+              <View style={styles.metricColumn}>
+                <Text style={styles.metricTitle}>BMI Score</Text>
+                <View style={styles.valueRow}>
+                  <Text style={[styles.vitalsValue, { color: latestVitals.weight.statusColor || '#10B981' }]}>
+                    {latestVitals.weight.bmi || '23.0'}
+                  </Text>
+                </View>
+                <Text style={[styles.metricSubInfo, { color: latestVitals.weight.statusColor || '#10B981', fontWeight: '700' }]}>
+                  {latestVitals.weight.status || 'Normal'}
+                </Text>
+              </View>
             </View>
-            <Text style={styles.vitalsDate}>{latestVitals.weight.date || 'Tap + to log'}</Text>
+
+            <View style={styles.weightCardFooter}>
+              <Text style={styles.vitalsDate}>{latestVitals.weight.date || 'Tap to update weight & height'}</Text>
+              <Text style={styles.tapToEditHint}>Tap to update →</Text>
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -688,6 +818,12 @@ const HealthMonitorScreen = ({ navigation }) => {
 
                   <Text style={styles.historyValue}>
                     {item.value} <Text style={styles.historyUnit}>{item.unit}</Text>
+                    {item.type === 'weight' && item.height ? (
+                      <Text style={styles.historyHeightTag}>
+                        {` • Height: ${item.height}`}
+                        {item.bmi ? ` (BMI ${item.bmi})` : ''}
+                      </Text>
+                    ) : null}
                     {item.pulse ? ` • Pulse: ${item.pulse} bpm` : ''}
                   </Text>
 
@@ -894,37 +1030,153 @@ const HealthMonitorScreen = ({ navigation }) => {
 
               {formType === 'weight' && (
                 <View style={styles.formGroup}>
-                  <View style={styles.rowInputs}>
-                    <View style={{ flex: 1, marginRight: 8 }}>
-                      <Text style={styles.inputLabel}>Weight (kg)</Text>
-                      <View style={styles.inputWrapper}>
-                        <TextInput
-                          style={styles.mainInput}
-                          placeholder="e.g. 68"
-                          placeholderTextColor="#94A3B8"
-                          keyboardType="numeric"
-                          value={weightVal}
-                          onChangeText={setWeightVal}
-                        />
-                        <Text style={styles.unitSuffix}>kg</Text>
-                      </View>
+                  {/* WEIGHT INPUT */}
+                  <Text style={styles.inputLabel}>Body Weight (kg)</Text>
+                  <View style={styles.inputWrapper}>
+                    <TextInput
+                      style={styles.mainInput}
+                      placeholder="e.g. 68"
+                      placeholderTextColor="#94A3B8"
+                      keyboardType="numeric"
+                      value={weightVal}
+                      onChangeText={setWeightVal}
+                    />
+                    <Text style={styles.unitSuffix}>kg</Text>
+                  </View>
+
+                  {/* HEIGHT HEADER WITH CM / FT TOGGLE */}
+                  <View style={styles.heightHeaderRow}>
+                    <Text style={styles.inputLabel}>Body Height</Text>
+                    <View style={styles.unitTogglePill}>
+                      <TouchableOpacity
+                        style={[
+                          styles.unitToggleBtn,
+                          heightUnit === 'cm' && styles.unitToggleBtnActive,
+                        ]}
+                        onPress={() => handleUnitToggle('cm')}
+                        activeOpacity={0.8}
+                      >
+                        <Text
+                          style={[
+                            styles.unitToggleText,
+                            heightUnit === 'cm' && styles.unitToggleTextActive,
+                          ]}
+                        >
+                          cm
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.unitToggleBtn,
+                          heightUnit === 'ft' && styles.unitToggleBtnActive,
+                        ]}
+                        onPress={() => handleUnitToggle('ft')}
+                        activeOpacity={0.8}
+                      >
+                        <Text
+                          style={[
+                            styles.unitToggleText,
+                            heightUnit === 'ft' && styles.unitToggleTextActive,
+                          ]}
+                        >
+                          ft / in
+                        </Text>
+                      </TouchableOpacity>
                     </View>
-                    <View style={{ flex: 1, marginLeft: 8 }}>
-                      <Text style={styles.inputLabel}>Height (cm)</Text>
+                  </View>
+
+                  {/* HEIGHT INPUTS BASED ON UNIT */}
+                  {heightUnit === 'cm' ? (
+                    <View>
                       <View style={styles.inputWrapper}>
                         <TextInput
                           style={styles.mainInput}
-                          placeholder="170"
+                          placeholder="e.g. 172"
                           placeholderTextColor="#94A3B8"
                           keyboardType="numeric"
                           value={heightVal}
-                          onChangeText={setHeightVal}
+                          onChangeText={handleHeightCmChange}
                         />
                         <Text style={styles.unitSuffix}>cm</Text>
                       </View>
+                      {heightVal ? (
+                        <Text style={styles.helperText}>
+                          ≈ {heightFeet} ft {heightInches} in
+                        </Text>
+                      ) : null}
                     </View>
-                  </View>
-                  <Text style={styles.helperText}>BMI will be automatically computed upon saving.</Text>
+                  ) : (
+                    <View>
+                      <View style={styles.rowInputs}>
+                        <View style={{ flex: 1, marginRight: 6 }}>
+                          <View style={styles.inputWrapper}>
+                            <TextInput
+                              style={styles.mainInput}
+                              placeholder="5"
+                              placeholderTextColor="#94A3B8"
+                              keyboardType="numeric"
+                              value={heightFeet}
+                              onChangeText={handleHeightFeetChange}
+                            />
+                            <Text style={styles.unitSuffix}>ft</Text>
+                          </View>
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 6 }}>
+                          <View style={styles.inputWrapper}>
+                            <TextInput
+                              style={styles.mainInput}
+                              placeholder="8"
+                              placeholderTextColor="#94A3B8"
+                              keyboardType="numeric"
+                              value={heightInches}
+                              onChangeText={handleHeightInchesChange}
+                            />
+                            <Text style={styles.unitSuffix}>in</Text>
+                          </View>
+                        </View>
+                      </View>
+                      {heightVal ? (
+                        <Text style={styles.helperText}>
+                          ≈ {heightVal} cm
+                        </Text>
+                      ) : null}
+                    </View>
+                  )}
+
+                  {/* LIVE BMI PREVIEW */}
+                  {weightVal ? (
+                    <View style={styles.liveBmiCard}>
+                      <View style={styles.liveBmiLeft}>
+                        <Ionicons name="calculator-outline" size={18} color="#059669" />
+                        <Text style={styles.liveBmiLabel}>Calculated BMI:</Text>
+                        <Text style={styles.liveBmiValue}>
+                          {evaluateBMI(weightVal, heightUnit === 'cm' ? (heightVal || '170') : convertFtInToCm(heightFeet, heightInches)).bmi}
+                        </Text>
+                      </View>
+                      <View
+                        style={[
+                          styles.liveBmiBadge,
+                          {
+                            backgroundColor: evaluateBMI(weightVal, heightUnit === 'cm' ? (heightVal || '170') : convertFtInToCm(heightFeet, heightInches)).bg,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.liveBmiBadgeText,
+                            {
+                              color: evaluateBMI(weightVal, heightUnit === 'cm' ? (heightVal || '170') : convertFtInToCm(heightFeet, heightInches)).color,
+                            },
+                          ]}
+                        >
+                          {evaluateBMI(weightVal, heightUnit === 'cm' ? (heightVal || '170') : convertFtInToCm(heightFeet, heightInches)).status}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <Text style={styles.helperText}>BMI will be automatically computed upon saving.</Text>
+                  )}
                 </View>
               )}
 
@@ -1404,6 +1656,73 @@ const styles = StyleSheet.create({
     color: '#1E293B',
     marginBottom: 20,
   },
+  heightHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  unitTogglePill: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    padding: 2,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  unitToggleBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  unitToggleBtnActive: {
+    backgroundColor: colors.primary,
+  },
+  unitToggleText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  unitToggleTextActive: {
+    color: '#FFFFFF',
+  },
+  liveBmiCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 10,
+  },
+  liveBmiLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  liveBmiLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#166534',
+  },
+  liveBmiValue: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#15803D',
+  },
+  liveBmiBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  liveBmiBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
   modalSubmitBtn: {
     backgroundColor: colors.primary,
     paddingVertical: 14,
@@ -1415,6 +1734,73 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '800',
+  },
+  weightHeightCard: {
+    width: '100%',
+    borderColor: '#BBF7D0',
+    backgroundColor: '#FFFFFF',
+  },
+  weightSubLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  weightHeightGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginVertical: 10,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  metricColumn: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  metricTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  metricSubInfo: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  heightFtSubText: {
+    fontSize: 11,
+    color: '#2563EB',
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  metricDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: '#E2E8F0',
+  },
+  weightCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  tapToEditHint: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  historyHeightTag: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#0F766E',
   },
 });
 

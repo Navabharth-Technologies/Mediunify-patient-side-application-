@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../theme/colors';
 
 const HealthRecordsScreen = ({ navigation }) => {
@@ -26,13 +27,124 @@ const HealthRecordsScreen = ({ navigation }) => {
   const [activeDoc, setActiveDoc] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
 
-  const familyMembers = [
-    { id: 'all', name: 'All Records', count: 12 },
-    { id: 'self', name: 'Self (Hemanth)', count: 6 },
-    { id: 'sneha', name: 'Sneha (Spouse)', count: 3 },
-    { id: 'suresh', name: 'Suresh (Father)', count: 2 },
-    { id: 'aarav', name: 'Aarav (Son)', count: 1 },
-  ];
+  // Dynamic Family Profiles & User Data
+  const [familyMembers, setFamilyMembers] = useState([]);
+  const [primaryUserName, setPrimaryUserName] = useState('Account Holder');
+  const [primaryUserDisplayName, setPrimaryUserDisplayName] = useState('Self');
+  const [userRecords, setUserRecords] = useState([]);
+  const [selectedUploadPatientId, setSelectedUploadPatientId] = useState('self');
+
+  // Load Family Members & User on mount and focus
+  useEffect(() => {
+    loadFamilyAndRecords();
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadFamilyAndRecords();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  const loadFamilyAndRecords = async () => {
+    try {
+      // 1. Get primary account user name
+      const storedPrimary = await AsyncStorage.getItem('@unnathi_primary_user');
+      const storedUser = await AsyncStorage.getItem('user');
+      const storedName = await AsyncStorage.getItem('userName');
+
+      let currentPrimaryName = '';
+      if (storedPrimary) {
+        try {
+          const p = JSON.parse(storedPrimary);
+          if (p?.name && p.name.trim()) currentPrimaryName = p.name.trim();
+        } catch (e) {}
+      }
+      if (!currentPrimaryName && storedUser) {
+        try {
+          const u = JSON.parse(storedUser);
+          if (u?.name && u.name.trim()) currentPrimaryName = u.name.trim();
+        } catch (e) {}
+      }
+      if (!currentPrimaryName && storedName && storedName.trim()) {
+        currentPrimaryName = storedName.trim();
+      }
+
+      const effectivePrimary = currentPrimaryName || 'Ramesh Kumar';
+      setPrimaryUserName(effectivePrimary);
+      const cleanFirst = effectivePrimary.split(' ')[0];
+      setPrimaryUserDisplayName(cleanFirst);
+
+      // 2. Load linked family members
+      const savedFam = await AsyncStorage.getItem('@unnathi_family_members');
+      let loadedMembers = [];
+      if (savedFam) {
+        try {
+          const parsed = JSON.parse(savedFam);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            loadedMembers = parsed;
+          }
+        } catch (e) {}
+      }
+
+      if (!loadedMembers || loadedMembers.length === 0) {
+        loadedMembers = [
+          {
+            id: 'self',
+            name: `${effectivePrimary} (Self)`,
+            displayName: `${cleanFirst} (Self)`,
+            relation: 'Self',
+            isPrimary: true,
+          },
+          {
+            id: 'fam-1',
+            name: 'Sneha Ramesh',
+            displayName: 'Sneha',
+            relation: 'Spouse',
+            isPrimary: false,
+          },
+          {
+            id: 'fam-2',
+            name: 'Suresh Kumar',
+            displayName: 'Father',
+            relation: 'Father',
+            isPrimary: false,
+          },
+          {
+            id: 'fam-3',
+            name: 'Aarav Kumar',
+            displayName: 'Aarav',
+            relation: 'Son',
+            isPrimary: false,
+          },
+        ];
+      } else {
+        // Sync 'self' profile with current primary account holder name
+        loadedMembers = loadedMembers.map((m) => {
+          if (m.id === 'self' || m.isPrimary || m.relation === 'Self') {
+            return {
+              ...m,
+              name: `${effectivePrimary} (Self)`,
+              displayName: `${cleanFirst} (Self)`,
+            };
+          }
+          return m;
+        });
+      }
+
+      setFamilyMembers(loadedMembers);
+
+      // 3. Load user-added custom health records
+      const savedRecordsJson = await AsyncStorage.getItem('@unnathi_health_records');
+      if (savedRecordsJson) {
+        try {
+          const parsedRecs = JSON.parse(savedRecordsJson);
+          if (Array.isArray(parsedRecs)) {
+            setUserRecords(parsedRecs);
+          }
+        } catch (e) {}
+      }
+    } catch (err) {
+      console.log('Error loading family & health records:', err);
+    }
+  };
 
   const filterTabs = [
     { id: 'all', label: 'All Files', icon: 'documents' },
@@ -42,127 +154,194 @@ const HealthRecordsScreen = ({ navigation }) => {
     { id: 'bills', label: 'Invoices', icon: 'receipt' },
   ];
 
-  const allRecords = [
-    {
-      id: 'rec-1',
-      title: 'Complete Blood Count (CBC) & ESR',
-      category: 'labs',
-      patient: 'self',
-      patientName: 'Hemanth Gowda',
-      facility: 'Suburban Diagnostic Center, Mysore',
-      doctor: 'Dr. Rajesh Sharma (MD)',
-      date: '28 Aug 2026',
-      fileSize: '1.8 MB PDF',
-      status: 'Normal',
-      statusColor: '#059669',
-      statusBg: '#ECFDF5',
-      icon: 'flask',
-      iconColor: '#0284C7',
-      iconBg: '#E0F2FE',
-      summary: 'Hemoglobin: 14.5 g/dL (Normal) • Platelets: 240,000 /mcL • WBC: 6,800 /mcL.',
-    },
-    {
-      id: 'rec-2',
-      title: 'Brain 3T MRI & Diffusion Scan',
-      category: 'scans',
-      patient: 'suresh',
-      patientName: 'Suresh Kumar (Father)',
-      facility: 'Unnathi Advanced 3T MRI & Scan Center',
-      doctor: 'Dr. Anand Verma (Radiologist)',
-      date: '25 Aug 2026',
-      fileSize: '14.2 MB DICOM/PDF',
-      status: 'Doctor Reviewed',
-      statusColor: '#7C3AED',
-      statusBg: '#F5F3FF',
-      icon: 'radio',
-      iconColor: '#7C3AED',
-      iconBg: '#EDE9FE',
-      summary: 'No acute intracranial hemorrhage or infarct. Age-related normal cerebral findings.',
-    },
-    {
-      id: 'rec-3',
-      title: 'Cardiology Rx - Telmisartan & Atorvastatin',
-      category: 'rx',
-      patient: 'self',
-      patientName: 'Hemanth Gowda',
-      facility: 'Apollo Cardiology Clinic',
-      doctor: 'Dr. Rajesh Sharma, MD DM (Cardio)',
-      date: '20 Aug 2026',
-      fileSize: '840 KB PDF',
-      status: 'Active Refill',
-      statusColor: '#0D9488',
-      statusBg: '#F0FDFA',
-      icon: 'document-text',
-      iconColor: '#0D9488',
-      iconBg: '#CCFBF1',
-      summary: 'Telmisartan 40mg (1-0-0) After Breakfast • Atorvastatin 10mg (0-0-1) After Dinner.',
-    },
-    {
-      id: 'rec-4',
-      title: 'HbA1c & Fasting Plasma Glucose',
-      category: 'labs',
-      patient: 'self',
-      patientName: 'Hemanth Gowda',
-      facility: 'Thyrocare Home Sample Lab',
-      doctor: 'Dr. Anita Desai (Endocrinologist)',
-      date: '15 Aug 2026',
-      fileSize: '1.2 MB PDF',
-      status: 'Optimal 5.6%',
-      statusColor: '#059669',
-      statusBg: '#ECFDF5',
-      icon: 'water',
-      iconColor: '#059669',
-      iconBg: '#D1FAE5',
-      summary: 'HbA1c: 5.6% (Non-Diabetic Range) • Fasting Blood Sugar: 98 mg/dL.',
-    },
-    {
-      id: 'rec-5',
-      title: 'Pediatric Vaccine Chart & Record',
-      category: 'rx',
-      patient: 'aarav',
-      patientName: 'Aarav (Son)',
-      facility: 'Rainbow Children Hospital',
-      doctor: 'Dr. Ananya Rao (Pediatrician)',
-      date: '10 Aug 2026',
-      fileSize: '2.4 MB PDF',
-      status: 'Up to Date',
-      statusColor: '#2563EB',
-      statusBg: '#EFF6FF',
-      icon: 'medkit',
-      iconColor: '#2563EB',
-      iconBg: '#DBEAFE',
-      summary: 'MMR Dose 2 administered. Next scheduled vaccine: Typhoid Booster at 2 Years.',
-    },
-    {
-      id: 'rec-6',
-      title: 'Pharmacy Order Bill & GST Receipt',
-      category: 'bills',
-      patient: 'self',
-      patientName: 'Hemanth Gowda',
-      facility: 'MediUnify Online Pharmacy',
-      doctor: 'Prescription Verified Order #UNC10245',
-      date: '05 Aug 2026',
-      fileSize: '450 KB PDF',
-      status: 'Paid ₹1,240',
-      statusColor: '#D97706',
-      statusBg: '#FEF3C7',
-      icon: 'receipt',
-      iconColor: '#EA580C',
-      iconBg: '#FFEDD5',
-      summary: 'GST Invoice #INV-883492 • Delivered to Kuvempunagar, Mysore • 20% Discount Applied.',
-    },
-  ];
+  // Dynamically map base medical records to synced family members
+  const allRecords = useMemo(() => {
+    const selfMember = familyMembers.find((m) => m.id === 'self' || m.isPrimary) || {
+      id: 'self',
+      name: `${primaryUserName} (Self)`,
+      displayName: primaryUserDisplayName,
+    };
+    const spouseMember = familyMembers.find(
+      (m) => m.relation === 'Spouse' || m.id === 'fam-1' || m.id === 'sneha'
+    );
+    const fatherMember = familyMembers.find(
+      (m) => m.relation === 'Father' || m.id === 'fam-2' || m.id === 'suresh'
+    );
+    const sonMember = familyMembers.find(
+      (m) => m.relation === 'Son' || m.relation === 'Daughter' || m.id === 'fam-3' || m.id === 'aarav'
+    );
 
-  const filteredRecords = allRecords.filter((rec) => {
-    const matchesPatient = selectedPatient === 'all' || rec.patient === selectedPatient;
-    const matchesTab = selectedTab === 'all' || rec.category === selectedTab;
-    const matchesSearch =
-      searchQuery.trim() === '' ||
-      rec.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      rec.doctor.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      rec.facility.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesPatient && matchesTab && matchesSearch;
-  });
+    const defaultRecords = [
+      {
+        id: 'rec-1',
+        title: 'Complete Blood Count (CBC) & ESR',
+        category: 'labs',
+        patient: 'self',
+        patientId: selfMember.id,
+        patientName: selfMember.name || `${primaryUserName} (Self)`,
+        facility: 'Suburban Diagnostic Center, Mysore',
+        doctor: 'Dr. Rajesh Sharma (MD)',
+        date: '28 Aug 2026',
+        fileSize: '1.8 MB PDF',
+        status: 'Normal',
+        statusColor: '#059669',
+        statusBg: '#ECFDF5',
+        icon: 'flask',
+        iconColor: '#0284C7',
+        iconBg: '#E0F2FE',
+        summary: 'Hemoglobin: 14.5 g/dL (Normal) • Platelets: 240,000 /mcL • WBC: 6,800 /mcL.',
+      },
+      {
+        id: 'rec-2',
+        title: 'Brain 3T MRI & Diffusion Scan',
+        category: 'scans',
+        patient: fatherMember ? fatherMember.id : 'fam-2',
+        patientId: fatherMember ? fatherMember.id : 'fam-2',
+        patientName: fatherMember ? `${fatherMember.name} (${fatherMember.relation})` : 'Father',
+        facility: 'Unnathi Advanced 3T MRI & Scan Center',
+        doctor: 'Dr. Anand Verma (Radiologist)',
+        date: '25 Aug 2026',
+        fileSize: '14.2 MB DICOM/PDF',
+        status: 'Doctor Reviewed',
+        statusColor: '#7C3AED',
+        statusBg: '#F5F3FF',
+        icon: 'radio',
+        iconColor: '#7C3AED',
+        iconBg: '#EDE9FE',
+        summary: 'No acute intracranial hemorrhage or infarct. Age-related normal cerebral findings.',
+      },
+      {
+        id: 'rec-3',
+        title: 'Cardiology Rx - Telmisartan & Atorvastatin',
+        category: 'rx',
+        patient: 'self',
+        patientId: selfMember.id,
+        patientName: selfMember.name || `${primaryUserName} (Self)`,
+        facility: 'Apollo Cardiology Clinic',
+        doctor: 'Dr. Rajesh Sharma, MD DM (Cardio)',
+        date: '20 Aug 2026',
+        fileSize: '840 KB PDF',
+        status: 'Active Refill',
+        statusColor: '#0D9488',
+        statusBg: '#F0FDFA',
+        icon: 'document-text',
+        iconColor: '#0D9488',
+        iconBg: '#CCFBF1',
+        summary: 'Telmisartan 40mg (1-0-0) After Breakfast • Atorvastatin 10mg (0-0-1) After Dinner.',
+      },
+      {
+        id: 'rec-4',
+        title: 'HbA1c & Fasting Plasma Glucose',
+        category: 'labs',
+        patient: 'self',
+        patientId: selfMember.id,
+        patientName: selfMember.name || `${primaryUserName} (Self)`,
+        facility: 'Thyrocare Home Sample Lab',
+        doctor: 'Dr. Anita Desai (Endocrinologist)',
+        date: '15 Aug 2026',
+        fileSize: '1.2 MB PDF',
+        status: 'Optimal 5.6%',
+        statusColor: '#059669',
+        statusBg: '#ECFDF5',
+        icon: 'water',
+        iconColor: '#059669',
+        iconBg: '#D1FAE5',
+        summary: 'HbA1c: 5.6% (Non-Diabetic Range) • Fasting Blood Sugar: 98 mg/dL.',
+      },
+      {
+        id: 'rec-5',
+        title: 'Pediatric Vaccine Chart & Record',
+        category: 'rx',
+        patient: sonMember ? sonMember.id : 'fam-3',
+        patientId: sonMember ? sonMember.id : 'fam-3',
+        patientName: sonMember ? `${sonMember.name} (${sonMember.relation})` : 'Child Record',
+        facility: 'Rainbow Children Hospital',
+        doctor: 'Dr. Ananya Rao (Pediatrician)',
+        date: '10 Aug 2026',
+        fileSize: '2.4 MB PDF',
+        status: 'Up to Date',
+        statusColor: '#2563EB',
+        statusBg: '#EFF6FF',
+        icon: 'medkit',
+        iconColor: '#2563EB',
+        iconBg: '#DBEAFE',
+        summary: 'MMR Dose 2 administered. Next scheduled vaccine: Typhoid Booster at 2 Years.',
+      },
+      {
+        id: 'rec-6',
+        title: 'Pharmacy Order Bill & GST Receipt',
+        category: 'bills',
+        patient: 'self',
+        patientId: selfMember.id,
+        patientName: selfMember.name || `${primaryUserName} (Self)`,
+        facility: 'MediUnify Online Pharmacy',
+        doctor: 'Prescription Verified Order #UNC10245',
+        date: '05 Aug 2026',
+        fileSize: '450 KB PDF',
+        status: 'Paid ₹1,240',
+        statusColor: '#D97706',
+        statusBg: '#FEF3C7',
+        icon: 'receipt',
+        iconColor: '#EA580C',
+        iconBg: '#FFEDD5',
+        summary: 'GST Invoice #INV-883492 • Delivered to Kuvempunagar, Mysore • 20% Discount Applied.',
+      },
+    ];
+
+    return [...userRecords, ...defaultRecords];
+  }, [familyMembers, primaryUserName, primaryUserDisplayName, userRecords]);
+
+  // Build dynamic patient filter chips
+  const dynamicFilterChips = useMemo(() => {
+    const chips = [{ id: 'all', name: 'All Records', count: allRecords.length }];
+
+    familyMembers.forEach((member) => {
+      const isSelf = member.id === 'self' || member.isPrimary || member.relation === 'Self';
+      const memberCount = allRecords.filter(
+        (r) =>
+          r.patient === member.id ||
+          r.patientId === member.id ||
+          (isSelf && (r.patient === 'self' || r.patientId === 'self'))
+      ).length;
+
+      const chipLabel = isSelf
+        ? `Self (${primaryUserDisplayName || 'You'})`
+        : member.relation
+        ? `${member.name.split(' ')[0]} (${member.relation})`
+        : member.name;
+
+      chips.push({
+        id: member.id,
+        name: chipLabel,
+        count: memberCount,
+        member,
+      });
+    });
+
+    return chips;
+  }, [familyMembers, allRecords, primaryUserDisplayName]);
+
+  // Filtered records by patient chip, category tab, and search query
+  const filteredRecords = useMemo(() => {
+    return allRecords.filter((rec) => {
+      const isSelfSelected = selectedPatient === 'self';
+      const matchesPatient =
+        selectedPatient === 'all' ||
+        rec.patient === selectedPatient ||
+        rec.patientId === selectedPatient ||
+        (isSelfSelected && (rec.patient === 'self' || rec.patientId === 'self'));
+
+      const matchesTab = selectedTab === 'all' || rec.category === selectedTab;
+      const matchesSearch =
+        searchQuery.trim() === '' ||
+        rec.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        rec.doctor.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        rec.facility.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (rec.patientName && rec.patientName.toLowerCase().includes(searchQuery.toLowerCase()));
+
+      return matchesPatient && matchesTab && matchesSearch;
+    });
+  }, [allRecords, selectedPatient, selectedTab, searchQuery]);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -348,14 +527,25 @@ const HealthRecordsScreen = ({ navigation }) => {
             PATIENT SWITCHER CHIPS
         ========================================== */}
         <View style={styles.sectionRow}>
-          <Text style={styles.sectionTitle}>Filter by Patient</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons name="people" size={17} color={colors.navyBlue} />
+            <Text style={styles.sectionTitle}>Filter by Family Member</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.manageFamilyLink}
+            onPress={() => navigation.navigate('FamilyProfiles')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="add-circle" size={15} color={colors.teal} />
+            <Text style={styles.manageFamilyLinkText}>Manage Family ({familyMembers.length})</Text>
+          </TouchableOpacity>
         </View>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.horizontalChips}
         >
-          {familyMembers.map((fam) => (
+          {dynamicFilterChips.map((fam) => (
             <TouchableOpacity
               key={fam.id}
               style={[
@@ -378,6 +568,21 @@ const HealthRecordsScreen = ({ navigation }) => {
               >
                 {fam.name}
               </Text>
+              <View
+                style={[
+                  styles.countBadge,
+                  selectedPatient === fam.id && styles.countBadgeActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.countBadgeText,
+                    selectedPatient === fam.id && styles.countBadgeTextActive,
+                  ]}
+                >
+                  {fam.count}
+                </Text>
+              </View>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -434,7 +639,9 @@ const HealthRecordsScreen = ({ navigation }) => {
             <Ionicons name="folder-open-outline" size={44} color="#CBD5E1" />
             <Text style={styles.emptyTitle}>No health records found</Text>
             <Text style={styles.emptySub}>
-              Try adjusting your search query or upload a new medical document.
+              {selectedPatient === 'all'
+                ? 'Try adjusting your search query or upload a new medical document.'
+                : 'No health records linked to this family member yet.'}
             </Text>
             <TouchableOpacity
               style={styles.emptyUploadBtn}
@@ -539,11 +746,55 @@ const HealthRecordsScreen = ({ navigation }) => {
               Select document type to securely encrypt and sync with your ABHA ID.
             </Text>
 
+            {/* FAMILY MEMBER SELECTION IN UPLOAD */}
+            <Text style={styles.uploadModalSectionLabel}>Select Patient Profile:</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.uploadPatientChips}
+            >
+              {familyMembers.map((m) => {
+                const isSelected = selectedUploadPatientId === m.id;
+                const isSelf = m.id === 'self' || m.isPrimary || m.relation === 'Self';
+                return (
+                  <TouchableOpacity
+                    key={m.id}
+                    style={[
+                      styles.uploadPatientChip,
+                      isSelected && styles.uploadPatientChipActive,
+                    ]}
+                    onPress={() => setSelectedUploadPatientId(m.id)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name="person"
+                      size={12}
+                      color={isSelected ? '#FFFFFF' : colors.teal}
+                    />
+                    <Text
+                      style={[
+                        styles.uploadPatientChipText,
+                        isSelected && styles.uploadPatientChipTextActive,
+                      ]}
+                    >
+                      {isSelf
+                        ? `Self (${primaryUserDisplayName})`
+                        : m.relation
+                        ? `${m.name.split(' ')[0]} (${m.relation})`
+                        : m.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
             <TouchableOpacity
               style={styles.uploadOptionCard}
               onPress={() => {
                 setUploadModalVisible(false);
-                showToast('Camera Scanner ready. Capture prescription.');
+                const targetMember = familyMembers.find((m) => m.id === selectedUploadPatientId);
+                const targetName = targetMember ? targetMember.name : primaryUserName;
+                showToast(`Camera Scanner ready for ${targetName}. Capture prescription.`);
                 navigation.navigate('Prescriptions');
               }}
               activeOpacity={0.85}
@@ -564,7 +815,9 @@ const HealthRecordsScreen = ({ navigation }) => {
               style={styles.uploadOptionCard}
               onPress={() => {
                 setUploadModalVisible(false);
-                showToast('Device file picker opened.');
+                const targetMember = familyMembers.find((m) => m.id === selectedUploadPatientId);
+                const targetName = targetMember ? targetMember.name : primaryUserName;
+                showToast(`File picker ready for ${targetName}.`);
                 navigation.navigate('Reports');
               }}
               activeOpacity={0.85}
@@ -946,6 +1199,22 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#0F172A',
   },
+  manageFamilyLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    gap: 4,
+  },
+  manageFamilyLinkText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0F766E',
+  },
   sectionActionText: {
     fontSize: 12.5,
     fontWeight: '800',
@@ -979,6 +1248,60 @@ const styles = StyleSheet.create({
   },
   patientChipTextActive: {
     color: '#FFFFFF',
+  },
+  countBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 10,
+  },
+  countBadgeActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  countBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  countBadgeTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // UPLOAD PATIENT SELECTOR
+  uploadModalSectionLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#334155',
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  uploadPatientChips: {
+    gap: 8,
+    paddingBottom: 12,
+  },
+  uploadPatientChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 6,
+  },
+  uploadPatientChipActive: {
+    backgroundColor: '#0F766E',
+    borderColor: '#0F766E',
+  },
+  uploadPatientChipText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  uploadPatientChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
   },
 
   // FILTER TABS

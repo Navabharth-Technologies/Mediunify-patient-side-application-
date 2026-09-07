@@ -14,6 +14,7 @@ import {
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import colors from '../../../theme/colors';
 import { useCart } from '../../../context/CartContext';
@@ -173,16 +174,21 @@ const PharmacyLocationScreen = ({ navigation, route }) => {
     }
   };
 
-  // Confirm Location & send back to Cart
-  const confirmLocation = () => {
+  // Confirm Location & send back to Cart / Home / Doctor Screen
+  const confirmLocation = async () => {
+    const fullLoc = address ? `${address}, ${city}` : `${city}`;
+    try {
+      await AsyncStorage.setItem('@unnathi_user_location', fullLoc);
+    } catch (e) {}
+
     const newAddressObj = {
-      name: selectedAddress.name || 'User',
-      phone: selectedAddress.phone || '9876543210',
+      name: selectedAddress?.name || 'User',
+      phone: selectedAddress?.phone || '9876543210',
       addressLine: address,
       city,
       state: stateName,
       pincode,
-      tag: selectedAddress.tag || 'Home',
+      tag: selectedAddress?.tag || 'Home',
       latitude: location.latitude,
       longitude: location.longitude,
     };

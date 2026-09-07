@@ -34,22 +34,34 @@ const getCategoryIcon = (category) => {
   }
 };
 
-const ProductCard = ({ product, navigation }) => {
-  const { cart, addToCart, increaseQuantity, decreaseQuantity } = useCart();
+const ProductCard = ({ product, navigation, store = null, onPress = null }) => {
+  const { cart, pharmacyCart, addToCart, increaseQuantity, decreaseQuantity, selectedPharmacyStore } = useCart();
 
-  const cartItem = (cart || []).find((item) => item.id === product.id);
+  const currentStore = store || selectedPharmacyStore;
+  const currentStoreId = currentStore?.id || product.storeId || 'store-apollo-kuvempu';
+
+  const cartItem = (pharmacyCart || cart || []).find(
+    (item) => item.id === product.id && (item.storeId === currentStoreId || (!item.storeId && !currentStoreId))
+  );
   const quantity = cartItem?.quantity || 0;
+
+  const handleCardPress = () => {
+    if (onPress) {
+      onPress();
+    } else if (navigation) {
+      navigation.navigate('ProductDetails', {
+        product,
+        productId: product.id,
+        store: currentStore,
+      });
+    }
+  };
 
   return (
     <TouchableOpacity
       style={styles.card}
       activeOpacity={0.88}
-      onPress={() =>
-        navigation.navigate('ProductDetails', {
-          product,
-          productId: product.id,
-        })
-      }
+      onPress={handleCardPress}
     >
       {/* PRODUCT ICON / IMAGE CONTAINER */}
       <View style={styles.imageContainer}>
@@ -114,7 +126,7 @@ const ProductCard = ({ product, navigation }) => {
           activeOpacity={0.8}
           onPress={(e) => {
             e.stopPropagation();
-            addToCart(product);
+            addToCart(product, 1, 'pharmacy', currentStore);
           }}
         >
           <Ionicons name="cart-outline" size={15} color={colors.white} />
@@ -127,7 +139,7 @@ const ProductCard = ({ product, navigation }) => {
             activeOpacity={0.7}
             onPress={(e) => {
               e.stopPropagation();
-              decreaseQuantity(product.id);
+              decreaseQuantity(product.id, 'pharmacy', currentStoreId);
             }}
           >
             <Ionicons name="remove" size={16} color={colors.primary} />
@@ -140,7 +152,7 @@ const ProductCard = ({ product, navigation }) => {
             activeOpacity={0.7}
             onPress={(e) => {
               e.stopPropagation();
-              increaseQuantity(product.id);
+              increaseQuantity(product.id, 'pharmacy', currentStoreId);
             }}
           >
             <Ionicons name="add" size={16} color={colors.primary} />

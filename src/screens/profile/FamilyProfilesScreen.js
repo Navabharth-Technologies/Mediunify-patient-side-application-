@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,62 +9,86 @@ import {
   Modal,
   TextInput,
   Alert,
+  Platform,
+  Keyboard,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import colors from '../../theme/colors';
 
 const INITIAL_MEMBERS = [
   {
-    id: 'fam-1',
+    id: 'self',
     name: 'Ramesh Kumar (Self)',
+    displayName: 'Ramesh (Self)',
     relation: 'Self',
     age: '32 yrs',
     gender: 'Male',
     bloodGroup: 'O+',
     allergies: 'None',
+    conditions: 'None',
+    icon: 'person',
+    themeColor: '#00B894',
+    bgLight: '#E6F8F4',
     isPrimary: true,
   },
   {
-    id: 'fam-2',
+    id: 'fam-1',
     name: 'Sneha Ramesh',
+    displayName: 'Sneha',
     relation: 'Spouse',
     age: '29 yrs',
     gender: 'Female',
     bloodGroup: 'B+',
     allergies: 'Penicillin',
+    conditions: 'None',
+    icon: 'heart',
+    themeColor: '#EC4899',
+    bgLight: '#FDF2F8',
     isPrimary: false,
   },
   {
-    id: 'fam-3',
+    id: 'fam-2',
     name: 'Suresh Kumar',
+    displayName: 'Father',
     relation: 'Father',
     age: '62 yrs',
     gender: 'Male',
     bloodGroup: 'O+',
     allergies: 'Dust & Pollen',
     conditions: 'Hypertension',
+    icon: 'shield-checkmark',
+    themeColor: '#3B82F6',
+    bgLight: '#EFF6FF',
     isPrimary: false,
   },
   {
-    id: 'fam-4',
+    id: 'fam-3',
     name: 'Aarav Kumar',
+    displayName: 'Aarav',
     relation: 'Son',
     age: '4 yrs',
     gender: 'Male',
     bloodGroup: 'O+',
     allergies: 'None',
+    conditions: 'None',
+    icon: 'happy',
+    themeColor: '#F59E0B',
+    bgLight: '#FFFBEB',
     isPrimary: false,
   },
 ];
 
-const RELATIONSHIPS = ['Spouse', 'Father', 'Mother', 'Son', 'Daughter', 'Sibling', 'Other'];
+const RELATIONSHIPS = ['Spouse', 'Father', 'Mother', 'Son', 'Daughter', 'Sibling', 'Grandparent', 'Other'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 const FamilyProfilesScreen = ({ navigation }) => {
   const [members, setMembers] = useState(INITIAL_MEMBERS);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [activeMemberId, setActiveMemberId] = useState('fam-1');
+  const [activeMemberId, setActiveMemberId] = useState('self');
 
   // Form states
   const [name, setName] = useState('');
@@ -73,30 +97,158 @@ const FamilyProfilesScreen = ({ navigation }) => {
   const [gender, setGender] = useState('Female');
   const [bloodGroup, setBloodGroup] = useState('O+');
   const [allergies, setAllergies] = useState('');
+  const [conditions, setConditions] = useState('');
 
-  const handleAddMember = () => {
+  useEffect(() => {
+    loadMembers();
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadMembers();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  const loadMembers = async () => {
+    try {
+      // 1. Get Primary Account Holder Info
+      const storedPrimary = await AsyncStorage.getItem('@unnathi_primary_user');
+      const storedUser = await AsyncStorage.getItem('user');
+      const storedName = await AsyncStorage.getItem('userName');
+
+      let primaryOwnerName = '';
+      let primaryOwnerAge = '28 yrs';
+      let primaryOwnerGender = 'Male';
+      let primaryOwnerBlood = 'O+';
+
+      if (storedPrimary) {
+        try {
+          const p = JSON.parse(storedPrimary);
+          if (p?.name && p.name.trim()) primaryOwnerName = p.name.trim();
+          if (p?.age) primaryOwnerAge = p.age;
+          if (p?.gender) primaryOwnerGender = p.gender;
+          if (p?.bloodGroup) primaryOwnerBlood = p.bloodGroup.split(' ')[0];
+        } catch (e) {}
+      }
+      if (!primaryOwnerName && storedUser) {
+        try {
+          const u = JSON.parse(storedUser);
+          if (u?.name && u.name.trim()) primaryOwnerName = u.name.trim();
+        } catch (e) {}
+      }
+      if (!primaryOwnerName && storedName && storedName.trim()) {
+        primaryOwnerName = storedName.trim();
+      }
+
+      const savedFam = await AsyncStorage.getItem('@unnathi_family_members');
+      let currentMembers = INITIAL_MEMBERS;
+      if (savedFam) {
+        try {
+          const parsed = JSON.parse(savedFam);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            currentMembers = parsed;
+          }
+        } catch (e) {}
+      }
+
+      // If we have an account owner name, dynamically sync the self/primary profile
+      if (primaryOwnerName) {
+        const cleanDisplayName = primaryOwnerName.split(' ')[0];
+        let hasSelf = false;
+        currentMembers = currentMembers.map((m) => {
+          if (m.id === 'self' || m.isPrimary || m.relation === 'Self') {
+            hasSelf = true;
+            return {
+              ...m,
+              name: `${primaryOwnerName} (Self)`,
+              displayName: `${cleanDisplayName} (Self)`,
+              age: primaryOwnerAge,
+              gender: primaryOwnerGender,
+              bloodGroup: primaryOwnerBlood,
+            };
+          }
+          return m;
+        });
+
+        if (!hasSelf) {
+          currentMembers.unshift({
+            id: 'self',
+            name: `${primaryOwnerName} (Self)`,
+            displayName: `${cleanDisplayName} (Self)`,
+            relation: 'Self',
+            age: primaryOwnerAge,
+            gender: primaryOwnerGender,
+            bloodGroup: primaryOwnerBlood,
+            allergies: 'None',
+            conditions: 'None',
+            icon: 'person',
+            themeColor: '#00B894',
+            bgLight: '#E6F8F4',
+            isPrimary: true,
+          });
+        }
+
+        await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(currentMembers));
+      }
+
+      setMembers(currentMembers);
+
+      const savedActive = await AsyncStorage.getItem('@unnathi_active_patient');
+      if (savedActive) {
+        try {
+          const parsedActive = JSON.parse(savedActive);
+          if (parsedActive?.id) {
+            setActiveMemberId(parsedActive.id);
+          }
+        } catch (e) {}
+      }
+    } catch (e) {
+      console.log('Error loading family profiles:', e);
+    }
+  };
+
+  const handleSelectActiveMember = async (member) => {
+    setActiveMemberId(member.id);
+    await AsyncStorage.setItem('@unnathi_active_patient', JSON.stringify(member));
+    if (member.isPrimary || member.relation === 'Self') {
+      const cleanName = (member.displayName || member.name).replace(/\s*\([Ss]elf\)/g, '').split(' ')[0];
+      await AsyncStorage.setItem('userName', cleanName);
+    }
+    const cleanName = (member.displayName || member.name).replace(/\s*\([Ss]elf\)/g, '').split(' ')[0];
+    Alert.alert('Active Patient Selected 🩺', `${member.name} is now selected for appointments & orders.`);
+  };
+
+  const handleAddMember = async () => {
     if (!name.trim() || !age.trim()) {
       Alert.alert('Incomplete Info', 'Please enter member name and age.');
       return;
     }
 
     const newMember = {
-      id: `fam-${Math.floor(100 + Math.random() * 900)}`,
+      id: `fam-${Date.now()}`,
       name: name.trim(),
+      displayName: name.trim().split(' ')[0],
       relation,
       age: `${age.trim()} yrs`,
       gender,
       bloodGroup,
       allergies: allergies.trim() || 'None',
+      conditions: conditions.trim() || 'None',
+      icon: relation === 'Spouse' ? 'heart' : relation === 'Father' ? 'shield-checkmark' : relation === 'Mother' ? 'rose' : relation === 'Son' || relation === 'Daughter' ? 'happy' : 'person',
+      themeColor: relation === 'Spouse' ? '#EC4899' : relation === 'Father' ? '#3B82F6' : relation === 'Mother' ? '#8B5CF6' : '#00B894',
+      bgLight: '#F0FDFA',
       isPrimary: false,
     };
 
-    setMembers([...members, newMember]);
+    const updated = [...members, newMember];
+    setMembers(updated);
+    await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(updated));
+    await AsyncStorage.setItem('@unnathi_active_patient', JSON.stringify(newMember));
+    setActiveMemberId(newMember.id);
     setShowAddModal(false);
     setName('');
     setAge('');
     setAllergies('');
-    Alert.alert('Family Member Added! 👨‍👩‍👧', `${newMember.name} is now linked to your health account.`);
+    setConditions('');
+    Alert.alert('Family Member Added! 👨‍👩‍👧', `${newMember.name} is now linked and set as active patient for appointments.`);
   };
 
   const handleDeleteMember = (member) => {
@@ -110,7 +262,16 @@ const FamilyProfilesScreen = ({ navigation }) => {
       {
         text: 'Remove',
         style: 'destructive',
-        onPress: () => setMembers(members.filter((m) => m.id !== member.id)),
+        onPress: async () => {
+          const updated = members.filter((m) => m.id !== member.id);
+          setMembers(updated);
+          await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(updated));
+          if (activeMemberId === member.id) {
+            const fallback = updated[0] || INITIAL_MEMBERS[0];
+            setActiveMemberId(fallback.id);
+            await AsyncStorage.setItem('@unnathi_active_patient', JSON.stringify(fallback));
+          }
+        },
       },
     ]);
   };
@@ -170,7 +331,7 @@ const FamilyProfilesScreen = ({ navigation }) => {
               key={member.id}
               style={[styles.memberCard, isActive && styles.memberCardActive]}
               activeOpacity={0.9}
-              onPress={() => setActiveMemberId(member.id)}
+              onPress={() => handleSelectActiveMember(member)}
             >
               <View style={styles.cardTop}>
                 <View style={styles.avatarCircle}>
@@ -273,110 +434,145 @@ const FamilyProfilesScreen = ({ navigation }) => {
         visible={showAddModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowAddModal(false)}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setShowAddModal(false);
+        }}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Family Member</Text>
-              <TouchableOpacity
-                onPress={() => setShowAddModal(false)}
-                style={styles.modalCloseBtn}
-              >
-                <Ionicons name="close" size={22} color={colors.secondary} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.inputLabel}>Full Name *</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="e.g. Priya Kumar"
-                placeholderTextColor={colors.slate}
-                value={name}
-                onChangeText={setName}
-              />
-
-              <Text style={styles.inputLabel}>Relationship</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillsScroll}>
-                {RELATIONSHIPS.map((rel) => (
-                  <TouchableOpacity
-                    key={rel}
-                    style={[styles.modalPill, relation === rel && styles.modalPillActive]}
-                    onPress={() => setRelation(rel)}
-                  >
-                    <Text style={[styles.modalPillText, relation === rel && styles.modalPillTextActive]}>
-                      {rel}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputLabel}>Age (Years) *</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    placeholder="e.g. 28"
-                    placeholderTextColor={colors.slate}
-                    value={age}
-                    onChangeText={setAge}
-                    keyboardType="number-pad"
-                  />
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputLabel}>Gender</Text>
-                  <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
-                    {['Male', 'Female'].map((g) => (
-                      <TouchableOpacity
-                        key={g}
-                        style={[styles.genderPill, gender === g && styles.genderPillActive]}
-                        onPress={() => setGender(g)}
-                      >
-                        <Text style={[styles.genderText, gender === g && styles.genderTextActive]}>
-                          {g}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={Keyboard.dismiss}
+          >
+            <TouchableOpacity
+              style={styles.modalContent}
+              activeOpacity={1}
+              onPress={() => {}}
+            >
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Add Family Member</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setShowAddModal(false);
+                  }}
+                  style={styles.modalCloseBtn}
+                >
+                  <Ionicons name="close" size={22} color={colors.secondary} />
+                </TouchableOpacity>
               </View>
 
-              <Text style={[styles.inputLabel, { marginTop: 12 }]}>Blood Group</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillsScroll}>
-                {BLOOD_GROUPS.map((bg) => (
-                  <TouchableOpacity
-                    key={bg}
-                    style={[styles.modalPill, bloodGroup === bg && styles.modalPillActive]}
-                    onPress={() => setBloodGroup(bg)}
-                  >
-                    <Text style={[styles.modalPillText, bloodGroup === bg && styles.modalPillTextActive]}>
-                      {bg}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              <Text style={[styles.inputLabel, { marginTop: 12 }]}>Known Allergies (Optional)</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="e.g. Penicillin, Peanuts, None"
-                placeholderTextColor={colors.slate}
-                value={allergies}
-                onChangeText={setAllergies}
-              />
-
-              <TouchableOpacity
-                style={styles.saveBtn}
-                activeOpacity={0.85}
-                onPress={handleAddMember}
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
               >
-                <Text style={styles.saveBtnText}>Save Family Member</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
+                <Text style={styles.inputLabel}>Full Name *</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="e.g. Priya Kumar"
+                  placeholderTextColor={colors.slate}
+                  value={name}
+                  onChangeText={setName}
+                />
+
+                <Text style={styles.inputLabel}>Relationship</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillsScroll}>
+                  {RELATIONSHIPS.map((rel) => (
+                    <TouchableOpacity
+                      key={rel}
+                      style={[styles.modalPill, relation === rel && styles.modalPillActive]}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        setRelation(rel);
+                      }}
+                    >
+                      <Text style={[styles.modalPillText, relation === rel && styles.modalPillTextActive]}>
+                        {rel}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.inputLabel}>Age (Years) *</Text>
+                    <TextInput
+                      style={styles.modalInput}
+                      placeholder="e.g. 28"
+                      placeholderTextColor={colors.slate}
+                      value={age}
+                      onChangeText={setAge}
+                      keyboardType="number-pad"
+                    />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.inputLabel}>Gender</Text>
+                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
+                      {['Male', 'Female'].map((g) => (
+                        <TouchableOpacity
+                          key={g}
+                          style={[styles.genderPill, gender === g && styles.genderPillActive]}
+                          onPress={() => {
+                            Keyboard.dismiss();
+                            setGender(g);
+                          }}
+                        >
+                          <Text style={[styles.genderText, gender === g && styles.genderTextActive]}>
+                            {g}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+
+                <Text style={[styles.inputLabel, { marginTop: 12 }]}>Blood Group</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillsScroll}>
+                  {BLOOD_GROUPS.map((bg) => (
+                    <TouchableOpacity
+                      key={bg}
+                      style={[styles.modalPill, bloodGroup === bg && styles.modalPillActive]}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        setBloodGroup(bg);
+                      }}
+                    >
+                      <Text style={[styles.modalPillText, bloodGroup === bg && styles.modalPillTextActive]}>
+                        {bg}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                <Text style={[styles.inputLabel, { marginTop: 12 }]}>Known Allergies (Optional)</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="e.g. Penicillin, Peanuts, None"
+                  placeholderTextColor={colors.slate}
+                  value={allergies}
+                  onChangeText={setAllergies}
+                />
+
+                <TouchableOpacity
+                  style={styles.saveBtn}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    handleAddMember();
+                  }}
+                >
+                  <Text style={styles.saveBtnText}>Save Family Member</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

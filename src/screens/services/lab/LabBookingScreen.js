@@ -131,12 +131,28 @@ const LabBookingScreen = ({ route, navigation }) => {
   const [uploadedPrescription, setUploadedPrescription] = useState(null);
 
   // Payment Option
-  const [paymentOption, setPaymentOption] = useState('PAY_LATER'); // 'PAY_LATER' | 'PAY_ONLINE'
+  const [paymentOption, setPaymentOption] = useState('WALLET'); // 'WALLET' | 'PAY_LATER' | 'PAY_ONLINE'
+  const [walletBalance, setWalletBalance] = useState(1250);
   const [isBooking, setIsBooking] = useState(false);
 
   useEffect(() => {
     loadUserData();
+    loadWallet();
   }, []);
+
+  const loadWallet = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('@unnathi_wallet_balance');
+      if (stored !== null) {
+        setWalletBalance(parseInt(stored, 10) || 0);
+      } else {
+        await AsyncStorage.setItem('@unnathi_wallet_balance', '1250');
+        setWalletBalance(1250);
+      }
+    } catch (e) {
+      console.log('Error loading wallet in lab booking:', e);
+    }
+  };
 
   const loadUserData = async () => {
     try {
@@ -291,6 +307,45 @@ const LabBookingScreen = ({ route, navigation }) => {
       const bookingId = `LAB-${Math.floor(100000 + Math.random() * 900000)}`;
       const tokenNumber = `TK-${Math.floor(10 + Math.random() * 90)}`;
 
+      // MediUnify Wallet Payment Check & Processing
+      if (paymentOption === 'WALLET') {
+        if (walletBalance < totalAmount) {
+          setIsBooking(false);
+          Alert.alert(
+            'Insufficient MediUnify Wallet Balance',
+            `Your current wallet balance is ₹${walletBalance}, but this booking requires ₹${totalAmount}.\n\nPlease top up your wallet or choose another payment method.`,
+            [
+              { text: 'Top Up Wallet', onPress: () => navigation.navigate('Wallet') },
+              { text: 'OK', style: 'cancel' }
+            ]
+          );
+          return;
+        }
+
+        // Deduct from wallet
+        const newBal = walletBalance - totalAmount;
+        await AsyncStorage.setItem('@unnathi_wallet_balance', String(newBal));
+        setWalletBalance(newBal);
+
+        // Record wallet ledger transaction
+        try {
+          const existingTxJson = await AsyncStorage.getItem('@unnathi_wallet_transactions');
+          const existingTx = existingTxJson ? JSON.parse(existingTxJson) : [];
+          const newTx = {
+            id: `tx-lab-${Date.now()}`,
+            title: `Diagnostic Lab: ${selectedTests.map((t) => t.name).slice(0, 2).join(', ')}${selectedTests.length > 2 ? ` +${selectedTests.length - 2} more` : ''}`,
+            subtitle: `Lab Booking ID: ${bookingId}`,
+            amount: `-₹${totalAmount}`,
+            type: 'debit',
+            date: 'Just now',
+            icon: 'flask-outline',
+          };
+          await AsyncStorage.setItem('@unnathi_wallet_transactions', JSON.stringify([newTx, ...existingTx]));
+        } catch (errTx) {
+          console.log('Error recording wallet transaction:', errTx);
+        }
+      }
+
       const newBooking = {
         id: bookingId,
         tokenNumber,
@@ -309,11 +364,19 @@ const LabBookingScreen = ({ route, navigation }) => {
         totalAmount,
         paidAmount: totalAmount,
         paymentStatus:
-          paymentOption === 'PAY_LATER'
+          paymentOption === 'WALLET'
+            ? 'Paid via MediUnify Health Wallet'
+            : paymentOption === 'PAY_LATER'
             ? collectionMode === 'HOME'
               ? 'Pay to Lab Boy on Collection'
               : 'Pay at Lab Reception'
             : 'Paid Online (UPI)',
+        paymentMethod:
+          paymentOption === 'WALLET'
+            ? 'MediUnify Health Wallet'
+            : paymentOption === 'PAY_LATER'
+            ? 'Pay on Collection/Visit'
+            : 'UPI / Online Card',
         patient: {
           name: patientName,
           age: patientAge,
@@ -840,31 +903,91 @@ const LabBookingScreen = ({ route, navigation }) => {
             <Text style={styles.sectionTitle}>Payment Method</Text>
           </View>
 
+          {/* 1. MEDIUNIFY HEALTH WALLET (RECOMMENDED) */}
+          <TouchableOpacity
+            style={[styles.payOption, paymentOption === 'WALLET' && styles.payOptionActiveWallet]}
+            onPress={() => setPaymentOption('WALLET')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.radioBox, paymentOption === 'WALLET' && styles.radioBoxWallet]}>
+              {paymentOption === 'WALLET' && <View style={styles.radioInnerWallet} />}
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.payOptionTitle}>MediUnify Health Wallet</Text>
+                <View style={styles.walletFastBadge}>
+                  <Ionicons name="flash" size={9} color="#FFFFFF" />
+                  <Text style={styles.walletFastBadgeText}>1-CLICK</Text>
+                </View>
+              </View>
+              <Text
+                style={[
+                  styles.payOptionSub,
+                  {
+                    color: walletBalance >= totalAmount ? '#059669' : '#DC2626',
+                    fontWeight: '600',
+                  },
+                ]}
+              >
+                Available Balance: ₹{walletBalance}{' '}
+                {walletBalance < totalAmount ? '(Insufficient Balance)' : '✓ Instant Checkout'}
+              </Text>
+            </View>
+            <View style={styles.walletIconWrap}>
+              <Ionicons name="wallet" size={20} color={colors.primary} />
+            </View>
+          </TouchableOpacity>
+
+          {/* Top Up CTA if Wallet Selected but Insufficient */}
+          {paymentOption === 'WALLET' && walletBalance < totalAmount && (
+            <View style={styles.topUpBanner}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.topUpTitle}>Add money to complete this booking</Text>
+                <Text style={styles.topUpSub}>
+                  Need ₹{totalAmount - walletBalance} more to pay via wallet
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.topUpBtn}
+                onPress={() => navigation.navigate('Wallet')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.topUpBtnText}>+ Top Up</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* 2. PAY LATER */}
           <TouchableOpacity
             style={[styles.payOption, paymentOption === 'PAY_LATER' && styles.payOptionActive]}
             onPress={() => setPaymentOption('PAY_LATER')}
+            activeOpacity={0.85}
           >
             <View style={styles.radioBox}>
               {paymentOption === 'PAY_LATER' && <View style={styles.radioInner} />}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.payOptionTitle}>
-                {collectionMode === 'HOME' ? 'Pay to Lab Boy on Sample Collection' : 'Pay at Diagnostic Center Counter'}
+                {collectionMode === 'HOME'
+                  ? 'Pay to Lab Boy on Sample Collection'
+                  : 'Pay at Diagnostic Center Counter'}
               </Text>
-              <Text style={styles.payOptionSub}>Cash, UPI, or Card after service</Text>
+              <Text style={styles.payOptionSub}>Cash, UPI, or Card after sample collection</Text>
             </View>
             <Ionicons name="cash-outline" size={20} color="#059669" />
           </TouchableOpacity>
 
+          {/* 3. PAY ONLINE UPI */}
           <TouchableOpacity
             style={[styles.payOption, paymentOption === 'PAY_ONLINE' && styles.payOptionActive]}
             onPress={() => setPaymentOption('PAY_ONLINE')}
+            activeOpacity={0.85}
           >
             <View style={styles.radioBox}>
               {paymentOption === 'PAY_ONLINE' && <View style={styles.radioInner} />}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.payOptionTitle}>Instant Online UPI / Cards</Text>
+              <Text style={styles.payOptionTitle}>Instant Online UPI / Cards / NetBanking</Text>
               <Text style={styles.payOptionSub}>Google Pay, PhonePe, Paytm, Cards</Text>
             </View>
             <Ionicons name="phone-portrait-outline" size={20} color={colors.primary} />
@@ -1530,6 +1653,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderColor: colors.primary,
   },
+  payOptionActiveWallet: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#059669',
+    borderWidth: 1.5,
+  },
+  radioBoxWallet: {
+    borderColor: '#059669',
+  },
+  radioInnerWallet: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: '#059669',
+  },
   payOptionTitle: {
     fontSize: 12,
     fontWeight: '700',
@@ -1539,6 +1676,62 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.textSecondary,
     marginTop: 2,
+  },
+  walletFastBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#059669',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+    gap: 2,
+  },
+  walletFastBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  walletIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#E6F4FE',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  topUpBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+    marginTop: -2,
+  },
+  topUpTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  topUpSub: {
+    fontSize: 10,
+    color: '#991B1B',
+    marginTop: 2,
+  },
+  topUpBtn: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  topUpBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
   },
 
   // BILL

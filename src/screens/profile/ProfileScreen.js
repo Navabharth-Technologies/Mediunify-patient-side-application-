@@ -14,26 +14,34 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../theme/colors';
+import { useTheme } from '../../context/ThemeContext';
 
 const ProfileScreen = ({ navigation, route }) => {
+  const { isDarkMode, theme, language, LANGUAGES } = useTheme();
+  const currentLang = LANGUAGES.find((l) => l.code === language) || LANGUAGES[0];
+
   // User Profile State
   const [user, setUser] = useState({
-    name: route?.params?.updatedUser?.name || 'Hemanth Gowda',
-    email: route?.params?.updatedUser?.email || 'hemanth@example.com',
-    phone: route?.params?.updatedUser?.phone || '+91 98765 43210',
+    name: route?.params?.updatedUser?.name || 'Ramesh Kumar',
+    email: route?.params?.updatedUser?.email || 'ramesh.kumar@example.com',
+    phone: route?.params?.updatedUser?.phone || '+91 98450 12345',
     bloodGroup: 'O+ Positive',
-    age: '28 Yrs',
+    age: '32 Yrs',
     gender: 'Male',
-    emergencyContact: '+91 98450 11223 (Father)',
+    emergencyContact: '+91 98450 11223 (Family)',
   });
 
   const [walletBalance, setWalletBalance] = useState(1250);
   const [carePoints, setCarePoints] = useState(500);
 
-  // Load Saved Data
+  // Load Saved Data on Mount & Screen Focus
   useEffect(() => {
     loadProfileData();
-  }, []);
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadProfileData();
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   useEffect(() => {
     if (route?.params?.updatedUser) {
@@ -52,16 +60,64 @@ const ProfileScreen = ({ navigation, route }) => {
 
   const loadProfileData = async () => {
     try {
+      // Always load the Primary Account Holder's Profile
+      const storedPrimary = await AsyncStorage.getItem('@unnathi_primary_user');
+      const storedUser = await AsyncStorage.getItem('user');
       const storedName = await AsyncStorage.getItem('userName');
       const storedEmail = await AsyncStorage.getItem('userEmail');
       const storedPhone = await AsyncStorage.getItem('userPhone');
       const savedWallet = await AsyncStorage.getItem('@unnathi_wallet_balance');
 
+      let parsedUser = null;
+      if (storedPrimary) {
+        try {
+          parsedUser = JSON.parse(storedPrimary);
+        } catch (e) {}
+      } else if (storedUser) {
+        try {
+          parsedUser = JSON.parse(storedUser);
+        } catch (e) {}
+      }
+
+      // Check registered users directory
+      const regUsersStr = await AsyncStorage.getItem('@unnathi_registered_users');
+      let registeredUsers = {};
+      if (regUsersStr) {
+        try {
+          registeredUsers = JSON.parse(regUsersStr);
+        } catch (e) {}
+      }
+
+      const activeEmail = (parsedUser?.email || storedEmail || '').toLowerCase().trim();
+      const regUser = registeredUsers[activeEmail];
+
+      // Determine Full Name (strictly ensuring it is NEVER an email ID)
+      let resolvedFullName = '';
+      if (parsedUser?.name && !parsedUser.name.includes('@') && parsedUser.name.trim()) {
+        resolvedFullName = parsedUser.name.trim();
+      } else if (regUser?.name && !regUser.name.includes('@') && regUser.name.trim()) {
+        resolvedFullName = regUser.name.trim();
+      } else if (storedName && !storedName.includes('@') && storedName.trim()) {
+        resolvedFullName = storedName.trim();
+      } else if (parsedUser?.name) {
+        const clean = parsedUser.name.split('@')[0].replace(/[._-]/g, ' ').replace(/[0-9]/g, '').trim() || parsedUser.name.split('@')[0].replace(/[._-]/g, ' ').trim();
+        resolvedFullName = clean
+          .split(' ')
+          .filter(Boolean)
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+          .join(' ') || '';
+      }
+
       setUser((prev) => ({
         ...prev,
-        name: storedName && storedName.trim() ? storedName.trim() : prev.name,
-        email: storedEmail && storedEmail.trim() ? storedEmail.trim() : prev.email,
-        phone: storedPhone && storedPhone.trim() ? storedPhone.trim() : prev.phone,
+        name: resolvedFullName || prev.name,
+        email: parsedUser?.email || (storedEmail && storedEmail.trim() ? storedEmail.trim() : prev.email),
+        phone: parsedUser?.phone || (storedPhone && storedPhone.trim() ? storedPhone.trim() : prev.phone),
+        bloodGroup: parsedUser?.bloodGroup || regUser?.bloodGroup || prev.bloodGroup,
+        age: parsedUser?.age || regUser?.age || prev.age,
+        gender: parsedUser?.gender || regUser?.gender || prev.gender,
+        emergencyContact: parsedUser?.emergencyContact || regUser?.emergencyContact || prev.emergencyContact,
+        dob: parsedUser?.dob || regUser?.dob || prev.dob || '',
       }));
 
       if (savedWallet) {
@@ -105,14 +161,19 @@ const ProfileScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.headerBg}
+      />
 
       {/* TOP HEADER BAR */}
-      <View style={styles.topHeader}>
+      <View style={[styles.topHeader, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
         <View>
           <Text style={styles.topHeaderBadge}>PATIENT DASHBOARD</Text>
-          <Text style={styles.topHeaderTitle}>My Health Profile</Text>
+          <Text style={[styles.topHeaderTitle, { color: isDarkMode ? '#F8FAFC' : colors.navyBlue }]}>
+            My Health Profile
+          </Text>
         </View>
 
         <View style={styles.headerActionRow}>
@@ -442,12 +503,17 @@ const ProfileScreen = ({ navigation, route }) => {
             onPress={() => navigation.navigate('Settings')}
             activeOpacity={0.7}
           >
-            <View style={[styles.itemIconWrap, { backgroundColor: '#F1F5F9' }]}>
-              <Ionicons name="settings-outline" size={20} color="#475569" />
+            <View style={[styles.itemIconWrap, { backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9' }]}>
+              <Ionicons name="settings-outline" size={20} color={isDarkMode ? '#38BDF8' : '#475569'} />
             </View>
             <View style={styles.itemTextWrap}>
-              <Text style={styles.itemTitle}>App Settings & Security</Text>
-              <Text style={styles.itemSubtitle}>Biometrics, language & notification alerts</Text>
+              <Text style={styles.itemTitle}>App Settings & Preferences</Text>
+              <Text style={styles.itemSubtitle}>Language, Dark Mode, Security & Cache</Text>
+            </View>
+            <View style={[styles.badgePill, { backgroundColor: '#CCFBF1' }]}>
+              <Text style={[styles.badgePillText, { color: '#0F766E' }]}>
+                {currentLang.flag} {currentLang.code.toUpperCase()}
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
           </TouchableOpacity>

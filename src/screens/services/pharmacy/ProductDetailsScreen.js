@@ -41,8 +41,10 @@ const getCategoryIcon = (category) => {
 };
 
 const ProductDetailsScreen = ({ navigation, route }) => {
-  const { productId, product: passedProduct } = route.params || {};
-  const { cart, addToCart, cartCount } = useCart();
+  const { productId, product: passedProduct, store: passedStore } = route.params || {};
+  const { cart, addToCart, cartCount, selectedPharmacyStore } = useCart();
+
+  const currentStore = passedStore || selectedPharmacyStore;
 
   const [quantity, setQuantity] = useState(1);
 
@@ -77,23 +79,23 @@ const ProductDetailsScreen = ({ navigation, route }) => {
   }
 
   const handleAddToCart = () => {
-    addToCart(product, quantity);
+    addToCart(product, quantity, 'pharmacy', currentStore);
     Alert.alert(
       'Added to Cart! 🛒',
-      `${quantity} × ${product.name} added to your basket.`,
+      `${quantity} × ${product.name} added to your basket (${currentStore?.name || 'Apollo Pharmacy'}).`,
       [
         { text: 'Continue Shopping', style: 'cancel' },
         {
           text: 'View Cart',
-          onPress: () => navigation.navigate('Cart'),
+          onPress: () => navigation.navigate('Cart', { initialTab: 'pharmacy' }),
         },
       ]
     );
   };
 
   const handleBuyNow = () => {
-    addToCart(product, quantity);
-    navigation.navigate('Checkout');
+    addToCart(product, quantity, 'pharmacy', currentStore);
+    navigation.navigate('Cart', { initialTab: 'pharmacy' });
   };
 
   return (
@@ -262,6 +264,23 @@ const ProductDetailsScreen = ({ navigation, route }) => {
                 <Text style={styles.infoBlockTitle}>Dosage & Administration</Text>
               </View>
               <Text style={styles.infoBlockContent}>{product.dosage}</Text>
+            </View>
+          )}
+
+          {/* FULFILLING MEDICAL SHOP BANNER */}
+          {currentStore && (
+            <View style={styles.storeBadgeCard}>
+              <View style={styles.storeBadgeIcon}>
+                <Ionicons name="storefront" size={20} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.storeBadgeTitle}>
+                  Fulfilled & Dispensed by {currentStore.name}
+                </Text>
+                <Text style={styles.storeBadgeSub}>
+                  {currentStore.locality} • {currentStore.deliveryTime || '15-25 mins'} delivery • {currentStore.is24x7 ? '24x7 Open' : 'Open Now'}
+                </Text>
+              </View>
             </View>
           )}
 
@@ -721,10 +740,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  buyNowText: {
-    color: colors.white,
-    fontSize: 12,
-    fontWeight: '900',
+  storeBadgeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 14,
+    marginBottom: 6,
+  },
+  storeBadgeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#DBEAFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  storeBadgeTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.secondary,
+  },
+  storeBadgeSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
   },
 });
 

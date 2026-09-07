@@ -9,25 +9,49 @@ import {
   Alert,
 } from 'react-native';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomButton from '../../components/CustomButton';
 import colors from '../../theme/colors';
 
-const OTPScreen = ({ navigation }) => {
+const OTPScreen = ({ navigation, route }) => {
 
   const [otp, setOtp] = useState('');
+  const [verifying, setVerifying] = useState(false);
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
 
     if (otp === '123456') {
+      setVerifying(true);
+      try {
+        const passedUser = route?.params?.userData;
+        if (passedUser) {
+          await AsyncStorage.setItem('user', JSON.stringify(passedUser));
+          await AsyncStorage.setItem('@unnathi_primary_user', JSON.stringify(passedUser));
+          await AsyncStorage.setItem('userName', passedUser.name);
+          await AsyncStorage.setItem('userEmail', passedUser.email);
+          await AsyncStorage.setItem('userPhone', passedUser.phone);
+        }
+        await AsyncStorage.setItem('isLoggedIn', 'true');
+        await AsyncStorage.setItem('userToken', `auth_token_${Date.now()}`);
+      } catch (e) {
+        console.log('OTP storage save err:', e);
+      }
+      setVerifying(false);
+
+      const registeredName = route?.params?.userData?.name || 'User';
 
       Alert.alert(
-        'Verification Complete',
-        'Your account has been verified.',
+        'Account Verified 🎉',
+        `Welcome to MediUnify, ${registeredName}! Your account details have been saved.`,
         [
           {
-            text: 'Continue',
-            onPress: () =>
-              navigation.navigate('Login'),
+            text: 'Get Started',
+            onPress: () => {
+              navigation.getParent()?.reset({
+                index: 0,
+                routes: [{ name: 'MainApp' }],
+              });
+            },
           },
         ]
       );

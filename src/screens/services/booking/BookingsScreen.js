@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   SafeAreaView,
+  ScrollView,
   FlatList,
   TouchableOpacity,
   Alert,
@@ -15,11 +16,42 @@ import {
   TextInput,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import labTests from '../../../data/labTests';
 
 const DEFAULT_SAMPLE_APPOINTMENTS = [
+  {
+    id: 'appt-demo-video-1',
+    tokenNumber: 'VID-104',
+    type: 'Video Consultation',
+    doctor: {
+      name: 'Dr. Anita Sharma',
+      specialty: 'General Physician & Diabetologist',
+      qualification: 'MBBS, MD - General Medicine',
+      experienceYears: '14',
+      clinicName: 'MediUnify Virtual TeleHealth Room',
+      clinicAddress: 'Online Video Consultation (Live HD Encrypted)',
+      clinicArea: 'Virtual Care Hub',
+      phone: '+91 821 245 9903',
+      fee: 450,
+      image: 'https://images.unsplash.com/photo-1594824813576-92f70b79873a?auto=format&fit=crop&q=80&w=300',
+    },
+    day: 'Today',
+    date: 'Today, Live Slot',
+    time: '04:30 PM (Live Room Ready)',
+    status: 'Confirmed',
+    paidAmount: 450,
+    paymentStatus: 'Paid Online via UPI',
+    videoRoomLink: 'https://telehealth.unnathi.org/room/VID-104',
+    patient: {
+      name: 'Ramesh (Self)',
+      age: '28',
+      gender: 'Male',
+      reason: 'Regular Health Follow-up & Medication Advice',
+    },
+  },
   {
     id: 'appt-demo-1',
     tokenNumber: 'TK-24',
@@ -92,6 +124,16 @@ const DEFAULT_SAMPLE_APPOINTMENTS = [
     id: 'appt-demo-2',
     tokenNumber: 'RAD-109',
     type: 'Radiology',
+    bookingType: 'Radiology',
+    tests: [
+      {
+        name: '3T Brain MRI with Contrast',
+        categoryLabel: 'MRI Scan',
+        duration: '25-30 Mins',
+        price: 3499,
+        instructions: 'Wear comfortable clothing, remove metallic items & jewelry before scan.',
+      },
+    ],
     doctor: {
       name: 'Unnathi Diagnostic & Imaging Center',
       specialty: 'Radiology • 3T Brain MRI with Contrast',
@@ -127,18 +169,135 @@ const BookingsScreen = ({ navigation, route }) => {
   const [activeBookingForAddTest, setActiveBookingForAddTest] = useState(null);
   const [testSearchQuery, setTestSearchQuery] = useState('');
 
-  // Normalize an appointment item so lab tests, radiology, and doctor visits are all correctly structured
+  // Document Upload State
+  const [activeAppointmentForUpload, setActiveAppointmentForUpload] = useState(null);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+  const [previewImageUri, setPreviewImageUri] = useState(null);
+
+  // Normalize an appointment item so lab tests, radiology, video calls, and doctor visits are all correctly structured
   const normalizeAppointment = (item) => {
+    const isRad =
+      item.type === 'Radiology' ||
+      item.bookingType === 'Radiology' ||
+      item.type === 'Radiology Scan' ||
+      item.details?.bookingType === 'Radiology' ||
+      item.details?.type === 'Radiology';
+
+    const isVideo =
+      !isRad &&
+      (item.type === 'Video Consultation' ||
+      item.type === 'Video' ||
+      item.type === 'TeleConsultation' ||
+      (typeof item.type === 'string' && item.type.toLowerCase().includes('video')));
+
     const isLab =
-      item.type === 'Lab Test' ||
+      !isRad &&
+      !isVideo &&
+      (item.type === 'Lab Test' ||
       item.type === 'Diagnostic Lab Test' ||
       item.type === 'Lab' ||
-      (Array.isArray(item.tests) && item.tests.length > 0);
+      (Array.isArray(item.tests) && item.tests.length > 0));
 
-    const isRad = item.type === 'Radiology';
+    if (isVideo) {
+      return {
+        ...item,
+        type: 'Video Consultation',
+        tokenNumber: item.tokenNumber || 'VID-102',
+        doctor: {
+          name: item.doctor?.name || 'Dr. Specialist',
+          specialty: item.doctor?.specialty || 'General Physician & TeleHealth',
+          qualification: item.doctor?.qualification || 'MBBS, MD',
+          clinicName: item.doctor?.clinicName || 'MediUnify Virtual TeleHealth Room',
+          clinicAddress: 'Online Video Consultation Room (HD Encrypted)',
+          clinicArea: 'Virtual Care Hub',
+          phone: item.doctor?.phone || '+91 821 245 9901',
+          fee: item.paidAmount || item.doctor?.fee || 450,
+          image:
+            item.doctor?.image ||
+            'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300',
+        },
+        day: item.day || 'Today',
+        date: item.date || 'Today, Scheduled',
+        time: item.time || 'Live Video Slot',
+        status: item.status || 'Confirmed',
+        paidAmount: item.paidAmount || item.doctor?.fee || 450,
+        paymentStatus: item.paymentStatus || 'Paid Online via UPI',
+        videoRoomLink: item.videoRoomLink || `https://telehealth.unnathi.org/room/${item.id}`,
+        patient: item.patient || { name: 'Patient (Self)', age: '28', gender: 'Male' },
+        details: item.details || item,
+      };
+    }
+
+    if (isRad) {
+      const testsList =
+        Array.isArray(item.tests) && item.tests.length > 0
+          ? item.tests
+          : Array.isArray(item.details?.tests) && item.details.tests.length > 0
+          ? item.details.tests
+          : [];
+      const testNames = testsList.map((t) => t.categoryLabel || t.name || t.testName).filter(Boolean);
+      const centerName =
+        item.lab?.name ||
+        item.doctor?.name ||
+        item.details?.lab?.name ||
+        'Unnathi Diagnostic & Imaging Center';
+      const clinicAddress =
+        item.lab?.address ||
+        item.doctor?.clinicAddress ||
+        item.details?.lab?.address ||
+        'No. 112, Kalidasa Road, Jayalakshmipuram, Mysore - 570012';
+      const clinicArea =
+        item.lab?.area ||
+        item.doctor?.clinicArea ||
+        item.details?.lab?.area ||
+        'Jayalakshmipuram, Mysore';
+      const clinicPhone =
+        item.lab?.phone ||
+        item.doctor?.phone ||
+        item.details?.lab?.phone ||
+        '+91 821 251 4400';
+
+      return {
+        ...item,
+        type: 'Radiology',
+        bookingType: 'Radiology',
+        tokenNumber: item.tokenNumber || item.details?.tokenNumber || 'RAD-109',
+        tests: testsList,
+        doctor: {
+          name: centerName,
+          specialty:
+            testNames.length > 0
+              ? `Radiology • ${testNames.join(', ')}`
+              : item.doctor?.specialty || '3T Scan & Imaging Center',
+          qualification: 'NABL & NABH Accredited Center',
+          clinicName: centerName,
+          clinicAddress: clinicAddress,
+          clinicArea: clinicArea,
+          phone: clinicPhone,
+          latitude: 12.2958,
+          longitude: 76.6394,
+          fee: item.payment?.paidAmount || item.paidAmount || item.details?.payment?.paidAmount || item.doctor?.fee || 1999,
+          image:
+            item.doctor?.image ||
+            'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&q=80&w=300',
+        },
+        day: item.day || item.appointmentDate?.split(',')[0] || item.details?.appointmentDate?.split(',')[0] || 'Tomorrow',
+        date: item.date || item.appointmentDate || item.details?.appointmentDate || 'Tomorrow, 10:00 AM',
+        time: item.time || item.appointmentSlot || item.details?.appointmentSlot || '10:00 AM',
+        status: item.status || 'Confirmed',
+        paidAmount: item.payment?.paidAmount || item.paidAmount || item.details?.payment?.paidAmount || 1999,
+        paymentStatus:
+          item.paymentStatus ||
+          item.payment?.paymentStatus ||
+          (item.payment?.method ? `Paid via ${item.payment.method}` : 'Paid Online via UPI'),
+        patient: item.patient || item.patientDetails || item.details?.patient || { name: 'Ramesh (Self)', age: '28', gender: 'Male' },
+        details: item.details || item,
+      };
+    }
 
     if (isLab) {
-      const testsList = Array.isArray(item.tests) ? item.tests : [];
+      const testsList = Array.isArray(item.tests) ? item.tests : (Array.isArray(item.details?.tests) ? item.details.tests : []);
       const testNames = testsList.map((t) => (typeof t === 'string' ? t : t.name)).filter(Boolean);
       const centerName =
         item.labCenter?.name ||
@@ -183,42 +342,7 @@ const BookingsScreen = ({ navigation, route }) => {
         paidAmount: item.totalAmount || item.paidAmount || 499,
         paymentStatus: item.paymentStatus || 'Paid Online',
         patient: item.patient || { name: 'Patient (Self)', age: '28', gender: 'Male' },
-        details: item,
-      };
-    }
-
-    if (isRad) {
-      return {
-        ...item,
-        type: 'Radiology',
-        tokenNumber: item.tokenNumber || 'RAD-101',
-        doctor: {
-          name: item.lab?.name || item.doctor?.name || 'MediUnify Diagnostic & Imaging Center',
-          specialty:
-            item.doctor?.specialty ||
-            `Radiology • ${item.tests?.map((t) => t.categoryLabel || t.name).join(', ') || '3T Scan'}`,
-          qualification: 'NABL & NABH Accredited Center',
-          clinicName: item.lab?.name || item.doctor?.clinicName || 'MediUnify Diagnostic Center',
-          clinicAddress: item.lab?.address || item.doctor?.clinicAddress || 'Kalidasa Road, Mysore',
-          clinicArea: item.lab?.area || item.doctor?.clinicArea || 'Mysore',
-          phone: item.lab?.phone || item.doctor?.phone || '+91 821 245 9901',
-          latitude: 12.2958,
-          longitude: 76.6394,
-          fee: item.payment?.paidAmount || item.paidAmount || item.doctor?.fee || 1999,
-          image:
-            item.doctor?.image ||
-            'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&q=80&w=300',
-        },
-        day: item.day || item.appointmentDate?.split(',')[0] || 'Scheduled',
-        date: item.date || item.appointmentDate || 'Scheduled Date',
-        time: item.time || item.appointmentSlot || 'Scheduled Slot',
-        status: item.status || 'Confirmed',
-        paidAmount: item.payment?.paidAmount || item.paidAmount || 1999,
-        paymentStatus:
-          item.paymentStatus ||
-          (item.payment?.method ? `Paid via ${item.payment.method}` : 'Paid Online'),
-        patient: item.patient || item.patientDetails || { name: 'Self', age: '28', gender: 'Male' },
-        details: item,
+        details: item.details || item,
       };
     }
 
@@ -246,6 +370,7 @@ const BookingsScreen = ({ navigation, route }) => {
       paidAmount: item.paidAmount || 500,
       paymentStatus: item.paymentStatus || 'Pay at Clinic',
       patient: item.patient || { name: 'Self', age: '28', gender: 'Male' },
+      details: item.details || item,
     };
   };
 
@@ -255,16 +380,20 @@ const BookingsScreen = ({ navigation, route }) => {
       const apptJson = await AsyncStorage.getItem('@unnathi_appointments');
       const storedAppts = apptJson ? JSON.parse(apptJson) : [];
 
-      // 2. Load lab bookings
+      // 2. Load video bookings
+      const vidJson = await AsyncStorage.getItem('@videoBookings');
+      const storedVideo = vidJson ? JSON.parse(vidJson) : [];
+
+      // 3. Load lab bookings
       const labJson = await AsyncStorage.getItem('@labBookings');
       const storedLabs = labJson ? JSON.parse(labJson) : [];
 
-      // 3. Load radiology bookings
+      // 4. Load radiology bookings
       const radJson = await AsyncStorage.getItem('@radiologyBookings');
       const storedRad = radJson ? JSON.parse(radJson) : [];
 
       // Combine and eliminate duplicates
-      const rawAll = [...storedAppts, ...storedLabs, ...storedRad];
+      const rawAll = [...storedAppts, ...storedVideo, ...storedLabs, ...storedRad];
       if (rawAll.length === 0) {
         rawAll.push(...DEFAULT_SAMPLE_APPOINTMENTS);
       }
@@ -303,13 +432,20 @@ const BookingsScreen = ({ navigation, route }) => {
   // Tab Filtering
   const filteredAppointments = useMemo(() => {
     return appointments.filter((item) => {
+      const isVideo =
+        item.type === 'Video Consultation' ||
+        item.type === 'Video' ||
+        item.type === 'TeleConsultation';
       const isLab =
         item.type === 'Lab Test' ||
         item.type === 'Diagnostic Lab Test' ||
         item.type === 'Lab';
       const isRad = item.type === 'Radiology';
-      const isDoc = !isLab && !isRad;
+      const isDoc = !isLab && !isRad && !isVideo;
 
+      if (selectedTab === 'Video Consults') {
+        return isVideo;
+      }
       if (selectedTab === 'Doctor Visits') {
         return isDoc;
       }
@@ -333,12 +469,21 @@ const BookingsScreen = ({ navigation, route }) => {
   const counts = useMemo(() => {
     return {
       all: appointments.length,
+      videoCalls: appointments.filter(
+        (a) =>
+          a.type === 'Video Consultation' ||
+          a.type === 'Video' ||
+          a.type === 'TeleConsultation'
+      ).length,
       doctors: appointments.filter(
         (a) =>
           a.type !== 'Radiology' &&
           a.type !== 'Lab Test' &&
           a.type !== 'Diagnostic Lab Test' &&
-          a.type !== 'Lab'
+          a.type !== 'Lab' &&
+          a.type !== 'Video Consultation' &&
+          a.type !== 'Video' &&
+          a.type !== 'TeleConsultation'
       ).length,
       labTests: appointments.filter(
         (a) =>
@@ -513,8 +658,115 @@ const BookingsScreen = ({ navigation, route }) => {
     );
   };
 
+  // Document Upload Handlers
+  const handleOpenUploadModal = (appointment) => {
+    const docs = appointment.documents || (appointment.patient?.reportUri ? [{ id: 'doc-init', name: 'Prescription / Medical Scan', uri: appointment.patient.reportUri, date: 'Attached with booking', type: 'Medical Report' }] : []);
+    setActiveAppointmentForUpload({ ...appointment, documents: docs });
+    setIsUploadModalOpen(true);
+  };
+
+  const handlePickDocument = async (isCamera) => {
+    if (!activeAppointmentForUpload) return;
+    try {
+      setIsUploadingDoc(true);
+      let result;
+      if (isCamera) {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          setIsUploadingDoc(false);
+          Alert.alert('Permission Needed', 'Please allow camera access to capture documents.');
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          quality: 0.85,
+          allowsEditing: true,
+        });
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          setIsUploadingDoc(false);
+          Alert.alert('Permission Needed', 'Please allow photo library access to upload documents.');
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.85,
+          allowsEditing: true,
+        });
+      }
+
+      setIsUploadingDoc(false);
+
+      if (!result.canceled && result.assets?.[0]) {
+        const newDoc = {
+          id: `doc-${Date.now()}`,
+          name: `${isCamera ? 'Photo_Scan_' : 'Medical_Doc_'}${Date.now().toString().slice(-4)}.jpg`,
+          uri: result.assets[0].uri,
+          date: 'Just now',
+          type: 'Patient Record',
+        };
+
+        const currentDocs = activeAppointmentForUpload.documents || [];
+        const updatedDocs = [newDoc, ...currentDocs];
+
+        const updatedAppointments = appointments.map((a) => {
+          if (a.id === activeAppointmentForUpload.id) {
+            return {
+              ...a,
+              documents: updatedDocs,
+            };
+          }
+          return a;
+        });
+
+        setAppointments(updatedAppointments);
+        setActiveAppointmentForUpload((prev) => ({ ...prev, documents: updatedDocs }));
+
+        // Save to AsyncStorage
+        await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updatedAppointments));
+        if (activeAppointmentForUpload.type?.includes('Video')) {
+          await AsyncStorage.setItem('@videoBookings', JSON.stringify(updatedAppointments.filter((a) => a.type?.includes('Video'))));
+        }
+
+        Alert.alert(
+          'Document Uploaded! 📄',
+          `"${newDoc.name}" has been attached to booking #${activeAppointmentForUpload.tokenNumber || activeAppointmentForUpload.id}.`
+        );
+      }
+    } catch (err) {
+      setIsUploadingDoc(false);
+      console.log('Error picking document:', err);
+      Alert.alert('Upload Error', 'Failed to attach document. Please try again.');
+    }
+  };
+
+  const handleRemoveDocument = async (docId) => {
+    if (!activeAppointmentForUpload) return;
+    const currentDocs = activeAppointmentForUpload.documents || [];
+    const updatedDocs = currentDocs.filter((d) => d.id !== docId);
+
+    const updatedAppointments = appointments.map((a) => {
+      if (a.id === activeAppointmentForUpload.id) {
+        return {
+          ...a,
+          documents: updatedDocs,
+        };
+      }
+      return a;
+    });
+
+    setAppointments(updatedAppointments);
+    setActiveAppointmentForUpload((prev) => ({ ...prev, documents: updatedDocs }));
+
+    await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updatedAppointments));
+  };
+
   // Render Card
   const renderAppointmentCard = ({ item }) => {
+    const isVideo =
+      item.type === 'Video Consultation' ||
+      item.type === 'Video' ||
+      item.type === 'TeleConsultation';
     const isRadiology = item.type === 'Radiology';
     const isLabTest =
       item.type === 'Lab Test' ||
@@ -525,14 +777,10 @@ const BookingsScreen = ({ navigation, route }) => {
 
     return (
       <TouchableOpacity
-        style={[styles.card, isCancelled && styles.cardCancelled]}
+        style={[styles.card, isCancelled && styles.cardCancelled, isVideo && styles.cardVideo]}
         activeOpacity={0.92}
         onPress={() => {
-          if (isRadiology && item.details) {
-            navigation.navigate('RadiologyOrderSuccess', { booking: item.details });
-          } else {
-            navigation.navigate('BookingDetails', { appointment: item });
-          }
+          navigation.navigate('BookingDetails', { appointment: item });
         }}
       >
         {/* CARD TOP BAR: TYPE, TOKEN & STATUS */}
@@ -541,7 +789,9 @@ const BookingsScreen = ({ navigation, route }) => {
             <View
               style={[
                 styles.typeBadge,
-                isRadiology
+                isVideo
+                  ? { backgroundColor: '#F5F3FF', borderColor: '#DDD6FE' }
+                  : isRadiology
                   ? { backgroundColor: '#F3E8FF', borderColor: '#E9D5FF' }
                   : isLabTest
                   ? { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }
@@ -549,25 +799,29 @@ const BookingsScreen = ({ navigation, route }) => {
               ]}
             >
               <Ionicons
-                name={isRadiology ? 'radio' : isLabTest ? 'flask' : 'person'}
+                name={isVideo ? 'videocam' : isRadiology ? 'radio' : isLabTest ? 'flask' : 'person'}
                 size={12}
-                color={isRadiology ? '#7C3AED' : isLabTest ? colors.teal : '#2563EB'}
+                color={isVideo ? '#7C3AED' : isRadiology ? '#7C3AED' : isLabTest ? colors.teal : '#2563EB'}
               />
               <Text
                 style={[
                   styles.typeBadgeText,
-                  isRadiology
+                  isVideo
+                    ? { color: '#7C3AED' }
+                    : isRadiology
                     ? { color: '#7C3AED' }
                     : isLabTest
                     ? { color: colors.teal }
                     : { color: '#2563EB' },
                 ]}
               >
-                {isRadiology
-                  ? 'Radiology Scan'
+                {isVideo
+                  ? 'Video Call'
+                  : isRadiology
+                  ? 'Radiology'
                   : isLabTest
-                  ? 'Diagnostic Lab'
-                  : 'Doctor Consultation'}
+                  ? 'Lab Test'
+                  : 'In-Clinic'}
               </Text>
             </View>
 
@@ -614,7 +868,16 @@ const BookingsScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* LAB COLLECTION MODE ROW */}
+        {/* LAB COLLECTION MODE ROW OR VIDEO CALL READY ROW */}
+        {isVideo && (
+          <View style={[styles.collectionModeRow, { backgroundColor: '#FAF5FF', borderColor: '#E9D5FF' }]}>
+            <Ionicons name="videocam" size={13} color="#7C3AED" />
+            <Text style={[styles.collectionModeRowText, { color: '#6D28D9', fontWeight: '600' }]} numberOfLines={1}>
+              Live Room Ready • Upload Docs In-Call
+            </Text>
+          </View>
+        )}
+
         {isLabTest && item.collectionMode && (
           <View style={styles.collectionModeRow}>
             <Ionicons
@@ -623,7 +886,7 @@ const BookingsScreen = ({ navigation, route }) => {
               color={item.collectionMode.includes('Home') ? colors.freshGreen : '#D97706'}
             />
             <Text style={styles.collectionModeRowText} numberOfLines={1}>
-              {item.collectionMode} • {item.doctor?.clinicAddress || 'Mysore'}
+              {item.collectionMode} • {item.doctor?.clinicArea || 'Mysore'}
             </Text>
           </View>
         )}
@@ -634,7 +897,9 @@ const BookingsScreen = ({ navigation, route }) => {
             source={{
               uri:
                 item.doctor?.image ||
-                (isRadiology
+                (isVideo
+                  ? 'https://images.unsplash.com/photo-1594824813576-92f70b79873a?auto=format&fit=crop&q=80&w=300'
+                  : isRadiology
                   ? 'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&q=80&w=300'
                   : isLabTest
                   ? 'https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&q=80&w=300'
@@ -645,97 +910,59 @@ const BookingsScreen = ({ navigation, route }) => {
 
           <View style={styles.doctorDetailsWrap}>
             <Text style={styles.doctorName} numberOfLines={1}>
-              {item.doctor?.name || 'MediUnify Healthcare Hub'}
+              {item.doctor?.name || 'MediUnify Healthcare'}
             </Text>
-            <Text style={styles.doctorSpecialty} numberOfLines={2}>
-              {item.doctor?.specialty || (isLabTest ? 'Diagnostic Screening' : 'General Consultation')}
+            <Text style={styles.doctorSpecialty} numberOfLines={1}>
+              {item.doctor?.specialty || (isLabTest ? 'Diagnostics' : isVideo ? 'Tele-Consult' : 'General Medicine')}
             </Text>
-            {item.doctor?.qualification ? (
-              <Text style={styles.doctorQual} numberOfLines={1}>
-                {item.doctor.qualification}
-              </Text>
-            ) : null}
 
             <View style={styles.clinicLocationRow}>
               <Ionicons
-                name={isLabTest && item.collectionMode?.includes('Home') ? 'home' : 'location'}
-                size={12}
-                color={colors.primary}
+                name={isVideo ? 'videocam' : isLabTest && item.collectionMode?.includes('Home') ? 'home' : 'location'}
+                size={11}
+                color={isVideo ? '#7C3AED' : colors.primary}
               />
               <Text style={styles.clinicLocationText} numberOfLines={1}>
-                {item.doctor?.clinicAddress || item.doctor?.clinicName || 'Mysore'}
+                {isVideo
+                  ? 'Online Video Room'
+                  : item.doctor?.clinicArea || item.doctor?.clinicName || 'Mysore'}
               </Text>
             </View>
           </View>
         </View>
 
-        {/* LAB TESTS INCLUDED PILLS GRID WITH REMOVE & ADD BUTTONS */}
-        {(isLabTest || (item.tests && item.tests.length > 0)) && (
-          <View style={styles.testsListWrap}>
-            <View style={styles.testsListHeaderRow}>
-              <Text style={styles.testsListTitle}>
-                Tests Booked ({item.tests ? item.tests.length : 0}):
-              </Text>
-              {!isCancelled && (
-                <TouchableOpacity
-                  style={styles.addTestSmallBtn}
-                  onPress={() => {
-                    setActiveBookingForAddTest(item);
-                    setTestSearchQuery('');
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="add-circle" size={13} color={colors.teal} />
-                  <Text style={styles.addTestSmallBtnText}>+ Add Test</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            <View style={styles.testsPillsRow}>
-              {item.tests && item.tests.length > 0 ? (
-                item.tests.map((t, tIdx) => (
-                  <View key={tIdx} style={styles.testBadgePill}>
-                    <Ionicons name="flask" size={10} color={colors.teal} />
-                    <Text style={styles.testBadgePillText} numberOfLines={1}>
-                      {typeof t === 'string' ? t : t.name}
-                    </Text>
-                    {!isCancelled && (
-                      <TouchableOpacity
-                        style={styles.removeTestChipBtn}
-                        onPress={() => handleRemoveTest(item, tIdx)}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons name="close-circle" size={14} color="#DC2626" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                ))
-              ) : (
-                <TouchableOpacity
-                  style={styles.emptyAddTestPrompt}
-                  onPress={() => {
-                    setActiveBookingForAddTest(item);
-                    setTestSearchQuery('');
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="add-circle-outline" size={14} color={colors.teal} />
-                  <Text style={styles.emptyAddTestPromptText}>
-                    No tests in this booking. Tap to add tests.
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
+        {/* CLEAN LAB / RADIOLOGY TEST INDICATOR BADGE */}
+        {(isRadiology || isLabTest || (item.tests && item.tests.length > 0)) && (
+          <View
+            style={[
+              styles.cleanLabBadgeRow,
+              isRadiology && { backgroundColor: '#F3E8FF', borderColor: '#E9D5FF' },
+            ]}
+          >
+            <Ionicons
+              name={isRadiology ? 'scan-outline' : 'flask'}
+              size={13}
+              color={isRadiology ? '#7C3AED' : colors.teal}
+            />
+            <Text
+              style={[
+                styles.cleanLabBadgeText,
+                isRadiology && { color: '#6D28D9' },
+              ]}
+              numberOfLines={1}
+            >
+              {item.tests ? item.tests.length : 1} {isRadiology ? 'Radiology Scan' : 'Diagnostic Test'}
+              {((item.tests?.length || 1) > 1) ? 's' : ''} Included • Tap card to view details ›
+            </Text>
           </View>
         )}
 
         {/* SCHEDULED DATE & TIME HIGHLIGHT BOX */}
         <View style={styles.scheduleBox}>
           <View style={styles.scheduleBoxItem}>
-            <Ionicons name="calendar" size={14} color={colors.teal} />
+            <Ionicons name="calendar" size={13} color={colors.teal} />
             <Text style={styles.scheduleLabel}>Date</Text>
-            <Text style={styles.scheduleValue} numberOfLines={2}>
+            <Text style={styles.scheduleValue} numberOfLines={1}>
               {item.day ? `${item.day}, ` : ''}{item.date?.split(',')[0] || item.date}
             </Text>
           </View>
@@ -743,18 +970,18 @@ const BookingsScreen = ({ navigation, route }) => {
           <View style={styles.scheduleDivider} />
 
           <View style={[styles.scheduleBoxItem, { flex: 1.2 }]}>
-            <Ionicons name="time" size={14} color="#0284C7" />
-            <Text style={styles.scheduleLabel}>Time Slot</Text>
-            <Text style={styles.scheduleValue} numberOfLines={2}>
-              {item.time?.replace(' (Fasting)', '') || 'Morning Slot'}
+            <Ionicons name="time" size={13} color="#0284C7" />
+            <Text style={styles.scheduleLabel}>Slot</Text>
+            <Text style={styles.scheduleValue} numberOfLines={1}>
+              {item.time?.replace(' (Fasting)', '')?.replace(' (Live Room Ready)', '') || 'Morning'}
             </Text>
           </View>
 
           <View style={styles.scheduleDivider} />
 
           <View style={styles.scheduleBoxItem}>
-            <Ionicons name="cash" size={14} color={colors.freshGreen} />
-            <Text style={styles.scheduleLabel}>Amount</Text>
+            <Ionicons name="cash" size={13} color={colors.freshGreen} />
+            <Text style={styles.scheduleLabel}>Fee</Text>
             <Text
               style={[
                 styles.scheduleValue,
@@ -770,62 +997,105 @@ const BookingsScreen = ({ navigation, route }) => {
         {/* PATIENT PROFILE CHIP */}
         {item.patient?.name && (
           <View style={styles.patientRow}>
-            <Ionicons name="person-circle-outline" size={15} color={colors.slate} />
-            <Text style={styles.patientText} numberOfLines={2}>
+            <Ionicons name="person-circle-outline" size={14} color={colors.slate} />
+            <Text style={styles.patientText} numberOfLines={1}>
               Patient: <Text style={{ fontWeight: '700', color: '#1E293B' }}>{item.patient.name}</Text>
-              {item.patient.gender ? ` • ${item.patient.gender}, ${item.patient.age || '28'} Yrs` : ''}
+              {item.patient.gender ? ` (${item.patient.gender}, ${item.patient.age || '28'}y)` : ''}
             </Text>
           </View>
         )}
+
+        {/* ATTACHED DOCUMENTS PREVIEW BAR */}
+        {((item.documents && item.documents.length > 0) || item.patient?.reportUri) ? (
+          <TouchableOpacity
+            style={styles.attachedDocsBar}
+            onPress={() => handleOpenUploadModal(item)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="document-attach" size={13} color={colors.primary} />
+            <Text style={styles.attachedDocsBarText} numberOfLines={1}>
+              {item.documents?.length || 1} Medical Doc{((item.documents?.length || 1) > 1) ? 's' : ''} Uploaded (Tap to view / add)
+            </Text>
+            <Ionicons name="chevron-forward" size={13} color={colors.primary} />
+          </TouchableOpacity>
+        ) : null}
 
         {/* ACTION BUTTONS */}
         <View style={styles.cardActionsContainer}>
           {!isCancelled ? (
             <>
+              {/* SPECIAL FEATURED JOIN BUTTON FOR VIDEO CONSULTATIONS */}
+              {isVideo && (
+                <TouchableOpacity
+                  style={styles.joinVideoPrimaryBtn}
+                  onPress={() =>
+                    navigation.navigate('VideoMeeting', {
+                      appointment: item,
+                      doctor: item.doctor,
+                    })
+                  }
+                  activeOpacity={0.88}
+                >
+                  <View style={styles.livePulseDot} />
+                  <Ionicons name="videocam" size={17} color="#FFFFFF" />
+                  <Text style={styles.joinVideoPrimaryBtnText}>Join Video Call</Text>
+                  <Ionicons name="chevron-forward" size={15} color="#FFFFFF" />
+                </TouchableOpacity>
+              )}
+
               {/* ROW 1: 3 EQUAL ACTION PILLS */}
               <View style={styles.actionPillsRow}>
-                {/* 1. GPS DIRECTIONS / TECHNICIAN CONTACT */}
-                <TouchableOpacity
-                  style={styles.actionPillBtn}
-                  onPress={() => {
-                    if (isLabTest && item.collectionMode?.includes('Home')) {
-                      Alert.alert(
-                        'Lab Technician Assigned',
-                        `Technician Phlebotomist will arrive during ${item.time || 'your scheduled slot'} with sealed sterile sample collection kits.\n\nHelpline: +91 821 245 9902`,
-                        [
-                          { text: 'Call Lab Support', onPress: () => Linking.openURL('tel:18001089999') },
-                          { text: 'OK' },
-                        ]
-                      );
-                    } else {
-                      handleOpenDirections(item);
-                    }
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name={isLabTest && item.collectionMode?.includes('Home') ? 'call-outline' : 'navigate'}
-                    size={14}
-                    color="#0284C7"
-                  />
-                  <Text style={styles.actionPillTextBlue} numberOfLines={1}>
-                    {isLabTest && item.collectionMode?.includes('Home') ? 'Tech Info' : 'Directions'}
-                  </Text>
-                </TouchableOpacity>
+                {/* 1. GPS DIRECTIONS / TECHNICIAN CONTACT / UPLOAD DOCS */}
+                {isVideo ? (
+                  <TouchableOpacity
+                    style={[styles.actionPillBtn, { backgroundColor: '#F5F3FF', borderColor: '#DDD6FE' }]}
+                    onPress={() => handleOpenUploadModal(item)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="cloud-upload-outline" size={13} color="#7C3AED" />
+                    <Text style={[styles.actionPillTextBlue, { color: '#7C3AED' }]} numberOfLines={1}>
+                      Upload Doc
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.actionPillBtn}
+                    onPress={() => {
+                      if (isLabTest && item.collectionMode?.includes('Home')) {
+                        Alert.alert(
+                          'Technician Contact',
+                          `Technician will arrive during your slot.\nHelpline: +91 821 245 9902`,
+                          [
+                            { text: 'Call', onPress: () => Linking.openURL('tel:18001089999') },
+                            { text: 'OK' },
+                          ]
+                        );
+                      } else {
+                        handleOpenDirections(item);
+                      }
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name={isLabTest && item.collectionMode?.includes('Home') ? 'call-outline' : 'navigate'}
+                      size={13}
+                      color="#0284C7"
+                    />
+                    <Text style={styles.actionPillTextBlue} numberOfLines={1}>
+                      {isLabTest && item.collectionMode?.includes('Home') ? 'Tech Info' : 'Directions'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
 
                 {/* 2. RESCHEDULE */}
                 <TouchableOpacity
                   style={styles.actionPillBtn}
                   onPress={() => {
-                    if (isRadiology && item.details) {
-                      navigation.navigate('RadiologyOrderSuccess', { booking: item.details });
-                    } else {
-                      navigation.navigate('BookingDetails', { appointment: item });
-                    }
+                    navigation.navigate('BookingDetails', { appointment: item });
                   }}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="calendar-outline" size={14} color={colors.primary} />
+                  <Ionicons name="calendar-outline" size={13} color={colors.primary} />
                   <Text style={styles.actionPillTextPrimary} numberOfLines={1}>Reschedule</Text>
                 </TouchableOpacity>
 
@@ -835,7 +1105,7 @@ const BookingsScreen = ({ navigation, route }) => {
                   onPress={() => handleQuickCancel(item)}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="close-circle-outline" size={14} color="#DC2626" />
+                  <Ionicons name="close-circle-outline" size={13} color="#DC2626" />
                   <Text style={styles.actionPillTextRed} numberOfLines={1}>Cancel</Text>
                 </TouchableOpacity>
               </View>
@@ -844,17 +1114,13 @@ const BookingsScreen = ({ navigation, route }) => {
               <TouchableOpacity
                 style={styles.fullDetailsBtn}
                 onPress={() => {
-                  if (isRadiology && item.details) {
-                    navigation.navigate('RadiologyOrderSuccess', { booking: item.details });
-                  } else {
-                    navigation.navigate('BookingDetails', { appointment: item });
-                  }
+                  navigation.navigate('BookingDetails', { appointment: item });
                 }}
                 activeOpacity={0.85}
               >
-                <Ionicons name="receipt-outline" size={14} color={colors.primary} />
-                <Text style={styles.fullDetailsBtnText}>View Booking Slip & Details</Text>
-                <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+                <Ionicons name="receipt-outline" size={13} color={colors.primary} />
+                <Text style={styles.fullDetailsBtnText}>View Details & Receipt</Text>
+                <Ionicons name="chevron-forward" size={13} color={colors.primary} />
               </TouchableOpacity>
             </>
           ) : (
@@ -865,13 +1131,13 @@ const BookingsScreen = ({ navigation, route }) => {
                   style={styles.rebookBtnFilled}
                   onPress={() =>
                     navigation.navigate(
-                      isRadiology ? 'RadiologyLabs' : isLabTest ? 'LabTests' : 'DoctorList'
+                      isVideo ? 'VideoConsultation' : isRadiology ? 'RadiologyLabs' : isLabTest ? 'LabTests' : 'DoctorList'
                     )
                   }
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="refresh" size={14} color="#FFFFFF" />
-                  <Text style={styles.rebookBtnFilledText}>Book Again</Text>
+                  <Ionicons name="refresh" size={13} color="#FFFFFF" />
+                  <Text style={styles.rebookBtnFilledText}>Rebook</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -879,8 +1145,8 @@ const BookingsScreen = ({ navigation, route }) => {
                   onPress={() => navigation.navigate('BookingDetails', { appointment: item })}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="receipt-outline" size={14} color="#64748B" />
-                  <Text style={styles.viewSummaryBtnText}>View Summary</Text>
+                  <Ionicons name="receipt-outline" size={13} color="#64748B" />
+                  <Text style={styles.viewSummaryBtnText}>Summary</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -915,14 +1181,15 @@ const BookingsScreen = ({ navigation, route }) => {
         <View style={styles.headerRightPlaceholder} />
       </View>
 
-      {/* FILTER TABS (WITH LAB TEST FILTER) */}
+      {/* FILTER TABS (WITH VIDEO, LAB, SCANS, DOCTOR) */}
       <View style={styles.tabsContainer}>
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
           data={[
             { key: 'All', label: `All (${counts.all})`, icon: 'apps' },
-            { key: 'Doctor Visits', label: `Doctors (${counts.doctors})`, icon: 'person' },
+            { key: 'Video Consults', label: `Video Calls (${counts.videoCalls})`, icon: 'videocam' },
+            { key: 'Doctor Visits', label: `In-Clinic (${counts.doctors})`, icon: 'person' },
             { key: 'Lab Tests', label: `Lab Tests (${counts.labTests})`, icon: 'flask' },
             { key: 'Radiology Scans', label: `Scans (${counts.radiology})`, icon: 'radio' },
             { key: 'Confirmed', label: `Upcoming (${counts.confirmed})`, icon: 'checkmark-circle' },
@@ -1104,6 +1371,152 @@ const BookingsScreen = ({ navigation, route }) => {
               }}
             />
           </View>
+        </View>
+      </Modal>
+
+      {/* ====================================================
+          DOCUMENT UPLOAD & MANAGEMENT MODAL
+      ==================================================== */}
+      <Modal
+        visible={isUploadModalOpen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsUploadModalOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { maxHeight: '85%' }]}>
+            {/* MODAL HEADER */}
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>Medical Documents</Text>
+                <Text style={styles.modalSubtitle}>
+                  Booking #{activeAppointmentForUpload?.tokenNumber || activeAppointmentForUpload?.id}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => setIsUploadModalOpen(false)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* QUICK UPLOAD ACTION BUTTONS */}
+            <View style={styles.uploadActionButtonsRow}>
+              <TouchableOpacity
+                style={[styles.uploadPickBtn, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}
+                onPress={() => handlePickDocument(true)}
+                disabled={isUploadingDoc}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="camera" size={20} color="#059669" />
+                <Text style={[styles.uploadPickBtnText, { color: '#059669' }]}>Take Photo</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.uploadPickBtn, { backgroundColor: '#F0FDFA', borderColor: '#99F6E4' }]}
+                onPress={() => handlePickDocument(false)}
+                disabled={isUploadingDoc}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="images" size={20} color={colors.primary} />
+                <Text style={[styles.uploadPickBtnText, { color: colors.primary }]}>Gallery / Files</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* ATTACHED DOCUMENTS LIST */}
+            <Text style={styles.attachedDocsSectionHeader}>
+              Attached Files ({activeAppointmentForUpload?.documents?.length || 0})
+            </Text>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+              {(!activeAppointmentForUpload?.documents || activeAppointmentForUpload.documents.length === 0) ? (
+                <View style={styles.emptyDocsBox}>
+                  <Ionicons name="cloud-upload-outline" size={40} color="#94A3B8" />
+                  <Text style={styles.emptyDocsTitle}>No Documents Attached</Text>
+                  <Text style={styles.emptyDocsSub}>
+                    Take a photo or upload previous prescriptions, symptom photos, or diagnostic reports.
+                  </Text>
+                </View>
+              ) : (
+                activeAppointmentForUpload.documents.map((doc, dIdx) => (
+                  <View key={doc.id || dIdx} style={styles.docItemCard}>
+                    {doc.uri ? (
+                      <Image source={{ uri: doc.uri }} style={styles.docThumbImg} />
+                    ) : (
+                      <View style={styles.docThumbPlaceholder}>
+                        <Ionicons name="document-text" size={20} color={colors.primary} />
+                      </View>
+                    )}
+
+                    <View style={styles.docItemInfo}>
+                      <Text style={styles.docItemName} numberOfLines={1}>
+                        {doc.name || `Document_${dIdx + 1}.jpg`}
+                      </Text>
+                      <Text style={styles.docItemDate}>{doc.date || 'Attached'}</Text>
+                    </View>
+
+                    <View style={styles.docItemActions}>
+                      {doc.uri ? (
+                        <TouchableOpacity
+                          style={styles.docViewBtn}
+                          onPress={() => setPreviewImageUri(doc.uri)}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="eye-outline" size={16} color={colors.primary} />
+                        </TouchableOpacity>
+                      ) : null}
+
+                      <TouchableOpacity
+                        style={styles.docDeleteBtn}
+                        onPress={() => handleRemoveDocument(doc.id)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.doneModalBtn}
+              onPress={() => setIsUploadModalOpen(false)}
+              activeOpacity={0.88}
+            >
+              <Text style={styles.doneModalBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ====================================================
+          FULL SCREEN DOCUMENT PREVIEW MODAL
+      ==================================================== */}
+      <Modal
+        visible={!!previewImageUri}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setPreviewImageUri(null)}
+      >
+        <View style={styles.previewModalOverlay}>
+          <TouchableOpacity
+            style={styles.previewCloseBtn}
+            onPress={() => setPreviewImageUri(null)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="close-circle" size={32} color="#FFFFFF" />
+          </TouchableOpacity>
+
+          {previewImageUri ? (
+            <Image
+              source={{ uri: previewImageUri }}
+              style={styles.previewFullImg}
+              resizeMode="contain"
+            />
+          ) : null}
         </View>
       </Modal>
     </SafeAreaView>
@@ -1363,14 +1776,24 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
 
-  // TESTS LIST CHIPS
-  testsListWrap: {
+  // CLEAN LAB BADGE
+  cleanLabBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#F0FDFA',
-    borderRadius: 12,
-    padding: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    gap: 6,
     marginBottom: 10,
     borderWidth: 1,
     borderColor: '#CCFBF1',
+  },
+  cleanLabBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0F766E',
+    flex: 1,
   },
   testsListHeaderRow: {
     flexDirection: 'row',
@@ -1802,6 +2225,195 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 13.5,
     fontWeight: '800',
+  },
+  // VIDEO CONSULTATION CARD STYLES
+  cardVideo: {
+    borderColor: '#DDD6FE',
+    borderWidth: 1.5,
+    backgroundColor: '#FFFFFF',
+  },
+  joinVideoPrimaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#7C3AED',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    gap: 8,
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  joinVideoPrimaryBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    flex: 1,
+  },
+  livePulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#34D399',
+  },
+
+  // ATTACHED DOCUMENTS BAR
+  attachedDocsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginTop: 8,
+    gap: 6,
+  },
+  attachedDocsBarText: {
+    flex: 1,
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+
+  // UPLOAD & DOC MANAGEMENT MODAL STYLES
+  uploadActionButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  uploadPickBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    gap: 8,
+  },
+  uploadPickBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  attachedDocsSectionHeader: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#334155',
+    marginBottom: 10,
+  },
+  emptyDocsBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+    marginBottom: 16,
+  },
+  emptyDocsTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#475569',
+    marginTop: 8,
+  },
+  emptyDocsSub: {
+    fontSize: 11.5,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  docItemCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    padding: 8,
+    marginBottom: 8,
+    gap: 10,
+  },
+  docThumbImg: {
+    width: 44,
+    height: 44,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+  },
+  docThumbPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 6,
+    backgroundColor: colors.lightTeal,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  docItemInfo: {
+    flex: 1,
+  },
+  docItemName: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  docItemDate: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  docItemActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  docViewBtn: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: '#F0FDFA',
+  },
+  docDeleteBtn: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: '#FEF2F2',
+  },
+  doneModalBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  doneModalBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+  // PREVIEW MODAL
+  previewModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  previewCloseBtn: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+  },
+  previewFullImg: {
+    width: '100%',
+    height: '80%',
   },
 });
 

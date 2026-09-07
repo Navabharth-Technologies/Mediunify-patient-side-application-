@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,11 @@ import {
   Alert,
   StatusBar,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import colors from '../../../theme/colors';
+import { getLabById } from '../../../data/radiologyLabsData';
 
 // Generate next 14 days for appointment scheduling
 const generateDates = () => {
@@ -57,9 +59,18 @@ const TIME_SLOTS = {
 const RadiologyBookingScreen = ({ route, navigation }) => {
   const { lab, test, selectedTests = [] } = route.params || {};
 
+  const activeLab = lab || getLabById('lab-unnathi-main');
+  const defaultTest = activeLab.availableTests ? activeLab.availableTests[0] : null;
+
   // All tests to be booked (reactive state)
   const [testsToBook, setTestsToBook] = useState(
-    selectedTests.length > 0 ? selectedTests : test ? [test] : []
+    selectedTests.length > 0
+      ? selectedTests
+      : test
+      ? [test]
+      : defaultTest
+      ? [defaultTest]
+      : []
   );
 
   const availableDates = generateDates();
@@ -67,12 +78,68 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
   const [selectedSlot, setSelectedSlot] = useState(TIME_SLOTS.morning[1].time);
 
   // Patient Info State
-  const [patientName, setPatientName] = useState('Ramesh Kumar');
-  const [patientAge, setPatientAge] = useState('32');
+  const [patientName, setPatientName] = useState('Patient');
+  const [patientAge, setPatientAge] = useState('28');
   const [patientGender, setPatientGender] = useState('Male');
-  const [patientPhone, setPatientPhone] = useState('9876543210');
+  const [patientPhone, setPatientPhone] = useState('');
   const [symptomsNotes, setSymptomsNotes] = useState('');
   const [prescriptionImage, setPrescriptionImage] = useState(null);
+  const [familyMembers, setFamilyMembers] = useState([]);
+  const [selectedMemberId, setSelectedMemberId] = useState('self');
+
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      const storedPrimary = await AsyncStorage.getItem('@unnathi_primary_user');
+      const storedUser = await AsyncStorage.getItem('user');
+      const storedPhone = await AsyncStorage.getItem('userPhone');
+      const storedName = await AsyncStorage.getItem('userName');
+      const storedFamily = await AsyncStorage.getItem('@unnathi_family_members');
+
+      let parsed = null;
+      if (storedPrimary) {
+        parsed = JSON.parse(storedPrimary);
+      } else if (storedUser) {
+        parsed = JSON.parse(storedUser);
+      }
+
+      if (parsed?.name || storedName) {
+        setPatientName(parsed?.name || storedName || 'Patient');
+      }
+      if (parsed?.phone || storedPhone) {
+        setPatientPhone(parsed?.phone || storedPhone || '');
+      }
+      if (parsed?.age) {
+        setPatientAge(parsed.age.toString().replace(/[^0-9]/g, '') || '28');
+      }
+      if (parsed?.gender) {
+        setPatientGender(parsed.gender);
+      }
+
+      if (storedFamily) {
+        const famList = JSON.parse(storedFamily);
+        if (Array.isArray(famList)) setFamilyMembers(famList);
+      }
+    } catch (e) {
+      console.log('Error loading patient info in radiology:', e);
+    }
+  };
+
+  const handleSelectFamilyMember = (member) => {
+    if (member === 'self') {
+      setSelectedMemberId('self');
+      loadUserData();
+    } else {
+      setSelectedMemberId(member.id);
+      setPatientName(member.name);
+      setPatientAge(member.age?.toString().replace(/[^0-9]/g, '') || '28');
+      setPatientGender(member.gender || 'Male');
+      if (member.phone) setPatientPhone(member.phone);
+    }
+  };
 
   // Price calculations
   const subtotalMrp = testsToBook.reduce((acc, t) => acc + (t.mrp || t.price || 0), 0);
@@ -161,7 +228,7 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
     }
 
     const bookingDetails = {
-      lab,
+      lab: activeLab,
       tests: testsToBook,
       date: selectedDate,
       timeSlot: selectedSlot,
@@ -420,6 +487,63 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
           <View style={styles.sectionTitleRow}>
             <Ionicons name="person-outline" size={18} color={colors.secondary} />
             <Text style={styles.sectionHeading}>3. Patient Information</Text>
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.inputLabel}>Who is this scan for?</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 6 }}>
+              <TouchableOpacity
+                style={[
+                  styles.patientChip,
+                  selectedMemberId === 'self' && styles.patientChipActive,
+                ]}
+                onPress={() => handleSelectFamilyMember('self')}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name="person"
+                  size={12}
+                  color={selectedMemberId === 'self' ? '#FFFFFF' : colors.primary}
+                />
+                <Text
+                  style={[
+                    styles.patientChipText,
+                    selectedMemberId === 'self' && styles.patientChipTextActive,
+                  ]}
+                >
+                  Myself
+                </Text>
+              </TouchableOpacity>
+
+              {familyMembers.map((m) => {
+                const isSelected = selectedMemberId === m.id;
+                return (
+                  <TouchableOpacity
+                    key={m.id}
+                    style={[
+                      styles.patientChip,
+                      isSelected && styles.patientChipActive,
+                    ]}
+                    onPress={() => handleSelectFamilyMember(m)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name="person-outline"
+                      size={12}
+                      color={isSelected ? '#FFFFFF' : '#475569'}
+                    />
+                    <Text
+                      style={[
+                        styles.patientChipText,
+                        isSelected && styles.patientChipTextActive,
+                      ]}
+                    >
+                      {m.name} ({m.relation || 'Family'})
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </View>
 
           <View style={styles.formGroup}>
@@ -887,6 +1011,29 @@ const styles = StyleSheet.create({
   // FORM INPUTS
   formGroup: {
     marginBottom: 10,
+  },
+  patientChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 5,
+  },
+  patientChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  patientChipText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  patientChipTextActive: {
+    color: '#FFFFFF',
   },
   rowTwoInputs: {
     flexDirection: 'row',

@@ -21,10 +21,10 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
   const { hospital, surgery } = route.params || {};
 
   // Form State
-  const [patientName, setPatientName] = useState('Hemanth Kumar');
+  const [patientName, setPatientName] = useState('Ramesh Kumar');
   const [patientAge, setPatientAge] = useState('32');
   const [patientGender, setPatientGender] = useState('Male');
-  const [patientPhone, setPatientPhone] = useState('+91 98765 43210');
+  const [patientPhone, setPatientPhone] = useState('+91 98450 12345');
   const [preferredDate, setPreferredDate] = useState('Within this week');
   const [hasInsurance, setHasInsurance] = useState('yes'); // 'yes' | 'no'
   const [insuranceProvider, setInsuranceProvider] = useState('Star Health Insurance');

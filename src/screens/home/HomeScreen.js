@@ -16,6 +16,9 @@ import {
   StatusBar,
   Animated,
   PanResponder,
+  Keyboard,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -41,6 +44,66 @@ const POPULAR_MYSORE_AREAS = [
   'Indiranagar, Bangalore',
   'Koramangala, Bangalore',
 ];
+
+
+const SEARCH_KEYWORD_DICTIONARY = [
+  // Doctors & Specialists
+  { query: 'General Physician', label: 'General Physician (Fever, Cold, Cough)', category: 'Doctor', icon: 'person', route: 'DoctorList', aliases: ['dr', 'physician', 'fever', 'cold', 'cough', 'headache', 'general doctor', 'doc', 'docter', 'clinic'] },
+  { query: 'Cardiologist', label: 'Cardiologist (Heart Care & ECG)', category: 'Doctor', icon: 'heart', route: 'DoctorList', aliases: ['cardio', 'heart', 'cardiology', 'ecg', 'bp', 'cardiologists', 'chest pain', 'cardiac'] },
+  { query: 'Dermatologist', label: 'Dermatologist (Skin & Hair Care)', category: 'Doctor', icon: 'sparkles', route: 'DoctorList', aliases: ['skin', 'derma', 'dermatology', 'hair fall', 'acne', 'rash', 'dermitologist', 'eczema'] },
+  { query: 'Pediatrician', label: 'Pediatrician (Child & Baby Care)', category: 'Doctor', icon: 'happy', route: 'DoctorList', aliases: ['child', 'baby', 'kids', 'pediatric', 'pedia', 'vaccination', 'infant', 'newborn'] },
+  { query: 'Gynecologist', label: 'Gynecologist (Women Health & Pregnancy)', category: 'Doctor', icon: 'woman', route: 'DoctorList', aliases: ['gynae', 'gyno', 'women', 'pregnancy', 'period', 'gynecology'] },
+  { query: 'Orthopedic', label: 'Orthopedic (Bone & Joint Pain)', category: 'Doctor', icon: 'fitness', route: 'DoctorList', aliases: ['ortho', 'bone', 'joint', 'knee pain', 'fracture', 'back pain'] },
+  { query: 'Online Video Consult', label: 'Video Consult (Instant 10 Min Call)', category: 'Doctor', icon: 'videocam', route: 'VideoConsultation', aliases: ['video call', 'online consult', 'teleconsult', 'video doctor'] },
+
+  // Medicines & Pharmacy
+  { query: 'Dolo 650', label: 'Dolo 650mg Tablet (Paracetamol)', category: 'Medicine', icon: 'medkit', route: 'Pharmacy', aliases: ['dolo', 'paracetamol', 'fever tablet', 'dola', 'dolo650', 'paracetmol', 'crocin', 'calpol'] },
+  { query: 'Azithromycin', label: 'Azithromycin 500mg Antibiotic', category: 'Medicine', icon: 'medkit', route: 'Pharmacy', aliases: ['azithro', 'azithral', 'antibiotic', 'throat', 'infection'] },
+  { query: 'Vitamin C & Zinc', label: 'Vitamin C + Zinc Chewable Tablets', category: 'Medicine', icon: 'medkit', route: 'Pharmacy', aliases: ['vitamin c', 'limcee', 'immunity', 'zinc', 'vitamind', 'vitamins', 'multivitamin'] },
+  { query: 'Pantocid 40', label: 'Pantocid 40mg (Acidity & Gas Relief)', category: 'Medicine', icon: 'medkit', route: 'Pharmacy', aliases: ['acidity', 'gas', 'pantoprazole', 'pan d', 'digene', 'antacid'] },
+  { query: 'Online Pharmacy', label: 'Order Medicines (Flat 20% OFF)', category: 'Medicine', icon: 'medkit', route: 'Pharmacy', aliases: ['medicine', 'pharmacy', 'tablets', 'syrup', 'medicines', 'capsules', 'drugs'] },
+
+  // Lab Tests & Diagnostic Packages
+  { query: 'Complete Blood Count (CBC)', label: 'Complete Blood Count (CBC Test)', category: 'Lab Test', icon: 'flask', route: 'LabBooking', aliases: ['cbc', 'blood test', 'hemoglobin', 'platelets', 'wbc', 'rbc', 'blood'] },
+  { query: 'Thyroid Profile', label: 'Thyroid Profile Total (T3, T4, TSH)', category: 'Lab Test', icon: 'flask', route: 'LabBooking', aliases: ['thyroid', 'tsh', 't3', 't4', 'thyrod', 'thyrocare'] },
+  { query: 'Diabetes HbA1c', label: 'Diabetes HbA1c & Fasting Glucose', category: 'Lab Test', icon: 'flask', route: 'LabBooking', aliases: ['diabetes', 'sugar test', 'glucose', 'hba1c', 'fasting sugar', 'diabtes', 'suger'] },
+  { query: 'Lipid Profile', label: 'Lipid Profile (Cholesterol Check)', category: 'Lab Test', icon: 'flask', route: 'LabBooking', aliases: ['lipid', 'cholesterol', 'triglycerides', 'heart test'] },
+  { query: 'Full Body Health Checkup', label: 'Comprehensive Full Body Checkup (82 Tests)', category: 'Lab Test', icon: 'flask', route: 'LabBooking', aliases: ['full body', 'health package', 'master checkup', 'body test', 'checkup'] },
+
+  // Scans & Radiology
+  { query: 'MRI Scan Brain / Spine', label: 'MRI Scan (Brain, Spine, Joints)', category: 'Scan', icon: 'scan', route: 'Radiology', aliases: ['mri', 'mri scan', 'magnetic resonance', 'mri brain', 'mri spine'] },
+  { query: 'CT Scan Chest / Abdomen', label: 'CT Scan (Chest, Abdomen, Head)', category: 'Scan', icon: 'scan', route: 'Radiology', aliases: ['ct scan', 'computed tomography', 'ct chest', 'hrct'] },
+  { query: 'Digital X-Ray', label: 'Digital X-Ray (Chest, Bones, Joint)', category: 'Scan', icon: 'scan', route: 'Radiology', aliases: ['xray', 'x ray', 'chest xray', 'bone xray'] },
+  { query: 'Ultrasound Scan', label: 'Ultrasound Sonography (USG)', category: 'Scan', icon: 'scan', route: 'Radiology', aliases: ['ultrasound', 'usg', 'sonography', 'abdomen usg', 'scan'] },
+
+  // Care & Services
+  { query: 'Home Nursing Care', label: 'Home Nursing & Attendant Care', category: 'Service', icon: 'bandage', route: 'NurseBooking', aliases: ['nurse', 'nursing', 'elderly care', 'attendant', 'home care', 'injection at home', 'nurce'] },
+  { query: 'Ambulance SOS', label: 'Emergency 24/7 Ambulance SOS', category: 'Service', icon: 'car', route: 'Ambulance', aliases: ['ambulance', 'emergency', 'sos', 'urgent', '108', 'emergeny', 'ambulanc'] },
+];
+
+const COMMON_TYPOS_MAP = {
+  dola: 'Dolo 650',
+  dolo650: 'Dolo 650',
+  paracetmol: 'Dolo 650 (Paracetamol)',
+  paracitamol: 'Dolo 650 (Paracetamol)',
+  crocin: 'Dolo 650',
+  docter: 'General Physician',
+  doctur: 'General Physician',
+  doc: 'General Physician',
+  cardio: 'Cardiologist',
+  dermitologist: 'Dermatologist',
+  pedia: 'Pediatrician',
+  pediatric: 'Pediatrician',
+  thyrod: 'Thyroid Profile',
+  diabtes: 'Diabetes HbA1c',
+  sugartest: 'Diabetes HbA1c',
+  suger: 'Diabetes HbA1c',
+  xray: 'Digital X-Ray',
+  scane: 'MRI & CT Scan',
+  nurce: 'Home Nursing Care',
+  emergeny: 'Ambulance SOS',
+  ambulanc: 'Ambulance SOS',
+};
 
 const CITY_AREAS_MAP = {
   Mysore: [
@@ -80,6 +143,7 @@ const HomeScreen = ({ navigation }) => {
 
   // State
   const [search, setSearch] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [userName, setUserName] = useState('Ramesh');
   const [locationName, setLocationName] = useState('Kuvempunagar, Mysore');
   const [locationModalVisible, setLocationModalVisible] = useState(false);
@@ -96,15 +160,6 @@ const HomeScreen = ({ navigation }) => {
   const [customDistrict, setCustomDistrict] = useState('Mysuru District');
   const [customPincode, setCustomPincode] = useState('570023');
   const [customTag, setCustomTag] = useState('Home');
-
-  // Patient Switcher
-  const [familyMembers, setFamilyMembers] = useState([
-    { id: 'self', name: 'Self', relation: 'Self', isPrimary: true, icon: 'person' },
-    { id: 'fam-1', name: 'Sneha', relation: 'Spouse', isPrimary: false, icon: 'woman' },
-    { id: 'fam-2', name: 'Suresh Kumar', relation: 'Father', isPrimary: false, icon: 'man' },
-    { id: 'fam-3', name: 'Aarav', relation: 'Son', isPrimary: false, icon: 'happy' },
-  ]);
-  const [activePatient, setActivePatient] = useState({ id: 'self', name: 'Self', relation: 'Self' });
 
   // Wallet State
   const [walletBalance, setWalletBalance] = useState(1250);
@@ -145,17 +200,41 @@ const HomeScreen = ({ navigation }) => {
     [navigation, pan]
   );
 
-  // Load User Info
+  // Load User Info & Sync on Screen Focus
   useEffect(() => {
     loadUserData();
-  }, []);
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadUserData();
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const loadUserData = async () => {
     try {
-      const storedName = await AsyncStorage.getItem('userName');
-      if (storedName && storedName.trim()) {
-        setUserName(storedName.trim());
+      // 1. Check for active selected family member profile
+      const savedActive = await AsyncStorage.getItem('@unnathi_active_patient');
+      let foundName = '';
+      if (savedActive) {
+        try {
+          const parsedActive = JSON.parse(savedActive);
+          if (parsedActive && (parsedActive.displayName || parsedActive.name)) {
+            const raw = (parsedActive.displayName || parsedActive.name).trim();
+            foundName = raw.replace(/\s*\([Ss]elf\)/g, '').split(' ')[0] || raw;
+          }
+        } catch (e) {
+          console.log('Error parsing active patient:', e);
+        }
       }
+
+      if (foundName) {
+        setUserName(foundName);
+      } else {
+        const storedName = await AsyncStorage.getItem('userName');
+        if (storedName && storedName.trim()) {
+          setUserName(storedName.trim());
+        }
+      }
+
       const savedLoc = await AsyncStorage.getItem('@unnathi_user_location');
       if (savedLoc && savedLoc.trim()) {
         setLocationName(savedLoc.trim());
@@ -163,10 +242,6 @@ const HomeScreen = ({ navigation }) => {
       const savedWallet = await AsyncStorage.getItem('@unnathi_wallet_balance');
       if (savedWallet) {
         setWalletBalance(parseInt(savedWallet, 10) || 1250);
-      }
-      const savedActive = await AsyncStorage.getItem('@unnathi_active_patient');
-      if (savedActive) {
-        setActivePatient(JSON.parse(savedActive));
       }
     } catch (e) {
       console.log('Error loading home user data:', e);
@@ -178,12 +253,6 @@ const HomeScreen = ({ navigation }) => {
     setTimeout(() => {
       setLocationToast(null);
     }, 2500);
-  };
-
-  const handleSelectPatient = async (patient) => {
-    setActivePatient(patient);
-    await AsyncStorage.setItem('@unnathi_active_patient', JSON.stringify(patient));
-    showToast(`Active profile set to: ${patient.name} (${patient.relation})`);
   };
 
   const handleQuickAddMoney = async (amt) => {
@@ -270,9 +339,35 @@ const HomeScreen = ({ navigation }) => {
     );
   }, [selectedCityTab, locationSearchQuery]);
 
+  // Filtered live keyword suggestions & typo auto-corrections
+  const searchSuggestions = useMemo(() => {
+    const raw = search.trim().toLowerCase();
+    if (!raw) return { typoSuggestion: null, matches: [] };
+
+    // 1. Check for common typo auto-correction
+    let typoSuggestion = null;
+    const cleanWord = raw.replace(/[^a-z0-9]/g, '');
+    if (COMMON_TYPOS_MAP[raw] || COMMON_TYPOS_MAP[cleanWord]) {
+      typoSuggestion = COMMON_TYPOS_MAP[raw] || COMMON_TYPOS_MAP[cleanWord];
+    }
+
+    // 2. Keyword & semantic matches
+    const matches = SEARCH_KEYWORD_DICTIONARY.filter((item) => {
+      const qLower = item.query.toLowerCase();
+      const lLower = item.label.toLowerCase();
+      const cLower = item.category.toLowerCase();
+      if (qLower.includes(raw) || lLower.includes(raw) || cLower.includes(raw)) return true;
+      if (item.aliases.some((alias) => alias.includes(raw) || raw.includes(alias))) return true;
+      return false;
+    }).slice(0, 5);
+
+    return { typoSuggestion, matches };
+  }, [search]);
+
   // Handle Search Execution
   const handleSearchSubmit = (customQuery) => {
     const q = typeof customQuery === 'string' ? customQuery : search;
+    setIsSearchFocused(false);
     navigation.navigate('GlobalSearch', { query: q ? q.trim() : '' });
   };
 
@@ -281,21 +376,40 @@ const HomeScreen = ({ navigation }) => {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* ==========================================
-          TOP APP BAR (BRAND LOGO, WALLET, NOTIFS, CART)
+      {/* ==========================================
+          TOP APP BAR (LOGO, NAME, LOCATION, WALLET, NOTIFS, CART)
       ========================================== */}
       <View style={styles.topBar}>
-        {/* BRAND LOGO & APP NAME */}
+        {/* BRAND LOGO, USER NAME & LOCATION (LEFT) */}
         <View style={styles.brandHeaderLeft}>
           <Image
             source={require('../../../assets/logo.png')}
             style={styles.brandLogoImg}
             resizeMode="contain"
           />
-          <View style={styles.brandTextWrap}>
-            <Text style={styles.brandLogoTitle}>
-              Medi<Text style={styles.brandLogoAccent}>Unify</Text>
-            </Text>
-            <Text style={styles.brandTagline}>Healthcare</Text>
+          <View style={styles.headerUserLocationWrap}>
+            {/* USER NAME */}
+            <TouchableOpacity
+              onPress={() => navigation.navigate('FamilyProfiles')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.headerUserName} numberOfLines={1}>
+                Hello, {userName} 👋
+              </Text>
+            </TouchableOpacity>
+
+            {/* LOCATION ACCESS / SELECTOR (BELOW NAME) */}
+            <TouchableOpacity
+              style={styles.headerLocationRow}
+              onPress={() => setLocationModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="location" size={13} color={colors.primary} />
+              <Text style={styles.headerLocationText} numberOfLines={1}>
+                {locationName}
+              </Text>
+              <Ionicons name="chevron-down" size={11} color="#64748B" />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -337,47 +451,6 @@ const HomeScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {/* ==========================================
-          USER PROFILE & LOCATION BAR (BELOW TOP BAR)
-      ========================================== */}
-      <View style={styles.userLocationStrip}>
-        {/* PROFILE GREETING (LEFT) */}
-        <TouchableOpacity
-          style={styles.profileHeaderBtn}
-          onPress={() => navigation.navigate('Profile')}
-          activeOpacity={0.85}
-        >
-          <View style={styles.profileAvatarWrap}>
-            <Image
-              source={{
-                uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-              }}
-              style={styles.profileAvatarImg}
-            />
-            <View style={styles.profileOnlineDot} />
-          </View>
-          <View style={styles.profileTextWrap}>
-            <Text style={styles.profileHelloText} numberOfLines={1}>
-              Hello, {userName} 👋
-            </Text>
-            <Text style={styles.profileRoleText}>Patient Account ›</Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* LOCATION SELECTOR (RIGHT) */}
-        <TouchableOpacity
-          style={styles.locationPillCompact}
-          onPress={() => setLocationModalVisible(true)}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="location" size={14} color={colors.primary} />
-          <Text style={styles.locationCompactText} numberOfLines={1}>
-            {locationName}
-          </Text>
-          <Ionicons name="chevron-down" size={12} color="#64748B" />
-        </TouchableOpacity>
-      </View>
-
       {/* TOAST NOTIFICATION */}
       {locationToast && (
         <View style={styles.toastCard}>
@@ -391,47 +464,11 @@ const HomeScreen = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
       >
 
-        {/* PATIENT SWITCHER CHIPS */}
-        <View style={styles.patientSwitcherRow}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
-            {familyMembers.map((member) => {
-              const isSelected = activePatient.id === member.id;
-              return (
-                <TouchableOpacity
-                  key={member.id}
-                  style={[styles.patientChip, isSelected && styles.patientChipSelected]}
-                  onPress={() => handleSelectPatient(member)}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons
-                    name={member.icon || 'person'}
-                    size={14}
-                    color={isSelected ? '#FFFFFF' : colors.primary}
-                  />
-                  <Text style={[styles.patientChipText, isSelected && styles.patientChipTextSelected]}>
-                    {member.name}
-                  </Text>
-                  {isSelected && <View style={styles.patientActiveDot} />}
-                </TouchableOpacity>
-              );
-            })}
-
-            <TouchableOpacity
-              style={styles.addPatientChip}
-              onPress={() => navigation.navigate('FamilyProfiles')}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="add" size={16} color={colors.primary} />
-              <Text style={styles.addPatientText}>Add Member</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-
         {/* ==========================================
-            SMART HERO SEARCH & SCAN BAR
+            SMART HERO SEARCH & AUTO-CORRECTION BAR
         ========================================== */}
         <View style={styles.searchContainer}>
-          <View style={styles.searchBar}>
+          <View style={[styles.searchBar, isSearchFocused && styles.searchBarFocused]}>
             <TouchableOpacity
               onPress={() => handleSearchSubmit()}
               activeOpacity={0.7}
@@ -446,6 +483,8 @@ const HomeScreen = ({ navigation }) => {
               placeholderTextColor="#94A3B8"
               value={search}
               onChangeText={setSearch}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setTimeout(() => setIsSearchFocused(false), 250)}
               onSubmitEditing={() => handleSearchSubmit()}
               returnKeyType="search"
             />
@@ -466,41 +505,94 @@ const HomeScreen = ({ navigation }) => {
                 <Text style={styles.searchGoBtnText}>Search</Text>
               </TouchableOpacity>
             )}
-
-            {/* RX CAMERA SCAN BUTTON */}
-            <TouchableOpacity
-              style={styles.scanSearchBtn}
-              onPress={() => navigation.navigate('Chatbot')}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="camera-outline" size={18} color={colors.primary} />
-            </TouchableOpacity>
           </View>
 
-          {/* QUICK SEARCH SUGGESTION PILLS */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.quickSearchPillsRow}
-          >
-            {[
-              { label: '🩺 Doctors', query: 'Doctor' },
-              { label: '💊 Medicines', query: 'Medicine' },
-              { label: '🧪 Blood Tests', query: 'Lab' },
-              { label: '🔬 MRI & Scans', query: 'Radiology' },
-              { label: '🏥 Hospitals', query: 'Hospital' },
-              { label: '🎥 Video Consult', query: 'Video' },
-            ].map((pill, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={styles.quickSearchPill}
-                onPress={() => handleSearchSubmit(pill.query)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.quickSearchPillText}>{pill.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          {/* LIVE AUTO-CORRECTION & KEYWORD SUGGESTIONS DROPDOWN */}
+          {search.trim().length > 0 && (
+            <View style={styles.suggestionsDropdownContainer}>
+              {/* TYPO AUTO-CORRECTION BANNER */}
+              {searchSuggestions.typoSuggestion &&
+                searchSuggestions.typoSuggestion.toLowerCase() !== search.trim().toLowerCase() && (
+                  <TouchableOpacity
+                    style={styles.typoCorrectionCard}
+                    onPress={() => {
+                      setSearch(searchSuggestions.typoSuggestion);
+                      handleSearchSubmit(searchSuggestions.typoSuggestion);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.typoCorrectionLeft}>
+                      <Ionicons name="sparkles" size={15} color="#D97706" />
+                      <Text style={styles.typoCorrectionLabel}>Did you mean:</Text>
+                      <Text style={styles.typoCorrectionKeyword}>
+                        "{searchSuggestions.typoSuggestion}"
+                      </Text>
+                    </View>
+                    <View style={styles.typoApplyBadge}>
+                      <Text style={styles.typoApplyBadgeText}>Auto-correct ›</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+
+              {/* MATCHED KEYWORD LIST */}
+              {searchSuggestions.matches.length > 0 ? (
+                <View style={styles.suggestionsListCard}>
+                  {searchSuggestions.matches.map((item, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      style={[
+                        styles.suggestionItemRow,
+                        idx === searchSuggestions.matches.length - 1 && { borderBottomWidth: 0 },
+                      ]}
+                      onPress={() => {
+                        setSearch(item.query);
+                        handleSearchSubmit(item.query);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.suggestionItemLeft}>
+                        <View style={styles.suggestionCategoryBadge}>
+                          <Ionicons name={item.icon || 'search'} size={12} color={colors.primary} />
+                          <Text style={styles.suggestionCategoryText}>{item.category}</Text>
+                        </View>
+                        <Text style={styles.suggestionTitleText} numberOfLines={1}>
+                          {item.label}
+                        </Text>
+                      </View>
+                      <Ionicons name="arrow-forward" size={13} color="#94A3B8" />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          )}
+
+          {/* QUICK SEARCH SUGGESTION PILLS (WHEN SEARCH IS EMPTY) */}
+          {search.trim().length === 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.quickSearchPillsRow}
+            >
+              {[
+                { label: '🩺 Doctors', query: 'Doctor' },
+                { label: '💊 Medicines', query: 'Medicine' },
+                { label: '🧪 Blood Tests', query: 'Lab' },
+                { label: '🔬 MRI & Scans', query: 'Radiology' },
+                { label: '🏥 Hospitals', query: 'Hospital' },
+                { label: '🎥 Video Consult', query: 'Video' },
+              ].map((pill, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={styles.quickSearchPill}
+                  onPress={() => handleSearchSubmit(pill.query)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.quickSearchPillText}>{pill.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
         </View>
 
         {/* ==========================================
@@ -913,285 +1005,382 @@ const HomeScreen = ({ navigation }) => {
         visible={locationModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setLocationModalVisible(false)}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setLocationModalVisible(false);
+        }}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
-            <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>Change Location</Text>
-                <Text style={styles.modalSubtitle}>Select city, area, cross & district</Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={Keyboard.dismiss}
+          >
+            <TouchableOpacity
+              style={[styles.modalContent, { maxHeight: '90%' }]}
+              activeOpacity={1}
+              onPress={() => {}}
+            >
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>Change Location</Text>
+                  <Text style={styles.modalSubtitle}>Select city, area, cross & district</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setLocationModalVisible(false);
+                  }}
+                  style={styles.modalCloseBtn}
+                >
+                  <Ionicons name="close" size={22} color="#64748B" />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                onPress={() => setLocationModalVisible(false)}
-                style={styles.modalCloseBtn}
-              >
-                <Ionicons name="close" size={22} color="#64748B" />
-              </TouchableOpacity>
-            </View>
 
-            {/* TAB SELECTOR */}
-            <View style={styles.locModalTabsRow}>
-              <TouchableOpacity
-                style={[
-                  styles.locModalTabBtn,
-                  locationModalTab === 'SEARCH' && styles.locModalTabBtnActive,
-                ]}
-                onPress={() => setLocationModalTab('SEARCH')}
-              >
-                <Ionicons
-                  name="search"
-                  size={15}
-                  color={locationModalTab === 'SEARCH' ? colors.primary : '#64748B'}
-                />
-                <Text
+              {/* TAB SELECTOR */}
+              <View style={styles.locModalTabsRow}>
+                <TouchableOpacity
                   style={[
-                    styles.locModalTabText,
-                    locationModalTab === 'SEARCH' && styles.locModalTabTextActive,
+                    styles.locModalTabBtn,
+                    locationModalTab === 'SEARCH' && styles.locModalTabBtnActive,
                   ]}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setLocationModalTab('SEARCH');
+                  }}
                 >
-                  Quick City & Area
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.locModalTabBtn,
-                  locationModalTab === 'CUSTOM' && styles.locModalTabBtnActive,
-                ]}
-                onPress={() => setLocationModalTab('CUSTOM')}
-              >
-                <Ionicons
-                  name="create-outline"
-                  size={15}
-                  color={locationModalTab === 'CUSTOM' ? colors.primary : '#64748B'}
-                />
-                <Text
-                  style={[
-                    styles.locModalTabText,
-                    locationModalTab === 'CUSTOM' && styles.locModalTabTextActive,
-                  ]}
-                >
-                  Custom Cross / District
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 10 }}>
-              {/* ==========================================
-                  TAB 1: QUICK SEARCH & CITY LOCALITIES
-              ========================================== */}
-              {locationModalTab === 'SEARCH' && (
-                <>
-                  {/* GPS DETECT */}
-                  <TouchableOpacity
-                    style={styles.gpsDetectBtn}
-                    onPress={handleDetectGPSLocation}
-                    disabled={loadingLocation}
-                    activeOpacity={0.88}
+                  <Ionicons
+                    name="search"
+                    size={15}
+                    color={locationModalTab === 'SEARCH' ? colors.primary : '#64748B'}
+                  />
+                  <Text
+                    style={[
+                      styles.locModalTabText,
+                      locationModalTab === 'SEARCH' && styles.locModalTabTextActive,
+                    ]}
                   >
-                    {loadingLocation ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <>
-                        <Ionicons name="locate" size={18} color="#FFFFFF" />
-                        <Text style={styles.gpsDetectText}>Use Current GPS Location</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-
-                  {/* SEARCH FILTER */}
-                  <View style={styles.locSearchBar}>
-                    <Ionicons name="search" size={18} color="#94A3B8" />
-                    <TextInput
-                      style={styles.locSearchInput}
-                      placeholder="Search area, cross, district or pincode..."
-                      placeholderTextColor="#94A3B8"
-                      value={locationSearchQuery}
-                      onChangeText={setLocationSearchQuery}
-                    />
-                    {locationSearchQuery.length > 0 && (
-                      <TouchableOpacity onPress={() => setLocationSearchQuery('')}>
-                        <Ionicons name="close-circle" size={16} color="#94A3B8" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  {/* CITY TABS */}
-                  <Text style={styles.modalSectionLabel}>Select City / District</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-                    {Object.keys(CITY_AREAS_MAP).map((city) => {
-                      const isSelected = selectedCityTab === city;
-                      return (
-                        <TouchableOpacity
-                          key={city}
-                          style={[
-                            styles.cityPill,
-                            isSelected && styles.cityPillActive,
-                          ]}
-                          onPress={() => setSelectedCityTab(city)}
-                        >
-                          <Text
-                            style={[
-                              styles.cityPillText,
-                              isSelected && styles.cityPillTextActive,
-                            ]}
-                          >
-                            {city}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-
-                  {/* LOCALITIES LIST */}
-                  <Text style={styles.modalSectionLabel}>
-                    Localities in {selectedCityTab} ({currentCityAreas.length})
+                    Quick City & Area
                   </Text>
+                </TouchableOpacity>
 
-                  <View style={styles.areaCardsList}>
-                    {currentCityAreas.map((item, idx) => (
-                      <TouchableOpacity
-                        key={idx}
-                        style={styles.areaCard}
-                        onPress={async () => {
-                          const full = `${item.area}, ${selectedCityTab}`;
-                          setLocationName(full);
-                          setCustomArea(item.area);
-                          setCustomBuildingCross(item.cross);
-                          setCustomCity(selectedCityTab);
-                          setCustomDistrict(item.district);
-                          setCustomPincode(item.pincode);
-
-                          await AsyncStorage.setItem('@unnathi_user_location', full);
-                          setLocationModalVisible(false);
-                          showToast(`Location set to: ${full}`);
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <View style={styles.areaIconWrap}>
-                          <Ionicons name="location" size={18} color={colors.primary} />
-                        </View>
-                        <View style={{ flex: 1, marginLeft: 10 }}>
-                          <Text style={styles.areaCardTitle}>{item.area}</Text>
-                          <Text style={styles.areaCardCross}>Cross: {item.cross}</Text>
-                          <Text style={styles.areaCardDistrict}>
-                            {item.district} • {item.pincode}
-                          </Text>
-                        </View>
-                        <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </>
-              )}
-
-              {/* ==========================================
-                  TAB 2: CUSTOM ADDRESS & CROSS / DISTRICT
-              ========================================== */}
-              {locationModalTab === 'CUSTOM' && (
-                <View style={styles.customFormBox}>
-                  {/* BUILDING / CROSS / STREET */}
-                  <Text style={styles.formInputLabel}>House / Building No. & Cross Street</Text>
-                  <TextInput
-                    style={styles.formTextInput}
-                    placeholder="e.g. Flat 302, 4th Cross, 2nd Main Road"
-                    placeholderTextColor="#94A3B8"
-                    value={customBuildingCross}
-                    onChangeText={setCustomBuildingCross}
+                <TouchableOpacity
+                  style={[
+                    styles.locModalTabBtn,
+                    locationModalTab === 'CUSTOM' && styles.locModalTabBtnActive,
+                  ]}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setLocationModalTab('CUSTOM');
+                  }}
+                >
+                  <Ionicons
+                    name="create-outline"
+                    size={15}
+                    color={locationModalTab === 'CUSTOM' ? colors.primary : '#64748B'}
                   />
+                  <Text
+                    style={[
+                      styles.locModalTabText,
+                      locationModalTab === 'CUSTOM' && styles.locModalTabTextActive,
+                    ]}
+                  >
+                    Custom Cross / District
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
-                  {/* AREA / LOCALITY */}
-                  <Text style={styles.formInputLabel}>Area / Locality / Layout</Text>
-                  <TextInput
-                    style={styles.formTextInput}
-                    placeholder="e.g. Kuvempunagar, Jayalakshmipuram"
-                    placeholderTextColor="#94A3B8"
-                    value={customArea}
-                    onChangeText={setCustomArea}
-                  />
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                style={{ marginTop: 10 }}
+              >
+                {/* ==========================================
+                    TAB 1: QUICK SEARCH & CITY LOCALITIES
+                ========================================== */}
+                {locationModalTab === 'SEARCH' && (
+                  <>
+                    {/* LIVE MAP PICKER BUTTON */}
+                    <TouchableOpacity
+                      style={styles.liveMapPickBtn}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        setLocationModalVisible(false);
+                        navigation.navigate('PharmacyLocation', {
+                          onLocationSelected: async (selectedLoc) => {
+                            const full = selectedLoc.addressLine || `${selectedLoc.city}`;
+                            setLocationName(full);
+                            setCustomArea(selectedLoc.city || '');
+                            setCustomCity(selectedLoc.city || 'Mysore');
+                            setCustomDistrict(selectedLoc.state || 'Karnataka');
+                            setCustomPincode(selectedLoc.pincode || '570023');
+                            await AsyncStorage.setItem('@unnathi_user_location', full);
+                            showToast(`Location set from Live Map: ${full}`);
+                          },
+                        });
+                      }}
+                      activeOpacity={0.88}
+                    >
+                      <View style={styles.liveMapIconBox}>
+                        <Ionicons name="map" size={18} color="#FFFFFF" />
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={styles.liveMapBtnTitle}>Pick on Interactive Live Map 📍</Text>
+                        <Text style={styles.liveMapBtnSub}>Drag & drop pin on real-time satellite map</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                    </TouchableOpacity>
 
-                  {/* CITY & DISTRICT IN ROW */}
-                  <View style={styles.formRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.formInputLabel}>City / Town</Text>
+                    {/* GPS DETECT */}
+                    <TouchableOpacity
+                      style={styles.gpsDetectBtn}
+                      onPress={handleDetectGPSLocation}
+                      disabled={loadingLocation}
+                      activeOpacity={0.88}
+                    >
+                      {loadingLocation ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Ionicons name="locate" size={18} color="#FFFFFF" />
+                          <Text style={styles.gpsDetectText}>Use Current GPS Location</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+
+                    {/* SEARCH FILTER */}
+                    <View style={styles.locSearchBar}>
+                      <Ionicons name="search" size={18} color="#94A3B8" />
                       <TextInput
-                        style={styles.formTextInput}
-                        placeholder="e.g. Mysore"
+                        style={styles.locSearchInput}
+                        placeholder="Search area, cross, district or pincode..."
                         placeholderTextColor="#94A3B8"
-                        value={customCity}
-                        onChangeText={setCustomCity}
+                        value={locationSearchQuery}
+                        onChangeText={setLocationSearchQuery}
                       />
+                      {locationSearchQuery.length > 0 && (
+                        <TouchableOpacity onPress={() => setLocationSearchQuery('')}>
+                          <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                        </TouchableOpacity>
+                      )}
                     </View>
 
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.formInputLabel}>District</Text>
-                      <TextInput
-                        style={styles.formTextInput}
-                        placeholder="e.g. Mysuru District"
-                        placeholderTextColor="#94A3B8"
-                        value={customDistrict}
-                        onChangeText={setCustomDistrict}
-                      />
-                    </View>
-                  </View>
-
-                  {/* PINCODE & ADDRESS TAG */}
-                  <View style={styles.formRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.formInputLabel}>Pincode</Text>
-                      <TextInput
-                        style={styles.formTextInput}
-                        placeholder="e.g. 570023"
-                        placeholderTextColor="#94A3B8"
-                        value={customPincode}
-                        onChangeText={setCustomPincode}
-                        keyboardType="numeric"
-                      />
-                    </View>
-
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.formInputLabel}>Address Tag</Text>
-                      <View style={styles.tagChipsRow}>
-                        {['Home', 'Work', 'Other'].map((tag) => (
+                    {/* CITY TABS */}
+                    <Text style={styles.modalSectionLabel}>Select City / District</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                      {Object.keys(CITY_AREAS_MAP).map((city) => {
+                        const isSelected = selectedCityTab === city;
+                        return (
                           <TouchableOpacity
-                            key={tag}
+                            key={city}
                             style={[
-                              styles.tagChip,
-                              customTag === tag && styles.tagChipActive,
+                              styles.cityPill,
+                              isSelected && styles.cityPillActive,
                             ]}
-                            onPress={() => setCustomTag(tag)}
+                            onPress={() => {
+                              Keyboard.dismiss();
+                              setSelectedCityTab(city);
+                            }}
                           >
                             <Text
                               style={[
-                                styles.tagChipText,
-                                customTag === tag && styles.tagChipTextActive,
+                                styles.cityPillText,
+                                isSelected && styles.cityPillTextActive,
                               ]}
                             >
-                              {tag}
+                              {city}
                             </Text>
                           </TouchableOpacity>
-                        ))}
+                        );
+                      })}
+                    </ScrollView>
+
+                    {/* LOCALITIES LIST */}
+                    <Text style={styles.modalSectionLabel}>
+                      Localities in {selectedCityTab} ({currentCityAreas.length})
+                    </Text>
+
+                    <View style={styles.areaCardsList}>
+                      {currentCityAreas.map((item, idx) => (
+                        <TouchableOpacity
+                          key={idx}
+                          style={styles.areaCard}
+                          onPress={async () => {
+                            Keyboard.dismiss();
+                            const full = `${item.area}, ${selectedCityTab}`;
+                            setLocationName(full);
+                            setCustomArea(item.area);
+                            setCustomBuildingCross(item.cross);
+                            setCustomCity(selectedCityTab);
+                            setCustomDistrict(item.district);
+                            setCustomPincode(item.pincode);
+
+                            await AsyncStorage.setItem('@unnathi_user_location', full);
+                            setLocationModalVisible(false);
+                            showToast(`Location set to: ${full}`);
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <View style={styles.areaIconWrap}>
+                            <Ionicons name="location" size={18} color={colors.primary} />
+                          </View>
+                          <View style={{ flex: 1, marginLeft: 10 }}>
+                            <Text style={styles.areaCardTitle}>{item.area}</Text>
+                            <Text style={styles.areaCardCross}>Cross: {item.cross}</Text>
+                            <Text style={styles.areaCardDistrict}>
+                              {item.district} • {item.pincode}
+                            </Text>
+                          </View>
+                          <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                {/* ==========================================
+                    TAB 2: CUSTOM ADDRESS & CROSS / DISTRICT
+                ========================================== */}
+                {locationModalTab === 'CUSTOM' && (
+                  <View style={styles.customFormBox}>
+                    {/* LIVE MAP QUICK SELECTOR */}
+                    <TouchableOpacity
+                      style={[styles.liveMapPickBtn, { marginBottom: 14 }]}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        setLocationModalVisible(false);
+                        navigation.navigate('PharmacyLocation', {
+                          onLocationSelected: async (selectedLoc) => {
+                            const full = selectedLoc.addressLine || `${selectedLoc.city}`;
+                            setLocationName(full);
+                            setCustomArea(selectedLoc.city || '');
+                            setCustomBuildingCross(selectedLoc.addressLine || '');
+                            setCustomCity(selectedLoc.city || 'Mysore');
+                            setCustomDistrict(selectedLoc.state || 'Karnataka');
+                            setCustomPincode(selectedLoc.pincode || '570023');
+                            await AsyncStorage.setItem('@unnathi_user_location', full);
+                            showToast(`Address autofilled from Live Map!`);
+                          },
+                        });
+                      }}
+                      activeOpacity={0.88}
+                    >
+                      <View style={styles.liveMapIconBox}>
+                        <Ionicons name="map" size={18} color="#FFFFFF" />
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={styles.liveMapBtnTitle}>Autofill Address via Live Map 🗺️</Text>
+                        <Text style={styles.liveMapBtnSub}>Auto-detects house, street & pincode</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                    </TouchableOpacity>
+
+                    {/* BUILDING / CROSS / STREET */}
+                    <Text style={styles.formInputLabel}>House / Building No. & Cross Street</Text>
+                    <TextInput
+                      style={styles.formTextInput}
+                      placeholder="e.g. Flat 302, 4th Cross, 2nd Main Road"
+                      placeholderTextColor="#94A3B8"
+                      value={customBuildingCross}
+                      onChangeText={setCustomBuildingCross}
+                    />
+
+                    {/* AREA / LOCALITY */}
+                    <Text style={styles.formInputLabel}>Area / Locality / Layout</Text>
+                    <TextInput
+                      style={styles.formTextInput}
+                      placeholder="e.g. Kuvempunagar, Jayalakshmipuram"
+                      placeholderTextColor="#94A3B8"
+                      value={customArea}
+                      onChangeText={setCustomArea}
+                    />
+
+                    {/* CITY & DISTRICT IN ROW */}
+                    <View style={styles.formRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.formInputLabel}>City / Town</Text>
+                        <TextInput
+                          style={styles.formTextInput}
+                          placeholder="e.g. Mysore"
+                          placeholderTextColor="#94A3B8"
+                          value={customCity}
+                          onChangeText={setCustomCity}
+                        />
+                      </View>
+
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={styles.formInputLabel}>District</Text>
+                        <TextInput
+                          style={styles.formTextInput}
+                          placeholder="e.g. Mysuru District"
+                          placeholderTextColor="#94A3B8"
+                          value={customDistrict}
+                          onChangeText={setCustomDistrict}
+                        />
                       </View>
                     </View>
+
+                    {/* PINCODE & ADDRESS TAG */}
+                    <View style={styles.formRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.formInputLabel}>Pincode</Text>
+                        <TextInput
+                          style={styles.formTextInput}
+                          placeholder="e.g. 570023"
+                          placeholderTextColor="#94A3B8"
+                          value={customPincode}
+                          onChangeText={setCustomPincode}
+                          keyboardType="numeric"
+                        />
+                      </View>
+
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={styles.formInputLabel}>Address Tag</Text>
+                        <View style={styles.tagChipsRow}>
+                          {['Home', 'Work', 'Other'].map((tag) => (
+                            <TouchableOpacity
+                              key={tag}
+                              style={[
+                                styles.tagChip,
+                                customTag === tag && styles.tagChipActive,
+                              ]}
+                              onPress={() => setCustomTag(tag)}
+                            >
+                              <Text
+                                style={[
+                                  styles.tagChipText,
+                                  customTag === tag && styles.tagChipTextActive,
+                                ]}
+                              >
+                                {tag}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* SAVE LOCATION BUTTON */}
+                    <TouchableOpacity
+                      style={styles.saveLocBtn}
+                      onPress={handleSaveCustomAddress}
+                      activeOpacity={0.88}
+                    >
+                      <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+                      <Text style={styles.saveLocBtnText}>Save & Apply Location</Text>
+                    </TouchableOpacity>
                   </View>
+                )}
 
-                  {/* SAVE LOCATION BUTTON */}
-                  <TouchableOpacity
-                    style={styles.saveLocBtn}
-                    onPress={handleSaveCustomAddress}
-                    activeOpacity={0.88}
-                  >
-                    <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
-                    <Text style={styles.saveLocBtnText}>Save & Apply Location</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              <View style={{ height: 25 }} />
-            </ScrollView>
-          </View>
-        </View>
+                <View style={{ height: 25 }} />
+              </ScrollView>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ==========================================
@@ -1243,6 +1432,7 @@ const HomeScreen = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+
     </SafeAreaView>
   );
 };
@@ -1260,110 +1450,44 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'android' ? 12 : 8,
-    paddingBottom: 8,
+    paddingBottom: 10,
     backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
   brandHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  brandLogoImg: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    flex: 1,
     marginRight: 8,
   },
-  brandTextWrap: {
+  brandLogoImg: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    marginRight: 10,
+  },
+  headerUserLocationWrap: {
     justifyContent: 'center',
+    flex: 1,
   },
-  brandLogoTitle: {
-    fontSize: 17,
+  headerUserName: {
+    fontSize: 14,
     fontWeight: '900',
-    color: colors.teal,
-    letterSpacing: -0.3,
+    color: '#0F172A',
+    letterSpacing: -0.2,
   },
-  brandLogoAccent: {
-    color: colors.navyBlue,
-  },
-  brandTagline: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: colors.slate,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginTop: -2,
-  },
-  userLocationStrip: {
+  headerLocationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    gap: 3,
+    marginTop: 2,
   },
-  profileHeaderBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    maxWidth: '56%',
-  },
-  profileAvatarWrap: {
-    position: 'relative',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: colors.teal,
-  },
-  profileAvatarImg: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 18,
-  },
-  profileOnlineDot: {
-    position: 'absolute',
-    bottom: -1,
-    right: -1,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.freshGreen,
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-  },
-  profileTextWrap: {
-    marginLeft: 8,
-    justifyContent: 'center',
-  },
-  profileHelloText: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: colors.navyBlue,
-  },
-  profileRoleText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.teal,
-    marginTop: 1,
-  },
-  locationPillCompact: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.lightTeal,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#CCFBF1',
-    gap: 4,
-    maxWidth: '42%',
-  },
-  locationCompactText: {
+  headerLocationText: {
     fontSize: 11.5,
-    fontWeight: '800',
-    color: colors.navyBlue,
-    flexShrink: 1,
+    fontWeight: '700',
+    color: '#64748B',
+    maxWidth: 155,
   },
   topBarRight: {
     flexDirection: 'row',
@@ -1476,58 +1600,10 @@ const styles = StyleSheet.create({
     height: '100%',
   },
 
-  // PATIENT SWITCHER
-  patientSwitcherRow: {
-    marginVertical: 6,
-  },
-  patientChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 6,
-  },
-  patientChipSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  patientChipText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  patientChipTextSelected: {
-    color: '#FFFFFF',
-  },
-  patientActiveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#A7F3D0',
-  },
-  addPatientChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.lightTeal,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 4,
-  },
-  addPatientText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-
   // SEARCH BAR
   searchContainer: {
     paddingHorizontal: 16,
-    marginTop: 8,
+    marginTop: 12,
   },
   searchBar: {
     flexDirection: 'row',
@@ -1543,6 +1619,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
+  },
+  searchBarFocused: {
+    borderColor: colors.primary,
+    backgroundColor: '#FAFCFF',
   },
   searchInput: {
     flex: 1,
@@ -1562,14 +1642,97 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '800',
   },
-  scanSearchBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: colors.lightTeal,
+  suggestionsDropdownContainer: {
+    marginTop: 6,
+    gap: 6,
+  },
+  typoCorrectionCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 6,
+    justifyContent: 'space-between',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  typoCorrectionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    flex: 1,
+  },
+  typoCorrectionLabel: {
+    fontSize: 11.5,
+    color: '#92400E',
+    fontWeight: '600',
+  },
+  typoCorrectionKeyword: {
+    fontSize: 12,
+    color: '#78350F',
+    fontWeight: '900',
+  },
+  typoApplyBadge: {
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  typoApplyBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  suggestionsListCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  suggestionItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  suggestionItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    marginRight: 8,
+  },
+  suggestionCategoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+  },
+  suggestionCategoryText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  suggestionTitleText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#1E293B',
+    flex: 1,
   },
   quickSearchPillsRow: {
     flexDirection: 'row',
@@ -2106,6 +2269,40 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
 
+  // LIVE MAP PICKER BUTTON
+  liveMapPickBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#99F6E4',
+    marginBottom: 10,
+  },
+  liveMapIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  liveMapBtnTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F766E',
+  },
+  liveMapBtnSub: {
+    fontSize: 11,
+    color: '#0D9488',
+    marginTop: 2,
+  },
   gpsDetectBtn: {
     flexDirection: 'row',
     alignItems: 'center',

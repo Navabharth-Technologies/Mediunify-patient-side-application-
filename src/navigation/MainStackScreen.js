@@ -26,11 +26,13 @@ import HospitalListScreen from '../screens/services/hospitals/HospitalListScreen
 
 import VideoBookingScreen from '../screens/services/videocall/VideoBookingScreen';
 import VideoConsultationScreen from '../screens/services/videocall/VideoConsultationScreen';
+import VideoMeetingScreen from '../screens/services/videocall/VideoMeetingScreen';
 
 import LabTestsScreen from '../screens/services/lab/LabTestsScreen';
 import LabBookingScreen from '../screens/services/lab/LabBookingScreen';
 
 import PharmacyScreen from '../screens/services/pharmacy/PharmacyScreen';
+import PharmacyStoreDetailScreen from '../screens/services/pharmacy/PharmacyStoreDetailScreen';
 import PharmacyLocationScreen from '../screens/services/pharmacy/PharmacyLocationScreen';
 
 import ImagingScreen from '../screens/services/radiology/ImagingScreen';
@@ -406,6 +408,11 @@ const MainStackScreen = () => {
         />
 
         <Stack.Screen
+          name="VideoMeeting"
+          component={VideoMeetingScreen}
+        />
+
+        <Stack.Screen
           name="LabTests"
           component={LabTestsScreen}
         />
@@ -418,6 +425,11 @@ const MainStackScreen = () => {
         <Stack.Screen
           name="Pharmacy"
           component={PharmacyScreen}
+        />
+
+        <Stack.Screen
+          name="PharmacyStoreDetail"
+          component={PharmacyStoreDetailScreen}
         />
 
         <Stack.Screen

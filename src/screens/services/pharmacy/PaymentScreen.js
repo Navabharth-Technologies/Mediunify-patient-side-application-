@@ -13,6 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import colors from '../../../theme/colors';
 import { useCart } from '../../../context/CartContext';
@@ -41,7 +42,18 @@ const PaymentScreen = ({ navigation, route }) => {
   const payableAmount = route?.params?.amount || finalTotal || passedOrderData?.total || 499;
 
   // Selected Category
-  const [selectedMethod, setSelectedMethod] = useState('UPI'); // 'UPI', 'CARD', 'NETBANKING', 'WALLET', 'COD'
+  const [selectedMethod, setSelectedMethod] = useState('WALLET'); // 'WALLET', 'UPI', 'CARD', 'NETBANKING', 'COD'
+  const [walletBalance, setWalletBalance] = useState(1250);
+
+  // Load wallet balance
+  useEffect(() => {
+    (async () => {
+      try {
+        const bal = await AsyncStorage.getItem('@unnathi_wallet_balance');
+        if (bal) setWalletBalance(parseInt(bal, 10) || 1250);
+      } catch (e) {}
+    })();
+  }, []);
 
   // UPI State
   const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
@@ -57,9 +69,6 @@ const PaymentScreen = ({ navigation, route }) => {
 
   // Netbanking State
   const [selectedBank, setSelectedBank] = useState('hdfc');
-
-  // Wallet State
-  const [selectedWallet, setSelectedWallet] = useState('amazon');
 
   // Processing & Simulation State
   const [isProcessing, setIsProcessing] = useState(false);
@@ -84,6 +93,20 @@ const PaymentScreen = ({ navigation, route }) => {
 
   // Process Payment Execution
   const handlePayNow = () => {
+    if (selectedMethod === 'WALLET') {
+      if (walletBalance < payableAmount) {
+        Alert.alert(
+          'Insufficient Wallet Balance 💳',
+          `Your MediUnify Wallet balance is ₹${walletBalance.toLocaleString('en-IN')}, but the payable amount is ₹${payableAmount.toLocaleString('en-IN')}.\n\nPlease top up or select UPI / Cards / COD.`,
+          [
+            { text: 'Top Up Wallet', onPress: () => navigation.navigate('Wallet') },
+            { text: 'Change Method', style: 'cancel' },
+          ]
+        );
+        return;
+      }
+    }
+
     // Basic validations
     if (selectedMethod === 'CARD') {
       if (cardNumber.replace(/\s/g, '').length < 16) {
@@ -115,15 +138,38 @@ const PaymentScreen = ({ navigation, route }) => {
 
         const orderId = passedOrderData?.id || `UNC${Math.floor(10000 + Math.random() * 90000)}`;
 
+        // Deduct from wallet if paid via wallet
+        if (selectedMethod === 'WALLET') {
+          const newBal = Math.max(0, walletBalance - payableAmount);
+          setWalletBalance(newBal);
+          try {
+            await AsyncStorage.setItem('@unnathi_wallet_balance', newBal.toString());
+            const storedTx = await AsyncStorage.getItem('@unnathi_wallet_transactions');
+            const existingTx = storedTx ? JSON.parse(storedTx) : [];
+            const newTx = {
+              id: `tx-${Date.now()}`,
+              title: 'Paid via MediUnify Wallet',
+              subtitle: `Order #${orderId} • Verified Payment`,
+              amount: `-₹${payableAmount}`,
+              type: 'debit',
+              date: 'Just Now',
+              icon: 'wallet-outline',
+            };
+            await AsyncStorage.setItem('@unnathi_wallet_transactions', JSON.stringify([newTx, ...existingTx]));
+          } catch (e) {
+            console.log('Error updating wallet:', e);
+          }
+        }
+
         let paymentLabel = 'Cash on Delivery (COD)';
-        if (selectedMethod === 'UPI') {
+        if (selectedMethod === 'WALLET') {
+          paymentLabel = 'MediUnify Health Wallet';
+        } else if (selectedMethod === 'UPI') {
           paymentLabel = `UPI (${selectedUpiApp ? selectedUpiApp.toUpperCase() : upiId})`;
         } else if (selectedMethod === 'CARD') {
           paymentLabel = `Card (Ending with ${cardNumber.slice(-4) || '4242'})`;
         } else if (selectedMethod === 'NETBANKING') {
           paymentLabel = `Net Banking (${selectedBank.toUpperCase()})`;
-        } else if (selectedMethod === 'WALLET') {
-          paymentLabel = `Wallet (${selectedWallet.toUpperCase()})`;
         }
 
         const newOrder = {
@@ -209,6 +255,7 @@ const PaymentScreen = ({ navigation, route }) => {
         <Text style={styles.sectionTitle}>Payment Categories</Text>
         <View style={styles.methodSelectorRow}>
           {[
+            { id: 'WALLET', label: 'MediUnify Wallet', icon: 'wallet-outline' },
             { id: 'UPI', label: 'UPI Fast Pay', icon: 'phone-portrait-outline' },
             { id: 'CARD', label: 'Cards', icon: 'card-outline' },
             { id: 'NETBANKING', label: 'Net Banking', icon: 'business-outline' },
@@ -233,6 +280,57 @@ const PaymentScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* 0. MEDIUNIFY WALLET SECTION */}
+        {selectedMethod === 'WALLET' && (
+          <View style={styles.paymentBox}>
+            <View style={styles.walletHeroBox}>
+              <View style={styles.walletHeroIcon}>
+                <Ionicons name="wallet" size={28} color="#059669" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.walletHeroTitle}>MediUnify Health Wallet</Text>
+                <Text style={styles.walletHeroSub}>1-Click Instant Zero-OTP Payment</Text>
+              </View>
+            </View>
+
+            <View style={styles.walletBalanceCard}>
+              <View style={styles.walletBalLeft}>
+                <Text style={styles.walletBalLabel}>Available Balance</Text>
+                <Text style={styles.walletBalAmount}>₹{walletBalance.toLocaleString('en-IN')}</Text>
+              </View>
+              {walletBalance >= payableAmount ? (
+                <View style={styles.walletStatusBadge}>
+                  <Ionicons name="checkmark-circle" size={16} color="#059669" />
+                  <Text style={styles.walletStatusText}>Sufficient</Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.walletTopUpBtn}
+                  onPress={() => navigation.navigate('Wallet')}
+                >
+                  <Text style={styles.walletTopUpBtnText}>+ Top Up Wallet</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {walletBalance >= payableAmount ? (
+              <View style={styles.walletPerkBox}>
+                <Ionicons name="shield-checkmark" size={18} color="#059669" />
+                <Text style={styles.walletPerkText}>
+                  ₹{payableAmount} will be debited instantly. You earn 5% cashback on wallet checkouts!
+                </Text>
+              </View>
+            ) : (
+              <View style={[styles.walletPerkBox, { backgroundColor: '#FEF2F2', borderColor: '#FEE2E2' }]}>
+                <Ionicons name="alert-circle" size={18} color="#DC2626" />
+                <Text style={[styles.walletPerkText, { color: '#DC2626' }]}>
+                  Insufficient balance for this order. Please top up ₹{payableAmount - walletBalance} or switch to UPI / Cards / COD.
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* 1. UPI SECTION */}
         {selectedMethod === 'UPI' && (
@@ -964,6 +1062,100 @@ const styles = StyleSheet.create({
     backgroundColor: '#00B894',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  walletHeroBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  walletHeroIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  walletHeroTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.secondary,
+  },
+  walletHeroSub: {
+    fontSize: 12,
+    color: '#059669',
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  walletBalanceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
+  },
+  walletBalLeft: {},
+  walletBalLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.slate,
+    textTransform: 'uppercase',
+  },
+  walletBalAmount: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#059669',
+    marginTop: 2,
+  },
+  walletStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  walletStatusText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  walletTopUpBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  walletTopUpBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  walletPerkBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 12,
+    padding: 12,
+    gap: 8,
+  },
+  walletPerkText: {
+    fontSize: 12,
+    color: '#065F46',
+    fontWeight: '600',
+    flex: 1,
+    lineHeight: 17,
   },
 });
 
