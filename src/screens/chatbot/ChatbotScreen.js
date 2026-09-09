@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   Alert,
   ScrollView,
 } from 'react-native';
+import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -151,7 +152,7 @@ const ChatbotScreen = ({ navigation }) => {
   // ==========================================
   const handleScanPrescription = async () => {
     try {
-      Alert.alert(
+      showAlert(
         'Upload Prescription to Scan',
         'Choose how you would like to provide your doctor prescription photo:',
         [
@@ -181,7 +182,7 @@ const ChatbotScreen = ({ navigation }) => {
       if (useCamera) {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permission Denied', 'Camera access is required to take photos of prescriptions.');
+          showAlert('Permission Denied', 'Camera access is required to take photos of prescriptions.');
           return;
         }
         result = await ImagePicker.launchCameraAsync({
@@ -191,7 +192,7 @@ const ChatbotScreen = ({ navigation }) => {
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permission Denied', 'Photo library access is required.');
+          showAlert('Permission Denied', 'Photo library access is required.');
           return;
         }
         result = await ImagePicker.launchImageLibraryAsync({
@@ -259,7 +260,7 @@ const ChatbotScreen = ({ navigation }) => {
                 'pharmacy'
               );
             });
-            Alert.alert(
+            showAlert(
               'Medicines Added! 🛒',
               'Prescription tablets have been added to your Pharmacy Cart.',
               [

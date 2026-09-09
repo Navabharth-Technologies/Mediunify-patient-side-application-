@@ -11,10 +11,17 @@ import {
   Keyboard,
   Platform,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  requestLocationPermissionWebSafe,
+  getCurrentPositionWebSafe,
+  reverseGeocodeWebSafe,
+  geocodeWebSafe,
+} from '../../../utils/locationHelper';
 
 import colors from '../../../theme/colors';
 import { useCart } from '../../../context/CartContext';
@@ -43,7 +50,7 @@ const PharmacyLocationScreen = ({ navigation, route }) => {
   const getAddressFromCoordinates = async (latitude, longitude) => {
     try {
       setGettingAddress(true);
-      const results = await Location.reverseGeocodeAsync({
+      const results = await reverseGeocodeWebSafe({
         latitude,
         longitude,
       });
@@ -58,7 +65,7 @@ const PharmacyLocationScreen = ({ navigation, route }) => {
           place.city,
         ].filter(Boolean);
 
-        const formatted = addressParts
+        const formatted = place.formattedAddress || addressParts
           .filter((item, index) => addressParts.indexOf(item) === index)
           .join(', ');
 
@@ -85,10 +92,10 @@ const PharmacyLocationScreen = ({ navigation, route }) => {
   const getCurrentLocation = async () => {
     try {
       setLoadingLocation(true);
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      const perm = await requestLocationPermissionWebSafe();
 
-      if (status !== 'granted') {
-        Alert.alert(
+      if (!perm.granted && perm.status !== 'granted') {
+        showAlert(
           'Location Permission Required',
           'Please allow location permission to auto-detect your location on map.'
         );
@@ -96,8 +103,8 @@ const PharmacyLocationScreen = ({ navigation, route }) => {
         return;
       }
 
-      const currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
+      const currentLocation = await getCurrentPositionWebSafe({
+        accuracy: Location.Accuracy.Balanced,
       });
 
       const latitude = currentLocation.coords.latitude;
@@ -118,7 +125,7 @@ const PharmacyLocationScreen = ({ navigation, route }) => {
 
       await getAddressFromCoordinates(latitude, longitude);
     } catch (error) {
-      console.log('Current location error:', error);
+      showAlert('Location Error', 'Unable to fetch current location.');
     } finally {
       setLoadingLocation(false);
     }
@@ -139,7 +146,7 @@ const PharmacyLocationScreen = ({ navigation, route }) => {
   const searchLocation = async () => {
     const query = searchText.trim();
     if (!query) {
-      Alert.alert('Enter Location', 'Please enter an address, locality, or area to search.');
+      showAlert('Enter Location', 'Please enter an address, locality, or area to search.');
       return;
     }
 
@@ -147,9 +154,9 @@ const PharmacyLocationScreen = ({ navigation, route }) => {
       Keyboard.dismiss();
       setSearching(true);
 
-      const results = await Location.geocodeAsync(query);
+      const results = await geocodeWebSafe(query);
       if (!results || results.length === 0) {
-        Alert.alert('Location Not Found', 'Could not find this place. Try searching with city or landmark.');
+        showAlert('Location Not Found', 'Could not find this place. Try searching with city or landmark.');
         return;
       }
 
@@ -168,7 +175,7 @@ const PharmacyLocationScreen = ({ navigation, route }) => {
 
       await getAddressFromCoordinates(latitude, longitude);
     } catch (error) {
-      Alert.alert('Search Error', 'Unable to search for this location.');
+      showAlert('Search Error', 'Unable to search for this location.');
     } finally {
       setSearching(false);
     }

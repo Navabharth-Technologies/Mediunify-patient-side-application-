@@ -13,94 +13,209 @@ import {
   Linking,
   ActivityIndicator,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
+import { requestLocationPermissionWebSafe, getCurrentPositionWebSafe, reverseGeocodeWebSafe } from '../../../utils/locationHelper';
 import colors from '../../../theme/colors';
-import {
-  nursingDurations,
-  nursingPurposes,
-  certifiedNurses,
-} from '../../../data/nurseCareData';
+import { certifiedNurses } from '../../../data/nurseCareData';
+import { pushAppointment } from '../../../services/dataSyncService';
 
-const generateBookingDates = () => {
-  const dates = [];
-  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// ==========================================
+// DATA & DEFINITIONS
+// ==========================================
 
-  for (let i = 0; i < 14; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    dates.push({
-      id: `date-${i}`,
-      dateStr: d.toISOString().split('T')[0],
-      dayName: i === 0 ? 'Today' : i === 1 ? 'Tmrw' : daysOfWeek[d.getDay()],
-      dayNum: d.getDate(),
-      month: months[d.getMonth()],
-      fullText: `${daysOfWeek[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]}`,
-      isToday: i === 0,
-    });
-  }
-  return dates;
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// 1. Staff Shift Options
+const STAFF_SHIFTS = [
+  {
+    id: 'shift-12-day',
+    label: '12-Hr Day Shift',
+    timing: '08:00 AM - 08:00 PM',
+    dailyRate: 1499,
+    icon: 'sunny',
+    badge: 'POPULAR',
+    desc: 'Daytime medicine, meals, mobility assistance & vitals chart',
+  },
+  {
+    id: 'shift-12-night',
+    label: '12-Hr Night Shift',
+    timing: '08:00 PM - 08:00 AM',
+    dailyRate: 1499,
+    icon: 'moon',
+    badge: 'NIGHT CARE',
+    desc: 'Nighttime vital monitoring, IV/catheter care & sleep comfort',
+  },
+  {
+    id: 'shift-24-round',
+    label: '24x7 Round-The-Clock',
+    timing: '24 Hours Bedside Care',
+    dailyRate: 2699,
+    icon: 'infinite',
+    badge: 'INTENSIVE',
+    desc: 'Dedicated nurse staying at home full-time for intensive care',
+  },
+  {
+    id: 'visit-2hr',
+    label: 'Short Procedure Visit (2 Hrs)',
+    timing: 'Custom 2-Hour Visit',
+    dailyRate: 599,
+    icon: 'medkit',
+    badge: 'QUICK VISIT',
+    desc: 'Wound dressing, injections, catheter change or nebulization',
+  },
+];
+
+// 2. Curated Packages From Our Side
+const STAFF_PACKAGES = [
+  {
+    days: 1,
+    title: '1 Day',
+    subtitle: 'Standard daily rate',
+    discountPercent: 0,
+    tag: null,
+  },
+  {
+    days: 2,
+    title: '2 Days Deal',
+    subtitle: 'Save 10% on total cost',
+    discountPercent: 10,
+    tag: '10% OFF',
+    isHot: true,
+  },
+  {
+    days: 3,
+    title: '3 Days Recovery',
+    subtitle: 'Save 15% on total cost',
+    discountPercent: 15,
+    tag: '15% OFF',
+  },
+  {
+    days: 7,
+    title: '7 Days (1 Week)',
+    subtitle: 'Save 25% • Best Value',
+    discountPercent: 25,
+    tag: '25% OFF',
+    isBest: true,
+  },
+  {
+    days: 14,
+    title: '14 Days Fortnight',
+    subtitle: 'Save 30% on total cost',
+    discountPercent: 30,
+    tag: '30% OFF',
+  },
+  {
+    days: 30,
+    title: '30 Days (1 Month)',
+    subtitle: 'Save 40% • Max Savings',
+    discountPercent: 40,
+    tag: '40% OFF',
+  },
+];
+
+const TIME_PRESETS = [
+  { label: '08:00 AM (Morning)', hour: '08', minute: '00', period: 'AM' },
+  { label: '09:30 AM (Standard)', hour: '09', minute: '30', period: 'AM' },
+  { label: '02:00 PM (Afternoon)', hour: '02', minute: '00', period: 'PM' },
+  { label: '08:00 PM (Night)', hour: '08', minute: '00', period: 'PM' },
+];
+
+const MYSORE_AREAS = [
+  'Kuvempunagar',
+  'Gokulam',
+  'Jayalakshmipuram',
+  'Saraswathipuram',
+  'Vijayanagar',
+  'Hebbal',
+];
+
+// Helpers
+const cleanDate = (d) => {
+  const c = new Date(d);
+  c.setHours(0, 0, 0, 0);
+  return c;
 };
 
-const NURSE_TIME_SLOTS = {
-  hourly: [
-    { id: 'h-urg', label: '⚡ Urgent (Within 45-60 Mins)', desc: 'Immediate arrival for emergencies', period: 'Urgent', icon: 'flash' },
-    { id: 'h-1', label: '06:30 AM - 07:30 AM', desc: 'Early Morning Vitals & Meds', period: 'Morning', icon: 'sunny' },
-    { id: 'h-2', label: '08:00 AM - 09:30 AM', desc: 'Morning Dressing & Injections', period: 'Morning', icon: 'sunny' },
-    { id: 'h-3', label: '10:00 AM - 11:30 AM', desc: 'Wound Care & Physiotherapy', period: 'Morning', icon: 'sunny' },
-    { id: 'h-4', label: '12:30 PM - 01:30 PM', desc: 'Lunch & Tube Feeding', period: 'Afternoon', icon: 'restaurant' },
-    { id: 'h-5', label: '03:30 PM - 05:00 PM', desc: 'Post-Op Drip & Medication', period: 'Afternoon', icon: 'medkit' },
-    { id: 'h-6', label: '06:00 PM - 07:30 PM', desc: 'Evening Vitals & Catheter Care', period: 'Evening', icon: 'partly-sunny' },
-    { id: 'h-7', label: '08:30 PM - 09:30 PM', desc: 'Night Medication & Sleep Support', period: 'Night', icon: 'moon' },
-  ],
-  shift: [
-    { id: 's-1', label: '08:00 AM - 08:00 PM (12-Hr Day Shift)', desc: 'Full daytime nursing & monitoring', period: 'Day Shift', icon: 'sunny' },
-    { id: 's-2', label: '08:00 PM - 08:00 AM (12-Hr Night Shift)', desc: 'Overnight patient monitoring & care', period: 'Night Shift', icon: 'moon' },
-    { id: 's-3', label: '06:00 AM - 06:00 PM (12-Hr Early Shift)', desc: 'Early morning to early evening', period: 'Day Shift', icon: 'time' },
-    { id: 's-4', label: '06:00 PM - 06:00 AM (12-Hr Evening Shift)', desc: 'Evening to early morning bedside care', period: 'Night Shift', icon: 'moon' },
-  ],
-  daily: [
-    { id: 'd-1', label: 'Starts 08:00 AM (24x7 Round-The-Clock)', desc: 'Continuous 24-hour bedside ICU/Post-Op care', period: '24x7 Care', icon: 'infinite' },
-    { id: 'd-2', label: 'Starts 08:00 PM (24x7 Round-The-Clock)', desc: 'Begins from tonight for continuous care', period: '24x7 Care', icon: 'moon' },
-    { id: 'd-3', label: '⚡ Urgent Start (Within 60 Mins for 24x7)', desc: 'Immediate emergency start by certified nurse', period: 'Urgent 24x7', icon: 'flash' },
-  ],
+const formatFullDate = (d) => {
+  if (!d) return '';
+  return `${DAYS_SHORT[d.getDay()]}, ${d.getDate()} ${MONTH_NAMES[d.getMonth()].slice(0, 3)} ${d.getFullYear()}`;
 };
+
+const formatShortDate = (d) => {
+  if (!d) return '';
+  return `${d.getDate()} ${MONTH_NAMES[d.getMonth()].slice(0, 3)}`;
+};
+
+const isSameDay = (d1, d2) => {
+  if (!d1 || !d2) return false;
+  return (
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate()
+  );
+};
+
+// ==========================================
+// MAIN COMPONENT
+// ==========================================
 
 const NurseBookingScreen = ({ navigation }) => {
-  // Step 1: Duration
-  const [selectedDurationId, setSelectedDurationId] = useState('hourly-1');
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 992;
 
-  // Step 2: Purpose & Description
-  const [selectedPurposes, setSelectedPurposes] = useState(['Post-Surgery Recovery']);
-  const [careDescription, setCareDescription] = useState('');
+  // 3-Step Wizard: 1: Service & Package | 2: Dates & Time | 3: Review & Pay
+  const [currentStep, setCurrentStep] = useState(1);
 
-  // Step 3: Date & Time Schedule Selection
-  const bookingDates = useMemo(() => generateBookingDates(), []);
-  const [selectedDate, setSelectedDate] = useState(bookingDates[0]);
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState(NURSE_TIME_SLOTS.hourly[0]);
-  const [customTimeNote, setCustomTimeNote] = useState('');
-  const [timeFilterPeriod, setTimeFilterPeriod] = useState('ALL'); // 'ALL' | 'Morning' | 'Afternoon' | 'Night'
+  // Step 1: Selected Service & Duration
+  const [selectedShiftId, setSelectedShiftId] = useState('shift-12-day');
+  const [daysCount, setDaysCount] = useState(2); // Default to 2 days to immediately highlight the deal!
 
-  // Step 4: Patient Details & Family Members
+  // Step 2: Calendar Starting & End Date
+  const today = useMemo(() => cleanDate(new Date()), []);
+  const [calMonth, setCalMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + 1);
+    return d;
+  });
+
+  // Calendar Picking Mode: 'start' or 'end'
+  const [activeDateTarget, setActiveDateTarget] = useState('start');
+
+  // Step 2: Manual Time Selection
+  const [selectedTimeStr, setSelectedTimeStr] = useState('09:00 AM');
+  const [manualHour, setManualHour] = useState('09');
+  const [manualMinute, setManualMinute] = useState('00');
+  const [manualPeriod, setManualPeriod] = useState('AM');
+  const [showCustomTime, setShowCustomTime] = useState(false);
+  const [timeNote, setTimeNote] = useState('');
+
+  // Step 2: Patient & Address
   const [familyList, setFamilyList] = useState([]);
   const [selectedFamilyId, setSelectedFamilyId] = useState('self');
   const [patientName, setPatientName] = useState('Ramesh Kumar');
   const [patientRelation, setPatientRelation] = useState('Self');
-  const [patientAge, setPatientAge] = useState('32');
-  const [patientGender, setPatientGender] = useState('Male');
   const [patientPhone, setPatientPhone] = useState('9876543210');
   const [patientAddress, setPatientAddress] = useState('House #142, 5th Cross, Kuvempunagar, Mysore');
   const [locationLoading, setLocationLoading] = useState(false);
 
-  // Step 5: Payment
-  const [paymentMethod, setPaymentMethod] = useState('WALLET'); // 'WALLET' | 'UPI' | 'Card' | 'PayOnArrival'
+  // Step 3: Payment
+  const [paymentMethod, setPaymentMethod] = useState('WALLET');
   const [walletBalance, setWalletBalance] = useState(1250);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Success Confirmation Modal
+  // Success Modal
   const [successModalVisible, setSuccessModalVisible] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState(null);
 
@@ -108,188 +223,210 @@ const NurseBookingScreen = ({ navigation }) => {
     loadSavedData();
   }, []);
 
-  // Update selected time slot whenever duration type changes
-  useEffect(() => {
-    const dur = nursingDurations.find((d) => d.id === selectedDurationId);
-    if (dur) {
-      if (dur.type === 'hourly') {
-        setSelectedTimeSlot(NURSE_TIME_SLOTS.hourly[0]);
-      } else if (dur.type === 'shift') {
-        setSelectedTimeSlot(NURSE_TIME_SLOTS.shift[0]);
-      } else {
-        setSelectedTimeSlot(NURSE_TIME_SLOTS.daily[0]);
-      }
-    }
-  }, [selectedDurationId]);
-
   const loadSavedData = async () => {
     try {
-      // 1. Get primary user info
       const storedPrimary = await AsyncStorage.getItem('@unnathi_primary_user');
       const storedName = await AsyncStorage.getItem('userName');
       let primaryName = 'Ramesh Kumar';
-      let primaryAge = '32';
-      let primaryGender = 'Male';
       let primaryPhone = '9876543210';
 
       if (storedPrimary) {
         try {
           const p = JSON.parse(storedPrimary);
           if (p?.name) primaryName = p.name;
-          if (p?.age) primaryAge = p.age;
-          if (p?.gender) primaryGender = p.gender;
           if (p?.phone) primaryPhone = p.phone;
         } catch (e) {}
-      } else if (storedName && storedName.trim()) {
-        primaryName = storedName.trim();
+      } else if (storedName) {
+        primaryName = storedName;
       }
 
       setPatientName(primaryName);
-      setPatientAge(primaryAge);
-      setPatientGender(primaryGender);
       setPatientPhone(primaryPhone);
 
-      // 2. Load address
-      const savedLoc = await AsyncStorage.getItem('@unnathi_user_location');
-      if (savedLoc && savedLoc.trim()) {
-        setPatientAddress(savedLoc.trim());
-      }
-
-      // 3. Load wallet balance
-      const storedWallet = await AsyncStorage.getItem('@unnathi_wallet_balance');
-      if (storedWallet !== null) {
-        setWalletBalance(parseInt(storedWallet, 10) || 0);
-      } else {
-        await AsyncStorage.setItem('@unnathi_wallet_balance', '1250');
-        setWalletBalance(1250);
-      }
-
-      // 4. Load family members list
-      const savedFam = await AsyncStorage.getItem('@unnathi_family_members');
-      let loadedFam = [];
-      if (savedFam) {
+      const famStr = await AsyncStorage.getItem('@unnathi_family_members');
+      let loadedFamily = [];
+      if (famStr) {
         try {
-          const parsed = JSON.parse(savedFam);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            loadedFam = parsed;
+          const parsedFam = JSON.parse(famStr);
+          if (Array.isArray(parsedFam) && parsedFam.length > 0) {
+            loadedFamily = parsedFam.map((m) => ({
+              id: m.id,
+              name: m.displayName || m.name,
+              relation: m.relation || 'Family',
+            }));
           }
         } catch (e) {}
       }
 
-      if (!loadedFam || loadedFam.length === 0) {
-        loadedFam = [
-          { id: 'self', name: `${primaryName} (Self)`, relation: 'Self', age: primaryAge, gender: primaryGender, isPrimary: true },
-        ];
+      if (loadedFamily.length === 0) {
+        loadedFamily = [{ id: 'self', name: primaryName, relation: 'Self' }];
       }
-      setFamilyList(loadedFam);
-    } catch (e) {
-      console.log('Error loading nurse booking saved data:', e);
+      setFamilyList(loadedFamily);
+
+      const wb = await AsyncStorage.getItem('@unnathi_wallet_balance');
+      if (wb !== null) setWalletBalance(Number(wb));
+    } catch (e) {}
+  };
+
+  const selectedShift = useMemo(() => {
+    return STAFF_SHIFTS.find((s) => s.id === selectedShiftId) || STAFF_SHIFTS[0];
+  }, [selectedShiftId]);
+
+  // Adjust Days Count and automatically update End Date
+  const applyDaysCount = (count) => {
+    const days = Math.max(1, Math.min(90, count));
+    setDaysCount(days);
+    const newEnd = new Date(startDate);
+    newEnd.setDate(newEnd.getDate() + (days - 1));
+    setEndDate(newEnd);
+  };
+
+  // Calendar Date Click: Dead simple logic
+  const handleCalendarDayClick = (clickedDate) => {
+    const c = cleanDate(clickedDate);
+    if (c < today) return; // Ignore past dates
+
+    if (activeDateTarget === 'start') {
+      setStartDate(c);
+      // Auto-set End Date based on current daysCount
+      const newEnd = new Date(c);
+      newEnd.setDate(newEnd.getDate() + (daysCount - 1));
+      setEndDate(newEnd);
+      // Switch target to end so next tap can change end date if desired
+      setActiveDateTarget('end');
+    } else {
+      // Setting End Date
+      if (c >= startDate) {
+        setEndDate(c);
+        const diffDays = Math.round((c.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        setDaysCount(diffDays);
+      } else {
+        // If clicked earlier than start date, make this the new start date
+        setStartDate(c);
+        setEndDate(c);
+        setDaysCount(1);
+      }
     }
   };
 
-  const handleSelectFamilyMember = (member) => {
-    setSelectedFamilyId(member.id);
-    const cleanName = member.name.replace(/\s*\(.*?\)\s*/g, '').trim();
-    setPatientName(cleanName);
-    setPatientRelation(member.relation || 'Self');
-    if (member.age) setPatientAge(String(member.age).replace(/\D/g, '') || '32');
-    if (member.gender) setPatientGender(member.gender);
+  // Manual Time Picker logic
+  const handleTimePresetClick = (preset) => {
+    setManualHour(preset.hour);
+    setManualMinute(preset.minute);
+    setManualPeriod(preset.period);
+    setSelectedTimeStr(`${preset.hour}:${preset.minute} ${preset.period}`);
+    setShowCustomTime(false);
   };
 
+  const updateManualTimeParts = (h, m, p) => {
+    const hour = h !== undefined ? h : manualHour;
+    const min = m !== undefined ? m : manualMinute;
+    const period = p !== undefined ? p : manualPeriod;
+    if (h !== undefined) setManualHour(h);
+    if (m !== undefined) setManualMinute(m);
+    if (p !== undefined) setManualPeriod(p);
+    setSelectedTimeStr(`${hour}:${min} ${period}`);
+  };
+
+  // GPS auto-detect
   const detectGPSLocation = async () => {
     try {
       setLocationLoading(true);
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
+      const perm = await requestLocationPermissionWebSafe();
+      if (!perm.granted && perm.status !== 'granted') {
         setLocationLoading(false);
-        Alert.alert('Permission Denied', 'Location permission is required to detect your address.');
+        showAlert('Permission Denied', 'Location permission is required.');
         return;
       }
-      const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const reverse = await Location.reverseGeocodeAsync({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      });
-      if (reverse && reverse.length > 0) {
-        const item = reverse[0];
-        const formatted = `${item.name || ''} ${item.street || ''}, ${item.subregion || item.district || ''}, ${item.city || 'Mysore'} - ${item.postalCode || '570023'}`.trim();
+      const pos = await getCurrentPositionWebSafe({ accuracy: Location.Accuracy.Balanced });
+      const addresses = await reverseGeocodeWebSafe({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+      if (addresses && addresses.length > 0) {
+        const item = addresses[0];
+        const formatted = item.formattedAddress || `${item.name || ''} ${item.street || ''}, ${item.district || 'Mysore'} - ${item.postalCode || '570023'}`.trim();
         setPatientAddress(formatted);
       }
     } catch (e) {
-      console.log('GPS error in nurse booking:', e);
+      showAlert('GPS Notice', 'Could not fetch live GPS position. Please enter your address manually.');
     } finally {
       setLocationLoading(false);
     }
   };
 
-  const selectedDuration = useMemo(() => {
-    return (
-      nursingDurations.find((d) => d.id === selectedDurationId) ||
-      nursingDurations[0]
-    );
-  }, [selectedDurationId]);
-
-  // LIVE PRICE CALCULATION
+  // Pricing Calculation (Transparent and 100% clear)
   const priceCalculation = useMemo(() => {
-    const base = selectedDuration.basePrice;
-    const gst = Math.round(base * 0.18);
-    const total = base + gst;
+    const daily = selectedShift.dailyRate;
+    const days = daysCount;
+    const gross = daily * days;
+
+    let discountPercent = 0;
+    let dealName = `${days} Days Care`;
+
+    if (days === 2) {
+      discountPercent = 10;
+      dealName = '2-Day Special Package (10% Off)';
+    } else if (days === 3) {
+      discountPercent = 15;
+      dealName = '3-Day Healing Package (15% Off)';
+    } else if (days >= 7 && days < 14) {
+      discountPercent = 25;
+      dealName = '7-Day Weekly Package (25% Off)';
+    } else if (days >= 14 && days < 30) {
+      discountPercent = 30;
+      dealName = '14-Day Package (30% Off)';
+    } else if (days >= 30) {
+      discountPercent = 40;
+      dealName = '30-Day Monthly Package (40% Off)';
+    }
+
+    const discountAmt = Math.round((gross * discountPercent) / 100);
+    const netBase = gross - discountAmt;
+    const gst = Math.round(netBase * 0.18);
+    const total = netBase + gst;
 
     return {
-      base,
+      daily,
+      days,
+      gross,
+      discountPercent,
+      discountAmt,
+      netBase,
       gst,
       total,
+      dealName,
       totalFormatted: `₹${total.toLocaleString('en-IN')}`,
-      baseFormatted: `₹${base.toLocaleString('en-IN')}`,
+      grossFormatted: `₹${gross.toLocaleString('en-IN')}`,
+      discountFormatted: `₹${discountAmt.toLocaleString('en-IN')}`,
+      netBaseFormatted: `₹${netBase.toLocaleString('en-IN')}`,
       gstFormatted: `₹${gst.toLocaleString('en-IN')}`,
     };
-  }, [selectedDuration]);
+  }, [selectedShift, daysCount]);
 
-  // Available time slots based on selected duration
-  const availableTimeSlots = useMemo(() => {
-    const type = selectedDuration.type;
-    const rawSlots = NURSE_TIME_SLOTS[type] || NURSE_TIME_SLOTS.hourly;
-
-    if (timeFilterPeriod === 'ALL') return rawSlots;
-    return rawSlots.filter(
-      (s) => s.period.toLowerCase().includes(timeFilterPeriod.toLowerCase()) || s.type === 'urgent'
-    );
-  }, [selectedDuration, timeFilterPeriod]);
-
-  const togglePurpose = (purpose) => {
-    if (selectedPurposes.includes(purpose)) {
-      if (selectedPurposes.length === 1) {
-        Alert.alert('Required', 'Please select at least 1 nursing care requirement.');
+  const goToNextStep = () => {
+    if (currentStep === 1) {
+      setCurrentStep(2);
+    } else if (currentStep === 2) {
+      if (!patientName.trim()) {
+        showAlert('Name Required', 'Please enter patient name.');
         return;
       }
-      setSelectedPurposes(selectedPurposes.filter((p) => p !== purpose));
-    } else {
-      setSelectedPurposes([...selectedPurposes, purpose]);
+      if (!patientPhone.trim() || patientPhone.length < 10) {
+        showAlert('Phone Required', 'Please enter a valid 10-digit phone number.');
+        return;
+      }
+      if (!patientAddress.trim()) {
+        showAlert('Address Required', 'Please enter your Mysore home address.');
+        return;
+      }
+      setCurrentStep(3);
     }
   };
 
   const handleConfirmAndPay = async () => {
-    if (!patientName.trim()) {
-      Alert.alert('Patient Name Required', 'Please enter patient full name.');
-      return;
-    }
-    if (!patientPhone.trim() || patientPhone.length < 10) {
-      Alert.alert('Valid Mobile Number Required', 'Please enter a 10-digit contact phone number.');
-      return;
-    }
-    if (!patientAddress.trim()) {
-      Alert.alert('Address Required', 'Please enter the home visit address for the nurse.');
-      return;
-    }
-
-    // Wallet balance validation & deduction
     if (paymentMethod === 'WALLET') {
       if (walletBalance < priceCalculation.total) {
-        Alert.alert(
-          'Insufficient MediUnify Wallet Balance',
-          `Your wallet balance is ₹${walletBalance}, but this booking requires ${priceCalculation.totalFormatted}.\n\nPlease top up your wallet or choose another payment option.`,
+        showAlert(
+          'Insufficient Wallet Balance',
+          `Your wallet balance is ₹${walletBalance}, but this booking is ${priceCalculation.totalFormatted}.\n\nPlease choose Pay on Arrival or UPI.`,
           [
             { text: 'Top Up Wallet', onPress: () => navigation.navigate('Wallet') },
             { text: 'OK', style: 'cancel' }
@@ -298,28 +435,9 @@ const NurseBookingScreen = ({ navigation }) => {
         return;
       }
 
-      // Deduct from wallet
       const newBal = walletBalance - priceCalculation.total;
       await AsyncStorage.setItem('@unnathi_wallet_balance', String(newBal));
       setWalletBalance(newBal);
-
-      // Record wallet transaction
-      try {
-        const existingTxJson = await AsyncStorage.getItem('@unnathi_wallet_transactions');
-        const existingTx = existingTxJson ? JSON.parse(existingTxJson) : [];
-        const newTx = {
-          id: `tx-nurse-${Date.now()}`,
-          title: `Home Nurse: ${selectedDuration.label}`,
-          subtitle: `Patient: ${patientName} (${selectedDate.dayName}, ${selectedTimeSlot.label})`,
-          amount: `-${priceCalculation.totalFormatted}`,
-          type: 'debit',
-          date: 'Just now',
-          icon: 'medkit-outline',
-        };
-        await AsyncStorage.setItem('@unnathi_wallet_transactions', JSON.stringify([newTx, ...existingTx]));
-      } catch (eTx) {
-        console.log('Error recording wallet transaction:', eTx);
-      }
     }
 
     setIsProcessing(true);
@@ -332,117 +450,792 @@ const NurseBookingScreen = ({ navigation }) => {
         const bookingRecord = {
           id: bookingId,
           bookingId,
-          serviceName: `Home Nurse Care (${selectedDuration.durationText})`,
-          duration: selectedDuration.durationText,
-          purposes: selectedPurposes,
-          description: careDescription.trim() || 'General post-op & vital monitoring support.',
+          serviceName: `Home Staff: ${selectedShift.label}`,
+          duration: `${daysCount} Days (${formatShortDate(startDate)} to ${formatShortDate(endDate)})`,
+          schedule: {
+            startDate: formatFullDate(startDate),
+            endDate: formatFullDate(endDate),
+            daysCount,
+            time: selectedTimeStr,
+          },
           patient: {
             name: patientName,
             relation: patientRelation,
-            age: patientAge,
-            gender: patientGender,
             phone: patientPhone,
             address: patientAddress,
-          },
-          schedule: {
-            startDate: selectedDate.fullText,
-            preferredTime: selectedTimeSlot.label,
-            customTimeNote: customTimeNote.trim() || null,
           },
           assignedNurse: {
             name: assignedNurse.name,
             qualification: assignedNurse.qualification,
             experience: assignedNurse.experience,
-            phone: '+91 98765 12345',
           },
           payment: {
-            method:
-              paymentMethod === 'WALLET'
-                ? 'MediUnify Health Wallet'
-                : paymentMethod === 'PayOnArrival'
-                ? 'Pay on Nurse Arrival'
-                : paymentMethod === 'UPI'
-                ? 'Instant UPI'
-                : 'Credit/Debit Card',
+            method: paymentMethod === 'WALLET' ? 'MediUnify Wallet' : paymentMethod === 'PayOnArrival' ? 'Pay on Arrival' : 'UPI',
             amount: priceCalculation.totalFormatted,
-            status:
-              paymentMethod === 'WALLET'
-                ? 'Paid via MediUnify Wallet'
-                : paymentMethod === 'PayOnArrival'
-                ? 'Pending (Pay on Arrival)'
-                : 'Paid Online (Verified)',
           },
           bookedAt: new Date().toLocaleString('en-IN'),
-          status: 'Confirmed & Nurse Assigned',
         };
 
-        // 1. Save to @unnathi_nurse_bookings
         const existing = await AsyncStorage.getItem('@unnathi_nurse_bookings');
         const list = existing ? JSON.parse(existing) : [];
         list.unshift(bookingRecord);
         await AsyncStorage.setItem('@unnathi_nurse_bookings', JSON.stringify(list));
 
-        // 2. Save to @unnathi_appointments
+        // Also save to @unnathi_appointments for global visibility
         const existingAppts = await AsyncStorage.getItem('@unnathi_appointments');
-        const apptsList = existingAppts ? JSON.parse(existingAppts) : [];
-        const appointmentObj = {
-          id: bookingId,
-          tokenNumber: `NR-${Math.floor(10 + Math.random() * 90)}`,
-          type: 'Home Nursing Care',
-          doctor: {
-            name: assignedNurse.name,
-            specialty: `Certified Nurse (${assignedNurse.qualification})`,
-            clinicName: 'Unnathi Home Care Services',
-          },
-          day: selectedDate.dayName,
-          date: selectedDate.fullText,
-          time: selectedTimeSlot.label,
-          status: 'Confirmed',
-          paidAmount: priceCalculation.total,
-          paymentStatus:
-            paymentMethod === 'WALLET'
-              ? 'Paid via MediUnify Wallet'
-              : paymentMethod === 'PayOnArrival'
-              ? 'Pay on Arrival'
-              : 'Paid Online',
-          patient: {
-            name: patientName,
-            phone: patientPhone,
-          },
-        };
-        apptsList.unshift(appointmentObj);
-        await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(apptsList));
+        const apptList = existingAppts ? JSON.parse(existingAppts) : [];
+        await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify([bookingRecord, ...apptList]));
+
+        // Push to central server database
+        try {
+          await pushAppointment(bookingRecord);
+        } catch (pushErr) {
+          console.warn('Could not push nurse booking:', pushErr);
+        }
 
         setIsProcessing(false);
         setConfirmedBooking(bookingRecord);
         setSuccessModalVisible(true);
       } catch (e) {
         setIsProcessing(false);
-        console.log('Error saving nurse booking:', e);
-        Alert.alert('Booking Error', 'Could not complete booking. Please try again.');
+        showAlert('Error', 'Could not complete booking.');
       }
-    }, 1000);
+    }, 700);
   };
+
+  // Calendar Component
+  const renderCalendar = () => {
+    const year = calMonth.getFullYear();
+    const month = calMonth.getMonth();
+
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    const cells = [];
+    for (let i = 0; i < firstDayIndex; i++) {
+      cells.push(<View key={`empty-${i}`} style={styles.calCellEmpty} />);
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const cellDate = new Date(year, month, d);
+      cellDate.setHours(0, 0, 0, 0);
+
+      const isPast = cellDate < today;
+      const isStart = isSameDay(cellDate, startDate);
+      const isEnd = isSameDay(cellDate, endDate);
+      const inRange = cellDate > startDate && cellDate < endDate;
+
+      cells.push(
+        <TouchableOpacity
+          key={`day-${d}`}
+          style={[
+            styles.calCell,
+            inRange && styles.calCellInRange,
+            isStart && styles.calCellStart,
+            isEnd && styles.calCellEnd,
+            isPast && styles.calCellDisabled,
+          ]}
+          disabled={isPast}
+          onPress={() => handleCalendarDayClick(cellDate)}
+          activeOpacity={0.7}
+        >
+          <View
+            style={[
+              styles.calCircle,
+              (isStart || isEnd) && styles.calCircleActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.calDayText,
+                isPast && styles.calDayTextDisabled,
+                inRange && styles.calDayTextInRange,
+                (isStart || isEnd) && styles.calDayTextActive,
+              ]}
+            >
+              {d}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      );
+    }
+
+    return (
+      <View style={styles.calContainer}>
+        {/* Month Navigation */}
+        <View style={styles.calNavRow}>
+          <TouchableOpacity
+            style={styles.calArrowBtn}
+            onPress={() => {
+              const prev = new Date(year, month - 1, 1);
+              if (prev.getMonth() >= today.getMonth() || prev.getFullYear() > today.getFullYear()) {
+                setCalMonth(prev);
+              }
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="chevron-back" size={18} color={colors.secondary} />
+          </TouchableOpacity>
+
+          <Text style={styles.calMonthText}>
+            {MONTH_NAMES[month]} {year}
+          </Text>
+
+          <TouchableOpacity
+            style={styles.calArrowBtn}
+            onPress={() => setCalMonth(new Date(year, month + 1, 1))}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="chevron-forward" size={18} color={colors.secondary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Days Header */}
+        <View style={styles.calDayNamesRow}>
+          {DAYS_SHORT.map((d) => (
+            <Text key={d} style={styles.calDayNameText}>
+              {d}
+            </Text>
+          ))}
+        </View>
+
+        {/* Days Grid */}
+        <View style={styles.calGrid}>{cells}</View>
+      </View>
+    );
+  };
+
+  // ==========================================
+  // STEP 1: SERVICE & PACKAGES
+  // ==========================================
+  const renderStep1 = () => (
+    <View style={styles.stepWrap}>
+      {/* 1. Choose Staff Service */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderIcon}>
+            <Ionicons name="medical" size={16} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>1. Choose Nurse / Staff Service</Text>
+            <Text style={styles.cardSub}>Select the duty timing you need for your home</Text>
+          </View>
+        </View>
+
+        <View style={styles.shiftsGrid}>
+          {STAFF_SHIFTS.map((shift) => {
+            const isSelected = selectedShiftId === shift.id;
+            return (
+              <TouchableOpacity
+                key={shift.id}
+                style={[styles.shiftItem, isSelected && styles.shiftItemActive]}
+                onPress={() => setSelectedShiftId(shift.id)}
+                activeOpacity={0.88}
+              >
+                <View style={styles.shiftTop}>
+                  <View style={[styles.shiftBadge, isSelected && styles.shiftBadgeActive]}>
+                    <Ionicons name={shift.icon} size={12} color={isSelected ? '#FFF' : colors.primary} />
+                    <Text style={[styles.shiftBadgeText, isSelected && styles.shiftBadgeTextActive]}>
+                      {shift.badge}
+                    </Text>
+                  </View>
+                  <View style={[styles.radio, isSelected && styles.radioActive]}>
+                    {isSelected && <View style={styles.radioDot} />}
+                  </View>
+                </View>
+
+                <Text style={[styles.shiftName, isSelected && styles.shiftNameActive]}>
+                  {shift.label}
+                </Text>
+                <Text style={styles.shiftTimingText}>{shift.timing}</Text>
+                <Text style={styles.shiftDescText} numberOfLines={2}>{shift.desc}</Text>
+
+                <View style={styles.shiftBottomPriceRow}>
+                  <Text style={styles.shiftRateText}>₹{shift.dailyRate.toLocaleString('en-IN')}</Text>
+                  <Text style={styles.shiftRateSub}>/ day</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* 2. Choose Multi-Day Package (Our Packages) */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={[styles.cardHeaderIcon, { backgroundColor: '#FEF3C7' }]}>
+            <Ionicons name="gift" size={16} color="#D97706" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.cardTitle}>2. How Many Days? (Package Deals)</Text>
+              <View style={styles.hotPill}>
+                <Text style={styles.hotPillText}>DISCOUNT DEALS</Text>
+              </View>
+            </View>
+            <Text style={styles.cardSub}>Take staff for 2 or more days and get special package savings!</Text>
+          </View>
+        </View>
+
+        {/* 2-Day Deal Callout Banner */}
+        <View style={styles.calloutBanner}>
+          <Ionicons name="sparkles" size={16} color="#E11D48" />
+          <Text style={styles.calloutBannerText}>
+            <Text style={{ fontWeight: '900' }}>Special 2-Day Deal:</Text> Book staff for 2 days and save 10% instantly!
+          </Text>
+        </View>
+
+        <View style={styles.packagesList}>
+          {STAFF_PACKAGES.map((pkg) => {
+            const isSelected = daysCount === pkg.days;
+            const pkgGross = selectedShift.dailyRate * pkg.days;
+            const pkgDisc = Math.round((pkgGross * pkg.discountPercent) / 100);
+            const pkgNet = pkgGross - pkgDisc;
+
+            return (
+              <TouchableOpacity
+                key={pkg.days}
+                style={[styles.packageRow, isSelected && styles.packageRowActive]}
+                onPress={() => applyDaysCount(pkg.days)}
+                activeOpacity={0.88}
+              >
+                <View style={[styles.radio, isSelected && styles.radioActive, { marginRight: 10 }]}>
+                  {isSelected && <View style={styles.radioDot} />}
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[styles.packageTitle, isSelected && styles.packageTitleActive]}>
+                      {pkg.title}
+                    </Text>
+                    {pkg.tag && (
+                      <View style={[styles.tagPill, pkg.isHot && { backgroundColor: '#FFE4E6' }]}>
+                        <Text style={[styles.tagPillText, pkg.isHot && { color: '#E11D48' }]}>
+                          {pkg.tag}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.packageSub}>{pkg.subtitle}</Text>
+                </View>
+
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={[styles.packagePrice, isSelected && styles.packagePriceActive]}>
+                    ₹{pkgNet.toLocaleString('en-IN')}
+                  </Text>
+                  {pkg.discountPercent > 0 && (
+                    <Text style={styles.packageSaveBadge}>Save ₹{pkgDisc.toLocaleString('en-IN')}</Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Custom Days Stepper */}
+        <View style={styles.customDaysBox}>
+          <Text style={styles.customDaysLabel}>Or set custom days:</Text>
+          <View style={styles.stepperWrap}>
+            <TouchableOpacity
+              style={styles.stepperBtn}
+              onPress={() => applyDaysCount(daysCount - 1)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="remove" size={16} color={colors.secondary} />
+            </TouchableOpacity>
+            <View style={styles.stepperValBox}>
+              <Text style={styles.stepperValText}>{daysCount} {daysCount === 1 ? 'Day' : 'Days'}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.stepperBtn}
+              onPress={() => applyDaysCount(daysCount + 1)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add" size={16} color={colors.secondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+
+  // ==========================================
+  // STEP 2: DATES, TIME & ADDRESS
+  // ==========================================
+  const renderStep2 = () => (
+    <View style={styles.stepWrap}>
+      {/* 1. Date Selection with Calendar */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderIcon}>
+            <Ionicons name="calendar" size={16} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>1. Starting Date & End Date</Text>
+            <Text style={styles.cardSub}>Tap below to change Start Date or End Date on calendar</Text>
+          </View>
+        </View>
+
+        {/* Interactive Start Date & End Date Tabs */}
+        <View style={styles.dateTabsRow}>
+          <TouchableOpacity
+            style={[styles.dateTab, activeDateTarget === 'start' && styles.dateTabActive]}
+            onPress={() => setActiveDateTarget('start')}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.dateTabLabel}>🟢 STARTING DATE</Text>
+            <Text style={styles.dateTabVal}>{formatShortDate(startDate)}</Text>
+            <Text style={styles.dateTabSub}>{DAYS_SHORT[startDate.getDay()]}</Text>
+          </TouchableOpacity>
+
+          <View style={styles.dateTabArrow}>
+            <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+            <Text style={styles.dateTabDaysText}>{daysCount} Days</Text>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.dateTab, activeDateTarget === 'end' && styles.dateTabActive]}
+            onPress={() => setActiveDateTarget('end')}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.dateTabLabel}>🏁 END DATE</Text>
+            <Text style={styles.dateTabVal}>{formatShortDate(endDate)}</Text>
+            <Text style={styles.dateTabSub}>{DAYS_SHORT[endDate.getDay()]}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.calHintText}>
+          {activeDateTarget === 'start'
+            ? '👉 Tap a date below to set STARTING DATE'
+            : '👉 Tap a date below to set END DATE'}
+        </Text>
+
+        {/* Calendar */}
+        {renderCalendar()}
+      </View>
+
+      {/* 2. Manual Time Selection */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderIcon}>
+            <Ionicons name="time" size={16} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>2. Staff Daily Arrival Time</Text>
+            <Text style={styles.cardSub}>What time should the staff report at your home?</Text>
+          </View>
+        </View>
+
+        {/* Selected Time Banner */}
+        <View style={styles.timePreviewStrip}>
+          <Ionicons name="alarm" size={18} color={colors.primary} />
+          <Text style={styles.timePreviewText}>
+            Reporting Daily at: <Text style={{ fontWeight: '900', color: colors.secondary }}>{selectedTimeStr}</Text>
+          </Text>
+        </View>
+
+        {/* Quick Time Presets */}
+        <Text style={styles.fieldLabel}>Select standard reporting time:</Text>
+        <View style={styles.timePresetsGrid}>
+          {TIME_PRESETS.map((preset) => {
+            const isMatch = selectedTimeStr === `${preset.hour}:${preset.minute} ${preset.period}`;
+            return (
+              <TouchableOpacity
+                key={preset.label}
+                style={[styles.timePresetBtn, isMatch && styles.timePresetBtnActive]}
+                onPress={() => handleTimePresetClick(preset)}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={isMatch ? 'checkmark-circle' : 'time-outline'}
+                  size={13}
+                  color={isMatch ? '#FFF' : colors.primary}
+                />
+                <Text style={[styles.timePresetBtnText, isMatch && styles.timePresetBtnTextActive]}>
+                  {preset.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Toggle Custom Time */}
+        <TouchableOpacity
+          style={styles.customTimeToggleBtn}
+          onPress={() => setShowCustomTime(!showCustomTime)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name={showCustomTime ? 'chevron-up' : 'create-outline'} size={14} color={colors.primary} />
+          <Text style={styles.customTimeToggleText}>
+            {showCustomTime ? 'Hide Custom Time Controls' : 'Or Set Custom Hour & Minute...'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Custom Time Selector */}
+        {showCustomTime && (
+          <View style={styles.customTimeBox}>
+            <Text style={styles.fieldLabel}>Select Hour:</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginBottom: 10 }}>
+              {['06', '07', '08', '09', '10', '11', '12', '01', '02', '03', '04', '05'].map((h) => {
+                const isH = manualHour === h;
+                return (
+                  <TouchableOpacity
+                    key={h}
+                    style={[styles.hourPill, isH && styles.hourPillActive]}
+                    onPress={() => updateManualTimeParts(h, undefined, undefined)}
+                  >
+                    <Text style={[styles.hourPillText, isH && styles.hourPillTextActive]}>{h}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.fieldLabel}>Minute:</Text>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  {['00', '15', '30', '45'].map((m) => {
+                    const isM = manualMinute === m;
+                    return (
+                      <TouchableOpacity
+                        key={m}
+                        style={[styles.hourPill, isM && styles.hourPillActive, { flex: 1 }]}
+                        onPress={() => updateManualTimeParts(undefined, m, undefined)}
+                      >
+                        <Text style={[styles.hourPillText, isM && styles.hourPillTextActive]}>:{m}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={{ width: 100 }}>
+                <Text style={styles.fieldLabel}>AM / PM:</Text>
+                <View style={styles.ampmWrap}>
+                  {['AM', 'PM'].map((p) => {
+                    const isP = manualPeriod === p;
+                    return (
+                      <TouchableOpacity
+                        key={p}
+                        style={[styles.ampmBtn, isP && styles.ampmBtnActive]}
+                        onPress={() => updateManualTimeParts(undefined, undefined, p)}
+                      >
+                        <Text style={[styles.ampmBtnText, isP && styles.ampmBtnTextActive]}>{p}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Timing Note */}
+        <TextInput
+          style={styles.textInput}
+          placeholder="Arrival instruction (e.g. Ring bell twice, patient wakes at 8am)"
+          placeholderTextColor={colors.textMuted}
+          value={timeNote}
+          onChangeText={setTimeNote}
+        />
+      </View>
+
+      {/* 3. Patient & Mysore Address */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderIcon}>
+            <Ionicons name="location" size={16} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>3. Patient & Mysore Address</Text>
+            <Text style={styles.cardSub}>Where should the verified nurse arrive?</Text>
+          </View>
+        </View>
+
+        {/* Quick Family Member Chips */}
+        <Text style={styles.fieldLabel}>Who is this booking for?</Text>
+        <View style={styles.familyRow}>
+          {familyList.map((m) => {
+            const isSelected = selectedFamilyId === m.id;
+            return (
+              <TouchableOpacity
+                key={m.id}
+                style={[styles.familyChip, isSelected && styles.familyChipActive]}
+                onPress={() => {
+                  setSelectedFamilyId(m.id);
+                  setPatientName(m.name);
+                  setPatientRelation(m.relation);
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="person" size={12} color={isSelected ? '#FFF' : colors.primary} />
+                <Text style={[styles.familyChipText, isSelected && styles.familyChipTextActive]}>
+                  {m.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text style={styles.fieldLabel}>Patient Full Name:</Text>
+        <TextInput
+          style={styles.textInput}
+          value={patientName}
+          onChangeText={setPatientName}
+          placeholder="Patient Full Name"
+          placeholderTextColor={colors.textMuted}
+        />
+
+        <Text style={styles.fieldLabel}>Contact Mobile (10 Digits):</Text>
+        <TextInput
+          style={styles.textInput}
+          keyboardType="phone-pad"
+          maxLength={10}
+          value={patientPhone}
+          onChangeText={setPatientPhone}
+          placeholder="10-digit phone number"
+          placeholderTextColor={colors.textMuted}
+        />
+
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={styles.fieldLabel}>Mysore Address:</Text>
+          <TouchableOpacity
+            style={styles.gpsButton}
+            onPress={detectGPSLocation}
+            activeOpacity={0.8}
+          >
+            {locationLoading ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <>
+                <Ionicons name="navigate" size={12} color={colors.primary} />
+                <Text style={styles.gpsButtonText}>Auto GPS</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+        <TextInput
+          style={[styles.textInput, { height: 50 }]}
+          multiline
+          value={patientAddress}
+          onChangeText={setPatientAddress}
+          placeholder="House/flat number, landmark, Mysore"
+          placeholderTextColor={colors.textMuted}
+        />
+
+        {/* Quick Mysore Chips */}
+        <View style={styles.quickAreaRow}>
+          {MYSORE_AREAS.map((area) => (
+            <TouchableOpacity
+              key={area}
+              style={styles.areaChip}
+              onPress={() => {
+                if (!patientAddress.includes(area)) {
+                  setPatientAddress(patientAddress ? `${patientAddress}, ${area}` : `${area}, Mysore`);
+                }
+              }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add" size={10} color={colors.primary} />
+              <Text style={styles.areaChipText}>{area}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+
+  // ==========================================
+  // STEP 3: REVIEW & PAY
+  // ==========================================
+  const renderStep3 = () => (
+    <View style={styles.stepWrap}>
+      {/* 1. Summary Card */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderIcon}>
+            <Ionicons name="document-text" size={16} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>Review Booking Summary</Text>
+            <Text style={styles.cardSub}>Confirm all details before assigning certified staff</Text>
+          </View>
+        </View>
+
+        <View style={styles.summaryBox}>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Staff Service:</Text>
+            <Text style={styles.summaryVal}>{selectedShift.label}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Package Selected:</Text>
+            <Text style={[styles.summaryVal, { color: colors.primary, fontWeight: '800' }]}>
+              {priceCalculation.dealName}
+            </Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Dates:</Text>
+            <Text style={styles.summaryVal}>
+              {daysCount} Days ({formatShortDate(startDate)} to {formatShortDate(endDate)})
+            </Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Daily Arrival:</Text>
+            <Text style={styles.summaryVal}>{selectedTimeStr}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Patient:</Text>
+            <Text style={styles.summaryVal}>{patientName} ({patientRelation})</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Address:</Text>
+            <Text style={styles.summaryVal} numberOfLines={2}>{patientAddress}</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* 2. Payment Selector */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderIcon}>
+            <Ionicons name="card" size={16} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>Payment Method</Text>
+            <Text style={styles.cardSub}>Choose how you would like to pay</Text>
+          </View>
+        </View>
+
+        {/* Health Wallet */}
+        <TouchableOpacity
+          style={[styles.payRow, paymentMethod === 'WALLET' && styles.payRowActive]}
+          onPress={() => setPaymentMethod('WALLET')}
+          activeOpacity={0.85}
+        >
+          <View style={styles.payIconCircle}>
+            <Ionicons name="wallet" size={16} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={styles.payTitle}>MediUnify Health Wallet</Text>
+            <Text style={[styles.paySub, { color: walletBalance >= priceCalculation.total ? colors.freshGreen : colors.coral }]}>
+              Balance: ₹{walletBalance.toLocaleString('en-IN')} {walletBalance >= priceCalculation.total ? '• Sufficient' : '• Needs Top Up'}
+            </Text>
+          </View>
+          <View style={[styles.radio, paymentMethod === 'WALLET' && styles.radioActive]}>
+            {paymentMethod === 'WALLET' && <View style={styles.radioDot} />}
+          </View>
+        </TouchableOpacity>
+
+        {/* Pay on Arrival */}
+        <TouchableOpacity
+          style={[styles.payRow, paymentMethod === 'PayOnArrival' && styles.payRowActive]}
+          onPress={() => setPaymentMethod('PayOnArrival')}
+          activeOpacity={0.85}
+        >
+          <View style={styles.payIconCircle}>
+            <Ionicons name="cash" size={16} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={styles.payTitle}>Pay on Nurse Arrival</Text>
+            <Text style={styles.paySub}>Pay via Cash or UPI when the nurse reaches your home</Text>
+          </View>
+          <View style={[styles.radio, paymentMethod === 'PayOnArrival' && styles.radioActive]}>
+            {paymentMethod === 'PayOnArrival' && <View style={styles.radioDot} />}
+          </View>
+        </TouchableOpacity>
+
+        {/* Instant UPI */}
+        <TouchableOpacity
+          style={[styles.payRow, paymentMethod === 'UPI' && styles.payRowActive]}
+          onPress={() => setPaymentMethod('UPI')}
+          activeOpacity={0.85}
+        >
+          <View style={styles.payIconCircle}>
+            <Ionicons name="phone-portrait" size={16} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={styles.payTitle}>Instant UPI (GPay / PhonePe / Paytm)</Text>
+            <Text style={styles.paySub}>Pay online via UPI gateway</Text>
+          </View>
+          <View style={[styles.radio, paymentMethod === 'UPI' && styles.radioActive]}>
+            {paymentMethod === 'UPI' && <View style={styles.radioDot} />}
+          </View>
+        </TouchableOpacity>
+
+        {/* Invoice Breakdown */}
+        <View style={styles.invoiceCard}>
+          <Text style={styles.invoiceTitle}>Transparent Price Breakdown</Text>
+          <View style={styles.invoiceRow}>
+            <Text style={styles.invoiceLabel}>
+              {selectedShift.label} (₹{selectedShift.dailyRate}/day × {daysCount} Days):
+            </Text>
+            <Text style={styles.invoiceVal}>{priceCalculation.grossFormatted}</Text>
+          </View>
+
+          {priceCalculation.discountAmt > 0 && (
+            <View style={styles.invoiceRow}>
+              <Text style={[styles.invoiceLabel, { color: '#059669', fontWeight: '800' }]}>
+                {priceCalculation.dealName}:
+              </Text>
+              <Text style={[styles.invoiceVal, { color: '#059669', fontWeight: '900' }]}>
+                -{priceCalculation.discountFormatted}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.invoiceRow}>
+            <Text style={styles.invoiceLabel}>Sterile PPE Kit & Travel to Mysore Home:</Text>
+            <Text style={[styles.invoiceVal, { color: colors.freshGreen, fontWeight: '800' }]}>FREE</Text>
+          </View>
+
+          <View style={styles.invoiceRow}>
+            <Text style={styles.invoiceLabel}>GST & Service Tax (18%):</Text>
+            <Text style={styles.invoiceVal}>{priceCalculation.gstFormatted}</Text>
+          </View>
+
+          <View style={styles.invoiceDivider} />
+
+          <View style={styles.invoiceTotalRow}>
+            <View>
+              <Text style={styles.invoiceTotalLabel}>Net Amount Payable</Text>
+              <Text style={styles.invoiceTotalSub}>All taxes & nurse PPE kit included</Text>
+            </View>
+            <Text style={styles.invoiceTotalVal}>{priceCalculation.totalFormatted}</Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* ==================================================
-          APP BAR
-      ================================================== */}
+      {/* TOP HEADER WITH SMART STEP BACK */}
       <View style={styles.header}>
         <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+          onPress={() => {
+            if (currentStep > 1) {
+              setCurrentStep(currentStep - 1);
+            } else {
+              navigation.goBack();
+            }
+          }}
           activeOpacity={0.8}
         >
           <Ionicons name="arrow-back" size={20} color={colors.secondary} />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <Text style={styles.headerBadge}>VERIFIED HOME HEALTHCARE</Text>
-          <Text style={styles.headerTitle}>Book Certified Nurse</Text>
+          <Text style={styles.headerStepBadge}>
+            {currentStep === 1
+              ? 'STEP 1 OF 3 • SERVICE & PACKAGES'
+              : currentStep === 2
+              ? 'STEP 2 OF 3 • DATES & TIME'
+              : 'STEP 3 OF 3 • REVIEW & PAY'}
+          </Text>
+          <Text style={styles.headerTitle}>Home Care & Nursing Staff</Text>
         </View>
 
         <TouchableOpacity
@@ -450,685 +1243,119 @@ const NurseBookingScreen = ({ navigation }) => {
           activeOpacity={0.85}
           onPress={() => Linking.openURL('tel:+918212568888')}
         >
-          <Ionicons name="call" size={15} color="#FFFFFF" />
-          <Text style={styles.helplineBtnText}>24x7 Help</Text>
+          <Ionicons name="call" size={13} color="#FFFFFF" />
+          <Text style={styles.helplineBtnText}>24x7</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* ==================================================
-            LUXURY HERO BANNER
-        ================================================== */}
-        <View style={styles.heroCard}>
-          <View style={styles.heroOrb1} />
-          <View style={styles.heroOrb2} />
+      {/* 3-STEP PROGRESS STRIP */}
+      <View style={styles.stepStrip}>
+        {[
+          { num: 1, label: '1. Service & Deal' },
+          { num: 2, label: '2. Dates & Time' },
+          { num: 3, label: '3. Review & Pay' },
+        ].map((s, idx) => {
+          const isActive = currentStep === s.num;
+          const isPassed = currentStep > s.num;
 
-          <View style={styles.heroStatusRow}>
-            <View style={styles.livePulseDot} />
-            <Text style={styles.heroStatusText}>14 INC Certified Nurses Active in Mysore</Text>
-            <View style={styles.heroSpeedBadge}>
-              <Ionicons name="flash" size={10} color="#FDE047" />
-              <Text style={styles.heroSpeedText}>45m Arrival</Text>
-            </View>
-          </View>
-
-          <Text style={styles.heroHeading}>Hospital-Grade Nursing at Home</Text>
-          <Text style={styles.heroSubHeading}>
-            Post-op surgical recovery, IV drip infusion, wound care dressing, vitals monitoring & bedridden patient care.
-          </Text>
-
-          <View style={styles.heroBadgesRow}>
-            <View style={styles.heroTag}>
-              <Ionicons name="shield-checkmark" size={12} color="#2DD4BF" />
-              <Text style={styles.heroTagText}>KSNC / INC Registered</Text>
-            </View>
-            <View style={styles.heroTag}>
-              <Ionicons name="medkit" size={12} color="#2DD4BF" />
-              <Text style={styles.heroTagText}>Sterile Kit Included</Text>
-            </View>
-            <View style={styles.heroTag}>
-              <Ionicons name="document-text" size={12} color="#2DD4BF" />
-              <Text style={styles.heroTagText}>Doctor Rx Sync</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ==================================================
-            SECTION 1: SELECT CARE DURATION
-        ================================================== */}
-        <View style={styles.cardSection}>
-          <View style={styles.cardHeaderRow}>
-            <View style={styles.stepNumPill}>
-              <Text style={styles.stepNumText}>1</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>Choose Care Duration</Text>
-              <Text style={styles.cardSubTitle}>Select hourly visit, 12-hour shift, or 24x7 multi-day care</Text>
-            </View>
-          </View>
-
-          <View style={styles.durationsGrid}>
-            {nursingDurations.map((dur) => {
-              const isSelected = selectedDurationId === dur.id;
-              return (
-                <TouchableOpacity
-                  key={dur.id}
-                  style={[
-                    styles.durationItem,
-                    isSelected && styles.durationItemActive,
-                  ]}
-                  activeOpacity={0.88}
-                  onPress={() => setSelectedDurationId(dur.id)}
-                >
-                  <View style={styles.durationHeader}>
-                    <View
-                      style={[
-                        styles.durBadge,
-                        isSelected && styles.durBadgeActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.durBadgeText,
-                          isSelected && styles.durBadgeTextActive,
-                        ]}
-                      >
-                        {dur.badge}
-                      </Text>
-                    </View>
-                    <View style={[styles.durRadio, isSelected && styles.durRadioActive]}>
-                      {isSelected && <View style={styles.durRadioInner} />}
-                    </View>
-                  </View>
-
-                  <Text
-                    style={[
-                      styles.durPrice,
-                      isSelected && styles.durPriceActive,
-                    ]}
-                  >
-                    ₹{dur.basePrice.toLocaleString('en-IN')}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.durLabel,
-                      isSelected && styles.durLabelActive,
-                    ]}
-                  >
-                    {dur.label}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.durDesc,
-                      isSelected && styles.durDescActive,
-                    ]}
-                    numberOfLines={2}
-                  >
-                    {dur.description}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* ==================================================
-            SECTION 2: NURSING PURPOSE & CARE REQUIREMENTS
-        ================================================== */}
-        <View style={styles.cardSection}>
-          <View style={styles.cardHeaderRow}>
-            <View style={styles.stepNumPill}>
-              <Text style={styles.stepNumText}>2</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>Nursing Requirements</Text>
-              <Text style={styles.cardSubTitle}>Select the primary procedures needed</Text>
-            </View>
-          </View>
-
-          <View style={styles.purposesWrap}>
-            {nursingPurposes.map((p) => {
-              const isSelected = selectedPurposes.includes(p.label);
-              return (
-                <TouchableOpacity
-                  key={p.id}
-                  style={[
-                    styles.purposeChip,
-                    isSelected && styles.purposeChipActive,
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={() => togglePurpose(p.label)}
-                >
-                  <Ionicons
-                    name={isSelected ? 'checkmark-circle' : p.icon}
-                    size={14}
-                    color={isSelected ? '#FFFFFF' : '#0F766E'}
-                  />
-                  <Text
-                    style={[
-                      styles.purposeChipText,
-                      isSelected && styles.purposeChipTextActive,
-                    ]}
-                  >
-                    {p.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <Text style={styles.inputHeading}>Detailed Instructions for Nurse (Optional):</Text>
-          <TextInput
-            style={styles.textArea}
-            multiline
-            numberOfLines={3}
-            placeholder="e.g. Post knee surgery. Needs IV drip, aseptic wound dressing and vital signs chart..."
-            placeholderTextColor="#94A3B8"
-            value={careDescription}
-            onChangeText={setCareDescription}
-          />
-        </View>
-
-        {/* ==================================================
-            SECTION 3: CARE SCHEDULE & SHIFT TIMING
-        ================================================== */}
-        <View style={styles.cardSection}>
-          <View style={styles.cardHeaderRow}>
-            <View style={styles.stepNumPill}>
-              <Text style={styles.stepNumText}>3</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>Date & Preferred Timing</Text>
-              <Text style={styles.cardSubTitle}>Choose nurse arrival day and shift time</Text>
-            </View>
-          </View>
-
-          {/* 1. START DATE SELECTION */}
-          <View style={styles.subHeaderRow}>
-            <Ionicons name="calendar-outline" size={15} color={colors.primary} />
-            <Text style={styles.subTitleText}>1. Select Starting Day:</Text>
-            <View style={styles.selectedDayBadge}>
-              <Text style={styles.selectedDayBadgeText}>{selectedDate.fullText}</Text>
-            </View>
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.datesScroll}
-          >
-            {bookingDates.map((d) => {
-              const isSelected = selectedDate.id === d.id;
-              return (
-                <TouchableOpacity
-                  key={d.id}
-                  style={[
-                    styles.datePill,
-                    isSelected && styles.datePillActive,
-                  ]}
-                  onPress={() => setSelectedDate(d)}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      styles.dateDay,
-                      isSelected && styles.dateDayActive,
-                    ]}
-                  >
-                    {d.dayName}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.dateNum,
-                      isSelected && styles.dateNumActive,
-                    ]}
-                  >
-                    {d.dayNum}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.dateMonth,
-                      isSelected && styles.dateMonthActive,
-                    ]}
-                  >
-                    {d.month}
-                  </Text>
-                  {d.isToday && (
-                    <View style={styles.todayPillBadge}>
-                      <Text style={styles.todayPillBadgeText}>NOW</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          {/* 2. SHIFT & TIME SLOT SELECTION */}
-          <View style={[styles.subHeaderRow, { marginTop: 16 }]}>
-            <Ionicons name="time-outline" size={15} color={colors.secondary} />
-            <Text style={styles.subTitleText}>2. Select Arrival Shift / Time Slot:</Text>
-          </View>
-
-          <View style={styles.timeFilterRow}>
-            {['ALL', 'Morning', 'Afternoon', 'Night'].map((tab) => (
+          return (
+            <React.Fragment key={s.num}>
               <TouchableOpacity
-                key={tab}
-                style={[
-                  styles.timeTab,
-                  timeFilterPeriod === tab && styles.timeTabActive,
-                ]}
-                onPress={() => setTimeFilterPeriod(tab)}
-                activeOpacity={0.8}
+                style={styles.stepStripItem}
+                onPress={() => {
+                  if (s.num < currentStep) setCurrentStep(s.num);
+                }}
+                disabled={s.num >= currentStep}
               >
-                <Text
+                <View
                   style={[
-                    styles.timeTabText,
-                    timeFilterPeriod === tab && styles.timeTabTextActive,
+                    styles.stepStripCircle,
+                    isActive && styles.stepStripCircleActive,
+                    isPassed && styles.stepStripCirclePassed,
                   ]}
                 >
-                  {tab === 'ALL' ? 'All Slots' : tab}
+                  {isPassed ? (
+                    <Ionicons name="checkmark" size={11} color="#FFFFFF" />
+                  ) : (
+                    <Text style={[styles.stepStripNum, isActive && styles.stepStripNumActive]}>
+                      {s.num}
+                    </Text>
+                  )}
+                </View>
+                <Text style={[styles.stepStripLabel, isActive && styles.stepStripLabelActive]}>
+                  {s.label}
                 </Text>
               </TouchableOpacity>
-            ))}
+
+              {idx < 2 && (
+                <View style={[styles.stepStripLine, currentStep > s.num && styles.stepStripLineActive]} />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </View>
+
+      {/* MAIN SCROLL CONTENT */}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
+        {currentStep === 1 && renderStep1()}
+        {currentStep === 2 && renderStep2()}
+        {currentStep === 3 && renderStep3()}
+        <View style={{ height: 110 }} />
+      </ScrollView>
+
+      {/* STICKY BOTTOM ACTION BAR (Clean & Un-confusing) */}
+      <View style={styles.bottomBar}>
+        <View style={styles.bottomBarInner}>
+          <View>
+            <Text style={styles.bottomBarLabel}>
+              Total ({daysCount} {daysCount === 1 ? 'Day' : 'Days'})
+            </Text>
+            <Text style={styles.bottomBarPrice}>{priceCalculation.totalFormatted}</Text>
+            {priceCalculation.discountPercent > 0 ? (
+              <Text style={styles.bottomBarDealText}>
+                🎉 {priceCalculation.discountPercent}% Package Deal Applied
+              </Text>
+            ) : (
+              <Text style={styles.bottomBarSubText}>
+                {selectedShift.label}
+              </Text>
+            )}
           </View>
 
-          <View style={styles.slotsGrid}>
-            {availableTimeSlots.map((slot) => {
-              const isSelected = selectedTimeSlot.id === slot.id;
-              const isUrgent = slot.type === 'urgent';
-              return (
-                <TouchableOpacity
-                  key={slot.id}
-                  style={[
-                    styles.slotCard,
-                    isSelected && styles.slotCardActive,
-                    isUrgent && styles.slotCardUrgent,
-                    isUrgent && isSelected && styles.slotCardUrgentActive,
-                  ]}
-                  onPress={() => setSelectedTimeSlot(slot)}
-                  activeOpacity={0.85}
-                >
-                  <View style={styles.slotLeft}>
-                    <View
-                      style={[
-                        styles.slotIconBox,
-                        isSelected && styles.slotIconBoxActive,
-                        isUrgent && { backgroundColor: '#FEE2E2' },
-                      ]}
-                    >
-                      <Ionicons
-                        name={slot.icon || 'time'}
-                        size={15}
-                        color={
-                          isSelected
-                            ? '#FFFFFF'
-                            : isUrgent
-                            ? '#DC2626'
-                            : '#0F766E'
-                        }
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={[
-                          styles.slotLabel,
-                          isSelected && styles.slotLabelActive,
-                          isUrgent && { color: '#DC2626' },
-                        ]}
-                      >
-                        {slot.label}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.slotDesc,
-                          isSelected && styles.slotDescActive,
-                        ]}
-                      >
-                        {slot.desc}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View
-                    style={[
-                      styles.slotRadio,
-                      isSelected && styles.slotRadioActive,
-                      isUrgent && isSelected && { borderColor: '#DC2626' },
-                    ]}
-                  >
-                    {isSelected && (
-                      <View
-                        style={[
-                          styles.slotRadioInner,
-                          isUrgent && { backgroundColor: '#DC2626' },
-                        ]}
-                      />
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {/* 3. DOCTOR SPECIFIC TIMING NOTE */}
-          <Text style={[styles.inputHeading, { marginTop: 12 }]}>
-            Special Timing Note (e.g. Doctor's Exact Hour):
-          </Text>
-          <TextInput
-            style={styles.singleInput}
-            placeholder="e.g. Administer injection strictly at 2:30 PM"
-            placeholderTextColor="#94A3B8"
-            value={customTimeNote}
-            onChangeText={setCustomTimeNote}
-          />
-        </View>
-
-        {/* ==================================================
-            SECTION 4: PATIENT DETAILS & ADDRESS
-        ================================================== */}
-        <View style={styles.cardSection}>
-          <View style={styles.cardHeaderRow}>
-            <View style={styles.stepNumPill}>
-              <Text style={styles.stepNumText}>4</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>Patient & Home Address</Text>
-              <Text style={styles.cardSubTitle}>Select family member or enter visit details</Text>
-            </View>
-          </View>
-
-          {/* 1-TAP FAMILY PROFILE SELECTOR */}
-          <Text style={styles.inputHeading}>Choose Family Member Profile:</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.familyChipsWrap}
-          >
-            {familyList.map((m) => {
-              const isSelected = selectedFamilyId === m.id;
-              return (
-                <TouchableOpacity
-                  key={m.id}
-                  style={[
-                    styles.familyChip,
-                    isSelected && styles.familyChipActive,
-                  ]}
-                  onPress={() => handleSelectFamilyMember(m)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name="person"
-                    size={12}
-                    color={isSelected ? '#FFFFFF' : '#0F766E'}
-                  />
-                  <Text
-                    style={[
-                      styles.familyChipText,
-                      isSelected && styles.familyChipTextActive,
-                    ]}
-                  >
-                    {m.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          <Text style={styles.inputHeading}>Patient Full Name:</Text>
-          <TextInput
-            style={styles.singleInput}
-            value={patientName}
-            onChangeText={setPatientName}
-            placeholder="Patient full name"
-          />
-
-          <View style={styles.inputRow}>
-            <View style={{ flex: 1, marginRight: 8 }}>
-              <Text style={styles.inputHeading}>Relation:</Text>
-              <TextInput
-                style={styles.singleInput}
-                value={patientRelation}
-                onChangeText={setPatientRelation}
-                placeholder="Self / Father"
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.inputHeading}>Age & Gender:</Text>
-              <TextInput
-                style={styles.singleInput}
-                value={`${patientAge} Yrs, ${patientGender}`}
-                onChangeText={(text) => {
-                  const parts = text.split(',');
-                  setPatientAge(parts[0] || '32');
-                  if (parts[1]) setPatientGender(parts[1].trim());
-                }}
-                placeholder="Age, Gender"
-              />
-            </View>
-          </View>
-
-          <Text style={styles.inputHeading}>Contact Phone Number (10 Digits):</Text>
-          <TextInput
-            style={styles.singleInput}
-            keyboardType="phone-pad"
-            maxLength={10}
-            value={patientPhone}
-            onChangeText={setPatientPhone}
-            placeholder="10-digit mobile number"
-          />
-
-          <View style={styles.addressHeaderRow}>
-            <Text style={styles.inputHeading}>Home Visit Address & Landmark:</Text>
+          {currentStep < 3 ? (
             <TouchableOpacity
-              style={styles.gpsBtn}
-              onPress={detectGPSLocation}
-              activeOpacity={0.8}
+              style={styles.bottomCtaBtn}
+              onPress={goToNextStep}
+              activeOpacity={0.88}
             >
-              {locationLoading ? (
-                <ActivityIndicator size="small" color="#0F766E" />
+              <Text style={styles.bottomCtaText}>
+                {currentStep === 1 ? 'Next: Dates & Time' : 'Next: Review & Pay'}
+              </Text>
+              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.bottomCtaBtn, isProcessing && { opacity: 0.7 }]}
+              onPress={handleConfirmAndPay}
+              disabled={isProcessing}
+              activeOpacity={0.88}
+            >
+              {isProcessing ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
-                  <Ionicons name="navigate" size={12} color="#0F766E" />
-                  <Text style={styles.gpsBtnText}>GPS Detect</Text>
+                  <Text style={styles.bottomCtaText}>
+                    {paymentMethod === 'PayOnArrival' ? 'Confirm Booking' : 'Pay & Book Staff'}
+                  </Text>
+                  <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
                 </>
               )}
             </TouchableOpacity>
-          </View>
-          <TextInput
-            style={[styles.singleInput, { height: 55 }]}
-            multiline
-            value={patientAddress}
-            onChangeText={setPatientAddress}
-            placeholder="Street address, flat number, landmark, Mysore"
-          />
-        </View>
-
-        {/* ==================================================
-            SECTION 5: PAYMENT & CHECKOUT
-        ================================================== */}
-        <View style={styles.cardSection}>
-          <View style={styles.cardHeaderRow}>
-            <View style={styles.stepNumPill}>
-              <Text style={styles.stepNumText}>5</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>Payment Method</Text>
-              <Text style={styles.cardSubTitle}>1-Click MediUnify Wallet, UPI, or Pay on Arrival</Text>
-            </View>
-          </View>
-
-          {/* 1. MEDIUNIFY HEALTH WALLET */}
-          <TouchableOpacity
-            style={[
-              styles.payCard,
-              paymentMethod === 'WALLET' && styles.payCardWalletActive,
-            ]}
-            activeOpacity={0.85}
-            onPress={() => setPaymentMethod('WALLET')}
-          >
-            <View style={styles.walletIconCircle}>
-              <Ionicons name="wallet" size={18} color="#0F766E" />
-            </View>
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={styles.payCardTitle}>MediUnify Health Wallet</Text>
-                <View style={styles.fast1ClickBadge}>
-                  <Ionicons name="flash" size={8} color="#FFFFFF" />
-                  <Text style={styles.fast1ClickText}>1-CLICK</Text>
-                </View>
-              </View>
-              <Text
-                style={[
-                  styles.walletBalSub,
-                  {
-                    color:
-                      walletBalance >= priceCalculation.total
-                        ? '#059669'
-                        : '#DC2626',
-                  },
-                ]}
-              >
-                Available: ₹{walletBalance}{' '}
-                {walletBalance < priceCalculation.total
-                  ? '(Insufficient Balance)'
-                  : '✓ Instant Checkout'}
-              </Text>
-            </View>
-            {paymentMethod === 'WALLET' && (
-              <Ionicons name="checkmark-circle" size={18} color="#059669" />
-            )}
-          </TouchableOpacity>
-
-          {/* TOP UP BANNER IF WALLET INSUFFICIENT */}
-          {paymentMethod === 'WALLET' && walletBalance < priceCalculation.total && (
-            <View style={styles.topUpCard}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.topUpTitle}>Add money to complete booking</Text>
-                <Text style={styles.topUpSub}>
-                  Need ₹{priceCalculation.total - walletBalance} more in your wallet
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.topUpBtn}
-                onPress={() => navigation.navigate('Wallet')}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.topUpBtnText}>+ Top Up</Text>
-              </TouchableOpacity>
-            </View>
           )}
-
-          {/* OTHER PAYMENT CHOICES */}
-          {[
-            { id: 'UPI', label: 'Instant UPI (Google Pay / PhonePe / Paytm)', icon: 'phone-portrait-outline', sub: 'Instant QR / UPI verification' },
-            { id: 'Card', label: 'Debit / Credit Card & NetBanking', icon: 'card-outline', sub: 'All major banks supported' },
-            { id: 'PayOnArrival', label: 'Pay on Nurse Arrival (Cash / UPI)', icon: 'cash-outline', sub: 'Pay directly after the nurse arrives' },
-          ].map((method) => {
-            const isSelected = paymentMethod === method.id;
-            return (
-              <TouchableOpacity
-                key={method.id}
-                style={[
-                  styles.payCard,
-                  isSelected && styles.payCardActive,
-                ]}
-                activeOpacity={0.85}
-                onPress={() => setPaymentMethod(method.id)}
-              >
-                <View style={styles.payIconCircle}>
-                  <Ionicons
-                    name={method.icon}
-                    size={17}
-                    color={isSelected ? '#0F766E' : '#64748B'}
-                  />
-                </View>
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text
-                    style={[
-                      styles.payCardTitle,
-                      isSelected && styles.payCardTitleActive,
-                    ]}
-                  >
-                    {method.label}
-                  </Text>
-                  <Text style={styles.payCardSub}>{method.sub}</Text>
-                </View>
-                {isSelected && (
-                  <Ionicons name="checkmark-circle" size={18} color="#0F766E" />
-                )}
-              </TouchableOpacity>
-            );
-          })}
-
-          {/* PRICE BREAKDOWN INVOICE */}
-          <View style={styles.invoiceCard}>
-            <Text style={styles.invoiceTitle}>Invoice Summary</Text>
-            <View style={styles.invoiceRow}>
-              <Text style={styles.invoiceLabel}>{selectedDuration.label} Base Care:</Text>
-              <Text style={styles.invoiceValue}>{priceCalculation.baseFormatted}</Text>
-            </View>
-            <View style={styles.invoiceRow}>
-              <Text style={styles.invoiceLabel}>Sterile Medical PPE Kit & Travel:</Text>
-              <Text style={[styles.invoiceValue, { color: '#059669', fontWeight: '800' }]}>
-                FREE
-              </Text>
-            </View>
-            <View style={styles.invoiceRow}>
-              <Text style={styles.invoiceLabel}>GST & Service Tax (18%):</Text>
-              <Text style={styles.invoiceValue}>{priceCalculation.gstFormatted}</Text>
-            </View>
-            <View style={styles.invoiceDivider} />
-            <View style={styles.invoiceTotalRow}>
-              <View>
-                <Text style={styles.invoiceTotalLabel}>Net Amount Payable</Text>
-                <Text style={styles.invoiceTaxNote}>All taxes & safety kit included</Text>
-              </View>
-              <Text style={styles.invoiceTotalAmount}>{priceCalculation.totalFormatted}</Text>
-            </View>
-          </View>
         </View>
-
-        <View style={{ height: 90 }} />
-      </ScrollView>
-
-      {/* ==================================================
-          STICKY BOTTOM BAR
-      ================================================== */}
-      <View style={styles.stickyBottomBar}>
-        <View>
-          <Text style={styles.bottomPriceLabel}>Total Payable</Text>
-          <Text style={styles.bottomPriceValue}>{priceCalculation.totalFormatted}</Text>
-          <Text style={styles.bottomScheduleText}>
-            {selectedDate.dayName} • {selectedDuration.durationText}
-          </Text>
-        </View>
-
-        <TouchableOpacity
-          style={[styles.bottomCtaBtn, isProcessing && styles.bottomCtaBtnDisabled]}
-          activeOpacity={0.88}
-          onPress={handleConfirmAndPay}
-          disabled={isProcessing}
-        >
-          {isProcessing ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <>
-              <Text style={styles.bottomCtaText}>
-                {paymentMethod === 'PayOnArrival' ? 'Confirm Booking' : 'Pay & Book Nurse'}
-              </Text>
-              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-            </>
-          )}
-        </TouchableOpacity>
       </View>
 
-      {/* ==================================================
-          SUCCESS CONFIRMATION MODAL
-      ================================================== */}
+      {/* SUCCESS CONFIRMATION MODAL */}
       <Modal
         visible={successModalVisible}
         transparent
@@ -1137,73 +1364,57 @@ const NurseBookingScreen = ({ navigation }) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <View style={styles.successIconBox}>
+            <View style={styles.modalIconBox}>
               <Ionicons name="checkmark-circle" size={40} color="#FFFFFF" />
             </View>
 
-            <Text style={styles.successTitle}>Home Nurse Booked! 🩺</Text>
-            <Text style={styles.successSub}>
-              A certified nurse has been assigned to your patient and will arrive on schedule.
+            <Text style={styles.modalTitle}>Staff Care Confirmed!</Text>
+            <Text style={styles.modalSub}>
+              A certified hospital-trained nurse has been assigned to your address.
             </Text>
 
-            <View style={styles.summaryBox}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Order ID:</Text>
-                <Text style={styles.summaryVal}>{confirmedBooking?.bookingId}</Text>
+            {confirmedBooking && (
+              <View style={styles.modalSummary}>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalRowLabel}>Booking ID:</Text>
+                  <Text style={styles.modalRowVal}>{confirmedBooking.bookingId}</Text>
+                </View>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalRowLabel}>Duration:</Text>
+                  <Text style={styles.modalRowVal}>{confirmedBooking.duration}</Text>
+                </View>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalRowLabel}>Daily Arrival:</Text>
+                  <Text style={styles.modalRowVal}>{confirmedBooking.schedule.time}</Text>
+                </View>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalRowLabel}>Assigned Staff:</Text>
+                  <Text style={[styles.modalRowVal, { color: colors.primary }]}>
+                    {confirmedBooking.assignedNurse.name}
+                  </Text>
+                </View>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalRowLabel}>Total Amount:</Text>
+                  <Text style={[styles.modalRowVal, { color: colors.freshGreen }]}>
+                    {confirmedBooking.payment.amount} ({confirmedBooking.payment.method})
+                  </Text>
+                </View>
               </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Schedule Date:</Text>
-                <Text style={[styles.summaryVal, { color: '#0F766E', fontWeight: '800' }]}>
-                  {confirmedBooking?.schedule.startDate}
-                </Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Arrival Time / Shift:</Text>
-                <Text style={[styles.summaryVal, { color: '#059669', fontWeight: '800' }]}>
-                  {confirmedBooking?.schedule.preferredTime}
-                </Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Duration:</Text>
-                <Text style={styles.summaryVal}>{confirmedBooking?.duration}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Patient:</Text>
-                <Text style={styles.summaryVal}>
-                  {confirmedBooking?.patient.name} ({confirmedBooking?.patient.relation})
-                </Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Assigned Nurse:</Text>
-                <Text style={[styles.summaryVal, { color: colors.secondary, fontWeight: '800' }]}>
-                  {confirmedBooking?.assignedNurse.name}
-                </Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Payment:</Text>
-                <Text style={[styles.summaryVal, { color: '#059669', fontWeight: '800' }]}>
-                  {confirmedBooking?.payment.amount} ({confirmedBooking?.payment.status})
-                </Text>
-              </View>
-            </View>
+            )}
 
             <TouchableOpacity
-              style={styles.nurseCallBtn}
-              activeOpacity={0.88}
-              onPress={() => Linking.openURL('tel:+919876512345')}
-            >
-              <Ionicons name="call" size={16} color="#FFFFFF" />
-              <Text style={styles.nurseCallBtnText}>Call Assigned Nurse Desk</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.doneBtn}
+              style={styles.modalDoneBtn}
               onPress={() => {
                 setSuccessModalVisible(false);
-                navigation.navigate('Bookings');
+                navigation.navigate('Bookings', {
+                  newAppointment: confirmedBooking,
+                  initialTab: 'Home Care',
+                  timestamp: Date.now(),
+                });
               }}
+              activeOpacity={0.88}
             >
-              <Text style={styles.doneBtnText}>View in My Bookings</Text>
+              <Text style={styles.modalDoneBtnText}>Go to My Bookings</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1212,14 +1423,14 @@ const NurseBookingScreen = ({ navigation }) => {
   );
 };
 
-// ==================================================
+// ==========================================
 // STYLES
-// ==================================================
+// ==========================================
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.background,
   },
 
   // HEADER
@@ -1228,16 +1439,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+    backgroundColor: colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: colors.border,
   },
-  backButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: colors.lightSlate,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1246,694 +1457,783 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     marginRight: 8,
   },
-  headerBadge: {
+  headerStepBadge: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#0F766E',
+    color: colors.primary,
     letterSpacing: 0.5,
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '900',
-    color: '#0F172A',
+    color: colors.secondary,
   },
   helplineBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F766E',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4,
+    backgroundColor: colors.secondary,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 14,
+    gap: 3,
   },
   helplineBtnText: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '800',
   },
 
-  scrollContent: {
-    paddingBottom: 20,
-  },
-
-  // LUXURY HERO BANNER
-  heroCard: {
-    backgroundColor: '#0F766E',
-    marginHorizontal: 16,
-    marginTop: 14,
-    borderRadius: 20,
-    padding: 18,
-    position: 'relative',
-    overflow: 'hidden',
-    shadowColor: '#0F766E',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  heroOrb1: {
-    position: 'absolute',
-    top: -30,
-    right: -20,
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  heroOrb2: {
-    position: 'absolute',
-    bottom: -30,
-    left: -20,
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  heroStatusRow: {
+  // STEP STRIP
+  stepStrip: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 6,
+    justifyContent: 'space-between',
+    backgroundColor: colors.white,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  livePulseDot: {
+  stepStripItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  stepStripCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.lightSlate,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepStripCircleActive: {
+    backgroundColor: colors.primary,
+  },
+  stepStripCirclePassed: {
+    backgroundColor: colors.secondary,
+  },
+  stepStripNum: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.textSecondary,
+  },
+  stepStripNumActive: {
+    color: '#FFFFFF',
+  },
+  stepStripLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  stepStripLabelActive: {
+    color: colors.secondary,
+    fontWeight: '900',
+  },
+  stepStripLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: colors.border,
+    marginHorizontal: 4,
+  },
+  stepStripLineActive: {
+    backgroundColor: colors.secondary,
+  },
+
+  scrollContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    maxWidth: 900,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  stepWrap: {
+    width: '100%',
+    gap: 12,
+  },
+
+  // CARDS
+  card: {
+    backgroundColor: colors.cardBg,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 10,
+  },
+  cardHeaderIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.lightTeal,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: colors.secondary,
+  },
+  cardSub: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+
+  // STEP 1: SHIFTS
+  shiftsGrid: {
+    gap: 8,
+  },
+  shiftItem: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    padding: 12,
+  },
+  shiftItemActive: {
+    borderColor: colors.primary,
+    backgroundColor: '#F0FDF4',
+  },
+  shiftTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  shiftBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.lightTeal,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 4,
+    gap: 4,
+  },
+  shiftBadgeActive: {
+    backgroundColor: colors.primary,
+  },
+  shiftBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: colors.primary,
+  },
+  shiftBadgeTextActive: {
+    color: '#FFFFFF',
+  },
+  radio: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioActive: {
+    borderColor: colors.primary,
+  },
+  radioDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#4ADE80',
+    backgroundColor: colors.primary,
   },
-  heroStatusText: {
-    color: '#CCFBF1',
+  shiftName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.secondary,
+  },
+  shiftNameActive: {
+    color: colors.primary,
+  },
+  shiftTimingText: {
     fontSize: 11,
     fontWeight: '700',
-    flex: 1,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
-  heroSpeedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.25)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-    gap: 3,
-  },
-  heroSpeedText: {
-    color: '#FDE047',
+  shiftDescText: {
     fontSize: 10,
-    fontWeight: '800',
+    color: colors.textMuted,
+    marginTop: 3,
   },
-  heroHeading: {
-    color: '#FFFFFF',
-    fontSize: 18,
+  shiftBottomPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginTop: 8,
+    justifyContent: 'flex-end',
+  },
+  shiftRateText: {
+    fontSize: 16,
     fontWeight: '900',
-    marginBottom: 4,
+    color: colors.secondary,
   },
-  heroSubHeading: {
-    color: '#CCFBF1',
-    fontSize: 11.5,
-    lineHeight: 16,
-    marginBottom: 14,
-  },
-  heroBadgesRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  heroTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    gap: 4,
-  },
-  heroTagText: {
-    color: '#FFFFFF',
+  shiftRateSub: {
     fontSize: 10,
-    fontWeight: '700',
+    color: colors.textMuted,
+    marginLeft: 2,
   },
 
-  // CARD SECTIONS
-  cardSection: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 14,
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 5,
-    elevation: 2,
+  // PACKAGES
+  hotPill: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
-  cardHeaderRow: {
+  hotPillText: {
+    fontSize: 8.5,
+    fontWeight: '900',
+    color: '#D97706',
+  },
+  calloutBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 14,
-    gap: 10,
+    backgroundColor: '#FFF1F2',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginBottom: 10,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#FECDD3',
   },
-  stepNumPill: {
+  calloutBannerText: {
+    fontSize: 11,
+    color: '#9F1239',
+    flex: 1,
+  },
+  packagesList: {
+    gap: 7,
+  },
+  packageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    padding: 10,
+  },
+  packageRowActive: {
+    borderColor: colors.primary,
+    backgroundColor: '#F0FDF4',
+  },
+  packageTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.secondary,
+  },
+  packageTitleActive: {
+    color: colors.primary,
+  },
+  packageSub: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+  packagePrice: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: colors.secondary,
+  },
+  packagePriceActive: {
+    color: colors.primary,
+  },
+  packageSaveBadge: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  tagPill: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 3,
+  },
+  tagPillText: {
+    fontSize: 8.5,
+    fontWeight: '900',
+    color: '#15803D',
+  },
+  customDaysBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.background,
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  customDaysLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  stepperWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  stepperBtn: {
+    width: 28,
+    height: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.lightSlate,
+  },
+  stepperValBox: {
+    paddingHorizontal: 10,
+  },
+  stepperValText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.secondary,
+  },
+
+  // STEP 2: DATES & CALENDAR
+  dateTabsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    gap: 8,
+  },
+  dateTab: {
+    flex: 1,
+    backgroundColor: colors.white,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    padding: 10,
+    alignItems: 'center',
+  },
+  dateTabActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.lightTeal,
+  },
+  dateTabLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: colors.textSecondary,
+    marginBottom: 2,
+  },
+  dateTabVal: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: colors.secondary,
+  },
+  dateTabSub: {
+    fontSize: 10,
+    color: colors.textMuted,
+  },
+  dateTabArrow: {
+    alignItems: 'center',
+  },
+  dateTabDaysText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: colors.primary,
+    marginTop: 2,
+  },
+  calHintText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: colors.primary,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  calContainer: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 10,
+  },
+  calNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  calArrowBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: colors.lightSlate,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calMonthText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: colors.secondary,
+  },
+  calDayNamesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingBottom: 4,
+    marginBottom: 4,
+  },
+  calDayNameText: {
+    width: `${100 / 7}%`,
+    textAlign: 'center',
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.textSecondary,
+  },
+  calGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  calCellEmpty: {
+    width: `${100 / 7}%`,
+    height: 36,
+  },
+  calCell: {
+    width: `${100 / 7}%`,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 1,
+  },
+  calCellInRange: {
+    backgroundColor: '#E0F2FE',
+  },
+  calCellStart: {
+    backgroundColor: '#E0F2FE',
+    borderTopLeftRadius: 14,
+    borderBottomLeftRadius: 14,
+  },
+  calCellEnd: {
+    backgroundColor: '#E0F2FE',
+    borderTopRightRadius: 14,
+    borderBottomRightRadius: 14,
+  },
+  calCellDisabled: {
+    opacity: 0.3,
+  },
+  calCircle: {
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: '#CCFBF1',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  stepNumText: {
-    color: '#0F766E',
-    fontSize: 13,
-    fontWeight: '900',
+  calCircleActive: {
+    backgroundColor: colors.primary,
   },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#0F172A',
+  calDayText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: colors.secondary,
   },
-  cardSubTitle: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 1,
-  },
-
-  // DURATION 2x2 GRID
-  durationsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  durationItem: {
-    width: '48%',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-  },
-  durationItemActive: {
-    backgroundColor: '#F0FDFA',
-    borderColor: '#0F766E',
-  },
-  durationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  durBadge: {
-    backgroundColor: '#E2E8F0',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  durBadgeActive: {
-    backgroundColor: '#0F766E',
-  },
-  durBadgeText: {
-    fontSize: 8.5,
-    fontWeight: '800',
-    color: '#475569',
-  },
-  durBadgeTextActive: {
+  calDayTextActive: {
     color: '#FFFFFF',
-  },
-  durRadio: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  durRadioActive: {
-    borderColor: '#0F766E',
-  },
-  durRadioInner: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#0F766E',
-  },
-  durPrice: {
-    fontSize: 17,
     fontWeight: '900',
-    color: '#0F172A',
-    marginBottom: 2,
   },
-  durPriceActive: {
-    color: '#0F766E',
-  },
-  durLabel: {
-    fontSize: 12,
+  calDayTextInRange: {
+    color: colors.secondary,
     fontWeight: '800',
-    color: '#334155',
   },
-  durLabelActive: {
-    color: '#0F172A',
-  },
-  durDesc: {
-    fontSize: 10,
-    color: '#64748B',
-    marginTop: 2,
-    lineHeight: 14,
-  },
-  durDescActive: {
-    color: '#0F766E',
+  calDayTextDisabled: {
+    color: colors.textMuted,
   },
 
-  // PURPOSE REQUIREMENTS
-  purposesWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 7,
-    marginBottom: 12,
-  },
-  purposeChip: {
+  // TIME SELECTION
+  timePreviewStrip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 20,
-    paddingHorizontal: 11,
-    paddingVertical: 7,
+    backgroundColor: colors.lightTeal,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 8,
+    gap: 8,
+    marginBottom: 10,
+  },
+  timePreviewText: {
+    fontSize: 11.5,
+    color: colors.textDark,
+  },
+  timePresetsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  timePresetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
     gap: 5,
   },
-  purposeChipActive: {
-    backgroundColor: '#0F766E',
-    borderColor: '#0F766E',
+  timePresetBtnActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
-  purposeChipText: {
-    fontSize: 11.5,
+  timePresetBtnText: {
+    fontSize: 10.5,
     fontWeight: '700',
-    color: '#334155',
+    color: colors.textDark,
   },
-  purposeChipTextActive: {
+  timePresetBtnTextActive: {
     color: '#FFFFFF',
   },
-  inputHeading: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: '#334155',
-    marginBottom: 6,
-    marginTop: 4,
-  },
-  textArea: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    padding: 10,
-    height: 65,
-    fontSize: 12,
-    color: '#0F172A',
-    textAlignVertical: 'top',
-  },
-  singleInput: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 42,
-    fontSize: 12.5,
-    color: '#0F172A',
-    marginBottom: 8,
-  },
-  inputRow: {
-    flexDirection: 'row',
-  },
-
-  // SCHEDULE SUB-SECTIONS
-  subHeaderRow: {
+  customTimeToggleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 6,
+    paddingVertical: 4,
+    gap: 4,
+    marginBottom: 6,
   },
-  subTitleText: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#0F172A',
-    flex: 1,
-  },
-  selectedDayBadge: {
-    backgroundColor: '#CCFBF1',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  selectedDayBadgeText: {
+  customTimeToggleText: {
     fontSize: 10.5,
     fontWeight: '800',
-    color: '#0F766E',
+    color: colors.primary,
   },
-
-  // DATE PILLS
-  datesScroll: {
-    gap: 8,
-    paddingBottom: 4,
-  },
-  datePill: {
-    width: 60,
-    height: 70,
-    borderRadius: 14,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  datePillActive: {
-    backgroundColor: '#0F766E',
-    borderColor: '#0F766E',
-  },
-  dateDay: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  dateDayActive: {
-    color: '#FFFFFF',
-  },
-  dateNum: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#0F172A',
-    marginVertical: 1,
-  },
-  dateNumActive: {
-    color: '#FFFFFF',
-  },
-  dateMonth: {
-    fontSize: 10,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  dateMonthActive: {
-    color: '#FFFFFF',
-  },
-  todayPillBadge: {
-    position: 'absolute',
-    top: -5,
-    backgroundColor: '#DC2626',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  todayPillBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 7.5,
-    fontWeight: '900',
-  },
-
-  // TIME TABS
-  timeFilterRow: {
-    flexDirection: 'row',
-    gap: 6,
+  customTimeBox: {
+    backgroundColor: colors.white,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
     marginBottom: 8,
   },
-  timeTab: {
+  hourPill: {
+    backgroundColor: colors.background,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
   },
-  timeTabActive: {
-    backgroundColor: '#0F766E',
+  hourPillActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
-  timeTabText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#64748B',
+  hourPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.secondary,
   },
-  timeTabTextActive: {
+  hourPillTextActive: {
+    color: '#FFFFFF',
+  },
+  ampmWrap: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  ampmBtn: {
+    flex: 1,
+    paddingVertical: 6,
+    alignItems: 'center',
+    backgroundColor: colors.white,
+  },
+  ampmBtnActive: {
+    backgroundColor: colors.secondary,
+  },
+  ampmBtnText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: colors.secondary,
+  },
+  ampmBtnTextActive: {
     color: '#FFFFFF',
   },
 
-  // SLOTS
-  slotsGrid: {
-    gap: 6,
-  },
-  slotCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    padding: 10,
-  },
-  slotCardActive: {
-    backgroundColor: '#F0FDFA',
-    borderColor: '#0F766E',
-  },
-  slotCardUrgent: {
-    borderColor: '#FECACA',
-    backgroundColor: '#FFF5F5',
-  },
-  slotCardUrgentActive: {
-    borderColor: '#DC2626',
-    backgroundColor: '#FEF2F2',
-  },
-  slotLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 10,
-  },
-  slotIconBox: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    backgroundColor: '#CCFBF1',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  slotIconBoxActive: {
-    backgroundColor: '#0F766E',
-  },
-  slotLabel: {
-    fontSize: 12,
+  // FORM INPUTS
+  fieldLabel: {
+    fontSize: 10.5,
     fontWeight: '800',
-    color: '#0F172A',
+    color: colors.secondary,
+    marginBottom: 4,
+    marginTop: 4,
   },
-  slotLabelActive: {
-    color: '#0F766E',
-  },
-  slotDesc: {
-    fontSize: 10,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  slotDescActive: {
-    color: '#059669',
-  },
-  slotRadio: {
-    width: 16,
-    height: 16,
+  textInput: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingHorizontal: 10,
+    height: 38,
+    fontSize: 11.5,
+    color: colors.textDark,
+    marginBottom: 6,
   },
-  slotRadioActive: {
-    borderColor: '#0F766E',
-  },
-  slotRadioInner: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#0F766E',
-  },
-
-  // FAMILY CHIPS
-  familyChipsWrap: {
-    gap: 8,
-    paddingBottom: 8,
+  familyRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
   },
   familyChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    backgroundColor: colors.white,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 5,
+    borderColor: colors.border,
+    gap: 4,
   },
   familyChipActive: {
-    backgroundColor: '#0F766E',
-    borderColor: '#0F766E',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   familyChipText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
-    color: '#334155',
+    color: colors.text,
   },
   familyChipTextActive: {
     color: '#FFFFFF',
   },
-  addressHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  gpsBtn: {
+  gpsButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#CCFBF1',
-    paddingHorizontal: 8,
+    backgroundColor: colors.lightTeal,
+    paddingHorizontal: 7,
     paddingVertical: 3,
-    borderRadius: 6,
-    gap: 4,
+    borderRadius: 5,
+    gap: 3,
   },
-  gpsBtnText: {
-    fontSize: 10,
+  gpsButtonText: {
+    fontSize: 9.5,
     fontWeight: '800',
-    color: '#0F766E',
+    color: colors.primary,
   },
-
-  // PAYMENT CARDS
-  payCard: {
+  quickAreaRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    marginBottom: 8,
-  },
-  payCardActive: {
-    backgroundColor: '#F0FDFA',
-    borderColor: '#0F766E',
-  },
-  payCardWalletActive: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#059669',
-  },
-  walletIconCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: '#CCFBF1',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  payIconCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  payCardTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  payCardTitleActive: {
-    color: '#0F766E',
-  },
-  payCardSub: {
-    fontSize: 10,
-    color: '#64748B',
+    flexWrap: 'wrap',
+    gap: 4,
     marginTop: 2,
   },
-  fast1ClickBadge: {
+  areaChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#059669',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
+    backgroundColor: colors.lightSlate,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 5,
     gap: 2,
   },
-  fast1ClickText: {
-    color: '#FFFFFF',
-    fontSize: 8,
-    fontWeight: '900',
-  },
-  walletBalSub: {
+  areaChipText: {
     fontSize: 10,
-    fontWeight: '700',
-    marginTop: 2,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
-  topUpCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
+
+  // STEP 3: REVIEW & PAY
+  summaryBox: {
+    backgroundColor: colors.white,
     borderRadius: 10,
     padding: 10,
-    marginBottom: 8,
-    marginTop: -4,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 6,
   },
-  topUpTitle: {
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  summaryLabel: {
+    fontSize: 10.5,
+    color: colors.textSecondary,
+  },
+  summaryVal: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#DC2626',
+    color: colors.secondary,
+    maxWidth: '65%',
+    textAlign: 'right',
   },
-  topUpSub: {
-    fontSize: 10,
-    color: '#991B1B',
-    marginTop: 1,
+  payRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    padding: 10,
+    marginBottom: 8,
   },
-  topUpBtn: {
-    backgroundColor: '#DC2626',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 6,
+  payRowActive: {
+    borderColor: colors.primary,
+    backgroundColor: '#F0FDF4',
   },
-  topUpBtnText: {
-    color: '#FFFFFF',
-    fontSize: 10.5,
+  payIconCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.lightTeal,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  payTitle: {
+    fontSize: 11.5,
     fontWeight: '800',
+    color: colors.secondary,
+  },
+  paySub: {
+    fontSize: 9.5,
+    color: colors.textSecondary,
+    marginTop: 1,
   },
 
   // INVOICE
   invoiceCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    padding: 12,
+    backgroundColor: colors.white,
+    borderRadius: 10,
+    padding: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginTop: 6,
+    borderColor: colors.border,
+    marginTop: 4,
   },
   invoiceTitle: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontSize: 12,
+    fontWeight: '900',
+    color: colors.secondary,
     marginBottom: 6,
   },
   invoiceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 5,
   },
   invoiceLabel: {
-    fontSize: 11,
-    color: '#64748B',
+    fontSize: 10.5,
+    color: colors.textSecondary,
   },
-  invoiceValue: {
-    fontSize: 11.5,
+  invoiceVal: {
+    fontSize: 11,
     fontWeight: '700',
-    color: '#0F172A',
+    color: colors.secondary,
   },
   invoiceDivider: {
     height: 1,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: colors.border,
     marginVertical: 6,
   },
   invoiceTotalRow: {
@@ -1942,162 +2242,151 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   invoiceTotalLabel: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '900',
-    color: '#0F172A',
+    color: colors.secondary,
   },
-  invoiceTaxNote: {
-    fontSize: 9.5,
-    color: '#059669',
-    fontWeight: '700',
+  invoiceTotalSub: {
+    fontSize: 9,
+    color: colors.textMuted,
   },
-  invoiceTotalAmount: {
-    fontSize: 17,
+  invoiceTotalVal: {
+    fontSize: 16,
     fontWeight: '900',
-    color: '#0F766E',
+    color: colors.primary,
   },
 
-  // STICKY BOTTOM BAR
-  stickyBottomBar: {
+  // BOTTOM STICKY BAR
+  bottomBar: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: colors.white,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: colors.border,
     elevation: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.08,
     shadowRadius: 5,
   },
-  bottomPriceLabel: {
-    fontSize: 10,
+  bottomBarInner: {
+    maxWidth: 900,
+    width: '100%',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bottomBarLabel: {
+    fontSize: 9.5,
     fontWeight: '700',
-    color: '#64748B',
+    color: colors.textSecondary,
   },
-  bottomPriceValue: {
-    fontSize: 18,
+  bottomBarPrice: {
+    fontSize: 16,
     fontWeight: '900',
-    color: '#0F766E',
+    color: colors.primary,
   },
-  bottomScheduleText: {
-    fontSize: 10,
+  bottomBarDealText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  bottomBarSubText: {
+    fontSize: 9.5,
     fontWeight: '600',
-    color: '#334155',
+    color: colors.textSecondary,
   },
   bottomCtaBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F766E',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 14,
-    gap: 8,
-    shadowColor: '#0F766E',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  bottomCtaBtnDisabled: {
-    opacity: 0.7,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
   },
   bottomCtaText: {
-    fontSize: 13.5,
-    fontWeight: '900',
+    fontSize: 12.5,
+    fontWeight: '800',
     color: '#FFFFFF',
   },
 
-  // SUCCESS MODAL
+  // MODAL
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
   modalCard: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    paddingBottom: 35,
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 16,
+    paddingBottom: 28,
+    maxWidth: 550,
+    width: '100%',
+    alignSelf: 'center',
   },
-  successIconBox: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#059669',
+  modalIconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.freshGreen,
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
   },
-  successTitle: {
-    fontSize: 18,
+  modalTitle: {
+    fontSize: 16,
     fontWeight: '900',
     color: colors.secondary,
     textAlign: 'center',
   },
-  successSub: {
-    fontSize: 11.5,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 3,
-    marginBottom: 14,
-  },
-  summaryBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 6,
-    marginBottom: 14,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  summaryLabel: {
+  modalSub: {
     fontSize: 11,
     color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 2,
+    marginBottom: 10,
   },
-  summaryVal: {
-    fontSize: 12,
+  modalSummary: {
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 4,
+    marginBottom: 10,
+  },
+  modalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  modalRowLabel: {
+    fontSize: 10,
+    color: colors.textSecondary,
+  },
+  modalRowVal: {
+    fontSize: 10.5,
     fontWeight: '700',
     color: colors.secondary,
-    maxWidth: '65%',
   },
-  nurseCallBtn: {
-    flexDirection: 'row',
+  modalDoneBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: 11,
+    borderRadius: 8,
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0F766E',
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 6,
-    marginBottom: 8,
   },
-  nurseCallBtnText: {
-    fontSize: 13,
+  modalDoneBtnText: {
+    fontSize: 12.5,
     fontWeight: '800',
     color: '#FFFFFF',
-  },
-  doneBtn: {
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  doneBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textSecondary,
   },
 });
 

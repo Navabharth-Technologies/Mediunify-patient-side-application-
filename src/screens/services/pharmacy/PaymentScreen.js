@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -95,7 +96,7 @@ const PaymentScreen = ({ navigation, route }) => {
   const handlePayNow = () => {
     if (selectedMethod === 'WALLET') {
       if (walletBalance < payableAmount) {
-        Alert.alert(
+        showAlert(
           'Insufficient Wallet Balance 💳',
           `Your MediUnify Wallet balance is ₹${walletBalance.toLocaleString('en-IN')}, but the payable amount is ₹${payableAmount.toLocaleString('en-IN')}.\n\nPlease top up or select UPI / Cards / COD.`,
           [
@@ -110,21 +111,21 @@ const PaymentScreen = ({ navigation, route }) => {
     // Basic validations
     if (selectedMethod === 'CARD') {
       if (cardNumber.replace(/\s/g, '').length < 16) {
-        Alert.alert('Invalid Card', 'Please enter a valid 16-digit card number.');
+        showAlert('Invalid Card', 'Please enter a valid 16-digit card number.');
         return;
       }
       if (cardExpiry.length < 5) {
-        Alert.alert('Invalid Expiry', 'Please enter card expiry in MM/YY format.');
+        showAlert('Invalid Expiry', 'Please enter card expiry in MM/YY format.');
         return;
       }
       if (cardCvv.length < 3) {
-        Alert.alert('Invalid CVV', 'Please enter a valid 3-digit CVV.');
+        showAlert('Invalid CVV', 'Please enter a valid 3-digit CVV.');
         return;
       }
     }
 
     if (selectedMethod === 'UPI' && !selectedUpiApp && !upiId.trim()) {
-      Alert.alert('UPI Required', 'Please select a UPI app or enter your UPI ID.');
+      showAlert('UPI Required', 'Please select a UPI app or enter your UPI ID.');
       return;
     }
 
@@ -382,11 +383,11 @@ const PaymentScreen = ({ navigation, route }) => {
                 style={styles.verifyUpiBtn}
                 onPress={() => {
                   if (!upiId.includes('@')) {
-                    Alert.alert('Invalid UPI ID', 'Please enter a valid UPI address (e.g. user@okhdfcbank).');
+                    showAlert('Invalid UPI ID', 'Please enter a valid UPI address (e.g. user@okhdfcbank).');
                     return;
                   }
                   setIsUpiVerified(true);
-                  Alert.alert('UPI Verified! ✅', 'Verified Account: Ramesh Kumar');
+                  showAlert('UPI Verified! ✅', 'Verified Account: Ramesh Kumar');
                 }}
               >
                 <Text style={styles.verifyUpiText}>{isUpiVerified ? 'Verified' : 'Verify'}</Text>

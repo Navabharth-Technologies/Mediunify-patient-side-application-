@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Alert,
   StatusBar,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -150,7 +151,7 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
   const handleRemoveScan = (indexToRemove) => {
     const scanToRemove = testsToBook[indexToRemove];
     if (testsToBook.length === 1) {
-      Alert.alert(
+      showAlert(
         'Remove Scan',
         `"${scanToRemove.name}" is the only scan in this booking. Removing it will return to diagnostic center. Proceed?`,
         [
@@ -161,7 +162,7 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
       return;
     }
 
-    Alert.alert(
+    showAlert(
       'Remove Scan',
       `Remove "${scanToRemove.name}" from this appointment?`,
       [
@@ -184,7 +185,7 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
       if (useCamera) {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permission Required', 'Camera permission is needed to take a photo of your prescription.');
+          showAlert('Permission Required', 'Camera permission is needed to take a photo of your prescription.');
           return;
         }
         result = await ImagePicker.launchCameraAsync({
@@ -194,7 +195,7 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permission Required', 'Gallery access is needed to upload your prescription.');
+          showAlert('Permission Required', 'Gallery access is needed to upload your prescription.');
           return;
         }
         result = await ImagePicker.launchImageLibraryAsync({
@@ -209,21 +210,21 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
       }
     } catch (e) {
       console.log('Error picking prescription:', e);
-      Alert.alert('Upload Error', 'Could not select image.');
+      showAlert('Upload Error', 'Could not select image.');
     }
   };
 
   const handleProceedToPayment = () => {
     if (!patientName.trim()) {
-      Alert.alert('Patient Name Required', 'Please enter the patient full name.');
+      showAlert('Patient Name Required', 'Please enter the patient full name.');
       return;
     }
     if (!patientPhone.trim() || patientPhone.length < 10) {
-      Alert.alert('Valid Phone Required', 'Please enter a valid 10-digit mobile number.');
+      showAlert('Valid Phone Required', 'Please enter a valid 10-digit mobile number.');
       return;
     }
     if (!selectedSlot) {
-      Alert.alert('Select Time Slot', 'Please choose an appointment time slot.');
+      showAlert('Select Time Slot', 'Please choose an appointment time slot.');
       return;
     }
 
@@ -721,19 +722,21 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
           BOTTOM ACTION BAR
       ================================================== */}
       <View style={styles.bottomBar}>
-        <View style={styles.bottomPriceCol}>
-          <Text style={styles.bottomTotalLabel}>Total Payable</Text>
-          <Text style={styles.bottomTotalValue}>₹{totalOfferPrice}</Text>
-        </View>
+        <View style={styles.bottomBarInner}>
+          <View style={styles.bottomPriceCol}>
+            <Text style={styles.bottomTotalLabel}>Total Payable</Text>
+            <Text style={styles.bottomTotalValue}>₹{totalOfferPrice}</Text>
+          </View>
 
-        <TouchableOpacity
-          style={styles.proceedButton}
-          activeOpacity={0.88}
-          onPress={handleProceedToPayment}
-        >
-          <Text style={styles.proceedButtonText}>Proceed to Payment</Text>
-          <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.proceedButton}
+            activeOpacity={0.88}
+            onPress={handleProceedToPayment}
+          >
+            <Text style={styles.proceedButtonText}>Proceed to Payment</Text>
+            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -797,6 +800,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 110,
+    width: '100%',
+    maxWidth: 900,
+    alignSelf: 'center',
   },
 
   // SUMMARY CARD
@@ -1213,11 +1219,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
     elevation: 8,
@@ -1225,6 +1228,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
+  },
+  bottomBarInner: {
+    width: '100%',
+    maxWidth: 900,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   bottomPriceCol: {},
   bottomTotalLabel: {
@@ -1238,12 +1249,13 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   proceedButton: {
+    height: 44,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: 22,
+    borderRadius: 10,
     gap: 8,
   },
   proceedButtonText: {

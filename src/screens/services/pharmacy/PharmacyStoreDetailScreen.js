@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+﻿import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,10 @@ import {
   Linking,
   Alert,
   StatusBar,
+  useWindowDimensions,
+  Platform,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -35,6 +38,9 @@ const CATEGORIES = [
 ];
 
 const PharmacyStoreDetailScreen = ({ navigation, route }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+
   const {
     pharmacyCart,
     pharmacyCartCount,
@@ -69,7 +75,7 @@ const PharmacyStoreDetailScreen = ({ navigation, route }) => {
     if (store?.phone) {
       Linking.openURL(`tel:${store.phone.replace(/[^0-9+]/g, '')}`);
     } else {
-      Alert.alert('Contact Shop', 'Shop phone: +91 821 2548901');
+      showAlert('Contact Shop', 'Shop phone: +91 821 2548901');
     }
   };
 
@@ -77,7 +83,7 @@ const PharmacyStoreDetailScreen = ({ navigation, route }) => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Please allow gallery access to upload your prescription.');
+        showAlert('Permission needed', 'Please allow gallery access to upload your prescription.');
         return;
       }
 
@@ -89,14 +95,14 @@ const PharmacyStoreDetailScreen = ({ navigation, route }) => {
 
       if (!result.canceled && result.assets?.[0]) {
         setPrescriptionUploaded(true);
-        Alert.alert(
+        showAlert(
           'Prescription Uploaded! 📄',
           `Your prescription has been assigned to ${store.name}. The registered pharmacist will verify the order upon checkout.`
         );
       }
     } catch (error) {
       setPrescriptionUploaded(true);
-      Alert.alert('Prescription Attached', `Prescription attached for ${store.name}.`);
+      showAlert('Prescription Attached', `Prescription attached for ${store.name}.`);
     }
   };
 
@@ -105,47 +111,37 @@ const PharmacyStoreDetailScreen = ({ navigation, route }) => {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* TOP HEADER */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.secondary} />
-        </TouchableOpacity>
+      <View style={[styles.header, isDesktopWeb && styles.headerDesktop]}>
+        <View style={[styles.headerInner, isDesktopWeb && styles.desktopMaxWidth]}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-back" size={22} color={colors.secondary} />
+          </TouchableOpacity>
 
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {store.name}
-          </Text>
-          <View style={styles.headerSubRow}>
-            <Ionicons name="location" size={12} color={colors.primary} />
-            <Text style={styles.headerSubtitle} numberOfLines={1}>
-              {store.locality} • {store.deliveryTime || '15-25 mins'}
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {store.name}
             </Text>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={styles.cartButton}
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate('Cart', { initialTab: 'pharmacy' })}
-        >
-          <Ionicons name="cart-outline" size={24} color={colors.secondary} />
-          {pharmacyCartCount > 0 && (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>
-                {pharmacyCartCount > 99 ? '99+' : pharmacyCartCount}
+            <View style={styles.headerSubRow}>
+              <Ionicons name="location" size={12} color={colors.primary} />
+              <Text style={styles.headerSubtitle} numberOfLines={1}>
+                {store.locality} • {store.deliveryTime || '15-25 mins'}
               </Text>
             </View>
-          )}
-        </TouchableOpacity>
+          </View>
+
+          <View style={styles.headerRightPlaceholder} />
+        </View>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
+          isDesktopWeb && styles.desktopMaxWidth,
           pharmacyCartCount > 0 && { paddingBottom: 100 },
         ]}
       >
@@ -275,40 +271,73 @@ const PharmacyStoreDetailScreen = ({ navigation, route }) => {
           </Text>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoriesScroll}
-        >
-          {CATEGORIES.map((cat) => {
-            const isSelected = selectedCategory === cat.name;
-            return (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.categoryPill,
-                  isSelected && styles.categoryPillActive,
-                ]}
-                onPress={() => setSelectedCategory(cat.name)}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name={cat.icon}
-                  size={16}
-                  color={isSelected ? '#FFFFFF' : colors.primary}
-                />
-                <Text
+        {Platform.OS === 'web' ? (
+          <View style={styles.categoriesWrap}>
+            {CATEGORIES.map((cat) => {
+              const isSelected = selectedCategory === cat.name;
+              return (
+                <TouchableOpacity
+                  key={cat.id}
                   style={[
-                    styles.categoryPillText,
-                    isSelected && styles.categoryPillTextActive,
+                    styles.categoryPill,
+                    isSelected && styles.categoryPillActive,
                   ]}
+                  onPress={() => setSelectedCategory(cat.name)}
+                  activeOpacity={0.8}
                 >
-                  {cat.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                  <Ionicons
+                    name={cat.icon}
+                    size={16}
+                    color={isSelected ? '#FFFFFF' : colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.categoryPillText,
+                      isSelected && styles.categoryPillTextActive,
+                    ]}
+                  >
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoriesScroll}
+          >
+            {CATEGORIES.map((cat) => {
+              const isSelected = selectedCategory === cat.name;
+              return (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[
+                    styles.categoryPill,
+                    isSelected && styles.categoryPillActive,
+                  ]}
+                  onPress={() => setSelectedCategory(cat.name)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name={cat.icon}
+                    size={16}
+                    color={isSelected ? '#FFFFFF' : colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.categoryPillText,
+                      isSelected && styles.categoryPillTextActive,
+                    ]}
+                  >
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {/* MEDICINES & PRODUCTS GRID */}
         <View style={styles.productsGrid}>
@@ -351,30 +380,32 @@ const PharmacyStoreDetailScreen = ({ navigation, route }) => {
       {/* FLOATING BOTTOM CART BAR */}
       {pharmacyCartCount > 0 && (
         <View style={styles.floatingCartBar}>
-          <View style={styles.floatingCartLeft}>
-            <View style={styles.cartCountCircle}>
-              <Ionicons name="cart" size={16} color="#FFFFFF" />
+          <View style={styles.floatingCartInner}>
+            <View style={styles.floatingCartLeft}>
+              <View style={styles.cartCountCircle}>
+                <Ionicons name="cart" size={16} color="#FFFFFF" />
+              </View>
+              <View>
+                <Text style={styles.floatingCartCount}>
+                  {pharmacyCartCount} {pharmacyCartCount === 1 ? 'Item' : 'Items'} in Cart
+                </Text>
+                <Text style={styles.floatingCartShop} numberOfLines={1}>
+                  Fulfilling from {store.name.split('-')[0].trim()}
+                </Text>
+              </View>
             </View>
-            <View>
-              <Text style={styles.floatingCartCount}>
-                {pharmacyCartCount} {pharmacyCartCount === 1 ? 'Item' : 'Items'} in Cart
-              </Text>
-              <Text style={styles.floatingCartShop} numberOfLines={1}>
-                Fulfilling from {store.name.split('-')[0].trim()}
-              </Text>
-            </View>
-          </View>
 
-          <TouchableOpacity
-            style={styles.floatingCartButton}
-            onPress={() => navigation.navigate('Cart', { initialTab: 'pharmacy' })}
-            activeOpacity={0.88}
-          >
-            <Text style={styles.floatingCartBtnText}>
-              View Cart • ₹{pharmacyFinalTotal}
-            </Text>
-            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.floatingCartButton}
+              onPress={() => navigation.navigate('Cart', { initialTab: 'pharmacy' })}
+              activeOpacity={0.88}
+            >
+              <Text style={styles.floatingCartBtnText}>
+                View Cart • ₹{pharmacyFinalTotal}
+              </Text>
+              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         </View>
       )}
     </SafeAreaView>
@@ -387,14 +418,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   header: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  headerDesktop: {
+    paddingHorizontal: 0,
+  },
+  headerInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
   },
   backButton: {
     width: 38,
@@ -424,31 +460,20 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontWeight: '500',
   },
-  cartButton: {
-    width: 40,
-    height: 40,
+  headerRightPlaceholder: {
+    width: 38,
+    height: 38,
+  },
+  desktopMaxWidth: {
+    maxWidth: 1320,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  desktopFloatingCart: {
+    maxWidth: 800,
+    alignSelf: 'center',
+    bottom: 24,
     borderRadius: 20,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  cartBadge: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  cartBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
   },
   scrollContent: {
     paddingBottom: 40,
@@ -558,11 +583,13 @@ const styles = StyleSheet.create({
   },
   actionButtonsRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
     marginTop: 14,
   },
   callShopBtn: {
-    flex: 1,
+    height: 40,
+    maxWidth: 160,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -570,7 +597,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#BFDBFE',
     borderRadius: 10,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
     gap: 6,
   },
   callShopText: {
@@ -579,13 +606,14 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   rxUploadBtn: {
-    flex: 1.2,
+    height: 40,
+    maxWidth: 220,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
     borderRadius: 10,
-    paddingVertical: 10,
+    paddingHorizontal: 18,
     gap: 6,
   },
   rxUploadedBtn: {
@@ -656,6 +684,14 @@ const styles = StyleSheet.create({
   categoriesScroll: {
     paddingHorizontal: 16,
     gap: 8,
+    paddingBottom: 4,
+  },
+  categoriesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    rowGap: 8,
+    columnGap: 8,
     paddingBottom: 4,
   },
   categoryPill: {
@@ -729,14 +765,19 @@ const styles = StyleSheet.create({
     borderTopColor: '#E2E8F0',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
     elevation: 8,
+  },
+  floatingCartInner: {
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   floatingCartLeft: {
     flexDirection: 'row',
@@ -758,17 +799,18 @@ const styles = StyleSheet.create({
     color: colors.secondary,
   },
   floatingCartShop: {
-    fontSize: 11,
-    color: colors.slate,
-    maxWidth: 160,
+    fontSize: 12,
+    color: '#059669',
+    fontWeight: '700',
   },
   floatingCartButton: {
+    height: 44,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingHorizontal: 22,
+    borderRadius: 10,
     gap: 6,
   },
   floatingCartBtnText: {

@@ -11,10 +11,12 @@ import {
   Alert,
   StatusBar,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import { useCart } from '../../../context/CartContext';
+import { pushAppointment } from '../../../services/dataSyncService';
 
 const PROMO_CHIPS = ['MEDI20', 'HEALTH50'];
 
@@ -99,7 +101,7 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
   const handleConfirmAndPay = async () => {
     if (paymentMethod === 'WALLET') {
       if (walletBalance < finalPayable) {
-        Alert.alert(
+        showAlert(
           'Insufficient Wallet Balance 💳',
           `Your MediUnify Wallet has ₹${walletBalance.toLocaleString('en-IN')}, but the test fee is ₹${finalPayable.toLocaleString('en-IN')}.\n\nPlease top up or select UPI / Cards / Pay at Lab.`,
           [
@@ -202,29 +204,35 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
       );
 
       // 2. Also save to global '@unnathi_appointments' / Bookings list
+      const radAppointmentRecord = {
+        id: bookingId,
+        doctor: {
+          name: lab?.name || 'Diagnostic Center',
+          specialty: `Radiology (${tests[0]?.categoryLabel || 'Scan'})`,
+        },
+        day: date.dayName,
+        date: `${date.dayNum} ${date.month}`,
+        time: timeSlot,
+        status: 'Confirmed',
+        type: 'Radiology',
+        details: confirmedBooking,
+      };
+
       const existingApptJson = await AsyncStorage.getItem('@unnathi_appointments');
       const existingAppt = existingApptJson ? JSON.parse(existingApptJson) : [];
       await AsyncStorage.setItem(
         '@unnathi_appointments',
-        JSON.stringify([
-          {
-            id: bookingId,
-            doctor: {
-              name: lab?.name || 'Diagnostic Center',
-              specialty: `Radiology (${tests[0]?.categoryLabel || 'Scan'})`,
-            },
-            day: date.dayName,
-            date: `${date.dayNum} ${date.month}`,
-            time: timeSlot,
-            status: 'Confirmed',
-            type: 'Radiology',
-            details: confirmedBooking,
-          },
-          ...existingAppt,
-        ])
+        JSON.stringify([radAppointmentRecord, ...existingAppt])
       );
 
-      // 3. Remove booked items from cart if they were in cart
+      // 3. Immediately push to central server database
+      try {
+        await pushAppointment(radAppointmentRecord);
+      } catch (pushErr) {
+        console.warn('Could not push radiology booking:', pushErr);
+      }
+
+      // 4. Remove booked items from cart if they were in cart
       tests.forEach((t) => {
         removeFromCart(t.id);
       });
@@ -238,7 +246,7 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
     } catch (e) {
       console.log('Error saving booking:', e);
       setIsProcessing(false);
-      Alert.alert('Payment Error', 'Could not complete the transaction. Please try again.');
+      showAlert('Payment Error', 'Could not complete the transaction. Please try again.');
     }
   };
 
@@ -686,30 +694,32 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
           BOTTOM ACTION BAR
       ================================================== */}
       <View style={styles.bottomBar}>
-        <View style={styles.bottomPriceCol}>
-          <Text style={styles.bottomTotalLabel}>
-            {paymentMethod === 'LAB_COUNTER' ? 'Pay on Visit' : 'Pay Online'}
-          </Text>
-          <Text style={styles.bottomTotalValue}>₹{finalPayable}</Text>
-        </View>
+        <View style={styles.bottomBarInner}>
+          <View style={styles.bottomPriceCol}>
+            <Text style={styles.bottomTotalLabel}>
+              {paymentMethod === 'LAB_COUNTER' ? 'Pay on Visit' : 'Pay Online'}
+            </Text>
+            <Text style={styles.bottomTotalValue}>₹{finalPayable}</Text>
+          </View>
 
-        <TouchableOpacity
-          style={[styles.payButton, isProcessing && styles.payButtonDisabled]}
-          activeOpacity={0.88}
-          disabled={isProcessing}
-          onPress={handleConfirmAndPay}
-        >
-          {isProcessing ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <>
-              <Text style={styles.payButtonText}>
-                {paymentMethod === 'LAB_COUNTER' ? 'Confirm Appointment' : `Pay ₹${finalPayable}`}
-              </Text>
-              <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
-            </>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.payButton, isProcessing && styles.payButtonDisabled]}
+            activeOpacity={0.88}
+            disabled={isProcessing}
+            onPress={handleConfirmAndPay}
+          >
+            {isProcessing ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Text style={styles.payButtonText}>
+                  {paymentMethod === 'LAB_COUNTER' ? 'Confirm Appointment' : `Pay ₹${finalPayable}`}
+                </Text>
+                <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -773,6 +783,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 110,
+    width: '100%',
+    maxWidth: 900,
+    alignSelf: 'center',
   },
 
   // OVERVIEW CARD
@@ -1157,11 +1170,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
     elevation: 8,
@@ -1169,6 +1179,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
+  },
+  bottomBarInner: {
+    width: '100%',
+    maxWidth: 900,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   bottomPriceCol: {},
   bottomTotalLabel: {
@@ -1182,15 +1200,15 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   payButton: {
+    height: 44,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingHorizontal: 22,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: 24,
+    borderRadius: 10,
     gap: 8,
     minWidth: 160,
-    justifyContent: 'center',
   },
   payButtonDisabled: {
     opacity: 0.7,

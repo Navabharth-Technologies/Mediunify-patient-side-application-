@@ -9,7 +9,9 @@ import {
   TextInput,
   Linking,
   Alert,
+  Platform,
 } from 'react-native';
+import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 
 import colors from '../../theme/colors';
@@ -55,24 +57,24 @@ const HelpSupportScreen = ({ navigation }) => {
 
   const handleCallSupport = () => {
     Linking.openURL('tel:18008662844').catch(() => {
-      Alert.alert('Helpline', 'Call 24/7 Toll-Free: 1800-MEDIUNIFY (1800-866-2844)');
+      showAlert('Helpline', 'Call 24/7 Toll-Free: 1800-MEDIUNIFY (1800-866-2844)');
     });
   };
 
   const handleWhatsAppSupport = () => {
     Linking.openURL('https://wa.me/919876543210?text=Hi%20MediUnify%20Support,%20I%20need%20help%20with%20my%20healthcare%20account.').catch(() => {
-      Alert.alert('WhatsApp Support', 'WhatsApp Helpline: +91 98765 43210');
+      showAlert('WhatsApp Support', 'WhatsApp Helpline: +91 98765 43210');
     });
   };
 
   const handleSubmitTicket = () => {
     if (!subject.trim() || !message.trim()) {
-      Alert.alert('Incomplete Message', 'Please enter a subject and your inquiry message.');
+      showAlert('Incomplete Message', 'Please enter a subject and your inquiry message.');
       return;
     }
     setSubject('');
     setMessage('');
-    Alert.alert(
+    showAlert(
       'Support Ticket Submitted! 🎫',
       'Your request (Ticket #TK9401) has been received. Our healthcare executive will respond within 15 minutes.'
     );
@@ -168,27 +170,51 @@ const HelpSupportScreen = ({ navigation }) => {
         <Text style={styles.sectionHeading}>Send Support Message</Text>
         <View style={styles.ticketCard}>
           <Text style={styles.inputLabel}>Inquiry Category</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-            {['Pharmacy & Order', 'Doctor Appointment', 'Lab Test & Report', 'Billing & Refund', 'Other'].map((cat) => (
-              <TouchableOpacity
-                key={cat}
-                style={[
-                  styles.categoryPill,
-                  ticketCategory === cat && styles.categoryPillActive,
-                ]}
-                onPress={() => setTicketCategory(cat)}
-              >
-                <Text
+          {Platform.OS === 'web' ? (
+            <View style={styles.categoryWrap}>
+              {['Pharmacy & Order', 'Doctor Appointment', 'Lab Test & Report', 'Billing & Refund', 'Other'].map((cat) => (
+                <TouchableOpacity
+                  key={cat}
                   style={[
-                    styles.categoryPillText,
-                    ticketCategory === cat && styles.categoryPillTextActive,
+                    styles.categoryPill,
+                    ticketCategory === cat && styles.categoryPillActive,
                   ]}
+                  onPress={() => setTicketCategory(cat)}
                 >
-                  {cat}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+                  <Text
+                    style={[
+                      styles.categoryPillText,
+                      ticketCategory === cat && styles.categoryPillTextActive,
+                    ]}
+                  >
+                    {cat}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+              {['Pharmacy & Order', 'Doctor Appointment', 'Lab Test & Report', 'Billing & Refund', 'Other'].map((cat) => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[
+                    styles.categoryPill,
+                    ticketCategory === cat && styles.categoryPillActive,
+                  ]}
+                  onPress={() => setTicketCategory(cat)}
+                >
+                  <Text
+                    style={[
+                      styles.categoryPillText,
+                      ticketCategory === cat && styles.categoryPillTextActive,
+                    ]}
+                  >
+                    {cat}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
 
           <Text style={[styles.inputLabel, { marginTop: 12 }]}>Subject *</Text>
           <TextInput
@@ -389,6 +415,12 @@ const styles = StyleSheet.create({
   categoryScroll: {
     flexDirection: 'row',
     marginBottom: 4,
+  },
+  categoryWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 4,
+    rowGap: 8,
   },
   categoryPill: {
     paddingHorizontal: 12,

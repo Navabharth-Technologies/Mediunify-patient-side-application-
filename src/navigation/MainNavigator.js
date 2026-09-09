@@ -5,7 +5,11 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  useWindowDimensions,
+  Platform,
 } from 'react-native';
+
+import WebHeader from '../components/web/WebHeader';
 
 import {
   createNativeStackNavigator,
@@ -143,6 +147,14 @@ import WalletScreen from '../screens/profile/WalletScreen';
 import ReferEarnScreen from '../screens/profile/ReferEarnScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import HelpSupportScreen from '../screens/settings/HelpSupportScreen';
+
+// ==================================================
+// AUTH SCREENS
+// ==================================================
+import LoginScreen from '../screens/auth/LoginScreen';
+import RegisterScreen from '../screens/auth/RegisterScreen';
+import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
+import OTPScreen from '../screens/auth/OTPScreen';
 
 
 // ==================================================
@@ -386,11 +398,17 @@ const BottomNavigation = ({
 const MainNavigator = ({
   navigation,
 }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
 
   const [
     currentRoute,
     setCurrentRoute,
   ] = React.useState('Home');
+  const [
+    currentParams,
+    setCurrentParams,
+  ] = React.useState({});
 
 
   // ==================================================
@@ -423,6 +441,9 @@ const MainNavigator = ({
       setCurrentRoute(
         route.name
       );
+      setCurrentParams(
+        route.params || {}
+      );
     }
   };
 
@@ -432,30 +453,45 @@ const MainNavigator = ({
     <View
       style={styles.mainContainer}
     >
+      {/* ==================================================
+          DESKTOP REAL WEBSITE HEADER
+      ================================================== */}
+      {isDesktopWeb && (
+        <WebHeader
+          navigation={navigation}
+          currentRoute={currentRoute}
+          currentParams={currentParams}
+        />
+      )}
 
       {/* ==================================================
           INNER STACK
       ================================================== */}
-
-      <Stack.Navigator
-
-        initialRouteName="Home"
-
-        screenOptions={{
-          headerShown: false,
-
-          contentStyle: {
-            backgroundColor:
-              '#F4F8FA',
-          },
-        }}
-
-        screenListeners={{
-          state:
-            handleNavigationStateChange,
-        }}
-
+      <View
+        style={[
+          styles.stackWrapper,
+          isDesktopWeb && currentRoute !== 'Home' && styles.desktopStackWrapper,
+        ]}
       >
+        <Stack.Navigator
+
+          initialRouteName="Home"
+
+          screenOptions={{
+            headerShown: false,
+
+            contentStyle: {
+              backgroundColor:
+                '#F1F2F4',
+            },
+          }}
+
+          screenListeners={{
+            state:
+              handleNavigationStateChange,
+          }}
+
+        >
 
         {/* ==================================================
             HOME
@@ -781,14 +817,38 @@ const MainNavigator = ({
           component={HelpSupportScreen}
         />
 
+        {/* ==================================================
+            AUTH FLOW
+        ================================================== */}
+        <Stack.Screen
+          name="Login"
+          component={LoginScreen}
+        />
+
+        <Stack.Screen
+          name="Register"
+          component={RegisterScreen}
+        />
+
+        <Stack.Screen
+          name="ForgotPassword"
+          component={ForgotPasswordScreen}
+        />
+
+        <Stack.Screen
+          name="OTP"
+          component={OTPScreen}
+        />
+
       </Stack.Navigator>
+      </View>
 
 
       {/* ==================================================
           BOTTOM NAVIGATION (ONLY ON MAIN TAB SCREENS)
       ================================================== */}
 
-      {['Home', 'DoctorList', 'VideoConsultation', 'Bookings', 'HealthRecords', 'Profile'].includes(currentRoute) && (
+      {!isDesktopWeb && ['Home', 'DoctorList', 'VideoConsultation', 'Bookings', 'HealthRecords', 'Profile'].includes(currentRoute) && (
         <BottomNavigation
           navigation={navigation}
           currentRoute={currentRoute}
@@ -815,7 +875,19 @@ const styles = StyleSheet.create({
     flex: 1,
 
     backgroundColor:
-      '#F4F8FA',
+      '#F1F2F4',
+  },
+
+  stackWrapper: {
+    flex: 1,
+    width: '100%',
+  },
+
+  desktopStackWrapper: {
+    maxWidth: 1320,
+    width: '100%',
+    alignSelf: 'center',
+    flex: 1,
   },
 
 

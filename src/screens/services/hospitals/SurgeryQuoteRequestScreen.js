@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   Linking,
   Platform,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../../theme/colors';
@@ -44,7 +45,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
   ];
 
   const handleUploadReport = () => {
-    Alert.alert(
+    showAlert(
       'Upload Doctor Prescription / Scan',
       'Choose source to attach prescription, ultrasound, or CT scan report for the hospital surgical desk to review:',
       [
@@ -73,7 +74,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
 
   const handleSubmitQuote = async () => {
     if (!patientName.trim() || !patientPhone.trim()) {
-      Alert.alert('Required Fields', 'Please enter patient name and contact phone number.');
+      showAlert('Required Fields', 'Please enter patient name and contact phone number.');
       return;
     }
 
@@ -129,7 +130,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
     } catch (e) {
       console.log('Error saving quote request:', e);
       setSubmitting(false);
-      Alert.alert('Submission Error', 'Could not send quote request. Please try again.');
+      showAlert('Submission Error', 'Could not send quote request. Please try again.');
     }
   };
 

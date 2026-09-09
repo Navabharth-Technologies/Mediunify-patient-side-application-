@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+﻿import React, { useRef, useState } from 'react';
 
 import {
   View,
@@ -9,13 +9,20 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 
 import {
   CameraView,
   useCameraPermissions,
 } from 'expo-camera';
 
-import * as MediaLibrary from 'expo-media-library';
+// Web-safe dynamic MediaLibrary import
+let MediaLibrary = null;
+try {
+  MediaLibrary = require('expo-media-library');
+} catch (e) {
+  MediaLibrary = null;
+}
 
 import { Ionicons } from '@expo/vector-icons';
 
@@ -62,7 +69,7 @@ const ImagingScreen = ({ navigation }) => {
 
     if (!cameraRef.current) {
 
-      Alert.alert(
+      showAlert(
         'Camera Error',
         'Camera is not ready yet.'
       );
@@ -73,7 +80,7 @@ const ImagingScreen = ({ navigation }) => {
 
     if (!cameraReady) {
 
-      Alert.alert(
+      showAlert(
         'Camera Not Ready',
         'Please wait for the camera to become ready.'
       );
@@ -103,7 +110,7 @@ const ImagingScreen = ({ navigation }) => {
 
       if (!galleryGranted) {
 
-        Alert.alert(
+        showAlert(
           'Gallery Permission Required',
           'Please allow photo library access so MediUnify can save the captured image.'
         );
@@ -151,7 +158,7 @@ const ImagingScreen = ({ navigation }) => {
       );
 
 
-      Alert.alert(
+      showAlert(
         'Photo Saved',
         'The captured image has been saved to your gallery.'
       );
@@ -165,7 +172,7 @@ const ImagingScreen = ({ navigation }) => {
       );
 
 
-      Alert.alert(
+      showAlert(
         'Unable to Save Photo',
         'Something went wrong while capturing or saving the image.'
       );

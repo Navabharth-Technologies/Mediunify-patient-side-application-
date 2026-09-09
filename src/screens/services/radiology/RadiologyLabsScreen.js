@@ -9,15 +9,29 @@ import {
   TextInput,
   FlatList,
   StatusBar,
+  useWindowDimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import { radiologyLabs, radiologyCategories } from '../../../data/radiologyLabsData';
 import { useCart } from '../../../context/CartContext';
 
-const RadiologyLabsScreen = ({ navigation }) => {
+const RadiologyLabsScreen = ({ navigation, route }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+
   const { labCartCount, labFinalTotal } = useCart();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(route?.params?.query || route?.params?.search || '');
+
+  React.useEffect(() => {
+    if (route?.params?.query !== undefined) {
+      setSearchQuery(route.params.query);
+    } else if (route?.params?.search !== undefined) {
+      setSearchQuery(route.params.search);
+    }
+  }, [route?.params?.query, route?.params?.search]);
+
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedFilter, setSelectedFilter] = useState('All');
 
@@ -197,61 +211,66 @@ const RadiologyLabsScreen = ({ navigation }) => {
       {/* ==================================================
           HEADER
       ================================================== */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.secondary} />
-        </TouchableOpacity>
+      {/* HEADER (MOBILE ONLY) */}
+      {!isDesktopWeb && (
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-back" size={22} color={colors.secondary} />
+          </TouchableOpacity>
 
-        <View style={styles.headerCenter}>
-          <View style={styles.headerTitleRow}>
-            <Text style={styles.headerTitle}>Radiology & Scans</Text>
-            <View style={styles.headerLiveDot} />
-          </View>
-          <Text style={styles.headerSubtitle}>Accredited Diagnostic Labs & Imaging</Text>
-        </View>
-
-        <TouchableOpacity
-          style={styles.cartHeaderButton}
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate('Cart', { initialTab: 'lab' })}
-        >
-          <Ionicons name="flask-outline" size={24} color={colors.secondary} />
-          {labCartCount > 0 && (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{labCartCount}</Text>
+          <View style={styles.headerCenter}>
+            <View style={styles.headerTitleRow}>
+              <Text style={styles.headerTitle}>Radiology & Scans</Text>
+              <View style={styles.headerLiveDot} />
             </View>
-          )}
-        </TouchableOpacity>
-      </View>
+            <Text style={styles.headerSubtitle}>Accredited Diagnostic Labs & Imaging</Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.cartHeaderButton}
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate('Cart', { initialTab: 'lab' })}
+          >
+            <Ionicons name="flask-outline" size={24} color={colors.secondary} />
+            {labCartCount > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{labCartCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
+
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* ==================================================
-            SEARCH BAR
-        ================================================== */}
-        <View style={styles.searchContainer}>
-          <View style={styles.searchBox}>
-            <Ionicons name="search" size={20} color={colors.textSecondary} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search MRI, CT Scan, X-Ray, Lab name..."
-              placeholderTextColor="#94A3B8"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={18} color="#94A3B8" />
-              </TouchableOpacity>
-            )}
+        {/* SEARCH BAR (MOBILE ONLY) */}
+        {!isDesktopWeb && (
+          <View style={styles.searchContainer}>
+            <View style={styles.searchBox}>
+              <Ionicons name="search" size={20} color={colors.textSecondary} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search MRI, CT Scan, X-Ray, Lab name..."
+                placeholderTextColor="#94A3B8"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* ==================================================
             HERO PROMO BANNER
@@ -277,79 +296,146 @@ const RadiologyLabsScreen = ({ navigation }) => {
           <Text style={styles.sectionCount}>{radiologyCategories.length} Categories</Text>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoriesScroll}
-        >
-          {radiologyCategories.map((cat) => {
-            const isSelected = selectedCategory === cat.id;
-            return (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.categoryChip,
-                  isSelected && styles.categoryChipActive,
-                ]}
-                activeOpacity={0.8}
-                onPress={() => setSelectedCategory(cat.id)}
-              >
-                <View
+        {Platform.OS === 'web' ? (
+          <View style={styles.categoriesWrap}>
+            {radiologyCategories.map((cat) => {
+              const isSelected = selectedCategory === cat.id;
+              return (
+                <TouchableOpacity
+                  key={cat.id}
                   style={[
-                    styles.categoryIconWrap,
-                    isSelected && styles.categoryIconWrapActive,
+                    styles.categoryChip,
+                    isSelected && styles.categoryChipActive,
                   ]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedCategory(cat.id)}
                 >
-                  <Ionicons
-                    name={cat.icon}
-                    size={18}
-                    color={isSelected ? '#FFFFFF' : colors.primary}
-                  />
-                </View>
-                <Text
+                  <View
+                    style={[
+                      styles.categoryIconWrap,
+                      isSelected && styles.categoryIconWrapActive,
+                    ]}
+                  >
+                    <Ionicons
+                      name={cat.icon}
+                      size={18}
+                      color={isSelected ? '#FFFFFF' : colors.primary}
+                    />
+                  </View>
+                  <Text
+                    style={[
+                      styles.categoryLabel,
+                      isSelected && styles.categoryLabelActive,
+                    ]}
+                  >
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoriesScroll}
+          >
+            {radiologyCategories.map((cat) => {
+              const isSelected = selectedCategory === cat.id;
+              return (
+                <TouchableOpacity
+                  key={cat.id}
                   style={[
-                    styles.categoryLabel,
-                    isSelected && styles.categoryLabelActive,
+                    styles.categoryChip,
+                    isSelected && styles.categoryChipActive,
                   ]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedCategory(cat.id)}
                 >
-                  {cat.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                  <View
+                    style={[
+                      styles.categoryIconWrap,
+                      isSelected && styles.categoryIconWrapActive,
+                    ]}
+                  >
+                    <Ionicons
+                      name={cat.icon}
+                      size={18}
+                      color={isSelected ? '#FFFFFF' : colors.primary}
+                    />
+                  </View>
+                  <Text
+                    style={[
+                      styles.categoryLabel,
+                      isSelected && styles.categoryLabelActive,
+                    ]}
+                  >
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {/* ==================================================
             QUICK FILTER TABS
         ================================================== */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterTabsScroll}
-        >
-          {filterTabs.map((tab) => {
-            const isSelected = selectedFilter === tab;
-            return (
-              <TouchableOpacity
-                key={tab}
-                style={[
-                  styles.filterTab,
-                  isSelected && styles.filterTabActive,
-                ]}
-                onPress={() => setSelectedFilter(tab)}
-              >
-                <Text
+        {Platform.OS === 'web' ? (
+          <View style={styles.filterTabsWrap}>
+            {filterTabs.map((tab) => {
+              const isSelected = selectedFilter === tab;
+              return (
+                <TouchableOpacity
+                  key={tab}
                   style={[
-                    styles.filterTabText,
-                    isSelected && styles.filterTabTextActive,
+                    styles.filterTab,
+                    isSelected && styles.filterTabActive,
                   ]}
+                  onPress={() => setSelectedFilter(tab)}
                 >
-                  {tab}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                  <Text
+                    style={[
+                      styles.filterTabText,
+                      isSelected && styles.filterTabTextActive,
+                    ]}
+                  >
+                    {tab}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterTabsScroll}
+          >
+            {filterTabs.map((tab) => {
+              const isSelected = selectedFilter === tab;
+              return (
+                <TouchableOpacity
+                  key={tab}
+                  style={[
+                    styles.filterTab,
+                    isSelected && styles.filterTabActive,
+                  ]}
+                  onPress={() => setSelectedFilter(tab)}
+                >
+                  <Text
+                    style={[
+                      styles.filterTabText,
+                      isSelected && styles.filterTabTextActive,
+                    ]}
+                  >
+                    {tab}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {/* ==================================================
             LAB LISTINGS
@@ -503,6 +589,9 @@ const styles = StyleSheet.create({
 
   scrollContent: {
     paddingBottom: 100,
+    maxWidth: 1200,
+    width: '100%',
+    alignSelf: 'center',
   },
 
   // SEARCH
@@ -602,6 +691,13 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     gap: 8,
   },
+  categoriesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    paddingBottom: 6,
+    rowGap: 8,
+  },
   categoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -643,6 +739,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     gap: 8,
+  },
+  filterTabsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    rowGap: 8,
   },
   filterTab: {
     paddingHorizontal: 14,
@@ -875,16 +978,18 @@ const styles = StyleSheet.create({
   viewTestsButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 8,
+    height: 38,
     gap: 6,
   },
   viewTestsButtonText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
   },
 
   // EMPTY STATE
@@ -982,6 +1087,35 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '800',
+  },
+
+  webBreadcrumbWrap: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    marginBottom: 10,
+  },
+  webBreadcrumbRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  webBreadcrumbLink: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#0071DC',
+  },
+  webBreadcrumbCurrent: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  webBreadcrumbQuery: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0F172A',
   },
 });
 

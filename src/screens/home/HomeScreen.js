@@ -23,6 +23,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { showAlert } from '../../utils/alert';
+import { requestLocationPermissionWebSafe, getCurrentPositionWebSafe, reverseGeocodeWebSafe } from '../../utils/locationHelper';
 
 import colors from '../../theme/colors';
 import { useCart } from '../../context/CartContext';
@@ -269,31 +271,38 @@ const HomeScreen = ({ navigation }) => {
   const handleDetectGPSLocation = async () => {
     try {
       setLoadingLocation(true);
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Please grant location permission to detect your area.');
+      const perm = await requestLocationPermissionWebSafe();
+      if (!perm.granted && perm.status !== 'granted') {
+        showAlert('Permission Denied', 'Please grant location permission to detect your area.');
         setLoadingLocation(false);
         return;
       }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const [geocode] = await Location.reverseGeocodeAsync({
+      const loc = await getCurrentPositionWebSafe({ accuracy: Location.Accuracy.Balanced });
+      const addresses = await reverseGeocodeWebSafe({
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
       });
 
+      const geocode = addresses && addresses.length > 0 ? addresses[0] : null;
       if (geocode) {
-        const area = geocode.subregion || geocode.district || geocode.name || 'Kuvempunagar';
+        const area = geocode.district || geocode.subregion || geocode.name || 'Kuvempunagar';
         const city = geocode.city || 'Mysore';
         const fullLoc = `${area}, ${city}`;
         setLocationName(fullLoc);
         await AsyncStorage.setItem('@unnathi_user_location', fullLoc);
+        try {
+          await AsyncStorage.setItem('@unnathi_user_coords', JSON.stringify({
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+          }));
+        } catch (e) {}
         setLocationModalVisible(false);
         showToast(`Location set to: ${fullLoc}`);
       }
       setLoadingLocation(false);
     } catch (e) {
       setLoadingLocation(false);
-      Alert.alert('Location Error', 'Could not detect GPS location. Please select manually.');
+      showAlert('Location Error', 'Could not detect GPS location. Please select manually.');
     }
   };
 

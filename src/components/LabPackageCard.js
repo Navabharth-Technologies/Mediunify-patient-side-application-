@@ -237,19 +237,19 @@ const styles = StyleSheet.create({
   },
 
   button: {
-    height: 36,
+    height: 38,
     marginTop: 12,
-    borderRadius: 12,
+    borderRadius: 8,
     backgroundColor: colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 6,
   },
 
   buttonText: {
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
     color: colors.white,
   },
 });

@@ -6,23 +6,39 @@ import {
   StyleSheet,
   Image,
   SafeAreaView,
+  Platform,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import colors from '../../theme/colors';
-
+import { safeNavigateToMain } from '../../utils/navigationHelper';
 
 const SplashScreen = ({ navigation }) => {
 
   useEffect(() => {
+    let isMounted = true;
 
-    const timer = setTimeout(() => {
+    const checkAuth = async () => {
+      try {
+        const loggedIn = await AsyncStorage.getItem('isLoggedIn');
+        if (loggedIn === 'true') {
+          if (isMounted) {
+            safeNavigateToMain(navigation);
+          }
+          return;
+        }
+      } catch (e) {}
 
-      navigation.replace('Login');
+      if (isMounted) {
+        navigation.replace('Login');
+      }
+    };
 
-    }, 2500);
-
-    return () => clearTimeout(timer);
-
+    const timer = setTimeout(checkAuth, 1800);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
   }, [navigation]);
 
 
@@ -77,21 +93,22 @@ const styles = StyleSheet.create({
   },
 
   tagline: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: colors.primary,
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.secondary,
     textAlign: 'center',
-    marginTop: 10,
+    marginTop: 12,
+    letterSpacing: 0.3,
   },
 
   loadingContainer: {
     marginTop: 35,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     borderWidth: 3,
-    borderColor: '#D9EAF7',
-    borderTopColor: colors.primary,
+    borderColor: colors.lightTeal,
+    borderTopColor: colors.teal,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -100,7 +117,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.teal,
   },
 
 });

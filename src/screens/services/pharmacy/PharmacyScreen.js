@@ -15,11 +15,14 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { requestLocationPermissionWebSafe, getCurrentPositionWebSafe, reverseGeocodeWebSafe } from '../../../utils/locationHelper';
 
 import colors from '../../../theme/colors';
 import pharmacyStores, {
@@ -38,6 +41,9 @@ const FILTER_TAGS = [
 ];
 
 const PharmacyScreen = ({ navigation, route }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+
   const {
     pharmacyCart,
     pharmacyCartCount,
@@ -47,7 +53,16 @@ const PharmacyScreen = ({ navigation, route }) => {
     setSelectedPharmacyStore,
   } = useCart();
 
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(route?.params?.query || route?.params?.search || '');
+
+  useEffect(() => {
+    if (route?.params?.query !== undefined) {
+      setSearch(route.params.query);
+    } else if (route?.params?.search !== undefined) {
+      setSearch(route.params.search);
+    }
+  }, [route?.params?.query, route?.params?.search]);
+
   const [selectedLocality, setSelectedLocality] = useState(
     POPULAR_LOCALITIES[0]
   );
@@ -139,9 +154,9 @@ const PharmacyScreen = ({ navigation, route }) => {
   const detectCurrentLocation = async () => {
     try {
       setLocationLoading(true);
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
+      const perm = await requestLocationPermissionWebSafe();
+      if (!perm.granted && perm.status !== 'granted') {
+        showAlert(
           'Location Permission',
           'Please allow location access to auto-detect nearby medical shops.'
         );
@@ -149,11 +164,11 @@ const PharmacyScreen = ({ navigation, route }) => {
         return;
       }
 
-      const position = await Location.getCurrentPositionAsync({
+      const position = await getCurrentPositionWebSafe({
         accuracy: Location.Accuracy.Balanced,
       });
 
-      const addresses = await Location.reverseGeocodeAsync({
+      const addresses = await reverseGeocodeWebSafe({
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
       });
@@ -188,13 +203,13 @@ const PharmacyScreen = ({ navigation, route }) => {
         });
         setSelectedLocality(closest);
         setShowLocationModal(false);
-        Alert.alert(
+        showAlert(
           'Location Updated 📍',
           `Serving from nearest medical shops in ${closest.name}, Mysore.`
         );
       }
     } catch (e) {
-      Alert.alert('Location Error', 'Unable to detect GPS. Please pick a locality manually.');
+      showAlert('Location Error', 'Unable to detect GPS. Please pick a locality manually.');
     } finally {
       setLocationLoading(false);
     }
@@ -205,7 +220,7 @@ const PharmacyScreen = ({ navigation, route }) => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Please allow photo gallery access to upload prescription.');
+        showAlert('Permission needed', 'Please allow photo gallery access to upload prescription.');
         return;
       }
 
@@ -217,14 +232,14 @@ const PharmacyScreen = ({ navigation, route }) => {
 
       if (!result.canceled && result.assets?.[0]) {
         setPrescriptionUploaded(true);
-        Alert.alert(
+        showAlert(
           'Prescription Uploaded! 📄',
           'Now select your preferred medical shop below to prepare and deliver your medicines.'
         );
       }
     } catch (error) {
       setPrescriptionUploaded(true);
-      Alert.alert('Prescription Attached', 'Prescription ready. Choose a medical shop to proceed.');
+      showAlert('Prescription Attached', 'Prescription ready. Choose a medical shop to proceed.');
     }
   };
 
@@ -237,7 +252,7 @@ const PharmacyScreen = ({ navigation, route }) => {
     if (phone) {
       Linking.openURL(`tel:${phone.replace(/[^0-9+]/g, '')}`);
     } else {
-      Alert.alert('Contact Shop', 'Shop phone: +91 821 2548901');
+      showAlert('Contact Shop', 'Shop phone: +91 821 2548901');
     }
   };
 
@@ -245,46 +260,50 @@ const PharmacyScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* TOP HEADER */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.secondary} />
-        </TouchableOpacity>
+      {/* TOP HEADER (MOBILE ONLY) */}
+      {!isDesktopWeb && (
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-back" size={22} color={colors.secondary} />
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.locationContainer}
-          activeOpacity={0.7}
-          onPress={() => setShowLocationModal(true)}
-        >
-          <View style={styles.locationHeaderRow}>
-            <Ionicons name="location" size={14} color={colors.primary} />
-            <Text style={styles.locationHeaderLabel}>Deliver to</Text>
-            <Ionicons name="chevron-down" size={13} color={colors.slate} />
-          </View>
-          <Text style={styles.locationText} numberOfLines={1}>
-            {selectedLocality.name}, Mysore
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.cartButton}
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate('Cart', { initialTab: 'pharmacy' })}
-        >
-          <Ionicons name="cart-outline" size={24} color={colors.secondary} />
-          {pharmacyCartCount > 0 && (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>
-                {pharmacyCartCount > 99 ? '99+' : pharmacyCartCount}
-              </Text>
+          <TouchableOpacity
+            style={styles.locationContainer}
+            activeOpacity={0.7}
+            onPress={() => setShowLocationModal(true)}
+          >
+            <View style={styles.locationHeaderRow}>
+              <Ionicons name="location" size={14} color={colors.primary} />
+              <Text style={styles.locationHeaderLabel}>Deliver to</Text>
+              <Ionicons name="chevron-down" size={13} color={colors.slate} />
             </View>
-          )}
-        </TouchableOpacity>
-      </View>
+            <Text style={styles.locationText} numberOfLines={1}>
+              {selectedLocality.name}, Mysore
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.cartButton}
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate('Cart', { initialTab: 'pharmacy' })}
+          >
+            <Ionicons name="cart-outline" size={24} color={colors.secondary} />
+            {pharmacyCartCount > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>
+                  {pharmacyCartCount > 99 ? '99+' : pharmacyCartCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
+
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -313,22 +332,24 @@ const PharmacyScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* SEARCH BAR */}
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color={colors.primary} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search medical shops by name or locality..."
-            placeholderTextColor={colors.slate}
-            value={search}
-            onChangeText={setSearch}
-          />
-          {search ? (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <Ionicons name="close-circle" size={18} color={colors.slate} />
-            </TouchableOpacity>
-          ) : null}
-        </View>
+        {/* SEARCH BAR (MOBILE ONLY - HIDES DUPLICATE SEARCH ON WEB) */}
+        {!isDesktopWeb && (
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color={colors.primary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search medical shops by name or locality..."
+              placeholderTextColor={colors.slate}
+              value={search}
+              onChangeText={setSearch}
+            />
+            {search ? (
+              <TouchableOpacity onPress={() => setSearch('')}>
+                <Ionicons name="close-circle" size={18} color={colors.slate} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        )}
 
         {/* LOCALITY SELECTOR CHIPS */}
         <View style={styles.localitySectionHeader}>
@@ -414,35 +435,63 @@ const PharmacyScreen = ({ navigation, route }) => {
         </View>
 
         {/* FILTER TAGS */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterTagsScroll}
-        >
-          {FILTER_TAGS.map((tag) => {
-            const isSelected = selectedFilterTag === tag.id;
-            return (
-              <TouchableOpacity
-                key={tag.id}
-                style={[
-                  styles.filterTag,
-                  isSelected && styles.filterTagActive,
-                ]}
-                onPress={() => setSelectedFilterTag(tag.id)}
-                activeOpacity={0.8}
-              >
-                <Text
+        {Platform.OS === 'web' ? (
+          <View style={styles.filterTagsWrap}>
+            {FILTER_TAGS.map((tag) => {
+              const isSelected = selectedFilterTag === tag.id;
+              return (
+                <TouchableOpacity
+                  key={tag.id}
                   style={[
-                    styles.filterTagText,
-                    isSelected && styles.filterTagTextActive,
+                    styles.filterTag,
+                    isSelected && styles.filterTagActive,
                   ]}
+                  onPress={() => setSelectedFilterTag(tag.id)}
+                  activeOpacity={0.8}
                 >
-                  {tag.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                  <Text
+                    style={[
+                      styles.filterTagText,
+                      isSelected && styles.filterTagTextActive,
+                    ]}
+                  >
+                    {tag.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterTagsScroll}
+          >
+            {FILTER_TAGS.map((tag) => {
+              const isSelected = selectedFilterTag === tag.id;
+              return (
+                <TouchableOpacity
+                  key={tag.id}
+                  style={[
+                    styles.filterTag,
+                    isSelected && styles.filterTagActive,
+                  ]}
+                  onPress={() => setSelectedFilterTag(tag.id)}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.filterTagText,
+                      isSelected && styles.filterTagTextActive,
+                    ]}
+                  >
+                    {tag.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {/* MEDICAL SHOPS LIST HEADER */}
         <View style={styles.listHeaderRow}>
@@ -568,30 +617,32 @@ const PharmacyScreen = ({ navigation, route }) => {
       {/* FLOATING CART SUMMARY BAR */}
       {pharmacyCartCount > 0 && (
         <View style={styles.floatingCartBar}>
-          <View style={styles.floatingCartLeft}>
-            <View style={styles.cartCountCircle}>
-              <Ionicons name="cart" size={16} color="#FFFFFF" />
+          <View style={styles.floatingCartInner}>
+            <View style={styles.floatingCartLeft}>
+              <View style={styles.cartCountCircle}>
+                <Ionicons name="cart" size={16} color="#FFFFFF" />
+              </View>
+              <View>
+                <Text style={styles.floatingCartCount}>
+                  {pharmacyCartCount} {pharmacyCartCount === 1 ? 'Item' : 'Items'} in Cart
+                </Text>
+                <Text style={styles.floatingCartShop}>
+                  Total: ₹{pharmacyFinalTotal}
+                </Text>
+              </View>
             </View>
-            <View>
-              <Text style={styles.floatingCartCount}>
-                {pharmacyCartCount} {pharmacyCartCount === 1 ? 'Item' : 'Items'} in Cart
-              </Text>
-              <Text style={styles.floatingCartShop}>
-                Total: ₹{pharmacyFinalTotal}
-              </Text>
-            </View>
-          </View>
 
-          <TouchableOpacity
-            style={styles.floatingCartButton}
-            onPress={() => navigation.navigate('Cart', { initialTab: 'pharmacy' })}
-            activeOpacity={0.88}
-          >
-            <Text style={styles.floatingCartBtnText}>
-              View Cart & Checkout
-            </Text>
-            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.floatingCartButton}
+              onPress={() => navigation.navigate('Cart', { initialTab: 'pharmacy' })}
+              activeOpacity={0.88}
+            >
+              <Text style={styles.floatingCartBtnText}>
+                View Cart & Checkout
+              </Text>
+              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -774,6 +825,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 40,
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
   },
   heroBanner: {
     backgroundColor: '#1E293B',
@@ -937,10 +991,12 @@ const styles = StyleSheet.create({
   },
   rxBtn: {
     backgroundColor: colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    height: 38,
+    paddingHorizontal: 16,
     borderRadius: 8,
     marginLeft: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   rxBtnDone: {
     backgroundColor: '#ECFDF5',
@@ -949,13 +1005,20 @@ const styles = StyleSheet.create({
   },
   rxBtnText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
   },
   rxBtnDoneText: {
     color: '#059669',
   },
   filterTagsScroll: {
+    paddingHorizontal: 16,
+    marginTop: 14,
+    gap: 8,
+  },
+  filterTagsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     paddingHorizontal: 16,
     marginTop: 14,
     gap: 8,
@@ -1129,6 +1192,7 @@ const styles = StyleSheet.create({
   storeCardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 8,
     marginTop: 12,
     paddingTop: 10,
@@ -1136,36 +1200,39 @@ const styles = StyleSheet.create({
     borderTopColor: '#F1F5F9',
   },
   storeCallBtn: {
+    height: 38,
+    maxWidth: 140,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#EFF6FF',
     borderWidth: 1,
     borderColor: '#BFDBFE',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderRadius: 8,
-    gap: 4,
+    gap: 5,
   },
   storeCallText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.primary,
   },
   orderFromShopBtn: {
+    height: 38,
+    maxWidth: 280,
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderRadius: 8,
     gap: 6,
   },
   orderFromShopText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
   },
   noStoresBox: {
     alignItems: 'center',
@@ -1207,14 +1274,19 @@ const styles = StyleSheet.create({
     borderTopColor: '#E2E8F0',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
     elevation: 8,
+  },
+  floatingCartInner: {
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   floatingCartLeft: {
     flexDirection: 'row',
@@ -1241,17 +1313,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   floatingCartButton: {
+    height: 44,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
     gap: 6,
   },
   floatingCartBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
   },
   modalOverlay: {
@@ -1353,6 +1426,35 @@ const styles = StyleSheet.create({
   localityModalTextActive: {
     color: colors.primary,
     fontWeight: '700',
+  },
+
+  webBreadcrumbWrap: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    marginBottom: 10,
+  },
+  webBreadcrumbRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  webBreadcrumbLink: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#0071DC',
+  },
+  webBreadcrumbCurrent: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  webBreadcrumbQuery: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0F172A',
   },
 });
 

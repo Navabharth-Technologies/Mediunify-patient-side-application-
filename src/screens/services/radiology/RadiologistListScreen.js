@@ -674,6 +674,9 @@ const styles =
     listContent: {
       padding: 18,
       paddingBottom: 35,
+      width: '100%',
+      maxWidth: 1200,
+      alignSelf: 'center',
     },
 
 
@@ -947,21 +950,23 @@ const styles =
       alignSelf: 'flex-start',
       marginTop: 10,
       backgroundColor:
-        '#00838F',
-      borderRadius: 10,
-      paddingHorizontal: 13,
-      paddingVertical: 9,
+        '#00B894',
+      borderRadius: 8,
+      height: 38,
+      paddingHorizontal: 16,
       flexDirection:
         'row',
       alignItems:
+        'center',
+      justifyContent:
         'center',
     },
 
     bookButtonText: {
       marginLeft: 5,
       color: '#FFFFFF',
-      fontSize: 11,
-      fontWeight: '800',
+      fontSize: 13,
+      fontWeight: '700',
     },
 
 

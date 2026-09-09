@@ -15,11 +15,13 @@ import {
   Modal,
   TextInput,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import labTests from '../../../data/labTests';
+import { syncActiveUser } from '../../../services/dataSyncService';
 
 const DEFAULT_SAMPLE_APPOINTMENTS = [
   {
@@ -175,12 +177,79 @@ const BookingsScreen = ({ navigation, route }) => {
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
   const [previewImageUri, setPreviewImageUri] = useState(null);
 
-  // Normalize an appointment item so lab tests, radiology, video calls, and doctor visits are all correctly structured
+  // Live Order Tracking States (Pharmacy Delivery & Lab Sample Collection)
+  const [selectedTrackingSample, setSelectedTrackingSample] = useState(null);
+  const [selectedTrackingPharmacy, setSelectedTrackingPharmacy] = useState(null);
+
+  // Normalize an appointment item so lab tests, radiology, video calls, doctor visits, and pharmacy orders are all correctly structured
   const normalizeAppointment = (item) => {
+    if (!item) return null;
+
+    const isPharmacy =
+      item.type === 'Pharmacy Order' ||
+      item.isPharmacyOrder ||
+      (Array.isArray(item.items) && item.items.length > 0) ||
+      (typeof item.id === 'string' && item.id.startsWith('UNC'));
+
+    if (isPharmacy) {
+      const itemCount = Array.isArray(item.items) ? item.items.length : 1;
+      const itemsList = Array.isArray(item.items) ? item.items : [];
+      const itemsSummary = itemsList.length > 0
+        ? itemsList.map((i) => `${i.name} (x${i.quantity || 1})`).join(', ')
+        : 'Prescription Medicines & Health Supplies';
+
+      const addressText =
+        typeof item.address === 'object' && item.address !== null
+          ? `${item.address.addressLine || ''}, ${item.address.city || 'Mysore'}${item.address.pincode ? ` - ${item.address.pincode}` : ''}`
+          : (typeof item.address === 'string' && item.address ? item.address : 'Doorstep Delivery, Kuvempunagar, Mysore');
+
+      return {
+        ...item,
+        id: item.id || `UNC-${Date.now()}`,
+        tokenNumber: item.id || `ORD-${Date.now().toString().slice(-4)}`,
+        type: 'Pharmacy Order',
+        isPharmacyOrder: true,
+        tests: itemsList.map((i) => ({ name: `${i.name} (x${i.quantity || 1})` })),
+        doctor: {
+          name: 'Unnathi Certified Pharmacy Store',
+          specialty: `Medicine Delivery • ${itemCount} Item${itemCount > 1 ? 's' : ''}`,
+          qualification: '100% Genuine Certified Medicines',
+          clinicName: 'Unnathi Express Pharmacy Hub',
+          clinicAddress: addressText,
+          clinicArea: 'Kuvempunagar, Mysore',
+          phone: '+91 821 245 9905',
+          fee: item.total || item.subtotal || 350,
+          image: 'https://images.unsplash.com/photo-1586015555751-63bb77f4322a?auto=format&fit=crop&q=80&w=300',
+        },
+        day: item.date?.split(',')[0] || 'Today',
+        date: item.date || 'Today, Express Slot',
+        time: item.deliverySlot || 'Express Delivery (30-45 mins)',
+        status: item.status || 'Confirmed',
+        paidAmount: item.total || item.subtotal || 350,
+        paymentStatus: item.paymentStatus || (item.paymentMethod?.includes('COD') ? 'Pay on Delivery (Cash/UPI)' : 'Paid Online via UPI'),
+        patient: {
+          name: (item.address && typeof item.address === 'object' && item.address.name) ? item.address.name : 'Patient (Self)',
+          age: '28',
+          gender: 'Delivery',
+          phone: (item.address && typeof item.address === 'object' && item.address.phone) || '',
+        },
+        itemsSummary,
+        deliverySlot: item.deliverySlot || 'Express Delivery (30-45 mins)',
+        rider: {
+          name: 'Santosh M.',
+          phone: '+91 98765 43210',
+          temperature: '98.4°F (Verified Safe)',
+          badge: 'Vaccinated • Mask & Sanitizer Verified',
+        },
+        details: item,
+      };
+    }
+
     const isRad =
       item.type === 'Radiology' ||
       item.bookingType === 'Radiology' ||
       item.type === 'Radiology Scan' ||
+      item.serviceType === 'radiology' ||
       item.details?.bookingType === 'Radiology' ||
       item.details?.type === 'Radiology';
 
@@ -189,6 +258,7 @@ const BookingsScreen = ({ navigation, route }) => {
       (item.type === 'Video Consultation' ||
       item.type === 'Video' ||
       item.type === 'TeleConsultation' ||
+      item.serviceType === 'video' ||
       (typeof item.type === 'string' && item.type.toLowerCase().includes('video')));
 
     const isLab =
@@ -197,22 +267,35 @@ const BookingsScreen = ({ navigation, route }) => {
       (item.type === 'Lab Test' ||
       item.type === 'Diagnostic Lab Test' ||
       item.type === 'Lab' ||
+      item.serviceType === 'lab' ||
       (Array.isArray(item.tests) && item.tests.length > 0));
 
+    const isNurse =
+      !isRad &&
+      !isVideo &&
+      !isLab &&
+      (item.type === 'Home Nurse Care' ||
+      item.type === 'Nurse' ||
+      item.serviceType === 'nurse' ||
+      item.assignedNurse !== undefined ||
+      (typeof item.serviceName === 'string' && item.serviceName.includes('Staff')));
+
     if (isVideo) {
+      const docName = item.doctor?.name || item.doctorName || 'Dr. Specialist';
+      const docSpec = item.doctor?.specialty || item.specialty || 'General Physician & TeleHealth';
       return {
         ...item,
         type: 'Video Consultation',
         tokenNumber: item.tokenNumber || 'VID-102',
         doctor: {
-          name: item.doctor?.name || 'Dr. Specialist',
-          specialty: item.doctor?.specialty || 'General Physician & TeleHealth',
+          name: docName,
+          specialty: docSpec,
           qualification: item.doctor?.qualification || 'MBBS, MD',
-          clinicName: item.doctor?.clinicName || 'MediUnify Virtual TeleHealth Room',
-          clinicAddress: 'Online Video Consultation Room (HD Encrypted)',
-          clinicArea: 'Virtual Care Hub',
+          clinicName: item.doctor?.clinicName || item.hospital || 'MediUnify Virtual TeleHealth Room',
+          clinicAddress: item.doctor?.clinicAddress || 'Online Video Consultation Room (HD Encrypted)',
+          clinicArea: item.doctor?.clinicArea || 'Virtual Care Hub',
           phone: item.doctor?.phone || '+91 821 245 9901',
-          fee: item.paidAmount || item.doctor?.fee || 450,
+          fee: item.paidAmount || item.fee || item.doctor?.fee || 450,
           image:
             item.doctor?.image ||
             'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300',
@@ -221,10 +304,10 @@ const BookingsScreen = ({ navigation, route }) => {
         date: item.date || 'Today, Scheduled',
         time: item.time || 'Live Video Slot',
         status: item.status || 'Confirmed',
-        paidAmount: item.paidAmount || item.doctor?.fee || 450,
+        paidAmount: item.paidAmount || item.fee || item.doctor?.fee || 450,
         paymentStatus: item.paymentStatus || 'Paid Online via UPI',
         videoRoomLink: item.videoRoomLink || `https://telehealth.unnathi.org/room/${item.id}`,
-        patient: item.patient || { name: 'Patient (Self)', age: '28', gender: 'Male' },
+        patient: item.patient || { name: item.patientName || 'Patient (Self)', age: '28', gender: 'Male' },
         details: item.details || item,
       };
     }
@@ -240,6 +323,7 @@ const BookingsScreen = ({ navigation, route }) => {
       const centerName =
         item.lab?.name ||
         item.doctor?.name ||
+        item.labName ||
         item.details?.lab?.name ||
         'Unnathi Diagnostic & Imaging Center';
       const clinicAddress =
@@ -269,7 +353,7 @@ const BookingsScreen = ({ navigation, route }) => {
           specialty:
             testNames.length > 0
               ? `Radiology • ${testNames.join(', ')}`
-              : item.doctor?.specialty || '3T Scan & Imaging Center',
+              : item.doctor?.specialty || item.specialty || '3T Scan & Imaging Center',
           qualification: 'NABL & NABH Accredited Center',
           clinicName: centerName,
           clinicAddress: clinicAddress,
@@ -277,7 +361,7 @@ const BookingsScreen = ({ navigation, route }) => {
           phone: clinicPhone,
           latitude: 12.2958,
           longitude: 76.6394,
-          fee: item.payment?.paidAmount || item.paidAmount || item.details?.payment?.paidAmount || item.doctor?.fee || 1999,
+          fee: item.payment?.paidAmount || item.paidAmount || item.fee || item.details?.payment?.paidAmount || item.doctor?.fee || 1999,
           image:
             item.doctor?.image ||
             'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&q=80&w=300',
@@ -286,12 +370,12 @@ const BookingsScreen = ({ navigation, route }) => {
         date: item.date || item.appointmentDate || item.details?.appointmentDate || 'Tomorrow, 10:00 AM',
         time: item.time || item.appointmentSlot || item.details?.appointmentSlot || '10:00 AM',
         status: item.status || 'Confirmed',
-        paidAmount: item.payment?.paidAmount || item.paidAmount || item.details?.payment?.paidAmount || 1999,
+        paidAmount: item.payment?.paidAmount || item.paidAmount || item.fee || item.details?.payment?.paidAmount || 1999,
         paymentStatus:
           item.paymentStatus ||
           item.payment?.paymentStatus ||
           (item.payment?.method ? `Paid via ${item.payment.method}` : 'Paid Online via UPI'),
-        patient: item.patient || item.patientDetails || item.details?.patient || { name: 'Ramesh (Self)', age: '28', gender: 'Male' },
+        patient: item.patient || item.patientDetails || item.details?.patient || { name: item.patientName || 'Ramesh (Self)', age: '28', gender: 'Male' },
         details: item.details || item,
       };
     }
@@ -302,6 +386,7 @@ const BookingsScreen = ({ navigation, route }) => {
       const centerName =
         item.labCenter?.name ||
         item.doctor?.name ||
+        item.labName ||
         'MediUnify Pathology & Diagnostics Hub';
       const clinicAddress =
         item.address ||
@@ -322,15 +407,15 @@ const BookingsScreen = ({ navigation, route }) => {
           specialty:
             testNames.length > 0
               ? `Lab Tests • ${testNames.join(', ')}`
-              : item.doctor?.specialty || 'Diagnostic Profile Screening',
+              : item.doctor?.specialty || item.specialty || 'Diagnostic Profile Screening',
           qualification: 'NABL & ICMR Certified Diagnostics',
-          clinicName: item.labCenter?.name || item.doctor?.clinicName || 'MediUnify Pathology Hub',
+          clinicName: item.labCenter?.name || item.labName || item.doctor?.clinicName || 'MediUnify Pathology Hub',
           clinicAddress: clinicAddress,
           clinicArea: item.labCenter?.area || item.doctor?.clinicArea || 'Mysore',
           phone: item.labCenter?.phone || item.doctor?.phone || '+91 821 245 9901',
           latitude: 12.2858,
           longitude: 76.6341,
-          fee: item.totalAmount || item.paidAmount || item.doctor?.fee || 499,
+          fee: item.totalAmount || item.paidAmount || item.fee || item.doctor?.fee || 499,
           image:
             item.doctor?.image ||
             'https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&q=80&w=300',
@@ -339,9 +424,37 @@ const BookingsScreen = ({ navigation, route }) => {
         date: item.date || 'Scheduled Date',
         time: item.slot || item.time || 'Morning Slot',
         status: item.status || 'Confirmed',
-        paidAmount: item.totalAmount || item.paidAmount || 499,
+        paidAmount: item.totalAmount || item.paidAmount || item.fee || 499,
         paymentStatus: item.paymentStatus || 'Paid Online',
-        patient: item.patient || { name: 'Patient (Self)', age: '28', gender: 'Male' },
+        patient: item.patient || { name: item.patientName || 'Patient (Self)', age: '28', gender: 'Male' },
+        details: item.details || item,
+      };
+    }
+
+    if (isNurse) {
+      const nurseName = item.assignedNurse?.name || item.nurseName || 'Certified Staff Nurse';
+      return {
+        ...item,
+        type: 'Home Nurse Care',
+        tokenNumber: item.tokenNumber || item.id || 'NURSE-01',
+        doctor: {
+          name: nurseName,
+          specialty: item.serviceName || item.plan || 'General Post-Op & Vitals Care',
+          qualification: item.assignedNurse?.qualification || 'B.Sc Nursing, Certified',
+          clinicName: 'Unnathi Home Care & Nursing',
+          clinicAddress: item.patient?.address || item.address || 'Doorstep Home Care, Mysore',
+          clinicArea: 'Kuvempunagar, Mysore',
+          phone: item.doctor?.phone || '+91 821 245 9905',
+          fee: item.payment?.amount || item.paidAmount || item.fee || 1200,
+          image: 'https://images.unsplash.com/photo-1594824813576-92f70b79873a?auto=format&fit=crop&q=80&w=300',
+        },
+        day: item.day || item.schedule?.startDate || item.startDate || 'Scheduled',
+        date: item.date || item.schedule?.startDate || item.startDate || 'Today',
+        time: item.time || item.schedule?.time || item.timeSlot || 'Day Duty (09:00 AM - 05:00 PM)',
+        status: item.status || 'Confirmed',
+        paidAmount: item.payment?.amount || item.paidAmount || item.fee || 1200,
+        paymentStatus: item.payment?.method || item.paymentStatus || 'Paid Online',
+        patient: item.patient || { name: item.patientName || 'Patient (Self)', age: '28', gender: 'Home Care' },
         details: item.details || item,
       };
     }
@@ -351,14 +464,14 @@ const BookingsScreen = ({ navigation, route }) => {
       ...item,
       type: item.type || 'Doctor Consultation',
       doctor: {
-        name: item.doctor?.name || 'Medical Specialist',
-        specialty: item.doctor?.specialty || 'General Medicine',
+        name: item.doctor?.name || item.doctorName || 'Dr. Medical Specialist',
+        specialty: item.doctor?.specialty || item.specialty || 'General Medicine',
         qualification: item.doctor?.qualification || 'MBBS, MD',
-        clinicName: item.doctor?.clinicName || 'MediUnify Healthcare Clinic',
-        clinicAddress: item.doctor?.clinicAddress || 'Kuvempunagar, Mysore',
+        clinicName: item.doctor?.clinicName || item.hospital || 'Unnathi Multispeciality Clinic',
+        clinicAddress: item.doctor?.clinicAddress || item.hospital || 'Kuvempunagar, Mysore',
         clinicArea: item.doctor?.clinicArea || 'Mysore',
         phone: item.doctor?.phone || '+91 821 245 9901',
-        fee: item.paidAmount || item.doctor?.fee || 500,
+        fee: item.paidAmount || item.fee || item.doctor?.fee || 500,
         image:
           item.doctor?.image ||
           'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300',
@@ -367,15 +480,20 @@ const BookingsScreen = ({ navigation, route }) => {
       date: item.date || 'Today, 04:30 PM',
       time: item.time || '04:30 PM',
       status: item.status || 'Confirmed',
-      paidAmount: item.paidAmount || 500,
+      paidAmount: item.paidAmount || item.fee || 500,
       paymentStatus: item.paymentStatus || 'Pay at Clinic',
-      patient: item.patient || { name: 'Self', age: '28', gender: 'Male' },
+      patient: item.patient || { name: item.patientName || 'Self', age: '28', gender: 'Male' },
       details: item.details || item,
     };
   };
 
   const loadAppointments = async () => {
     try {
+      // 0. Pull fresh sync from Central Server (live Web <-> Mobile shared data)
+      try {
+        await syncActiveUser();
+      } catch (syncErr) {}
+
       // 1. Load doctor & direct bookings
       const apptJson = await AsyncStorage.getItem('@unnathi_appointments');
       const storedAppts = apptJson ? JSON.parse(apptJson) : [];
@@ -392,34 +510,62 @@ const BookingsScreen = ({ navigation, route }) => {
       const radJson = await AsyncStorage.getItem('@radiologyBookings');
       const storedRad = radJson ? JSON.parse(radJson) : [];
 
-      // Combine and eliminate duplicates
-      const rawAll = [...storedAppts, ...storedVideo, ...storedLabs, ...storedRad];
+      // 5. Load nurse bookings
+      const nurseJson = await AsyncStorage.getItem('@unnathi_nurse_bookings');
+      const storedNurse = nurseJson ? JSON.parse(nurseJson) : [];
+
+      // 6. Load pharmacy orders (from both storage keys)
+      const pharmJson = await AsyncStorage.getItem('@unnathi_pharmacy_orders');
+      const genOrdersJson = await AsyncStorage.getItem('@orders');
+      const storedPharm = pharmJson ? JSON.parse(pharmJson) : [];
+      const storedGen = genOrdersJson ? JSON.parse(genOrdersJson) : [];
+      const pharmOrders = [];
+      const seenPharmIds = new Set();
+      [...storedPharm, ...storedGen].forEach((ord) => {
+        if (ord && ord.id && !seenPharmIds.has(ord.id)) {
+          seenPharmIds.add(ord.id);
+          const norm = normalizeAppointment(ord);
+          if (norm) pharmOrders.push(norm);
+        }
+      });
+
+      // Combine with newest first
+      const rawAll = [];
+      // If a new booking was passed in route params, ensure it is at the very front
+      if (route?.params?.newAppointment) {
+        rawAll.push(route.params.newAppointment);
+      }
+      rawAll.push(...storedAppts, ...storedVideo, ...storedLabs, ...storedRad, ...storedNurse, ...pharmOrders);
+
       if (rawAll.length === 0) {
         rawAll.push(...DEFAULT_SAMPLE_APPOINTMENTS);
       }
 
       const uniqueMap = new Map();
       rawAll.forEach((item) => {
-        if (!uniqueMap.has(item.id)) {
+        if (item && item.id && !uniqueMap.has(item.id)) {
           uniqueMap.set(item.id, normalizeAppointment(item));
         }
       });
 
-      // Also include route.params.newAppointment if passed
-      if (route?.params?.newAppointment) {
-        const normNew = normalizeAppointment(route.params.newAppointment);
-        uniqueMap.set(normNew.id, normNew);
-      }
-
-      setAppointments(Array.from(uniqueMap.values()));
+      setAppointments(Array.from(uniqueMap.values()).filter(Boolean));
     } catch (e) {
       console.log('Error loading appointments:', e);
     }
   };
 
+  // Initial load
   useEffect(() => {
     loadAppointments();
   }, []);
+
+  // Reload when route params change (e.g. newly booked appointment, tab switch, timestamp)
+  useEffect(() => {
+    loadAppointments();
+    if (route?.params?.initialTab) {
+      setSelectedTab(route.params.initialTab);
+    }
+  }, [route?.params]);
 
   // Reload when screen gains focus
   useEffect(() => {
@@ -432,17 +578,36 @@ const BookingsScreen = ({ navigation, route }) => {
   // Tab Filtering
   const filteredAppointments = useMemo(() => {
     return appointments.filter((item) => {
+      if (!item) return false;
+
       const isVideo =
         item.type === 'Video Consultation' ||
         item.type === 'Video' ||
-        item.type === 'TeleConsultation';
+        item.type === 'TeleConsultation' ||
+        item.serviceType === 'video' ||
+        (typeof item.type === 'string' && item.type.toLowerCase().includes('video'));
       const isLab =
         item.type === 'Lab Test' ||
         item.type === 'Diagnostic Lab Test' ||
-        item.type === 'Lab';
-      const isRad = item.type === 'Radiology';
-      const isDoc = !isLab && !isRad && !isVideo;
+        item.type === 'Lab' ||
+        item.serviceType === 'lab';
+      const isRad = item.type === 'Radiology' || item.serviceType === 'radiology';
+      const isNurse =
+        item.type === 'Home Nurse Care' ||
+        item.type === 'Nurse' ||
+        item.serviceType === 'nurse' ||
+        item.assignedNurse !== undefined ||
+        (typeof item.serviceName === 'string' && item.serviceName.includes('Staff'));
+      const isPharmacy = item.type === 'Pharmacy Order' || item.isPharmacyOrder;
+      const isDoc = !isLab && !isRad && !isVideo && !isPharmacy && !isNurse;
+      const isSample = isLab && (item.collectionMode?.includes('Home') || item.visitType?.includes('Home'));
 
+      if (selectedTab === 'Pharmacy Orders') {
+        return isPharmacy;
+      }
+      if (selectedTab === 'Sample Tracking') {
+        return isSample;
+      }
       if (selectedTab === 'Video Consults') {
         return isVideo;
       }
@@ -455,8 +620,16 @@ const BookingsScreen = ({ navigation, route }) => {
       if (selectedTab === 'Radiology Scans') {
         return isRad;
       }
+      if (selectedTab === 'Home Care') {
+        return isNurse;
+      }
       if (selectedTab === 'Confirmed') {
-        return item.status === 'Confirmed' || item.status === 'Rescheduled';
+        return (
+          item.status === 'Confirmed' ||
+          item.status === 'Rescheduled' ||
+          item.status === 'Out for Delivery' ||
+          item.status === 'Scheduled'
+        );
       }
       if (selectedTab === 'Cancelled') {
         return item.status === 'Cancelled';
@@ -473,26 +646,58 @@ const BookingsScreen = ({ navigation, route }) => {
         (a) =>
           a.type === 'Video Consultation' ||
           a.type === 'Video' ||
-          a.type === 'TeleConsultation'
+          a.type === 'TeleConsultation' ||
+          a.serviceType === 'video' ||
+          (typeof a.type === 'string' && a.type.toLowerCase().includes('video'))
       ).length,
       doctors: appointments.filter(
         (a) =>
           a.type !== 'Radiology' &&
+          a.serviceType !== 'radiology' &&
           a.type !== 'Lab Test' &&
           a.type !== 'Diagnostic Lab Test' &&
           a.type !== 'Lab' &&
+          a.serviceType !== 'lab' &&
+          a.type !== 'Pharmacy Order' &&
+          !a.isPharmacyOrder &&
           a.type !== 'Video Consultation' &&
           a.type !== 'Video' &&
-          a.type !== 'TeleConsultation'
+          a.type !== 'TeleConsultation' &&
+          a.serviceType !== 'video' &&
+          a.type !== 'Home Nurse Care' &&
+          a.type !== 'Nurse' &&
+          a.serviceType !== 'nurse' &&
+          a.assignedNurse === undefined
       ).length,
       labTests: appointments.filter(
         (a) =>
           a.type === 'Lab Test' ||
           a.type === 'Diagnostic Lab Test' ||
-          a.type === 'Lab'
+          a.type === 'Lab' ||
+          a.serviceType === 'lab'
       ).length,
-      radiology: appointments.filter((a) => a.type === 'Radiology').length,
-      confirmed: appointments.filter((a) => a.status === 'Confirmed' || a.status === 'Rescheduled').length,
+      sampleTracking: appointments.filter(
+        (a) =>
+          (a.type === 'Lab Test' || a.type === 'Diagnostic Lab Test' || a.type === 'Lab' || a.serviceType === 'lab') &&
+          (a.collectionMode?.includes('Home') || a.visitType?.includes('Home'))
+      ).length,
+      pharmacy: appointments.filter((a) => a.type === 'Pharmacy Order' || a.isPharmacyOrder).length,
+      radiology: appointments.filter((a) => a.type === 'Radiology' || a.serviceType === 'radiology').length,
+      nurse: appointments.filter(
+        (a) =>
+          a.type === 'Home Nurse Care' ||
+          a.type === 'Nurse' ||
+          a.serviceType === 'nurse' ||
+          a.assignedNurse !== undefined ||
+          (typeof a.serviceName === 'string' && a.serviceName.includes('Staff'))
+      ).length,
+      confirmed: appointments.filter(
+        (a) =>
+          a.status === 'Confirmed' ||
+          a.status === 'Rescheduled' ||
+          a.status === 'Out for Delivery' ||
+          a.status === 'Scheduled'
+      ).length,
       cancelled: appointments.filter((a) => a.status === 'Cancelled').length,
     };
   }, [appointments]);
@@ -512,7 +717,7 @@ const BookingsScreen = ({ navigation, route }) => {
 
   // Quick Cancel Appointment Handler
   const handleQuickCancel = (item) => {
-    Alert.alert(
+    showAlert(
       'Cancel Appointment?',
       `Are you sure you want to cancel your appointment with ${item.doctor?.name}? Any paid fees will be refunded to your MediUnnathi Wallet.`,
       [
@@ -535,7 +740,7 @@ const BookingsScreen = ({ navigation, route }) => {
               await AsyncStorage.setItem('@unnathi_wallet_balance', newBal.toString());
             }
 
-            Alert.alert('Appointment Cancelled', 'Your booking has been cancelled and refunded.');
+            showAlert('Appointment Cancelled', 'Your booking has been cancelled and refunded.');
           },
         },
       ]
@@ -548,7 +753,7 @@ const BookingsScreen = ({ navigation, route }) => {
     const testName = typeof testToRemove === 'string' ? testToRemove : testToRemove.name;
 
     if (appointment.tests.length === 1) {
-      Alert.alert(
+      showAlert(
         'Remove Single Test',
         `"${testName}" is the only test in this booking. Removing it will cancel this booking. Do you want to proceed?`,
         [
@@ -563,7 +768,7 @@ const BookingsScreen = ({ navigation, route }) => {
       return;
     }
 
-    Alert.alert(
+    showAlert(
       'Remove Test from Booking',
       `Remove "${testName}" from booking #${appointment.tokenNumber || appointment.id}?`,
       [
@@ -595,7 +800,7 @@ const BookingsScreen = ({ navigation, route }) => {
               JSON.stringify(updatedAppointments.filter((a) => a.type === 'Diagnostic Lab Test'))
             );
 
-            Alert.alert(
+            showAlert(
               'Test Removed',
               `"${testName}" has been removed. Updated booking amount: ₹${updatedAmount}`
             );
@@ -613,7 +818,7 @@ const BookingsScreen = ({ navigation, route }) => {
     );
 
     if (isAlreadyAdded) {
-      Alert.alert('Test Already Included', `"${testToAdd.name}" is already in this appointment.`);
+      showAlert('Test Already Included', `"${testToAdd.name}" is already in this appointment.`);
       return;
     }
 
@@ -652,7 +857,7 @@ const BookingsScreen = ({ navigation, route }) => {
     setActiveBookingForAddTest(null);
     setTestSearchQuery('');
 
-    Alert.alert(
+    showAlert(
       'Test Added Successfully',
       `"${testToAdd.name}" (+₹${addedPrice}) was added to booking #${appointment.tokenNumber || appointment.id}.\nTotal Amount: ₹${updatedAmount}`
     );
@@ -674,7 +879,7 @@ const BookingsScreen = ({ navigation, route }) => {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') {
           setIsUploadingDoc(false);
-          Alert.alert('Permission Needed', 'Please allow camera access to capture documents.');
+          showAlert('Permission Needed', 'Please allow camera access to capture documents.');
           return;
         }
         result = await ImagePicker.launchCameraAsync({
@@ -685,7 +890,7 @@ const BookingsScreen = ({ navigation, route }) => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
           setIsUploadingDoc(false);
-          Alert.alert('Permission Needed', 'Please allow photo library access to upload documents.');
+          showAlert('Permission Needed', 'Please allow photo library access to upload documents.');
           return;
         }
         result = await ImagePicker.launchImageLibraryAsync({
@@ -728,7 +933,7 @@ const BookingsScreen = ({ navigation, route }) => {
           await AsyncStorage.setItem('@videoBookings', JSON.stringify(updatedAppointments.filter((a) => a.type?.includes('Video'))));
         }
 
-        Alert.alert(
+        showAlert(
           'Document Uploaded! 📄',
           `"${newDoc.name}" has been attached to booking #${activeAppointmentForUpload.tokenNumber || activeAppointmentForUpload.id}.`
         );
@@ -736,7 +941,7 @@ const BookingsScreen = ({ navigation, route }) => {
     } catch (err) {
       setIsUploadingDoc(false);
       console.log('Error picking document:', err);
-      Alert.alert('Upload Error', 'Failed to attach document. Please try again.');
+      showAlert('Upload Error', 'Failed to attach document. Please try again.');
     }
   };
 
@@ -763,15 +968,23 @@ const BookingsScreen = ({ navigation, route }) => {
 
   // Render Card
   const renderAppointmentCard = ({ item }) => {
+    const isPharmacy =
+      item.type === 'Pharmacy Order' ||
+      item.isPharmacyOrder;
+    const isLabHomeSample =
+      (item.type === 'Diagnostic Lab Test' || item.type === 'Lab Test' || item.type === 'Lab') &&
+      (item.collectionMode?.includes('Home') || item.visitType?.includes('Home'));
     const isVideo =
-      item.type === 'Video Consultation' ||
+      !isPharmacy &&
+      (item.type === 'Video Consultation' ||
       item.type === 'Video' ||
-      item.type === 'TeleConsultation';
+      item.type === 'TeleConsultation');
     const isRadiology = item.type === 'Radiology';
     const isLabTest =
-      item.type === 'Lab Test' ||
+      !isPharmacy &&
+      (item.type === 'Lab Test' ||
       item.type === 'Diagnostic Lab Test' ||
-      item.type === 'Lab';
+      item.type === 'Lab');
     const isCancelled = item.status === 'Cancelled';
     const isRescheduled = item.status === 'Rescheduled';
 
@@ -780,7 +993,13 @@ const BookingsScreen = ({ navigation, route }) => {
         style={[styles.card, isCancelled && styles.cardCancelled, isVideo && styles.cardVideo]}
         activeOpacity={0.92}
         onPress={() => {
-          navigation.navigate('BookingDetails', { appointment: item });
+          if (isPharmacy) {
+            setSelectedTrackingPharmacy(item);
+          } else if (isLabHomeSample) {
+            setSelectedTrackingSample(item);
+          } else {
+            navigation.navigate('BookingDetails', { appointment: item });
+          }
         }}
       >
         {/* CARD TOP BAR: TYPE, TOKEN & STATUS */}
@@ -789,7 +1008,11 @@ const BookingsScreen = ({ navigation, route }) => {
             <View
               style={[
                 styles.typeBadge,
-                isVideo
+                isPharmacy
+                  ? { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }
+                  : isLabHomeSample
+                  ? { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }
+                  : isVideo
                   ? { backgroundColor: '#F5F3FF', borderColor: '#DDD6FE' }
                   : isRadiology
                   ? { backgroundColor: '#F3E8FF', borderColor: '#E9D5FF' }
@@ -799,14 +1022,42 @@ const BookingsScreen = ({ navigation, route }) => {
               ]}
             >
               <Ionicons
-                name={isVideo ? 'videocam' : isRadiology ? 'radio' : isLabTest ? 'flask' : 'person'}
+                name={
+                  isPharmacy
+                    ? 'cart'
+                    : isLabHomeSample
+                    ? 'navigate'
+                    : isVideo
+                    ? 'videocam'
+                    : isRadiology
+                    ? 'radio'
+                    : isLabTest
+                    ? 'flask'
+                    : 'person'
+                }
                 size={12}
-                color={isVideo ? '#7C3AED' : isRadiology ? '#7C3AED' : isLabTest ? colors.teal : '#2563EB'}
+                color={
+                  isPharmacy
+                    ? '#D97706'
+                    : isLabHomeSample
+                    ? '#059669'
+                    : isVideo
+                    ? '#7C3AED'
+                    : isRadiology
+                    ? '#7C3AED'
+                    : isLabTest
+                    ? colors.teal
+                    : '#2563EB'
+                }
               />
               <Text
                 style={[
                   styles.typeBadgeText,
-                  isVideo
+                  isPharmacy
+                    ? { color: '#D97706' }
+                    : isLabHomeSample
+                    ? { color: '#059669' }
+                    : isVideo
                     ? { color: '#7C3AED' }
                     : isRadiology
                     ? { color: '#7C3AED' }
@@ -815,7 +1066,11 @@ const BookingsScreen = ({ navigation, route }) => {
                     : { color: '#2563EB' },
                 ]}
               >
-                {isVideo
+                {isPharmacy
+                  ? 'Pharmacy Delivery'
+                  : isLabHomeSample
+                  ? 'Home Sample'
+                  : isVideo
                   ? 'Video Call'
                   : isRadiology
                   ? 'Radiology'
@@ -868,7 +1123,35 @@ const BookingsScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* LAB COLLECTION MODE ROW OR VIDEO CALL READY ROW */}
+        {/* PHARMACY LIVE DELIVERY BANNER */}
+        {isPharmacy && (
+          <TouchableOpacity
+            style={[styles.collectionModeRow, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}
+            onPress={() => setSelectedTrackingPharmacy(item)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="bicycle" size={13} color="#D97706" />
+            <Text style={[styles.collectionModeRowText, { color: '#B45309', fontWeight: '700' }]} numberOfLines={1}>
+              Express Delivery • Rider Santosh M. Assigned • Tap to Track ›
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* LAB SAMPLE COLLECTION BANNER */}
+        {isLabHomeSample && (
+          <TouchableOpacity
+            style={[styles.collectionModeRow, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}
+            onPress={() => setSelectedTrackingSample(item)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="navigate-circle" size={14} color="#059669" />
+            <Text style={[styles.collectionModeRowText, { color: '#047857', fontWeight: '700' }]} numberOfLines={1}>
+              Doorstep Collection • Praveen M. (En Route) • Tap to Track ›
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* VIDEO CALL READY ROW */}
         {isVideo && (
           <View style={[styles.collectionModeRow, { backgroundColor: '#FAF5FF', borderColor: '#E9D5FF' }]}>
             <Ionicons name="videocam" size={13} color="#7C3AED" />
@@ -878,12 +1161,12 @@ const BookingsScreen = ({ navigation, route }) => {
           </View>
         )}
 
-        {isLabTest && item.collectionMode && (
+        {isLabTest && !isLabHomeSample && item.collectionMode && (
           <View style={styles.collectionModeRow}>
             <Ionicons
-              name={item.collectionMode.includes('Home') ? 'home' : 'business'}
+              name="business"
               size={12}
-              color={item.collectionMode.includes('Home') ? colors.freshGreen : '#D97706'}
+              color="#D97706"
             />
             <Text style={styles.collectionModeRowText} numberOfLines={1}>
               {item.collectionMode} • {item.doctor?.clinicArea || 'Mysore'}
@@ -891,13 +1174,15 @@ const BookingsScreen = ({ navigation, route }) => {
           </View>
         )}
 
-        {/* DOCTOR / CENTER INFO ROW */}
+        {/* DOCTOR / CENTER / STORE INFO ROW */}
         <View style={styles.doctorInfoRow}>
           <Image
             source={{
               uri:
                 item.doctor?.image ||
-                (isVideo
+                (isPharmacy
+                  ? 'https://images.unsplash.com/photo-1586015555751-63bb77f4322a?auto=format&fit=crop&q=80&w=300'
+                  : isVideo
                   ? 'https://images.unsplash.com/photo-1594824813576-92f70b79873a?auto=format&fit=crop&q=80&w=300'
                   : isRadiology
                   ? 'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&q=80&w=300'
@@ -910,29 +1195,40 @@ const BookingsScreen = ({ navigation, route }) => {
 
           <View style={styles.doctorDetailsWrap}>
             <Text style={styles.doctorName} numberOfLines={1}>
-              {item.doctor?.name || 'MediUnify Healthcare'}
+              {item.doctor?.name || (isPharmacy ? 'Unnathi Pharmacy' : 'MediUnify Healthcare')}
             </Text>
             <Text style={styles.doctorSpecialty} numberOfLines={1}>
-              {item.doctor?.specialty || (isLabTest ? 'Diagnostics' : isVideo ? 'Tele-Consult' : 'General Medicine')}
+              {item.doctor?.specialty || (isPharmacy ? 'Medicines' : isLabTest ? 'Diagnostics' : isVideo ? 'Tele-Consult' : 'General Medicine')}
             </Text>
 
             <View style={styles.clinicLocationRow}>
               <Ionicons
-                name={isVideo ? 'videocam' : isLabTest && item.collectionMode?.includes('Home') ? 'home' : 'location'}
+                name={isPharmacy ? 'bicycle' : isVideo ? 'videocam' : isLabHomeSample ? 'home' : 'location'}
                 size={11}
-                color={isVideo ? '#7C3AED' : colors.primary}
+                color={isPharmacy ? '#D97706' : isVideo ? '#7C3AED' : colors.primary}
               />
               <Text style={styles.clinicLocationText} numberOfLines={1}>
-                {isVideo
+                {isPharmacy
+                  ? item.doctor?.clinicAddress || 'Doorstep Delivery, Mysore'
+                  : isVideo
                   ? 'Online Video Room'
-                  : item.doctor?.clinicArea || item.doctor?.clinicName || 'Mysore'}
+                  : item.doctor?.clinicArea || item.doctor?.clinicAddress || item.doctor?.clinicName || 'Mysore'}
               </Text>
             </View>
           </View>
         </View>
 
-        {/* CLEAN LAB / RADIOLOGY TEST INDICATOR BADGE */}
-        {(isRadiology || isLabTest || (item.tests && item.tests.length > 0)) && (
+        {/* CLEAN LAB / RADIOLOGY / PHARMACY TEST INDICATOR BADGE */}
+        {isPharmacy && (
+          <View style={[styles.cleanLabBadgeRow, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
+            <Ionicons name="medical" size={13} color="#D97706" />
+            <Text style={[styles.cleanLabBadgeText, { color: '#B45309' }]} numberOfLines={1}>
+              {item.itemsSummary || 'Prescription Medicines & Health Supplies'} • Tap to Track ›
+            </Text>
+          </View>
+        )}
+
+        {(isRadiology || isLabTest || (item.tests && item.tests.length > 0)) && !isPharmacy && (
           <View
             style={[
               styles.cleanLabBadgeRow,
@@ -973,7 +1269,7 @@ const BookingsScreen = ({ navigation, route }) => {
             <Ionicons name="time" size={13} color="#0284C7" />
             <Text style={styles.scheduleLabel}>Slot</Text>
             <Text style={styles.scheduleValue} numberOfLines={1}>
-              {item.time?.replace(' (Fasting)', '')?.replace(' (Live Room Ready)', '') || 'Morning'}
+              {item.time?.replace(' (Fasting)', '')?.replace(' (Live Room Ready)', '') || 'Express Slot'}
             </Text>
           </View>
 
@@ -989,7 +1285,7 @@ const BookingsScreen = ({ navigation, route }) => {
               ]}
               numberOfLines={1}
             >
-              ₹{item.paidAmount || item.doctor?.fee || 500}
+              ₹{item.paidAmount || item.doctor?.fee || 350}
             </Text>
           </View>
         </View>
@@ -999,8 +1295,9 @@ const BookingsScreen = ({ navigation, route }) => {
           <View style={styles.patientRow}>
             <Ionicons name="person-circle-outline" size={14} color={colors.slate} />
             <Text style={styles.patientText} numberOfLines={1}>
-              Patient: <Text style={{ fontWeight: '700', color: '#1E293B' }}>{item.patient.name}</Text>
-              {item.patient.gender ? ` (${item.patient.gender}, ${item.patient.age || '28'}y)` : ''}
+              {isPharmacy ? 'Deliver to: ' : 'Patient: '}
+              <Text style={{ fontWeight: '700', color: '#1E293B' }}>{item.patient.name}</Text>
+              {item.patient.gender && !isPharmacy ? ` (${item.patient.gender}, ${item.patient.age || '28'}y)` : ''}
             </Text>
           </View>
         )}
@@ -1024,6 +1321,34 @@ const BookingsScreen = ({ navigation, route }) => {
         <View style={styles.cardActionsContainer}>
           {!isCancelled ? (
             <>
+              {/* SPECIAL FEATURED TRACKING BUTTON FOR PHARMACY ORDERS */}
+              {isPharmacy && (
+                <TouchableOpacity
+                  style={[styles.joinVideoPrimaryBtn, { backgroundColor: '#D97706' }]}
+                  onPress={() => setSelectedTrackingPharmacy(item)}
+                  activeOpacity={0.88}
+                >
+                  <View style={[styles.livePulseDot, { backgroundColor: '#FEF08A' }]} />
+                  <Ionicons name="bicycle" size={17} color="#FFFFFF" />
+                  <Text style={styles.joinVideoPrimaryBtnText}>Track Medicine Delivery (ETA ~30m)</Text>
+                  <Ionicons name="chevron-forward" size={15} color="#FFFFFF" />
+                </TouchableOpacity>
+              )}
+
+              {/* SPECIAL FEATURED TRACKING BUTTON FOR LAB SAMPLE COLLECTION */}
+              {isLabHomeSample && (
+                <TouchableOpacity
+                  style={[styles.joinVideoPrimaryBtn, { backgroundColor: '#059669' }]}
+                  onPress={() => setSelectedTrackingSample(item)}
+                  activeOpacity={0.88}
+                >
+                  <View style={[styles.livePulseDot, { backgroundColor: '#A7F3D0' }]} />
+                  <Ionicons name="navigate" size={17} color="#FFFFFF" />
+                  <Text style={styles.joinVideoPrimaryBtnText}>Track Doorstep Sample Collection</Text>
+                  <Ionicons name="chevron-forward" size={15} color="#FFFFFF" />
+                </TouchableOpacity>
+              )}
+
               {/* SPECIAL FEATURED JOIN BUTTON FOR VIDEO CONSULTATIONS */}
               {isVideo && (
                 <TouchableOpacity
@@ -1043,71 +1368,140 @@ const BookingsScreen = ({ navigation, route }) => {
                 </TouchableOpacity>
               )}
 
-              {/* ROW 1: 3 EQUAL ACTION PILLS */}
+              {/* ROW 1: ACTION PILLS */}
               <View style={styles.actionPillsRow}>
-                {/* 1. GPS DIRECTIONS / TECHNICIAN CONTACT / UPLOAD DOCS */}
-                {isVideo ? (
-                  <TouchableOpacity
-                    style={[styles.actionPillBtn, { backgroundColor: '#F5F3FF', borderColor: '#DDD6FE' }]}
-                    onPress={() => handleOpenUploadModal(item)}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="cloud-upload-outline" size={13} color="#7C3AED" />
-                    <Text style={[styles.actionPillTextBlue, { color: '#7C3AED' }]} numberOfLines={1}>
-                      Upload Doc
-                    </Text>
-                  </TouchableOpacity>
+                {isPharmacy ? (
+                  <>
+                    <TouchableOpacity
+                      style={[styles.actionPillBtn, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}
+                      onPress={() => setSelectedTrackingPharmacy(item)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="navigate-outline" size={13} color="#D97706" />
+                      <Text style={[styles.actionPillTextBlue, { color: '#B45309', fontWeight: '700' }]} numberOfLines={1}>
+                        Live Track
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.actionPillBtn}
+                      onPress={() => {
+                        const telNum = item.rider?.phone || '+919876543210';
+                        Linking.openURL(`tel:${telNum}`);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="call-outline" size={13} color={colors.primary} />
+                      <Text style={styles.actionPillTextPrimary} numberOfLines={1}>Call Rider</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.actionPillBtnCancel}
+                      onPress={() => handleQuickCancel(item)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="close-circle-outline" size={13} color="#DC2626" />
+                      <Text style={styles.actionPillTextRed} numberOfLines={1}>Cancel</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : isLabHomeSample ? (
+                  <>
+                    <TouchableOpacity
+                      style={[styles.actionPillBtn, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}
+                      onPress={() => setSelectedTrackingSample(item)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="navigate-outline" size={13} color="#059669" />
+                      <Text style={[styles.actionPillTextBlue, { color: '#047857', fontWeight: '700' }]} numberOfLines={1}>
+                        Live Track
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.actionPillBtn}
+                      onPress={() => {
+                        Linking.openURL('tel:+919876543210');
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="call-outline" size={13} color={colors.primary} />
+                      <Text style={styles.actionPillTextPrimary} numberOfLines={1}>Call Tech</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.actionPillBtnCancel}
+                      onPress={() => handleQuickCancel(item)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="close-circle-outline" size={13} color="#DC2626" />
+                      <Text style={styles.actionPillTextRed} numberOfLines={1}>Cancel</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : isVideo ? (
+                  <>
+                    <TouchableOpacity
+                      style={[styles.actionPillBtn, { backgroundColor: '#F5F3FF', borderColor: '#DDD6FE' }]}
+                      onPress={() => handleOpenUploadModal(item)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="cloud-upload-outline" size={13} color="#7C3AED" />
+                      <Text style={[styles.actionPillTextBlue, { color: '#7C3AED' }]} numberOfLines={1}>
+                        Upload Doc
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.actionPillBtn}
+                      onPress={() => {
+                        navigation.navigate('BookingDetails', { appointment: item });
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="calendar-outline" size={13} color={colors.primary} />
+                      <Text style={styles.actionPillTextPrimary} numberOfLines={1}>Reschedule</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.actionPillBtnCancel}
+                      onPress={() => handleQuickCancel(item)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="close-circle-outline" size={13} color="#DC2626" />
+                      <Text style={styles.actionPillTextRed} numberOfLines={1}>Cancel</Text>
+                    </TouchableOpacity>
+                  </>
                 ) : (
-                  <TouchableOpacity
-                    style={styles.actionPillBtn}
-                    onPress={() => {
-                      if (isLabTest && item.collectionMode?.includes('Home')) {
-                        Alert.alert(
-                          'Technician Contact',
-                          `Technician will arrive during your slot.\nHelpline: +91 821 245 9902`,
-                          [
-                            { text: 'Call', onPress: () => Linking.openURL('tel:18001089999') },
-                            { text: 'OK' },
-                          ]
-                        );
-                      } else {
-                        handleOpenDirections(item);
-                      }
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name={isLabTest && item.collectionMode?.includes('Home') ? 'call-outline' : 'navigate'}
-                      size={13}
-                      color="#0284C7"
-                    />
-                    <Text style={styles.actionPillTextBlue} numberOfLines={1}>
-                      {isLabTest && item.collectionMode?.includes('Home') ? 'Tech Info' : 'Directions'}
-                    </Text>
-                  </TouchableOpacity>
+                  <>
+                    <TouchableOpacity
+                      style={styles.actionPillBtn}
+                      onPress={() => handleOpenDirections(item)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="navigate" size={13} color="#0284C7" />
+                      <Text style={styles.actionPillTextBlue} numberOfLines={1}>Directions</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.actionPillBtn}
+                      onPress={() => {
+                        navigation.navigate('BookingDetails', { appointment: item });
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="calendar-outline" size={13} color={colors.primary} />
+                      <Text style={styles.actionPillTextPrimary} numberOfLines={1}>Reschedule</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.actionPillBtnCancel}
+                      onPress={() => handleQuickCancel(item)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="close-circle-outline" size={13} color="#DC2626" />
+                      <Text style={styles.actionPillTextRed} numberOfLines={1}>Cancel</Text>
+                    </TouchableOpacity>
+                  </>
                 )}
-
-                {/* 2. RESCHEDULE */}
-                <TouchableOpacity
-                  style={styles.actionPillBtn}
-                  onPress={() => {
-                    navigation.navigate('BookingDetails', { appointment: item });
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="calendar-outline" size={13} color={colors.primary} />
-                  <Text style={styles.actionPillTextPrimary} numberOfLines={1}>Reschedule</Text>
-                </TouchableOpacity>
-
-                {/* 3. CANCEL */}
-                <TouchableOpacity
-                  style={styles.actionPillBtnCancel}
-                  onPress={() => handleQuickCancel(item)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="close-circle-outline" size={13} color="#DC2626" />
-                  <Text style={styles.actionPillTextRed} numberOfLines={1}>Cancel</Text>
-                </TouchableOpacity>
               </View>
 
               {/* ROW 2: FULL WIDTH DETAILS BUTTON */}
@@ -1177,46 +1571,104 @@ const BookingsScreen = ({ navigation, route }) => {
           </Text>
         </View>
 
-        {/* BALANCED PLACEHOLDER */}
-        <View style={styles.headerRightPlaceholder} />
+        {/* LIVE SYNC / REFRESH BUTTON */}
+        <TouchableOpacity
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: '#F8FAFC',
+            borderWidth: 1,
+            borderColor: '#E2E8F0',
+            paddingHorizontal: 12,
+            paddingVertical: 7,
+            borderRadius: 20,
+            gap: 5,
+          }}
+          onPress={() => loadAppointments()}
+          activeOpacity={0.75}
+        >
+          <Ionicons name="sync-outline" size={16} color={colors.primary} />
+          {Platform.OS === 'web' && (
+            <Text style={{ fontSize: 12, fontWeight: '600', color: colors.primary }}>Sync</Text>
+          )}
+        </TouchableOpacity>
       </View>
 
-      {/* FILTER TABS (WITH VIDEO, LAB, SCANS, DOCTOR) */}
+      {/* FILTER TABS (WITH VIDEO, LAB, SCANS, DOCTOR, NURSE) */}
       <View style={styles.tabsContainer}>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={[
-            { key: 'All', label: `All (${counts.all})`, icon: 'apps' },
-            { key: 'Video Consults', label: `Video Calls (${counts.videoCalls})`, icon: 'videocam' },
-            { key: 'Doctor Visits', label: `In-Clinic (${counts.doctors})`, icon: 'person' },
-            { key: 'Lab Tests', label: `Lab Tests (${counts.labTests})`, icon: 'flask' },
-            { key: 'Radiology Scans', label: `Scans (${counts.radiology})`, icon: 'radio' },
-            { key: 'Confirmed', label: `Upcoming (${counts.confirmed})`, icon: 'checkmark-circle' },
-            { key: 'Cancelled', label: `Cancelled (${counts.cancelled})`, icon: 'close-circle' },
-          ]}
-          keyExtractor={(item) => item.key}
-          contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
-          renderItem={({ item }) => {
-            const isSelected = selectedTab === item.key;
-            return (
-              <TouchableOpacity
-                style={[styles.filterTab, isSelected && styles.filterTabActive]}
-                onPress={() => setSelectedTab(item.key)}
-                activeOpacity={0.85}
-              >
-                <Ionicons
-                  name={item.icon}
-                  size={14}
-                  color={isSelected ? '#FFFFFF' : '#64748B'}
-                />
-                <Text style={[styles.filterTabText, isSelected && styles.filterTabTextActive]}>
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          }}
-        />
+        {Platform.OS === 'web' ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 8 }}>
+            {[
+              { key: 'All', label: `All (${counts.all})`, icon: 'apps' },
+              { key: 'Sample Tracking', label: `Sample Tracking (${counts.sampleTracking})`, icon: 'navigate' },
+              { key: 'Pharmacy Orders', label: `Pharmacy (${counts.pharmacy})`, icon: 'cart' },
+              { key: 'Video Consults', label: `Video Calls (${counts.videoCalls})`, icon: 'videocam' },
+              { key: 'Doctor Visits', label: `In-Clinic (${counts.doctors})`, icon: 'person' },
+              { key: 'Lab Tests', label: `Lab Tests (${counts.labTests})`, icon: 'flask' },
+              { key: 'Radiology Scans', label: `Scans (${counts.radiology})`, icon: 'radio' },
+              { key: 'Home Care', label: `Nurse (${counts.nurse})`, icon: 'heart' },
+              { key: 'Confirmed', label: `Upcoming (${counts.confirmed})`, icon: 'checkmark-circle' },
+              { key: 'Cancelled', label: `Cancelled (${counts.cancelled})`, icon: 'close-circle' },
+            ].map((item) => {
+              const isSelected = selectedTab === item.key;
+              return (
+                <TouchableOpacity
+                  key={item.key}
+                  style={[styles.filterTab, isSelected && styles.filterTabActive]}
+                  onPress={() => setSelectedTab(item.key)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons
+                    name={item.icon}
+                    size={14}
+                    color={isSelected ? '#FFFFFF' : '#64748B'}
+                  />
+                  <Text style={[styles.filterTabText, isSelected && styles.filterTabTextActive]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={[
+              { key: 'All', label: `All (${counts.all})`, icon: 'apps' },
+              { key: 'Sample Tracking', label: `Sample Tracking (${counts.sampleTracking})`, icon: 'navigate' },
+              { key: 'Pharmacy Orders', label: `Pharmacy (${counts.pharmacy})`, icon: 'cart' },
+              { key: 'Video Consults', label: `Video Calls (${counts.videoCalls})`, icon: 'videocam' },
+              { key: 'Doctor Visits', label: `In-Clinic (${counts.doctors})`, icon: 'person' },
+              { key: 'Lab Tests', label: `Lab Tests (${counts.labTests})`, icon: 'flask' },
+              { key: 'Radiology Scans', label: `Scans (${counts.radiology})`, icon: 'radio' },
+              { key: 'Home Care', label: `Nurse (${counts.nurse})`, icon: 'heart' },
+              { key: 'Confirmed', label: `Upcoming (${counts.confirmed})`, icon: 'checkmark-circle' },
+              { key: 'Cancelled', label: `Cancelled (${counts.cancelled})`, icon: 'close-circle' },
+            ]}
+            keyExtractor={(item) => item.key}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+            renderItem={({ item }) => {
+              const isSelected = selectedTab === item.key;
+              return (
+                <TouchableOpacity
+                  style={[styles.filterTab, isSelected && styles.filterTabActive]}
+                  onPress={() => setSelectedTab(item.key)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons
+                    name={item.icon}
+                    size={14}
+                    color={isSelected ? '#FFFFFF' : '#64748B'}
+                  />
+                  <Text style={[styles.filterTabText, isSelected && styles.filterTabTextActive]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
+          />
+        )}
       </View>
 
       {/* APPOINTMENTS LIST OR EMPTY STATE */}
@@ -1493,30 +1945,413 @@ const BookingsScreen = ({ navigation, route }) => {
       </Modal>
 
       {/* ====================================================
-          FULL SCREEN DOCUMENT PREVIEW MODAL
+          LAB SAMPLE COLLECTION LIVE TRACKING MODAL
       ==================================================== */}
       <Modal
-        visible={!!previewImageUri}
-        animationType="fade"
+        visible={!!selectedTrackingSample}
+        animationType="slide"
         transparent={true}
-        onRequestClose={() => setPreviewImageUri(null)}
+        onRequestClose={() => setSelectedTrackingSample(null)}
       >
-        <View style={styles.previewModalOverlay}>
-          <TouchableOpacity
-            style={styles.previewCloseBtn}
-            onPress={() => setPreviewImageUri(null)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="close-circle" size={32} color="#FFFFFF" />
-          </TouchableOpacity>
+        <View style={styles.trackingModalOverlay}>
+          <View style={styles.trackingModalCard}>
+            {/* MODAL HEADER */}
+            <View style={styles.trackingHeader}>
+              <View style={styles.trackingHeaderLeft}>
+                <View style={[styles.trackingHeaderIconWrap, { backgroundColor: '#ECFDF5' }]}>
+                  <Ionicons name="navigate" size={20} color="#059669" />
+                </View>
+                <View>
+                  <Text style={styles.trackingModalTitle}>Sample Collection Tracking</Text>
+                  <Text style={styles.trackingModalSubtitle}>
+                    Booking #{selectedTrackingSample?.tokenNumber || selectedTrackingSample?.id || 'LAB-88'}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.trackingModalCloseBtn}
+                onPress={() => setSelectedTrackingSample(null)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close" size={20} color="#475569" />
+              </TouchableOpacity>
+            </View>
 
-          {previewImageUri ? (
-            <Image
-              source={{ uri: previewImageUri }}
-              style={styles.previewFullImg}
-              resizeMode="contain"
-            />
-          ) : null}
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.trackingScrollContent}>
+              {/* LIVE STATUS BANNER */}
+              <View style={styles.liveStatusBanner}>
+                <View style={styles.livePulseCircle} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.liveStatusTitle}>Phlebotomist is En Route</Text>
+                  <Text style={styles.liveStatusEta}>Estimated Arrival in 20 - 25 mins • Slot: {selectedTrackingSample?.time || 'Morning Slot'}</Text>
+                </View>
+                <View style={styles.doorstepOtpBadge}>
+                  <Text style={styles.doorstepOtpLabel}>DOORSTEP OTP</Text>
+                  <Text style={styles.doorstepOtpValue}>4829</Text>
+                </View>
+              </View>
+
+              {/* PHLEBOTOMIST INFO CARD */}
+              <View style={styles.trackingPersonCard}>
+                <Image
+                  source={{ uri: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=300' }}
+                  style={styles.trackingPersonAvatar}
+                />
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={styles.trackingPersonName}>Praveen M.</Text>
+                    <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                  </View>
+                  <Text style={styles.trackingPersonRole}>ICMR & NABL Certified Phlebotomist</Text>
+                  <View style={styles.trackingBadgeRow}>
+                    <View style={styles.trackingMiniPill}>
+                      <Ionicons name="star" size={11} color="#D97706" />
+                      <Text style={styles.trackingMiniPillText}>4.9 (840+ Collections)</Text>
+                    </View>
+                    <View style={[styles.trackingMiniPill, { backgroundColor: '#ECFDF5' }]}>
+                      <Ionicons name="shield-checkmark" size={11} color="#059669" />
+                      <Text style={[styles.trackingMiniPillText, { color: '#047857' }]}>Sterile Kit Verified</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.trackingCallBtn}
+                  onPress={() => Linking.openURL('tel:+919876543210')}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="call" size={16} color="#FFFFFF" />
+                  <Text style={styles.trackingCallBtnText}>Call</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* LIVE STEP TIMELINE */}
+              <View style={styles.timelineCard}>
+                <Text style={styles.timelineSectionTitle}>Live Collection Progress</Text>
+
+                {/* STEP 1 */}
+                <View style={styles.timelineStepRow}>
+                  <View style={styles.timelineDotDone}>
+                    <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.timelineLineDone} />
+                  <View style={styles.timelineStepContent}>
+                    <Text style={styles.timelineStepTitle}>Booking Confirmed & Order Logged</Text>
+                    <Text style={styles.timelineStepDesc}>Assigned to MediUnify Central Diagnostics Lab</Text>
+                    <Text style={styles.timelineStepTime}>Today, 08:30 AM</Text>
+                  </View>
+                </View>
+
+                {/* STEP 2 */}
+                <View style={styles.timelineStepRow}>
+                  <View style={styles.timelineDotDone}>
+                    <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.timelineLineDone} />
+                  <View style={styles.timelineStepContent}>
+                    <Text style={styles.timelineStepTitle}>Phlebotomist Assigned & Kit Prepared</Text>
+                    <Text style={styles.timelineStepDesc}>Praveen M. collected sterile vacuum vials & cold bag</Text>
+                    <Text style={styles.timelineStepTime}>Today, 09:10 AM</Text>
+                  </View>
+                </View>
+
+                {/* STEP 3 - ACTIVE */}
+                <View style={styles.timelineStepRow}>
+                  <View style={styles.timelineDotActive}>
+                    <View style={styles.timelineDotInnerPulse} />
+                  </View>
+                  <View style={styles.timelineLinePending} />
+                  <View style={styles.timelineStepContent}>
+                    <Text style={[styles.timelineStepTitle, { color: '#059669', fontWeight: '800' }]}>
+                      Phlebotomist En Route to Your Address
+                    </Text>
+                    <Text style={styles.timelineStepDesc}>Travelling on bike • Expected at your door in ~20 mins</Text>
+                    <Text style={[styles.timelineStepTime, { color: '#059669', fontWeight: '700' }]}>In Progress Now</Text>
+                  </View>
+                </View>
+
+                {/* STEP 4 */}
+                <View style={styles.timelineStepRow}>
+                  <View style={styles.timelineDotPending} />
+                  <View style={styles.timelineLinePending} />
+                  <View style={styles.timelineStepContent}>
+                    <Text style={styles.timelineStepTitleUpcoming}>Doorstep Sample Collection & Barcode Tagging</Text>
+                    <Text style={styles.timelineStepDescUpcoming}>Painless vein puncture & immediate temperature-safe tube sealing</Text>
+                  </View>
+                </View>
+
+                {/* STEP 5 */}
+                <View style={styles.timelineStepRow}>
+                  <View style={styles.timelineDotPending} />
+                  <View style={styles.timelineLinePending} />
+                  <View style={styles.timelineStepContent}>
+                    <Text style={styles.timelineStepTitleUpcoming}>Cold-Chain Dispatch to Central NABL Lab</Text>
+                    <Text style={styles.timelineStepDescUpcoming}>Preserved at 2°C - 8°C throughout transit</Text>
+                  </View>
+                </View>
+
+                {/* STEP 6 */}
+                <View style={[styles.timelineStepRow, { paddingBottom: 0 }]}>
+                  <View style={styles.timelineDotPending} />
+                  <View style={styles.timelineStepContent}>
+                    <Text style={styles.timelineStepTitleUpcoming}>Sample Analyzed & Digital Report Uploaded</Text>
+                    <Text style={styles.timelineStepDescUpcoming}>Verified by MD Pathologist • Available in app within 6 hours</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* TESTS INCLUDED & ADDRESS */}
+              <View style={styles.trackingDetailsCard}>
+                <Text style={styles.trackingCardHeading}>Sample Details & Tests</Text>
+                <View style={styles.trackingDetailsRow}>
+                  <Ionicons name="flask-outline" size={15} color={colors.primary} />
+                  <Text style={styles.trackingDetailsLabel}>Tests:</Text>
+                  <Text style={styles.trackingDetailsVal} numberOfLines={2}>
+                    {selectedTrackingSample?.doctor?.specialty?.replace('Lab Tests • ', '') ||
+                      (selectedTrackingSample?.tests && selectedTrackingSample.tests.map((t) => t.name || t).join(', ')) ||
+                      'Comprehensive Complete Blood & Metabolic Profile'}
+                  </Text>
+                </View>
+
+                <View style={styles.trackingDetailsRow}>
+                  <Ionicons name="location-outline" size={15} color={colors.primary} />
+                  <Text style={styles.trackingDetailsLabel}>Address:</Text>
+                  <Text style={styles.trackingDetailsVal} numberOfLines={2}>
+                    {selectedTrackingSample?.doctor?.clinicAddress || 'Doorstep Home Collection, Kuvempunagar, Mysore'}
+                  </Text>
+                </View>
+
+                <View style={styles.trackingDetailsRow}>
+                  <Ionicons name="person-outline" size={15} color={colors.primary} />
+                  <Text style={styles.trackingDetailsLabel}>Patient:</Text>
+                  <Text style={styles.trackingDetailsVal}>
+                    {selectedTrackingSample?.patient?.name || 'Self'}
+                  </Text>
+                </View>
+
+                <View style={styles.trackingDetailsRow}>
+                  <Ionicons name="cash-outline" size={15} color="#059669" />
+                  <Text style={styles.trackingDetailsLabel}>Amount:</Text>
+                  <Text style={[styles.trackingDetailsVal, { color: '#059669', fontWeight: '800' }]}>
+                    ₹{selectedTrackingSample?.paidAmount || 499} ({selectedTrackingSample?.paymentStatus || 'Paid'})
+                  </Text>
+                </View>
+              </View>
+
+              {/* ACTION FOOTER */}
+              <View style={styles.trackingFooterActions}>
+                <TouchableOpacity
+                  style={styles.trackingHelpBtn}
+                  onPress={() => Linking.openURL('tel:18001089999')}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="headset-outline" size={16} color={colors.primary} />
+                  <Text style={styles.trackingHelpBtnText}>Lab Support</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.trackingCloseBtnFilled}
+                  onPress={() => setSelectedTrackingSample(null)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.trackingCloseBtnFilledText}>Back to Bookings</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ====================================================
+          PHARMACY MEDICINE ORDER LIVE DELIVERY TRACKING MODAL
+      ==================================================== */}
+      <Modal
+        visible={!!selectedTrackingPharmacy}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setSelectedTrackingPharmacy(null)}
+      >
+        <View style={styles.trackingModalOverlay}>
+          <View style={styles.trackingModalCard}>
+            {/* MODAL HEADER */}
+            <View style={styles.trackingHeader}>
+              <View style={styles.trackingHeaderLeft}>
+                <View style={[styles.trackingHeaderIconWrap, { backgroundColor: '#FEF3C7' }]}>
+                  <Ionicons name="bicycle" size={20} color="#D97706" />
+                </View>
+                <View>
+                  <Text style={styles.trackingModalTitle}>Medicine Delivery Tracking</Text>
+                  <Text style={styles.trackingModalSubtitle}>
+                    Order #{selectedTrackingPharmacy?.id || 'UNC-7712'}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.trackingModalCloseBtn}
+                onPress={() => setSelectedTrackingPharmacy(null)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close" size={20} color="#475569" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.trackingScrollContent}>
+              {/* LIVE STATUS BANNER */}
+              <View style={[styles.liveStatusBanner, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
+                <View style={[styles.livePulseCircle, { backgroundColor: '#D97706' }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.liveStatusTitle, { color: '#92400E' }]}>Out for Express Delivery</Text>
+                  <Text style={[styles.liveStatusEta, { color: '#B45309' }]}>
+                    Rider Santosh M. is on the way • ETA: 25 - 35 mins
+                  </Text>
+                </View>
+                <View style={[styles.doorstepOtpBadge, { backgroundColor: '#FEF3C7' }]}>
+                  <Text style={[styles.doorstepOtpLabel, { color: '#92400E' }]}>DELIVERY PIN</Text>
+                  <Text style={[styles.doorstepOtpValue, { color: '#B45309' }]}>9241</Text>
+                </View>
+              </View>
+
+              {/* RIDER INFO CARD */}
+              <View style={styles.trackingPersonCard}>
+                <Image
+                  source={{ uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300' }}
+                  style={styles.trackingPersonAvatar}
+                />
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={styles.trackingPersonName}>Santosh M.</Text>
+                    <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                  </View>
+                  <Text style={styles.trackingPersonRole}>Unnathi Express Pharmacy Rider • KA-09-EG-4412</Text>
+                  <View style={styles.trackingBadgeRow}>
+                    <View style={styles.trackingMiniPill}>
+                      <Ionicons name="star" size={11} color="#D97706" />
+                      <Text style={styles.trackingMiniPillText}>4.95 Rating</Text>
+                    </View>
+                    <View style={[styles.trackingMiniPill, { backgroundColor: '#FEF3C7' }]}>
+                      <Ionicons name="shield-checkmark" size={11} color="#D97706" />
+                      <Text style={[styles.trackingMiniPillText, { color: '#92400E' }]}>Contactless & Sanitized</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.trackingCallBtn, { backgroundColor: '#D97706' }]}
+                  onPress={() => Linking.openURL('tel:+919876543210')}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="call" size={16} color="#FFFFFF" />
+                  <Text style={styles.trackingCallBtnText}>Call</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* LIVE STEP TIMELINE */}
+              <View style={styles.timelineCard}>
+                <Text style={styles.timelineSectionTitle}>Live Order Progress</Text>
+
+                {/* STEP 1 */}
+                <View style={styles.timelineStepRow}>
+                  <View style={styles.timelineDotDone}>
+                    <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.timelineLineDone} />
+                  <View style={styles.timelineStepContent}>
+                    <Text style={styles.timelineStepTitle}>Order Placed & Prescription Verified</Text>
+                    <Text style={styles.timelineStepDesc}>Verified by Unnathi Pharmacist</Text>
+                    <Text style={styles.timelineStepTime}>Today, 10:15 AM</Text>
+                  </View>
+                </View>
+
+                {/* STEP 2 */}
+                <View style={styles.timelineStepRow}>
+                  <View style={styles.timelineDotDone}>
+                    <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.timelineLineDone} />
+                  <View style={styles.timelineStepContent}>
+                    <Text style={styles.timelineStepTitle}>Medicines Packed & Tamper-Proof Sealed</Text>
+                    <Text style={styles.timelineStepDesc}>From Unnathi Express Pharmacy Hub, Kuvempunagar</Text>
+                    <Text style={styles.timelineStepTime}>Today, 10:45 AM</Text>
+                  </View>
+                </View>
+
+                {/* STEP 3 - ACTIVE */}
+                <View style={styles.timelineStepRow}>
+                  <View style={[styles.timelineDotActive, { backgroundColor: '#FEF3C7', borderColor: '#D97706' }]}>
+                    <View style={[styles.timelineDotInnerPulse, { backgroundColor: '#D97706' }]} />
+                  </View>
+                  <View style={styles.timelineLinePending} />
+                  <View style={styles.timelineStepContent}>
+                    <Text style={[styles.timelineStepTitle, { color: '#D97706', fontWeight: '800' }]}>
+                      Out for Express Doorstep Delivery
+                    </Text>
+                    <Text style={styles.timelineStepDesc}>Rider is on bike heading to your location</Text>
+                    <Text style={[styles.timelineStepTime, { color: '#D97706', fontWeight: '700' }]}>Live Now • ~25 Mins</Text>
+                  </View>
+                </View>
+
+                {/* STEP 4 */}
+                <View style={[styles.timelineStepRow, { paddingBottom: 0 }]}>
+                  <View style={styles.timelineDotPending} />
+                  <View style={styles.timelineStepContent}>
+                    <Text style={styles.timelineStepTitleUpcoming}>Delivered to Doorstep</Text>
+                    <Text style={styles.timelineStepDescUpcoming}>Share PIN 9241 with rider upon arrival</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* ITEMS IN ORDER & ADDRESS */}
+              <View style={styles.trackingDetailsCard}>
+                <Text style={styles.trackingCardHeading}>Order Details & Medicines</Text>
+                <View style={styles.trackingDetailsRow}>
+                  <Ionicons name="medical-outline" size={15} color="#D97706" />
+                  <Text style={styles.trackingDetailsLabel}>Items:</Text>
+                  <Text style={styles.trackingDetailsVal} numberOfLines={3}>
+                    {selectedTrackingPharmacy?.itemsSummary ||
+                      (Array.isArray(selectedTrackingPharmacy?.items)
+                        ? selectedTrackingPharmacy.items.map((i) => `${i.name} (x${i.quantity || 1})`).join(', ')
+                        : 'Prescription Medicines & Wellness Essentials')}
+                  </Text>
+                </View>
+
+                <View style={styles.trackingDetailsRow}>
+                  <Ionicons name="location-outline" size={15} color="#D97706" />
+                  <Text style={styles.trackingDetailsLabel}>Delivery Address:</Text>
+                  <Text style={styles.trackingDetailsVal} numberOfLines={2}>
+                    {selectedTrackingPharmacy?.doctor?.clinicAddress || 'Doorstep Delivery, Kuvempunagar, Mysore'}
+                  </Text>
+                </View>
+
+                <View style={styles.trackingDetailsRow}>
+                  <Ionicons name="cash-outline" size={15} color="#059669" />
+                  <Text style={styles.trackingDetailsLabel}>Total Paid:</Text>
+                  <Text style={[styles.trackingDetailsVal, { color: '#059669', fontWeight: '800' }]}>
+                    ₹{selectedTrackingPharmacy?.paidAmount || selectedTrackingPharmacy?.total || 350} ({selectedTrackingPharmacy?.paymentStatus || 'Paid Online'})
+                  </Text>
+                </View>
+              </View>
+
+              {/* ACTION FOOTER */}
+              <View style={styles.trackingFooterActions}>
+                <TouchableOpacity
+                  style={styles.trackingHelpBtn}
+                  onPress={() => Linking.openURL('tel:+918212459905')}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="headset-outline" size={16} color={colors.primary} />
+                  <Text style={styles.trackingHelpBtnText}>Pharmacy Help</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.trackingCloseBtnFilled, { backgroundColor: '#D97706' }]}
+                  onPress={() => setSelectedTrackingPharmacy(null)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.trackingCloseBtnFilledText}>Back to Bookings</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -1612,6 +2447,9 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
     paddingBottom: 40,
+    maxWidth: 1000,
+    width: '100%',
+    alignSelf: 'center',
   },
 
   // CARD ARCHITECTURE
@@ -2122,13 +2960,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.lightTeal,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     borderRadius: 8,
+    height: 38,
     gap: 6,
   },
   fullDetailsBtnText: {
-    fontSize: 11.5,
-    fontWeight: '800',
+    fontSize: 12.5,
+    fontWeight: '700',
     color: colors.primary,
   },
   rebookBtnFilled: {
@@ -2137,13 +2977,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
     borderRadius: 8,
+    height: 38,
     gap: 4,
   },
   rebookBtnFilledText: {
-    fontSize: 11.5,
-    fontWeight: '800',
+    fontSize: 12.5,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
   viewSummaryBtn: {
@@ -2152,14 +2994,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F8FAFC',
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     borderRadius: 8,
+    height: 38,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     gap: 4,
   },
   viewSummaryBtnText: {
-    fontSize: 11.5,
+    fontSize: 12.5,
     fontWeight: '700',
     color: '#64748B',
   },
@@ -2237,9 +3081,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#7C3AED',
+    paddingHorizontal: 16,
     paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
+    borderRadius: 8,
+    height: 40,
     gap: 8,
     shadowColor: '#7C3AED',
     shadowOffset: { width: 0, height: 3 },
@@ -2249,7 +3094,7 @@ const styles = StyleSheet.create({
   },
   joinVideoPrimaryBtnText: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#FFFFFF',
     flex: 1,
   },
@@ -2414,6 +3259,358 @@ const styles = StyleSheet.create({
   previewFullImg: {
     width: '100%',
     height: '80%',
+  },
+
+  // LIVE TRACKING MODALS (SAMPLE COLLECTION & PHARMACY DELIVERY)
+  trackingModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'flex-end',
+  },
+  trackingModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '92%',
+    paddingBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  trackingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  trackingHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  trackingHeaderIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trackingModalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  trackingModalSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  trackingModalCloseBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trackingScrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 20,
+    gap: 16,
+  },
+
+  // LIVE STATUS BANNER
+  liveStatusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+  },
+  livePulseCircle: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#059669',
+  },
+  liveStatusTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#065F46',
+  },
+  liveStatusEta: {
+    fontSize: 12,
+    color: '#047857',
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  doorstepOtpBadge: {
+    backgroundColor: '#D1FAE5',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#6EE7B7',
+  },
+  doorstepOtpLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#065F46',
+    letterSpacing: 0.5,
+  },
+  doorstepOtpValue: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#047857',
+    marginTop: 1,
+  },
+
+  // PERSON CARD
+  trackingPersonCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 12,
+  },
+  trackingPersonAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#E2E8F0',
+  },
+  trackingPersonName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  trackingPersonRole: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  trackingBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  trackingMiniPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    gap: 3,
+  },
+  trackingMiniPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#B45309',
+  },
+  trackingCallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#059669',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 5,
+  },
+  trackingCallBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  // TIMELINE CARD
+  timelineCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  timelineSectionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 14,
+  },
+  timelineStepRow: {
+    flexDirection: 'row',
+    paddingBottom: 16,
+    position: 'relative',
+  },
+  timelineDotDone: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#059669',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    zIndex: 2,
+  },
+  timelineLineDone: {
+    position: 'absolute',
+    left: 10,
+    top: 22,
+    bottom: 0,
+    width: 2,
+    backgroundColor: '#059669',
+  },
+  timelineDotActive: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 2,
+    borderColor: '#059669',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    zIndex: 2,
+  },
+  timelineDotInnerPulse: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#059669',
+  },
+  timelineLinePending: {
+    position: 'absolute',
+    left: 10,
+    top: 22,
+    bottom: 0,
+    width: 2,
+    backgroundColor: '#E2E8F0',
+  },
+  timelineDotPending: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    marginRight: 12,
+    zIndex: 2,
+  },
+  timelineStepContent: {
+    flex: 1,
+  },
+  timelineStepTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  timelineStepDesc: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  timelineStepTime: {
+    fontSize: 11,
+    color: '#059669',
+    fontWeight: '600',
+    marginTop: 3,
+  },
+  timelineStepTitleUpcoming: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  timelineStepDescUpcoming: {
+    fontSize: 11.5,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+
+  // DETAILS CARD
+  trackingDetailsCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 8,
+  },
+  trackingCardHeading: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginBottom: 4,
+  },
+  trackingDetailsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  trackingDetailsLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+    width: 70,
+  },
+  trackingDetailsVal: {
+    flex: 1,
+    fontSize: 12,
+    color: '#1E293B',
+    fontWeight: '600',
+  },
+
+  // FOOTER ACTIONS
+  trackingFooterActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 6,
+  },
+  trackingHelpBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: '#F0F9FF',
+    gap: 6,
+  },
+  trackingHelpBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  trackingCloseBtnFilled: {
+    flex: 1,
+    backgroundColor: '#059669',
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trackingCloseBtnFilledText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '800',
   },
 });
 

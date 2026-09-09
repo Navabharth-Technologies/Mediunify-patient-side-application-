@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 
 import {
   View,
@@ -10,7 +10,10 @@ import {
   Platform,
   KeyboardAvoidingView,
   Keyboard,
+  useWindowDimensions,
+  TouchableOpacity,
 } from 'react-native';
+import { showAlert } from '../../utils/alert';
 
 import CustomInput from '../../components/CustomInput';
 import CustomButton from '../../components/CustomButton';
@@ -20,6 +23,8 @@ import colors from '../../theme/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ForgotPasswordScreen = ({ navigation }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
 
   const [email, setEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -29,7 +34,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
     Keyboard.dismiss();
     const inputVal = email.trim();
     if (!inputVal) {
-      Alert.alert(
+      showAlert(
         'Enter Email / Phone',
         'Please enter your registered email address or mobile number.'
       );
@@ -37,7 +42,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
     }
 
     if (!newPassword || newPassword.length < 6) {
-      Alert.alert(
+      showAlert(
         'Weak New Password',
         'Your new password must be at least 6 characters long.'
       );
@@ -45,7 +50,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert(
+      showAlert(
         'Password Mismatch',
         'New password and confirm password do not match.'
       );
@@ -71,7 +76,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
         await AsyncStorage.setItem('@unnathi_registered_credentials', JSON.stringify(registeredCreds));
       }
 
-      Alert.alert(
+      showAlert(
         'Password Updated Successfully 🎉',
         'Your account password has been updated. You can now log in with your new password.',
         [
@@ -82,7 +87,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
         ]
       );
     } catch (e) {
-      Alert.alert('Password Updated', 'Your password has been reset.');
+      showAlert('Password Updated', 'Your password has been reset.');
       navigation.navigate('Login');
     }
   };
@@ -139,6 +144,14 @@ const ForgotPasswordScreen = ({ navigation }) => {
               onPress={handleReset}
             />
           </View>
+
+          <TouchableOpacity
+            style={styles.backToLoginBtn}
+            onPress={() => navigation.navigate('Login')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.backToLoginText}>&larr; Back to Login</Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -148,13 +161,16 @@ const ForgotPasswordScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: '#F1F2F4',
   },
   content: {
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 24,
     paddingVertical: 24,
+    maxWidth: 620,
+    width: '100%',
+    alignSelf: 'center',
   },
   title: {
     fontSize: 28,
@@ -167,6 +183,15 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 22,
     marginBottom: 30,
+  },
+  backToLoginBtn: {
+    marginTop: 20,
+    alignSelf: 'center',
+  },
+  backToLoginText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
   },
 });
 

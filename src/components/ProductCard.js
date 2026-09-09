@@ -275,22 +275,22 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
   },
   addButton: {
-    height: 36,
-    borderRadius: 10,
+    height: 38,
+    borderRadius: 8,
     backgroundColor: colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
+    gap: 6,
   },
   addText: {
     color: colors.white,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
   },
   quantityContainer: {
-    height: 36,
-    borderRadius: 10,
+    height: 38,
+    borderRadius: 8,
     backgroundColor: '#E6F7F4',
     flexDirection: 'row',
     alignItems: 'center',
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
   qtyBtn: {
     width: 28,
     height: 28,
-    borderRadius: 7,
+    borderRadius: 6,
     backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
   },
   qtyText: {
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '700',
     color: colors.secondary,
   },
 });

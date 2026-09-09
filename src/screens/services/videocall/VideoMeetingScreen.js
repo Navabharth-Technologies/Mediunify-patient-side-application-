@@ -15,6 +15,7 @@ import {
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -110,7 +111,7 @@ const VideoMeetingScreen = ({ route, navigation }) => {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         setIsUploading(false);
-        Alert.alert('Permission Required', 'Please grant photo library access to upload medical records.');
+        showAlert('Permission Required', 'Please grant photo library access to upload medical records.');
         return;
       }
 
@@ -154,12 +155,12 @@ const VideoMeetingScreen = ({ route, navigation }) => {
           },
         ]);
 
-        Alert.alert('Uploaded to Doctor 📤', 'Your document has been sent directly to the doctor in this call.');
+        showAlert('Uploaded to Doctor 📤', 'Your document has been sent directly to the doctor in this call.');
       }
     } catch (e) {
       setIsUploading(false);
       console.log('Error uploading:', e);
-      Alert.alert('Upload Error', 'Could not access file. Please try again.');
+      showAlert('Upload Error', 'Could not access file. Please try again.');
     }
   };
 
@@ -170,7 +171,7 @@ const VideoMeetingScreen = ({ route, navigation }) => {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
         setIsUploading(false);
-        Alert.alert('Permission Required', 'Camera permission is required to capture symptom photo.');
+        showAlert('Permission Required', 'Camera permission is required to capture symptom photo.');
         return;
       }
 
@@ -212,12 +213,12 @@ const VideoMeetingScreen = ({ route, navigation }) => {
           },
         ]);
 
-        Alert.alert('Photo Shared with Doctor 📸', 'Your photo has been transmitted to the doctor.');
+        showAlert('Photo Shared with Doctor 📸', 'Your photo has been transmitted to the doctor.');
       }
     } catch (e) {
       setIsUploading(false);
       console.log('Error capturing camera photo:', e);
-      Alert.alert('Camera Error', 'Could not open camera.');
+      showAlert('Camera Error', 'Could not open camera.');
     }
   };
 
@@ -254,7 +255,7 @@ const VideoMeetingScreen = ({ route, navigation }) => {
       },
     ]);
 
-    Alert.alert('Document Attached! 📄', `${newDoc.name} has been shared with ${doctor.name}.`);
+    showAlert('Document Attached! 📄', `${newDoc.name} has been shared with ${doctor.name}.`);
   };
 
   // Send message in chat
@@ -311,7 +312,7 @@ const VideoMeetingScreen = ({ route, navigation }) => {
         addToCart(item, 1);
       });
 
-      Alert.alert(
+      showAlert(
         'Medicines Added to Cart! 🛒',
         `Prescription from ${doctor.name} has been added to your cart.\n\n• Paracetamol 650mg Tablets (₹32)\n• Vitamin C & Zinc Chewable (₹110)\n\nTotal: ₹142`,
         [
@@ -337,7 +338,7 @@ const VideoMeetingScreen = ({ route, navigation }) => {
 
   // Handle Back to Appointments
   const handleBackToAppointments = () => {
-    navigation.navigate('Bookings');
+    navigation.navigate('Bookings', { initialTab: 'Video Consults', timestamp: Date.now() });
   };
 
   // Handle Go to Home
@@ -347,7 +348,7 @@ const VideoMeetingScreen = ({ route, navigation }) => {
 
   // End Call
   const handleEndCall = () => {
-    Alert.alert(
+    showAlert(
       'End Video Consultation?',
       'Are you sure you want to end this tele-consultation session with the doctor?',
       [
@@ -544,7 +545,7 @@ const VideoMeetingScreen = ({ route, navigation }) => {
           <View style={styles.headerRightActions}>
             <TouchableOpacity
               style={styles.networkBadge}
-              onPress={() => Alert.alert('Network Quality', 'Connection: Excellent (HD 1080p Encrypted)')}
+              onPress={() => showAlert('Network Quality', 'Connection: Excellent (HD 1080p Encrypted)')}
             >
               <Ionicons name="wifi" size={14} color="#10B981" />
               <Text style={styles.networkText}>HD</Text>

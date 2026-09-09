@@ -11,11 +11,14 @@ import {
   ActivityIndicator,
   Image,
   StatusBar,
+  Platform,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import colors from '../../../theme/colors';
+import { pushAppointment } from '../../../services/dataSyncService';
 
 const generateBookingDates = () => {
   const dates = [];
@@ -97,7 +100,7 @@ const VideoBookingScreen = ({ route, navigation }) => {
       if (useCamera) {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permission Needed', 'Camera permission is required.');
+          showAlert('Permission Needed', 'Camera permission is required.');
           return;
         }
         result = await ImagePicker.launchCameraAsync({
@@ -107,7 +110,7 @@ const VideoBookingScreen = ({ route, navigation }) => {
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permission Needed', 'Gallery access is required.');
+          showAlert('Permission Needed', 'Gallery access is required.');
           return;
         }
         result = await ImagePicker.launchImageLibraryAsync({
@@ -145,22 +148,22 @@ const VideoBookingScreen = ({ route, navigation }) => {
 
   const handleConfirmAndPay = async () => {
     if (!patientName.trim()) {
-      Alert.alert('Patient Name Required', 'Please enter patient full name.');
+      showAlert('Patient Name Required', 'Please enter patient full name.');
       return;
     }
     if (!patientPhone.trim() || patientPhone.length < 10) {
-      Alert.alert('Mobile Number Required', 'Please enter a valid 10-digit mobile number.');
+      showAlert('Mobile Number Required', 'Please enter a valid 10-digit mobile number.');
       return;
     }
     if (!selectedTime) {
-      Alert.alert('Select Time Slot', 'Please choose an online video slot.');
+      showAlert('Select Time Slot', 'Please choose an online video slot.');
       return;
     }
 
     if (paymentMethod === 'WALLET') {
       const fee = doctor.fee || 450;
       if (walletBalance < fee) {
-        Alert.alert(
+        showAlert(
           'Insufficient Wallet Balance 💳',
           `Your MediUnify Wallet has ₹${walletBalance.toLocaleString('en-IN')}, but consultation fee is ₹${fee.toLocaleString('en-IN')}.\n\nPlease top up your wallet or select UPI.`,
           [
@@ -250,26 +253,35 @@ const VideoBookingScreen = ({ route, navigation }) => {
         JSON.stringify([newVideoBooking, ...existingVid])
       );
 
+      // 3. Immediately push to central server database for live cross-device sync
+      try {
+        await pushAppointment(newVideoBooking);
+      } catch (pushErr) {
+        console.warn('Could not push video appointment to server:', pushErr);
+      }
+
       setIsBooking(false);
 
-      Alert.alert(
+      showAlert(
         'Video Consultation Confirmed! 📹',
-        `Your online appointment with ${doctor.name} is booked for ${selectedDate.fullText} at ${selectedTime}.\n\nBooking ID: ${bookingId}\nRoom Token: ${tokenNumber}\n\nYou can join the video meeting room right now to speak with the doctor and upload your photos or medical reports!`,
+        `Your online appointment with ${doctor.name} is booked for ${selectedDate.fullText} at ${selectedTime}.\n\nBooking ID: ${bookingId}\nRoom Token: ${tokenNumber}`,
         [
-          {
-            text: '📹 Join Video Call Now',
-            onPress: () => {
-              navigation.navigate('VideoMeeting', {
-                appointment: newVideoBooking,
-                doctor: newVideoBooking.doctor,
-              });
-            },
-          },
           {
             text: 'Go to My Bookings',
             onPress: () => {
               navigation.navigate('Bookings', {
                 newAppointment: newVideoBooking,
+                initialTab: 'Video Consults',
+                timestamp: Date.now(),
+              });
+            },
+          },
+          {
+            text: 'Join Video Call Now',
+            onPress: () => {
+              navigation.navigate('VideoMeeting', {
+                appointment: newVideoBooking,
+                doctor: newVideoBooking.doctor,
               });
             },
           },
@@ -284,7 +296,7 @@ const VideoBookingScreen = ({ route, navigation }) => {
     } catch (e) {
       console.log('Error booking video consultation:', e);
       setIsBooking(false);
-      Alert.alert('Payment Error', 'Could not process transaction. Please try again.');
+      showAlert('Payment Error', 'Could not process transaction. Please try again.');
     }
   };
 
@@ -663,26 +675,28 @@ const VideoBookingScreen = ({ route, navigation }) => {
 
       {/* BOTTOM ACTION BAR */}
       <View style={styles.bottomBar}>
-        <View style={styles.bottomCol}>
-          <Text style={styles.bottomFeeLabel}>Total</Text>
-          <Text style={styles.bottomFeeValue}>₹{doctor.fee || 450}</Text>
-        </View>
+        <View style={styles.bottomBarInner}>
+          <View style={styles.bottomCol}>
+            <Text style={styles.bottomFeeLabel}>Total</Text>
+            <Text style={styles.bottomFeeValue}>₹{doctor.fee || 450}</Text>
+          </View>
 
-        <TouchableOpacity
-          style={[styles.confirmBtn, isBooking && styles.confirmBtnDisabled]}
-          activeOpacity={0.88}
-          disabled={isBooking}
-          onPress={handleConfirmAndPay}
-        >
-          {isBooking ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <>
-              <Text style={styles.confirmBtnText}>Confirm Video Call</Text>
-              <Ionicons name="videocam" size={17} color="#FFFFFF" />
-            </>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.confirmBtn, isBooking && styles.confirmBtnDisabled]}
+            activeOpacity={0.88}
+            disabled={isBooking}
+            onPress={handleConfirmAndPay}
+          >
+            {isBooking ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Text style={styles.confirmBtnText}>Confirm Video Call</Text>
+                <Ionicons name="videocam" size={17} color="#FFFFFF" />
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -744,6 +758,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 110,
+    maxWidth: 900,
+    width: '100%',
+    alignSelf: 'center',
   },
 
   // DOCTOR SUMMARY
@@ -1109,11 +1126,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
     elevation: 8,
@@ -1121,6 +1135,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
+  },
+  bottomBarInner: {
+    maxWidth: 900,
+    width: '100%',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   bottomCol: {},
   bottomFeeLabel: {
@@ -1136,10 +1158,12 @@ const styles = StyleSheet.create({
   confirmBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 11,
+    borderRadius: 10,
+    height: 44,
     gap: 8,
   },
   confirmBtnDisabled: {
@@ -1147,7 +1171,7 @@ const styles = StyleSheet.create({
   },
   confirmBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
   },
 

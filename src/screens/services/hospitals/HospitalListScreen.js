@@ -12,12 +12,22 @@ import {
   Linking,
   Platform,
   TextInput,
+  useWindowDimensions,
 } from 'react-native';
 
+import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import {
+  requestLocationPermissionWebSafe,
+  getCurrentPositionWebSafe,
+  reverseGeocodeWebSafe,
+  geocodeWebSafe,
+} from '../../../utils/locationHelper';
 
 const HospitalListScreen = ({ navigation }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
 
   const [hospitals, setHospitals] = useState([]);
   const [filteredHospitals, setFilteredHospitals] = useState([]);
@@ -60,14 +70,14 @@ const HospitalListScreen = ({ navigation }) => {
       }
 
 
-      const { status } =
-        await Location.requestForegroundPermissionsAsync();
+      const perm =
+        await requestLocationPermissionWebSafe();
 
-      if (status !== 'granted') {
+      if (!perm.granted && perm.status !== 'granted') {
 
         setLoading(false);
 
-        Alert.alert(
+        showAlert(
           'Location Permission Required',
           'MediUnify needs your location to find nearby hospitals.'
         );
@@ -77,8 +87,8 @@ const HospitalListScreen = ({ navigation }) => {
 
 
       const location =
-        await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
+        await getCurrentPositionWebSafe({
+          accuracy: Location.Accuracy.Balanced,
         });
 
 
@@ -119,7 +129,7 @@ const HospitalListScreen = ({ navigation }) => {
       try {
 
         const address =
-          await Location.reverseGeocodeAsync({
+          await reverseGeocodeWebSafe({
             latitude,
             longitude,
           });
@@ -212,7 +222,7 @@ const HospitalListScreen = ({ navigation }) => {
 
 
       const result =
-        await Location.geocodeAsync(
+        await geocodeWebSafe(
           query
         );
 
@@ -1141,172 +1151,58 @@ const HospitalListScreen = ({ navigation }) => {
   // ==================================================
 
   return (
-
     <SafeAreaView
       style={styles.container}
     >
-
-      {/* HEADER */}
-
-      <View
-        style={styles.header}
-      >
-
-        <TouchableOpacity
-          style={
-            styles.backButton
-          }
-          onPress={() =>
-            navigation.goBack()
-          }
-        >
-
-          <Ionicons
-            name="arrow-back"
-            size={24}
-            color="#263238"
-          />
-
-        </TouchableOpacity>
-
-
-        <Text
-          style={styles.headerTitle}
-        >
-          Hospital Care
-        </Text>
-
-
-        <TouchableOpacity
-          style={
-            styles.refreshButton
-          }
-          onPress={
-            getCurrentLocation
-          }
-        >
-
-          <Ionicons
-            name="locate-outline"
-            size={23}
-            color="#1976D2"
-          />
-
-        </TouchableOpacity>
-
-      </View>
-
-
-      {/* LOCATION SEARCH */}
-
-      <View
-        style={styles.searchSection}
-      >
-
-        <Text
-          style={styles.searchTitle}
-        >
-          Find hospitals near a location
-        </Text>
-
-
-        <View
-          style={
-            styles.searchContainer
-          }
-        >
-
-          <Ionicons
-            name="search-outline"
-            size={21}
-            color="#78909C"
-          />
-
-
-          <TextInput
-            style={
-              styles.searchInput
-            }
-            placeholder="Search city or area"
-            placeholderTextColor="#90A4AE"
-            value={searchText}
-            onChangeText={
-              setSearchText
-            }
-            returnKeyType="search"
-            onSubmitEditing={
-              searchLocation
-            }
-          />
-
-
-          {searchText.length > 0 && (
-
-            <TouchableOpacity
-              onPress={() =>
-                setSearchText('')
-              }
-            >
-
-              <Ionicons
-                name="close-circle"
-                size={20}
-                color="#90A4AE"
-              />
-
-            </TouchableOpacity>
-
-          )}
-
-
+      {/* HEADER (MOBILE ONLY) */}
+      {!isDesktopWeb && (
+        <View style={styles.header}>
           <TouchableOpacity
-            style={
-              styles.searchButton
-            }
-            onPress={
-              searchLocation
-            }
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
           >
-
-            <Ionicons
-              name="search"
-              size={19}
-              color="#FFFFFF"
-            />
-
+            <Ionicons name="arrow-back" size={24} color="#263238" />
           </TouchableOpacity>
-
+          <Text style={styles.headerTitle}>Hospital Care</Text>
+          <TouchableOpacity style={styles.refreshButton} onPress={getCurrentLocation}>
+            <Ionicons name="locate-outline" size={23} color="#1976D2" />
+          </TouchableOpacity>
         </View>
+      )}
 
 
-        {/* USE CURRENT LOCATION */}
 
-        <TouchableOpacity
-          style={
-            styles.currentLocationButton
-          }
-          onPress={
-            getCurrentLocation
-          }
-        >
+      {/* LOCATION SEARCH (MOBILE ONLY) */}
+      {!isDesktopWeb && (
+        <View style={styles.searchSection}>
+          <Text style={styles.searchTitle}>Find hospitals near a location</Text>
+          <View style={styles.searchContainer}>
+            <Ionicons name="search-outline" size={21} color="#78909C" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search city or area"
+              placeholderTextColor="#90A4AE"
+              value={searchText}
+              onChangeText={setSearchText}
+              returnKeyType="search"
+              onSubmitEditing={searchLocation}
+            />
+            {searchText.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchText('')}>
+                <Ionicons name="close-circle" size={20} color="#90A4AE" />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={styles.searchButton} onPress={searchLocation}>
+              <Ionicons name="search" size={19} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
 
-          <Ionicons
-            name="navigate-outline"
-            size={17}
-            color="#1976D2"
-          />
-
-          <Text
-            style={
-              styles.currentLocationText
-            }
-          >
-            Use My Current Location
-          </Text>
-
-        </TouchableOpacity>
-
-      </View>
+          <TouchableOpacity style={styles.currentLocationButton} onPress={getCurrentLocation}>
+            <Ionicons name="navigate-outline" size={17} color="#1976D2" />
+            <Text style={styles.currentLocationText}>Use My Current Location</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
 
       {/* CURRENT LOCATION */}
@@ -2035,6 +1931,30 @@ const styles =
       color: '#FFFFFF',
       fontSize: 14,
       fontWeight: '700',
+    },
+
+    webBreadcrumbWrap: {
+      backgroundColor: '#FFFFFF',
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: '#E2E8F0',
+      marginBottom: 10,
+    },
+    webBreadcrumbRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    webBreadcrumbLink: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: '#0071DC',
+    },
+    webBreadcrumbCurrent: {
+      fontSize: 12.5,
+      fontWeight: '600',
+      color: '#64748B',
     },
 
   });

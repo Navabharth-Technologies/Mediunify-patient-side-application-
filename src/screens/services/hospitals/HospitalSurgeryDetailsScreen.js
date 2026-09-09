@@ -218,42 +218,77 @@ const HospitalSurgeryDetailsScreen = ({ route, navigation }) => {
         {/* ==================================================
             SPECIALTY SELECTOR PILLS
         ================================================== */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.specialtiesScroll}
-        >
-          {surgerySpecialties.map((spec) => {
-            const isSelected = selectedSpecialty === spec.id;
-            const countInHosp =
-              spec.id === 'all'
-                ? hospital.availableSurgeries.length
-                : hospital.availableSurgeries.filter((s) => s.specialty === spec.id).length;
+        {Platform.OS === 'web' ? (
+          <View style={styles.specialtiesWrap}>
+            {surgerySpecialties.map((spec) => {
+              const isSelected = selectedSpecialty === spec.id;
+              const countInHosp =
+                spec.id === 'all'
+                  ? hospital.availableSurgeries.length
+                  : hospital.availableSurgeries.filter((s) => s.specialty === spec.id).length;
 
-            if (spec.id !== 'all' && countInHosp === 0) return null;
+              if (spec.id !== 'all' && countInHosp === 0) return null;
 
-            return (
-              <TouchableOpacity
-                key={spec.id}
-                style={[
-                  styles.specialtyPill,
-                  isSelected && styles.specialtyPillActive,
-                ]}
-                activeOpacity={0.8}
-                onPress={() => setSelectedSpecialty(spec.id)}
-              >
-                <Text
+              return (
+                <TouchableOpacity
+                  key={spec.id}
                   style={[
-                    styles.specialtyPillText,
-                    isSelected && styles.specialtyPillTextActive,
+                    styles.specialtyPill,
+                    isSelected && styles.specialtyPillActive,
                   ]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedSpecialty(spec.id)}
                 >
-                  {spec.name} ({countInHosp})
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                  <Text
+                    style={[
+                      styles.specialtyPillText,
+                      isSelected && styles.specialtyPillTextActive,
+                    ]}
+                  >
+                    {spec.name} ({countInHosp})
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.specialtiesScroll}
+          >
+            {surgerySpecialties.map((spec) => {
+              const isSelected = selectedSpecialty === spec.id;
+              const countInHosp =
+                spec.id === 'all'
+                  ? hospital.availableSurgeries.length
+                  : hospital.availableSurgeries.filter((s) => s.specialty === spec.id).length;
+
+              if (spec.id !== 'all' && countInHosp === 0) return null;
+
+              return (
+                <TouchableOpacity
+                  key={spec.id}
+                  style={[
+                    styles.specialtyPill,
+                    isSelected && styles.specialtyPillActive,
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedSpecialty(spec.id)}
+                >
+                  <Text
+                    style={[
+                      styles.specialtyPillText,
+                      isSelected && styles.specialtyPillTextActive,
+                    ]}
+                  >
+                    {spec.name} ({countInHosp})
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {/* ==================================================
             SURGERY PROCEDURES LIST
@@ -525,32 +560,34 @@ const styles = StyleSheet.create({
   },
   heroCallBtn: {
     flex: 1,
+    height: 36,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#EFF6FF',
-    paddingVertical: 10,
-    borderRadius: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
     gap: 6,
   },
   heroCallBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: 11.5,
+    fontWeight: '700',
     color: colors.secondary,
   },
   heroDirectionsBtn: {
     flex: 1,
+    height: 36,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.lightTeal,
-    paddingVertical: 10,
-    borderRadius: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
     gap: 6,
   },
   heroDirectionsBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: 11.5,
+    fontWeight: '700',
     color: colors.primary,
   },
 
@@ -611,6 +648,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 10,
     gap: 8,
+  },
+  specialtiesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    rowGap: 8,
   },
   specialtyPill: {
     paddingHorizontal: 12,
@@ -785,17 +829,18 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   requestQuoteBtn: {
+    height: 36,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.primary,
     paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 10,
+    borderRadius: 8,
     gap: 6,
   },
   requestQuoteBtnText: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#FFFFFF',
   },
 });

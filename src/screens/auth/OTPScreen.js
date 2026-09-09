@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 
 import {
   View,
@@ -8,10 +8,12 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
+import { showAlert } from '../../utils/alert';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomButton from '../../components/CustomButton';
 import colors from '../../theme/colors';
+import { safeNavigateToMain } from '../../utils/navigationHelper';
 
 const OTPScreen = ({ navigation, route }) => {
 
@@ -64,34 +66,13 @@ const OTPScreen = ({ navigation, route }) => {
       }
       setVerifying(false);
 
-      const registeredName = passedUser?.name || 'User';
-      const hasReferral = passedUser?.referralCode;
-
-      Alert.alert(
-        'Account Verified 🎉',
-        hasReferral
-          ? `Welcome to MediUnify, ${registeredName}!\n\nReferral code "${passedUser.referralCode}" applied successfully. ₹250 Welcome Bonus has been credited to your Health Wallet!`
-          : `Welcome to MediUnify, ${registeredName}! Your account details have been saved.`,
-        [
-          {
-            text: 'Get Started',
-            onPress: () => {
-              navigation.getParent()?.reset({
-                index: 0,
-                routes: [{ name: 'MainApp' }],
-              });
-            },
-          },
-        ]
-      );
-
+      // Directly and safely navigate to MainApp on both Web and Mobile!
+      await safeNavigateToMain(navigation);
     } else {
-
-      Alert.alert(
+      showAlert(
         'Invalid OTP',
-        'Please enter 123456.'
+        'Please enter the demo OTP code 123456.'
       );
-
     }
   };
 
@@ -137,13 +118,16 @@ const styles = StyleSheet.create({
 
   safeArea: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: '#F1F2F4',
   },
 
   container: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 24,
+    maxWidth: 580,
+    width: '100%',
+    alignSelf: 'center',
   },
 
   title: {

@@ -14,11 +14,15 @@ import {
   Platform,
 } from 'react-native';
 
+import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
 import * as Location from 'expo-location';
+import {
+  requestLocationPermissionWebSafe,
+  getCurrentPositionWebSafe,
+  reverseGeocodeWebSafe,
+} from '../../../utils/locationHelper';
 
 
 const RadiologistBookingScreen = ({
@@ -147,17 +151,15 @@ const RadiologistBookingScreen = ({
       }
 
 
-      const {
-        status,
-      } =
-        await Location.requestForegroundPermissionsAsync();
+      const perm =
+        await requestLocationPermissionWebSafe();
 
 
       if (
-        status !== 'granted'
+        !perm.granted && perm.status !== 'granted'
       ) {
 
-        Alert.alert(
+        showAlert(
           'Location Permission Required',
           'Allow location access to automatically fill your address.'
         );
@@ -167,9 +169,9 @@ const RadiologistBookingScreen = ({
 
 
       const location =
-        await Location.getCurrentPositionAsync({
+        await getCurrentPositionWebSafe({
           accuracy:
-            Location.Accuracy.High,
+            Location.Accuracy.Balanced,
         });
 
 
@@ -187,7 +189,7 @@ const RadiologistBookingScreen = ({
 
 
       const addresses =
-        await Location.reverseGeocodeAsync({
+        await reverseGeocodeWebSafe({
           latitude,
           longitude,
         });
@@ -214,7 +216,7 @@ const RadiologistBookingScreen = ({
 
 
         setAddress(
-          addressParts.join(', ')
+          place.formattedAddress || addressParts.join(', ')
         );
       }
 

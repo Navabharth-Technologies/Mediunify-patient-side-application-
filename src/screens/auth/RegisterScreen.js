@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,10 +12,15 @@ import {
   Platform,
   KeyboardAvoidingView,
   Keyboard,
+  useWindowDimensions,
+  Image,
 } from 'react-native';
+import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../theme/colors';
+import { syncRegister, autoMigrateLocalAccountsToServer } from '../../services/dataSyncService';
+import { safeNavigateToMain } from '../../utils/navigationHelper';
 
 const BLOOD_GROUPS = [
   'O+ Positive',
@@ -31,9 +36,18 @@ const BLOOD_GROUPS = [
 const GENDERS = ['Male', 'Female', 'Other'];
 
 const RegisterScreen = ({ navigation }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+
+  const handleSkipToHome = () => {
+    safeNavigateToMain(navigation);
+  };
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -96,86 +110,86 @@ const RegisterScreen = ({ navigation }) => {
   };
 
   // Strictly accept only numeric digits and cap at exactly 10 digits
+  // Strictly accept only numeric digits and cap at exactly 10 digits
   const handlePhoneChange = (text) => {
-    const cleaned = text.replace(/[^0-9]/g, '').slice(0, 10);
+    const raw = text.replace(/[^0-9]/g, '');
+    const cleaned = raw.length > 10 && raw.startsWith('91') ? raw.slice(2, 12) : raw.slice(0, 10);
     setPhone(cleaned);
   };
 
   const handleEmergencyContactChange = (text) => {
-    const cleaned = text.replace(/[^0-9]/g, '').slice(0, 10);
+    const raw = text.replace(/[^0-9]/g, '');
+    const cleaned = raw.length > 10 && raw.startsWith('91') ? raw.slice(2, 12) : raw.slice(0, 10);
     setEmergencyContact(cleaned);
   };
 
   const handleRegister = async () => {
+    setErrorMessage('');
     const trimmedName = name.trim();
     const trimmedEmail = email.trim().toLowerCase();
-    const cleanPhone10 = phone.replace(/[^0-9]/g, '').slice(0, 10);
+    const rawPhone = phone.replace(/[^0-9]/g, '');
+    const cleanPhone10 = rawPhone.length >= 10 ? rawPhone.slice(-10) : rawPhone;
     const trimmedPassword = password.trim();
     const trimmedConfirmPassword = confirmPassword.trim();
     const trimmedReferralCode = referralCode.trim().toUpperCase();
 
     // 1. Check for required fields
     if (!trimmedName || !trimmedEmail || !cleanPhone10 || !trimmedPassword || !trimmedConfirmPassword) {
-      Alert.alert(
-        'Missing Information',
-        'Please enter your full name, email, 10-digit mobile number, password, and confirm password.'
-      );
+      const msg = 'Please enter your full name, email, 10-digit mobile number, password, and confirm password.';
+      setErrorMessage(msg);
+      showAlert('Missing Information', msg);
       return;
     }
 
     // 2. Validate Full Name (letters, spaces, minimum 2 characters)
     if (trimmedName.length < 2 || !/^[a-zA-Z\s.]+$/.test(trimmedName)) {
-      Alert.alert(
-        'Invalid Full Name',
-        'Please enter a valid full name containing only letters and spaces (minimum 2 characters).'
-      );
+      const msg = 'Please enter a valid full name containing only letters and spaces (minimum 2 characters).';
+      setErrorMessage(msg);
+      showAlert('Invalid Full Name', msg);
       return;
     }
 
     // 3. Validate Email Format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail)) {
-      Alert.alert(
-        'Invalid Email Address',
-        'Please enter a valid email address (e.g. yourname@example.com).'
-      );
+      const msg = 'Please enter a valid email address (e.g. yourname@example.com).';
+      setErrorMessage(msg);
+      showAlert('Invalid Email Address', msg);
       return;
     }
 
     // 4. Validate Exactly 10-Digit Mobile Number
     if (cleanPhone10.length < 10) {
-      Alert.alert(
-        'Incomplete Mobile Number',
-        `Mobile number must contain exactly 10 digits. You entered only ${cleanPhone10.length} ${cleanPhone10.length === 1 ? 'digit' : 'digits'}.`
-      );
+      const msg = `Mobile number must contain exactly 10 digits. You entered only ${cleanPhone10.length} ${cleanPhone10.length === 1 ? 'digit' : 'digits'}.`;
+      setErrorMessage(msg);
+      showAlert('Incomplete Mobile Number', msg);
       return;
     }
 
     if (!/^[6-9]\d{9}$/.test(cleanPhone10)) {
-      Alert.alert(
-        'Invalid Mobile Number',
-        'Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.'
-      );
+      const msg = 'Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.';
+      setErrorMessage(msg);
+      showAlert('Invalid Mobile Number', msg);
       return;
     }
 
     // 5. Validate Password Length
     if (trimmedPassword.length < 6) {
-      Alert.alert(
-        'Weak Password',
-        'Password must be at least 6 characters long for account security.'
-      );
+      const msg = 'Password must be at least 6 characters long for account security.';
+      setErrorMessage(msg);
+      showAlert('Weak Password', msg);
       return;
     }
 
     // 6. Validate Double Password Verification (Confirm Password Match)
     if (trimmedPassword !== trimmedConfirmPassword) {
-      Alert.alert(
-        'Passwords Do Not Match',
-        'The password and confirm password entries do not match. Please verify and ensure both passwords are identical.'
-      );
+      const msg = 'The password and confirm password entries do not match. Please verify and ensure both passwords are identical.';
+      setErrorMessage(msg);
+      showAlert('Passwords Do Not Match', msg);
       return;
     }
+
+    setIsRegistering(true);
 
     try {
       // 7. Check for DUPLICATE ACCOUNTS (Email, Phone, or Name already exists)
@@ -195,11 +209,27 @@ const RegisterScreen = ({ navigation }) => {
         } catch (e) {}
       }
 
-      // Check if Email already registered
+      const existingCred =
+        registeredCreds[trimmedEmail] ||
+        registeredCreds[cleanPhone10] ||
+        registeredUsers[trimmedEmail] ||
+        registeredUsers[cleanPhone10];
+
+      // If user already exists and password matches, sign in directly!
+      if (existingCred && existingCred.password === trimmedPassword) {
+        await AsyncStorage.setItem('isLoggedIn', 'true');
+        await safeNavigateToMain(navigation);
+        return;
+      }
+
+      // Check if Email already registered with different password
       if (registeredCreds[trimmedEmail] || registeredUsers[trimmedEmail]) {
-        Alert.alert(
+        setIsRegistering(false);
+        const msg = `An account with email "${trimmedEmail}" already exists. Please sign in instead.`;
+        setErrorMessage(msg);
+        showAlert(
           'Email Already in Use',
-          `An account with email "${trimmedEmail}" already exists. Multiple accounts with the same email are not allowed. Please sign in instead.`,
+          msg,
           [
             { text: 'Sign In', onPress: () => navigation.navigate('Login') },
             { text: 'Cancel', style: 'cancel' },
@@ -208,31 +238,17 @@ const RegisterScreen = ({ navigation }) => {
         return;
       }
 
-      // Check if Phone already registered
+      // Check if Phone already registered with different password
       if (registeredCreds[cleanPhone10] || registeredUsers[cleanPhone10]) {
-        Alert.alert(
+        setIsRegistering(false);
+        const msg = `An account with mobile number "+91 ${cleanPhone10}" already exists. Please sign in instead.`;
+        setErrorMessage(msg);
+        showAlert(
           'Phone Number Already in Use',
-          `An account with mobile number "+91 ${cleanPhone10}" already exists. Multiple accounts with the same phone number are not allowed. Please sign in instead.`,
+          msg,
           [
             { text: 'Sign In', onPress: () => navigation.navigate('Login') },
             { text: 'Cancel', style: 'cancel' },
-          ]
-        );
-        return;
-      }
-
-      // Check if Username / Full Name already registered
-      const existingNames = Object.values(registeredUsers)
-        .map((u) => (u?.name ? u.name.trim().toLowerCase() : ''))
-        .filter(Boolean);
-
-      if (existingNames.includes(trimmedName.toLowerCase())) {
-        Alert.alert(
-          'Username Already Registered',
-          `An account under the name "${trimmedName}" is already registered. Please use your distinct full name or sign in to your existing account.`,
-          [
-            { text: 'Sign In', onPress: () => navigation.navigate('Login') },
-            { text: 'Change Name', style: 'cancel' },
           ]
         );
         return;
@@ -280,6 +296,13 @@ const RegisterScreen = ({ navigation }) => {
       registeredUsers[cleanPhone10] = userData;
       await AsyncStorage.setItem('@unnathi_registered_users', JSON.stringify(registeredUsers));
 
+      // 2.5 Synchronize new account with Central Sync Server (live Web <-> Mobile shared data)
+      try {
+        await syncRegister(userData, trimmedPassword);
+      } catch (syncErr) {
+        console.warn('[RegisterScreen] Central Sync Server registration notice:', syncErr);
+      }
+
       // 3. Primary family profile (Self)
       const primaryMember = {
         id: 'self',
@@ -304,11 +327,17 @@ const RegisterScreen = ({ navigation }) => {
       await AsyncStorage.setItem(`@unnathi_family_members_${userKey}`, JSON.stringify(updatedFam));
       await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(updatedFam));
 
-      // 5. Navigate to OTP with created account details
-      navigation.navigate('OTP', { userData, credentials: accountCredentials });
+      // 5. Navigate to MainApp safely without getting stuck on Web
+      await AsyncStorage.setItem('isLoggedIn', 'true');
+      if (Platform.OS === 'web') {
+        await safeNavigateToMain(navigation);
+      } else {
+        navigation.navigate('OTP', { userData, credentials: accountCredentials });
+      }
     } catch (e) {
       console.log('Register save error:', e);
-      navigation.navigate('OTP');
+      setIsRegistering(false);
+      await safeNavigateToMain(navigation);
     }
   };
 
@@ -318,19 +347,45 @@ const RegisterScreen = ({ navigation }) => {
   const isPasswordMismatch = isPasswordFilled && isConfirmFilled && password !== confirmPassword;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, isDesktopWeb && styles.safeAreaDesktop]}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      {isDesktopWeb && (
+        <View style={styles.webTopBar}>
+          <View style={styles.webTopBarInner}>
+            <TouchableOpacity onPress={handleSkipToHome} activeOpacity={0.8}>
+              <Image
+                source={require('../../../assets/logo.png')}
+                style={styles.webLogo}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+
+            <View style={styles.webTopRight}>
+              <TouchableOpacity
+                style={styles.skipToHomeBtn}
+                onPress={handleSkipToHome}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.skipToHomeText}>Explore as Guest / Skip to Home</Text>
+                <Ionicons name="arrow-forward" size={15} color={colors.teal} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, isDesktopWeb && styles.contentDesktop]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
+          <View style={isDesktopWeb ? styles.desktopFormWrapper : null}>
         {/* HEADER */}
         <View style={styles.header}>
           <View style={styles.badgePill}>
@@ -744,13 +799,24 @@ const RegisterScreen = ({ navigation }) => {
           </View>
         </View>
 
+        {/* INLINE ERROR BANNER */}
+        {errorMessage ? (
+          <View style={styles.errorBox}>
+            <Ionicons name="alert-circle" size={18} color="#DC2626" />
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </View>
+        ) : null}
+
         {/* SUBMIT BUTTON */}
         <TouchableOpacity
-          style={styles.createAccountBtn}
+          style={[styles.createAccountBtn, isRegistering && { opacity: 0.6 }]}
           onPress={handleRegister}
+          disabled={isRegistering}
           activeOpacity={0.88}
         >
-          <Text style={styles.createAccountText}>Create Account & Verify</Text>
+          <Text style={styles.createAccountText}>
+            {isRegistering ? 'Creating Account...' : 'Create Account & Verify'}
+          </Text>
           <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
         </TouchableOpacity>
 
@@ -761,6 +827,19 @@ const RegisterScreen = ({ navigation }) => {
             <Text style={styles.loginLink}> Sign In</Text>
           </TouchableOpacity>
         </View>
+
+        {isDesktopWeb && (
+          <TouchableOpacity
+            style={{ marginTop: 24, alignSelf: 'center' }}
+            onPress={handleSkipToHome}
+            activeOpacity={0.8}
+          >
+            <Text style={{ fontSize: 13, color: '#64748B', fontWeight: '700' }}>
+              Skip to Home as Guest &gt;
+            </Text>
+          </TouchableOpacity>
+        )}
+          </View>
       </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -772,10 +851,73 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
+  safeAreaDesktop: {
+    backgroundColor: '#F1F2F4',
+  },
+  webTopBar: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+  },
+  webTopBarInner: {
+    maxWidth: 1320,
+    width: '100%',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  webLogo: {
+    width: 140,
+    height: 42,
+  },
+  webTopRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  skipToHomeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.lightTeal,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  skipToHomeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.teal,
+  },
   content: {
     paddingHorizontal: 20,
     paddingTop: 24,
     paddingBottom: 40,
+  },
+  contentDesktop: {
+    maxWidth: 1320,
+    width: '100%',
+    alignSelf: 'center',
+    paddingVertical: 36,
+  },
+  desktopFormWrapper: {
+    width: '100%',
+    maxWidth: 920,
+    alignSelf: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 32,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
   },
   header: {
     marginBottom: 20,
@@ -947,6 +1089,26 @@ const styles = StyleSheet.create({
   },
   bloodTextActive: {
     color: '#FFFFFF',
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 6,
+    marginBottom: 10,
+  },
+  errorText: {
+    fontSize: 13,
+    color: '#B91C1C',
+    fontWeight: '600',
+    flex: 1,
+    lineHeight: 18,
   },
   createAccountBtn: {
     flexDirection: 'row',

@@ -9,8 +9,15 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
+import {
+  requestLocationPermissionWebSafe,
+  getCurrentPositionWebSafe,
+  reverseGeocodeWebSafe,
+  geocodeWebSafe,
+} from '../../../utils/locationHelper';
 
 import colors from '../../../theme/colors';
 import { useCart } from '../../../context/CartContext';
@@ -36,7 +43,7 @@ const PharmacyLocationScreen = ({ navigation, route }) => {
   // Reverse geocode
   const getAddressFromCoordinates = async (latitude, longitude) => {
     try {
-      const results = await Location.reverseGeocodeAsync({ latitude, longitude });
+      const results = await reverseGeocodeWebSafe({ latitude, longitude });
       if (results && results.length > 0) {
         const place = results[0];
         const addressParts = [
@@ -47,7 +54,7 @@ const PharmacyLocationScreen = ({ navigation, route }) => {
           place.city,
         ].filter(Boolean);
 
-        const formatted = addressParts.join(', ') || 'Selected Location';
+        const formatted = place.formattedAddress || addressParts.join(', ') || 'Selected Location';
         setAddress(formatted);
         if (place.city) setCity(place.city);
         if (place.postalCode) setPincode(place.postalCode);
@@ -62,13 +69,13 @@ const PharmacyLocationScreen = ({ navigation, route }) => {
   const getCurrentLocation = async () => {
     try {
       setLoadingLocation(true);
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Please allow location access to fetch your current location.');
+      const perm = await requestLocationPermissionWebSafe();
+      if (!perm.granted && perm.status !== 'granted') {
+        showAlert('Permission Denied', 'Please allow location access to fetch your current location.');
         return;
       }
 
-      const loc = await Location.getCurrentPositionAsync({});
+      const loc = await getCurrentPositionWebSafe({});
       const coords = {
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
@@ -76,7 +83,7 @@ const PharmacyLocationScreen = ({ navigation, route }) => {
       setLocation(coords);
       await getAddressFromCoordinates(coords.latitude, coords.longitude);
     } catch (error) {
-      Alert.alert('Location Error', 'Unable to fetch current location.');
+      showAlert('Location Error', 'Unable to fetch current location.');
     } finally {
       setLoadingLocation(false);
     }
@@ -90,9 +97,9 @@ const PharmacyLocationScreen = ({ navigation, route }) => {
     if (!searchText.trim()) return;
     try {
       setSearching(true);
-      const results = await Location.geocodeAsync(searchText);
+      const results = await geocodeWebSafe(searchText);
       if (!results || results.length === 0) {
-        Alert.alert('Location Not Found', 'Could not find this place. Try another search query.');
+        showAlert('Location Not Found', 'Could not find this place. Try another search query.');
         return;
       }
 
@@ -100,7 +107,7 @@ const PharmacyLocationScreen = ({ navigation, route }) => {
       setLocation({ latitude, longitude });
       await getAddressFromCoordinates(latitude, longitude);
     } catch (error) {
-      Alert.alert('Search Error', 'Unable to search for this location.');
+      showAlert('Search Error', 'Unable to search for this location.');
     } finally {
       setSearching(false);
     }

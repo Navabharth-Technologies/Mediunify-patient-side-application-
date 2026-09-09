@@ -9,9 +9,12 @@ import {
   FlatList,
   ScrollView,
   StatusBar,
+  useWindowDimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../theme/colors';
+import WebFooter from '../../components/web/WebFooter';
 
 const searchData = [
   // 1. DOCTOR CONSULTATIONS & SPECIALISTS
@@ -316,6 +319,9 @@ const searchData = [
 const CATEGORIES = ['All', 'Doctors', 'Medicines', 'Labs & Scans', 'Hospitals', 'Care Services'];
 
 const GlobalSearchScreen = ({ navigation, route }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+
   const [query, setQuery] = useState(route?.params?.query || '');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
@@ -387,110 +393,215 @@ const GlobalSearchScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, isDesktopWeb && styles.webContainer]}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* HEADER */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="arrow-back" size={20} color="#1E293B" />
-        </TouchableOpacity>
-
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Search Healthcare</Text>
-          <Text style={styles.headerSubtitle}>Doctors, Medicines, Labs, Scans & Care</Text>
-        </View>
-
-        {query.length > 0 && (
-          <TouchableOpacity onPress={() => setQuery('')} style={styles.clearHeaderBtn}>
-            <Text style={styles.clearHeaderText}>Clear</Text>
+      {/* MOBILE HEADER (Only shown on mobile) */}
+      {!isDesktopWeb && (
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-back" size={20} color="#1E293B" />
           </TouchableOpacity>
-        )}
-      </View>
 
-      {/* SEARCH BAR INPUT */}
-      <View style={styles.searchBarWrap}>
-        <Ionicons name="search" size={20} color={colors.primary} />
-        <TextInput
-          style={styles.searchInput}
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search doctors, medicines, 3T MRI, tests..."
-          placeholderTextColor="#94A3B8"
-          autoFocus={!route?.params?.query}
-          returnKeyType="search"
-        />
-        {query.length > 0 && (
-          <TouchableOpacity onPress={() => setQuery('')} style={{ padding: 4 }}>
-            <Ionicons name="close-circle" size={18} color="#94A3B8" />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* CATEGORY FILTER PILLS */}
-      <View style={styles.categoryPillsContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryPillsRow}>
-          {CATEGORIES.map((cat) => {
-            const isSelected = selectedCategory === cat;
-            return (
-              <TouchableOpacity
-                key={cat}
-                style={[styles.categoryPill, isSelected && styles.categoryPillActive]}
-                onPress={() => setSelectedCategory(cat)}
-                activeOpacity={0.85}
-              >
-                <Text style={[styles.categoryPillText, isSelected && styles.categoryPillTextActive]}>
-                  {cat}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* RESULT COUNT HEADER */}
-      <View style={styles.resultHeader}>
-        <Text style={styles.resultTitle}>
-          {query.trim() ? `Search Results for "${query}"` : `${selectedCategory} Directory`}
-        </Text>
-        <Text style={styles.resultCountBadge}>{results.length} Services</Text>
-      </View>
-
-      {/* RESULTS LIST */}
-      <FlatList
-        data={results}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <View style={styles.emptyIconCircle}>
-              <Ionicons name="search-outline" size={40} color="#94A3B8" />
-            </View>
-            <Text style={styles.emptyTitle}>No matching services found</Text>
-            <Text style={styles.emptyText}>
-              Try searching for doctors, medicines (Dolo, Paracetamol), 3T MRI, CT scans, blood tests, or home nursing.
-            </Text>
-            <TouchableOpacity
-              style={styles.emptyResetBtn}
-              onPress={() => {
-                setQuery('');
-                setSelectedCategory('All');
-              }}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.emptyResetBtnText}>View All Services</Text>
-            </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Search Healthcare</Text>
+            <Text style={styles.headerSubtitle}>Doctors, Medicines, Labs, Scans & Care</Text>
           </View>
-        }
-      />
+
+          {query.length > 0 && (
+            <TouchableOpacity onPress={() => setQuery('')} style={styles.clearHeaderBtn}>
+              <Text style={styles.clearHeaderText}>Clear</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* MOBILE SEARCH BAR INPUT (Hidden on desktop web to eliminate duplicate search bar) */}
+      {!isDesktopWeb && (
+        <View style={styles.searchBarWrap}>
+          <Ionicons name="search" size={20} color={colors.primary} />
+          <TextInput
+            style={styles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search doctors, medicines, 3T MRI, tests..."
+            placeholderTextColor="#94A3B8"
+            autoFocus={!route?.params?.query}
+            returnKeyType="search"
+          />
+          {query.length > 0 && (
+            <TouchableOpacity onPress={() => setQuery('')} style={{ padding: 4 }}>
+              <Ionicons name="close-circle" size={18} color="#94A3B8" />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {isDesktopWeb ? (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.webScrollContent}>
+          <View style={styles.webInnerContainer}>
+            {/* SEARCH HEADER */}
+            <View style={styles.webBreadcrumbHeader}>
+              <View style={styles.webTitleRow}>
+                <View>
+                  <Text style={styles.webPageTitle}>
+                    {query.trim() ? `Search Results for "${query}"` : `${selectedCategory} Directory`}
+                  </Text>
+                  <Text style={styles.webPageSubtitle}>
+                    Verified doctors, branded medicines, diagnostic pathology tests, MRI/CT scans & nursing services
+                  </Text>
+                </View>
+                <View style={styles.webResultCountBadge}>
+                  <Text style={styles.webResultCountText}>{results.length} Services Available</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* CATEGORY FILTER PILLS */}
+            <View style={styles.categoryPillsContainerWeb}>
+              <View style={styles.categoryPillsRowWeb}>
+                {CATEGORIES.map((cat) => {
+                  const isSelected = selectedCategory === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[styles.categoryPill, isSelected && styles.categoryPillActive]}
+                      onPress={() => setSelectedCategory(cat)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.categoryPillText, isSelected && styles.categoryPillTextActive]}>
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* DESKTOP 2-COLUMN GRID OF RESULTS */}
+            {results.length > 0 ? (
+              <View style={styles.webGrid}>
+                {results.map((item) => (
+                  <View key={item.id} style={styles.webCardWrapper}>
+                    {renderItem({ item })}
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyContainer}>
+                <View style={styles.emptyIconCircle}>
+                  <Ionicons name="search-outline" size={40} color="#94A3B8" />
+                </View>
+                <Text style={styles.emptyTitle}>No matching services found</Text>
+                <Text style={styles.emptyText}>
+                  Try searching for doctors, medicines (Dolo, Paracetamol), 3T MRI, CT scans, blood tests, or home nursing.
+                </Text>
+                <TouchableOpacity
+                  style={styles.emptyResetBtn}
+                  onPress={() => {
+                    setQuery('');
+                    setSelectedCategory('All');
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.emptyResetBtnText}>View All Services</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {/* DESKTOP WEB FOOTER */}
+          <WebFooter navigation={navigation} />
+        </ScrollView>
+      ) : (
+        /* MOBILE VIEW */
+        <>
+          {/* CATEGORY FILTER PILLS */}
+          <View style={styles.categoryPillsContainer}>
+            {Platform.OS === 'web' ? (
+              <View style={[styles.categoryPillsRow, { flexWrap: 'wrap' }]}>
+                {CATEGORIES.map((cat) => {
+                  const isSelected = selectedCategory === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[styles.categoryPill, isSelected && styles.categoryPillActive]}
+                      onPress={() => setSelectedCategory(cat)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.categoryPillText, isSelected && styles.categoryPillTextActive]}>
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryPillsRow}>
+                {CATEGORIES.map((cat) => {
+                  const isSelected = selectedCategory === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[styles.categoryPill, isSelected && styles.categoryPillActive]}
+                      onPress={() => setSelectedCategory(cat)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.categoryPillText, isSelected && styles.categoryPillTextActive]}>
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
+
+          {/* RESULT COUNT HEADER */}
+          <View style={styles.resultHeader}>
+            <Text style={styles.resultTitle}>
+              {query.trim() ? `Search Results for "${query}"` : `${selectedCategory} Directory`}
+            </Text>
+            <Text style={styles.resultCountBadge}>{results.length} Services</Text>
+          </View>
+
+          {/* RESULTS LIST */}
+          <FlatList
+            data={results}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            contentContainerStyle={styles.list}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <View style={styles.emptyIconCircle}>
+                  <Ionicons name="search-outline" size={40} color="#94A3B8" />
+                </View>
+                <Text style={styles.emptyTitle}>No matching services found</Text>
+                <Text style={styles.emptyText}>
+                  Try searching for doctors, medicines (Dolo, Paracetamol), 3T MRI, CT scans, blood tests, or home nursing.
+                </Text>
+                <TouchableOpacity
+                  style={styles.emptyResetBtn}
+                  onPress={() => {
+                    setQuery('');
+                    setSelectedCategory('All');
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.emptyResetBtnText}>View All Services</Text>
+                </TouchableOpacity>
+              </View>
+            }
+          />
+        </>
+      )}
     </SafeAreaView>
   );
 };
@@ -744,6 +855,107 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12.5,
     fontWeight: '700',
+  },
+
+  // DESKTOP WEB SPECIFIC STYLES
+  webContainer: {
+    backgroundColor: '#F1F2F4',
+  },
+  webScrollContent: {
+    flexGrow: 1,
+    backgroundColor: '#F1F2F4',
+  },
+  webInnerContainer: {
+    maxWidth: 1320,
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 18,
+    paddingBottom: 40,
+  },
+  webBreadcrumbHeader: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+  },
+  webBreadcrumbRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  webBreadcrumbLink: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#0071DC',
+  },
+  webBreadcrumbCurrent: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  webBreadcrumbQuery: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  webTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  webPageTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -0.4,
+  },
+  webPageSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 4,
+  },
+  webResultCountBadge: {
+    backgroundColor: '#EDF4FF',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: colors.lightTeal,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  webResultCountText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.teal,
+  },
+  categoryPillsContainerWeb: {
+    marginBottom: 18,
+  },
+  categoryPillsRowWeb: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  webGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  webCardWrapper: {
+    flexBasis: '48.8%',
+    flexGrow: 1,
+    minWidth: 300,
   },
 });
 

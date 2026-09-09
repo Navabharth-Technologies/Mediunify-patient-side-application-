@@ -14,9 +14,11 @@ import {
   KeyboardAvoidingView,
   Keyboard,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../../theme/colors';
+import { pushAppointment } from '../../../services/dataSyncService';
 
 const generateBookingDates = () => {
   const dates = [];
@@ -113,15 +115,15 @@ const DoctorBookingScreen = ({ route, navigation }) => {
 
   const handleBooking = async () => {
     if (!patientName.trim()) {
-      Alert.alert('Patient Name Required', 'Please enter patient full name.');
+      showAlert('Patient Name Required', 'Please enter patient full name.')
       return;
     }
     if (!patientPhone.trim() || patientPhone.length < 10) {
-      Alert.alert('Mobile Number Required', 'Please enter a valid 10-digit mobile number.');
+      showAlert('Mobile Number Required', 'Please enter a valid 10-digit mobile number.')
       return;
     }
     if (!selectedTime) {
-      Alert.alert('Select Time', 'Please choose an in-clinic appointment time slot.');
+      showAlert('Select Time', 'Please choose an in-clinic appointment time slot.')
       return;
     }
 
@@ -139,7 +141,7 @@ const DoctorBookingScreen = ({ route, navigation }) => {
       if (paymentOption === 'WALLET') {
         if (walletBalance < feeAmount) {
           setIsBooking(false);
-          Alert.alert(
+          showAlert(
             'Insufficient MediUnify Wallet Balance',
             `Your current wallet balance is ₹${walletBalance}, but consultation fee is ₹${feeAmount}.\n\nPlease top up your wallet or choose another payment method.`,
             [
@@ -221,9 +223,16 @@ const DoctorBookingScreen = ({ route, navigation }) => {
         JSON.stringify([newAppointment, ...existing])
       );
 
+      // Immediately push to central server database for live cross-device sync
+      try {
+        await pushAppointment(newAppointment);
+      } catch (pushErr) {
+        console.warn('Could not push doctor appointment to server:', pushErr);
+      }
+
       setIsBooking(false);
 
-      Alert.alert(
+      showAlert(
         'In-Person Appointment Booked! 🎉',
         `Your clinic visit with ${doctor.name} at ${doctor.clinicName} has been confirmed for ${selectedDate.fullText} at ${selectedTime}.\n\nToken: ${tokenNumber}`,
         [
@@ -232,6 +241,8 @@ const DoctorBookingScreen = ({ route, navigation }) => {
             onPress: () => {
               navigation.navigate('Bookings', {
                 newAppointment,
+                initialTab: 'Doctor Visits',
+                timestamp: Date.now(),
               });
             },
           },
@@ -246,7 +257,7 @@ const DoctorBookingScreen = ({ route, navigation }) => {
     } catch (e) {
       console.log('Error saving doctor booking:', e);
       setIsBooking(false);
-      Alert.alert('Booking Error', 'Could not save appointment. Please try again.');
+      showAlert('Booking Error', 'Could not save appointment. Please try again.');
     }
   };
 
@@ -575,26 +586,28 @@ const DoctorBookingScreen = ({ route, navigation }) => {
 
       {/* BOTTOM ACTION BAR */}
       <View style={styles.bottomBar}>
-        <View style={styles.bottomCol}>
-          <Text style={styles.bottomFeeLabel}>Total</Text>
-          <Text style={styles.bottomFeeValue}>₹{doctor.fee || 500}</Text>
-        </View>
+        <View style={styles.bottomBarInner}>
+          <View style={styles.bottomCol}>
+            <Text style={styles.bottomFeeLabel}>Total</Text>
+            <Text style={styles.bottomFeeValue}>₹{doctor.fee || 500}</Text>
+          </View>
 
-        <TouchableOpacity
-          style={[styles.confirmBtn, isBooking && styles.confirmBtnDisabled]}
-          activeOpacity={0.88}
-          disabled={isBooking}
-          onPress={handleBooking}
-        >
-          {isBooking ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <>
-              <Text style={styles.confirmBtnText}>Confirm Booking</Text>
-              <Ionicons name="checkmark-circle" size={17} color="#FFFFFF" />
-            </>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.confirmBtn, isBooking && styles.confirmBtnDisabled]}
+            activeOpacity={0.88}
+            disabled={isBooking}
+            onPress={handleBooking}
+          >
+            {isBooking ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Text style={styles.confirmBtnText}>Confirm Booking</Text>
+                <Ionicons name="checkmark-circle" size={17} color="#FFFFFF" />
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -643,6 +656,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 110,
+    maxWidth: 900,
+    width: '100%',
+    alignSelf: 'center',
   },
 
   // SUMMARY CARD
@@ -1008,11 +1024,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
     elevation: 8,
@@ -1020,6 +1033,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
+  },
+  bottomBarInner: {
+    maxWidth: 900,
+    width: '100%',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   bottomCol: {},
   bottomFeeLabel: {
@@ -1035,10 +1056,12 @@ const styles = StyleSheet.create({
   confirmBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 11,
+    borderRadius: 10,
+    height: 44,
     gap: 8,
   },
   confirmBtnDisabled: {
@@ -1046,7 +1069,7 @@ const styles = StyleSheet.create({
   },
   confirmBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
   },
 

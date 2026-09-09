@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Modal,
   Alert,
 } from 'react-native';
+import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 
 import colors from '../../theme/colors';
@@ -94,12 +95,12 @@ const ReportsScreen = ({ navigation }) => {
   });
 
   const handleUploadReport = () => {
-    Alert.alert(
+    showAlert(
       'Upload Medical Report 📄',
       'Select document format:',
       [
-        { text: 'Take Photo', onPress: () => Alert.alert('Report Saved', 'Report photographed and saved.') },
-        { text: 'Upload PDF / File', onPress: () => Alert.alert('Report Saved', 'PDF report uploaded successfully.') },
+        { text: 'Take Photo', onPress: () => showAlert('Report Saved', 'Report photographed and saved.') },
+        { text: 'Upload PDF / File', onPress: () => showAlert('Report Saved', 'PDF report uploaded successfully.') },
         { text: 'Cancel', style: 'cancel' },
       ]
     );
@@ -299,7 +300,7 @@ const ReportsScreen = ({ navigation }) => {
               <View style={styles.modalActionGroup}>
                 <TouchableOpacity
                   style={styles.downloadBtn}
-                  onPress={() => Alert.alert('Report Downloaded', 'PDF report saved to downloads.')}
+                  onPress={() => showAlert('Report Downloaded', 'PDF report saved to downloads.')}
                 >
                   <Ionicons name="download" size={16} color={colors.white} />
                   <Text style={styles.downloadBtnText}>Download PDF Report</Text>
@@ -307,7 +308,7 @@ const ReportsScreen = ({ navigation }) => {
 
                 <TouchableOpacity
                   style={styles.shareBtn}
-                  onPress={() => Alert.alert('Share Report', 'Report sharing link copied to clipboard.')}
+                  onPress={() => showAlert('Share Report', 'Report sharing link copied to clipboard.')}
                 >
                   <Ionicons name="share-social-outline" size={16} color={colors.primary} />
                   <Text style={styles.shareBtnText}>Share</Text>

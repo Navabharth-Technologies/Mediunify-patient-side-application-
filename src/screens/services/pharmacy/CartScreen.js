@@ -12,10 +12,12 @@ import {
   Alert,
   Platform,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { requestLocationPermissionWebSafe, getCurrentPositionWebSafe, reverseGeocodeWebSafe } from '../../../utils/locationHelper';
 
 import colors from '../../../theme/colors';
 import { useCart } from '../../../context/CartContext';
@@ -179,7 +181,7 @@ const CartScreen = ({ navigation, route }) => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Camera roll permission is required to upload prescription.');
+        showAlert('Permission Denied', 'Camera roll permission is required to upload prescription.');
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -189,7 +191,7 @@ const CartScreen = ({ navigation, route }) => {
       });
       if (!result.canceled && result.assets && result.assets.length > 0) {
         setUploadedRx(result.assets[0].uri);
-        Alert.alert('Prescription Uploaded', 'Doctor prescription attached successfully!');
+        showAlert('Prescription Uploaded', 'Doctor prescription attached successfully!');
       }
     } catch (e) {
       console.log('Error picking image:', e);
@@ -200,24 +202,26 @@ const CartScreen = ({ navigation, route }) => {
   const handleUseCurrentLocation = async () => {
     try {
       setGpsLoading(true);
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Please grant location permission to fetch address.');
+      const perm = await requestLocationPermissionWebSafe();
+      if (!perm.granted && perm.status !== 'granted') {
+        showAlert('Permission Denied', 'Please grant location permission to fetch address.');
         setGpsLoading(false);
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({
+      const location = await getCurrentPositionWebSafe({
         accuracy: Location.Accuracy.Balanced,
       });
 
-      const [geocode] = await Location.reverseGeocodeAsync({
+      const addresses = await reverseGeocodeWebSafe({
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
       });
 
+      const geocode = addresses && addresses.length > 0 ? addresses[0] : null;
+
       if (geocode) {
-        const fullAddr = `${geocode.name ? `${geocode.name}, ` : ''}${geocode.street ? `${geocode.street}, ` : ''}${geocode.district || geocode.subregion || ''}`;
+        const fullAddr = geocode.formattedAddress || `${geocode.name ? `${geocode.name}, ` : ''}${geocode.street ? `${geocode.street}, ` : ''}${geocode.district || geocode.subregion || ''}`;
         setUserAddress(fullAddr || 'Near Current Location');
         if (geocode.city) setUserCity(geocode.city);
         if (geocode.postalCode) setUserPincode(geocode.postalCode);
@@ -232,12 +236,12 @@ const CartScreen = ({ navigation, route }) => {
           tag: addressTag,
         });
 
-        Alert.alert('Location Fetched', 'Your address has been updated from GPS.');
+        showAlert('Location Fetched', 'Your address has been updated from GPS.');
       }
       setGpsLoading(false);
     } catch (e) {
       setGpsLoading(false);
-      Alert.alert('Location Error', 'Could not detect location. Please enter manually.');
+      showAlert('Location Error', 'Could not detect location. Please enter manually.');
     }
   };
 
@@ -258,22 +262,22 @@ const CartScreen = ({ navigation, route }) => {
   // ==========================================
   const handlePlacePharmacyOrder = async () => {
     if (pharmacyCart.length === 0) {
-      Alert.alert('Empty Cart', 'Your Pharmacy cart is empty. Please add medicines first.');
+      showAlert('Empty Cart', 'Your Pharmacy cart is empty. Please add medicines first.');
       return;
     }
 
     if (!userAddress.trim() || userAddress.length < 5) {
-      Alert.alert('Address Incomplete', 'Please enter a complete delivery address.');
+      showAlert('Address Incomplete', 'Please enter a complete delivery address.');
       return;
     }
 
     if (!userPhone.trim() || userPhone.length < 10) {
-      Alert.alert('Phone Required', 'Please enter a valid 10-digit mobile number.');
+      showAlert('Phone Required', 'Please enter a valid 10-digit mobile number.');
       return;
     }
 
     if (prescriptionItems.length > 0 && !uploadedRx) {
-      Alert.alert(
+      showAlert(
         'Doctor Prescription Required',
         'Your cart contains prescription drugs. Please attach a valid prescription before placing the order.'
       );
@@ -283,7 +287,7 @@ const CartScreen = ({ navigation, route }) => {
     // Check wallet balance if paymentMethod is WALLET
     if (paymentMethod === 'WALLET') {
       if (walletBalance < pharmacyFinalTotal) {
-        Alert.alert(
+        showAlert(
           'Insufficient Wallet Balance 💳',
           `Your MediUnify Wallet balance is ₹${walletBalance.toLocaleString('en-IN')}, but your order total is ₹${pharmacyFinalTotal.toLocaleString('en-IN')}.\n\nPlease top up your wallet or choose UPI/Card/COD.`,
           [
@@ -379,19 +383,19 @@ const CartScreen = ({ navigation, route }) => {
   // ==========================================
   const handlePlaceLabOrder = async () => {
     if (labCart.length === 0) {
-      Alert.alert('Empty Cart', 'Your Lab cart is empty. Please add diagnostic tests first.');
+      showAlert('Empty Cart', 'Your Lab cart is empty. Please add diagnostic tests first.');
       return;
     }
 
     if (!userPhone.trim() || userPhone.length < 10) {
-      Alert.alert('Phone Required', 'Please enter a valid mobile number for lab report SMS.');
+      showAlert('Phone Required', 'Please enter a valid mobile number for lab report SMS.');
       return;
     }
 
     // Check wallet balance if paymentMethod is WALLET
     if (paymentMethod === 'WALLET') {
       if (walletBalance < labFinalTotal) {
-        Alert.alert(
+        showAlert(
           'Insufficient Wallet Balance 💳',
           `Your MediUnify Wallet balance is ₹${walletBalance.toLocaleString('en-IN')}, but your diagnostic test total is ₹${labFinalTotal.toLocaleString('en-IN')}.\n\nPlease top up your wallet or choose UPI/Card.`,
           [
@@ -473,7 +477,7 @@ const CartScreen = ({ navigation, route }) => {
       clearCart('lab');
       setIsBooking(false);
 
-      Alert.alert(
+      showAlert(
         'Lab Tests Booked Successfully! 🎉',
         `Your diagnostic test order ${bookingId} has been confirmed for ${selectedLabSlot}.\n\nToken: ${tokenNumber}`,
         [
@@ -504,25 +508,8 @@ const CartScreen = ({ navigation, route }) => {
 
         <Text style={styles.headerTitle}>My Health Cart</Text>
 
-        <TouchableOpacity
-          style={styles.clearCartHeaderBtn}
-          onPress={() => {
-            Alert.alert(
-              'Clear Cart?',
-              `Are you sure you want to empty your ${activeTab === 'pharmacy' ? 'Pharmacy' : 'Lab Tests'} cart?`,
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Clear',
-                  style: 'destructive',
-                  onPress: () => clearCart(activeTab),
-                },
-              ]
-            );
-          }}
-        >
-          <Ionicons name="trash-outline" size={20} color="#DC2626" />
-        </TouchableOpacity>
+        {/* Header right spacer to keep title centered */}
+        <View style={styles.clearCartHeaderBtn} />
       </View>
 
       {/* ==========================================
@@ -646,56 +633,105 @@ const CartScreen = ({ navigation, route }) => {
                 </View>
 
                 {groupedPharmacyCarts.length > 1 && (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.hospitalFilterRow}
-                  >
-                    <TouchableOpacity
-                      style={[
-                        styles.hospitalFilterPill,
-                        selectedPharmacyStoreTab === 'ALL' && styles.hospitalFilterPillActive,
-                      ]}
-                      onPress={() => setSelectedPharmacyStoreTab('ALL')}
-                    >
-                      <Text
+                  Platform.OS === 'web' ? (
+                    <View style={styles.hospitalFilterRowWrap}>
+                      <TouchableOpacity
                         style={[
-                          styles.hospitalFilterPillText,
-                          selectedPharmacyStoreTab === 'ALL' && styles.hospitalFilterPillTextActive,
+                          styles.hospitalFilterPill,
+                          selectedPharmacyStoreTab === 'ALL' && styles.hospitalFilterPillActive,
                         ]}
+                        onPress={() => setSelectedPharmacyStoreTab('ALL')}
                       >
-                        All Pharmacies ({groupedPharmacyCarts.length})
-                      </Text>
-                    </TouchableOpacity>
-
-                    {groupedPharmacyCarts.map((store) => {
-                      const isSelected = selectedPharmacyStoreTab === store.storeId;
-                      return (
-                        <TouchableOpacity
-                          key={store.storeId}
+                        <Text
                           style={[
-                            styles.hospitalFilterPill,
-                            isSelected && styles.hospitalFilterPillActive,
+                            styles.hospitalFilterPillText,
+                            selectedPharmacyStoreTab === 'ALL' && styles.hospitalFilterPillTextActive,
                           ]}
-                          onPress={() => setSelectedPharmacyStoreTab(store.storeId)}
                         >
-                          <Ionicons
-                            name="storefront"
-                            size={12}
-                            color={isSelected ? '#FFFFFF' : colors.primary}
-                          />
-                          <Text
+                          All Pharmacies ({groupedPharmacyCarts.length})
+                        </Text>
+                      </TouchableOpacity>
+
+                      {groupedPharmacyCarts.map((store) => {
+                        const isSelected = selectedPharmacyStoreTab === store.storeId;
+                        return (
+                          <TouchableOpacity
+                            key={store.storeId}
                             style={[
-                              styles.hospitalFilterPillText,
-                              isSelected && styles.hospitalFilterPillTextActive,
+                              styles.hospitalFilterPill,
+                              isSelected && styles.hospitalFilterPillActive,
                             ]}
+                            onPress={() => setSelectedPharmacyStoreTab(store.storeId)}
                           >
-                            {store.storeName.split('-')[0].trim()} ({store.itemsCount})
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
+                            <Ionicons
+                              name="storefront"
+                              size={12}
+                              color={isSelected ? '#FFFFFF' : colors.primary}
+                            />
+                            <Text
+                              style={[
+                                styles.hospitalFilterPillText,
+                                isSelected && styles.hospitalFilterPillTextActive,
+                              ]}
+                            >
+                              {store.storeName.split('-')[0].trim()} ({store.itemsCount})
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.hospitalFilterRow}
+                    >
+                      <TouchableOpacity
+                        style={[
+                          styles.hospitalFilterPill,
+                          selectedPharmacyStoreTab === 'ALL' && styles.hospitalFilterPillActive,
+                        ]}
+                        onPress={() => setSelectedPharmacyStoreTab('ALL')}
+                      >
+                        <Text
+                          style={[
+                            styles.hospitalFilterPillText,
+                            selectedPharmacyStoreTab === 'ALL' && styles.hospitalFilterPillTextActive,
+                          ]}
+                        >
+                          All Pharmacies ({groupedPharmacyCarts.length})
+                        </Text>
+                      </TouchableOpacity>
+
+                      {groupedPharmacyCarts.map((store) => {
+                        const isSelected = selectedPharmacyStoreTab === store.storeId;
+                        return (
+                          <TouchableOpacity
+                            key={store.storeId}
+                            style={[
+                              styles.hospitalFilterPill,
+                              isSelected && styles.hospitalFilterPillActive,
+                            ]}
+                            onPress={() => setSelectedPharmacyStoreTab(store.storeId)}
+                          >
+                            <Ionicons
+                              name="storefront"
+                              size={12}
+                              color={isSelected ? '#FFFFFF' : colors.primary}
+                            />
+                            <Text
+                              style={[
+                                styles.hospitalFilterPillText,
+                                isSelected && styles.hospitalFilterPillTextActive,
+                              ]}
+                            >
+                              {store.storeName.split('-')[0].trim()} ({store.itemsCount})
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  )
                 )}
 
                 {/* RENDER EACH PHARMACY STORE AS A DISTINCT SEPARATE CART */}
@@ -742,7 +778,7 @@ const CartScreen = ({ navigation, route }) => {
                           <TouchableOpacity
                             style={styles.clearStoreBtn}
                             onPress={() => {
-                              Alert.alert(
+                              showAlert(
                                 'Clear Pharmacy Cart',
                                 `Remove all ${store.itemsCount} medicine(s) from ${store.storeName}?`,
                                 [
@@ -813,7 +849,7 @@ const CartScreen = ({ navigation, route }) => {
                             <TouchableOpacity
                               style={styles.storeDeleteItemBtn}
                               onPress={() => {
-                                Alert.alert(
+                                showAlert(
                                   'Remove Medicine',
                                   `Remove "${item.name}" from ${store.storeName}?`,
                                   [
@@ -1166,56 +1202,105 @@ const CartScreen = ({ navigation, route }) => {
                 </View>
 
                 {groupedHospitalCarts.length > 1 && (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.hospitalFilterRow}
-                  >
-                    <TouchableOpacity
-                      style={[
-                        styles.hospitalFilterPill,
-                        selectedHospitalTab === 'ALL' && styles.hospitalFilterPillActive,
-                      ]}
-                      onPress={() => setSelectedHospitalTab('ALL')}
-                    >
-                      <Text
+                  Platform.OS === 'web' ? (
+                    <View style={styles.hospitalFilterRowWrap}>
+                      <TouchableOpacity
                         style={[
-                          styles.hospitalFilterPillText,
-                          selectedHospitalTab === 'ALL' && styles.hospitalFilterPillTextActive,
+                          styles.hospitalFilterPill,
+                          selectedHospitalTab === 'ALL' && styles.hospitalFilterPillActive,
                         ]}
+                        onPress={() => setSelectedHospitalTab('ALL')}
                       >
-                        All Hospitals ({groupedHospitalCarts.length})
-                      </Text>
-                    </TouchableOpacity>
-
-                    {groupedHospitalCarts.map((hosp) => {
-                      const isSelected = selectedHospitalTab === hosp.labId;
-                      return (
-                        <TouchableOpacity
-                          key={hosp.labId}
+                        <Text
                           style={[
-                            styles.hospitalFilterPill,
-                            isSelected && styles.hospitalFilterPillActive,
+                            styles.hospitalFilterPillText,
+                            selectedHospitalTab === 'ALL' && styles.hospitalFilterPillTextActive,
                           ]}
-                          onPress={() => setSelectedHospitalTab(hosp.labId)}
                         >
-                          <Ionicons
-                            name="business"
-                            size={12}
-                            color={isSelected ? '#FFFFFF' : colors.primary}
-                          />
-                          <Text
+                          All Hospitals ({groupedHospitalCarts.length})
+                        </Text>
+                      </TouchableOpacity>
+
+                      {groupedHospitalCarts.map((hosp) => {
+                        const isSelected = selectedHospitalTab === hosp.labId;
+                        return (
+                          <TouchableOpacity
+                            key={hosp.labId}
                             style={[
-                              styles.hospitalFilterPillText,
-                              isSelected && styles.hospitalFilterPillTextActive,
+                              styles.hospitalFilterPill,
+                              isSelected && styles.hospitalFilterPillActive,
                             ]}
+                            onPress={() => setSelectedHospitalTab(hosp.labId)}
                           >
-                            {hosp.labName.split(' ')[0]} ({hosp.itemsCount})
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
+                            <Ionicons
+                              name="business"
+                              size={12}
+                              color={isSelected ? '#FFFFFF' : colors.primary}
+                            />
+                            <Text
+                              style={[
+                                styles.hospitalFilterPillText,
+                                isSelected && styles.hospitalFilterPillTextActive,
+                              ]}
+                            >
+                              {hosp.labName.split(' ')[0]} ({hosp.itemsCount})
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.hospitalFilterRow}
+                    >
+                      <TouchableOpacity
+                        style={[
+                          styles.hospitalFilterPill,
+                          selectedHospitalTab === 'ALL' && styles.hospitalFilterPillActive,
+                        ]}
+                        onPress={() => setSelectedHospitalTab('ALL')}
+                      >
+                        <Text
+                          style={[
+                            styles.hospitalFilterPillText,
+                            selectedHospitalTab === 'ALL' && styles.hospitalFilterPillTextActive,
+                          ]}
+                        >
+                          All Hospitals ({groupedHospitalCarts.length})
+                        </Text>
+                      </TouchableOpacity>
+
+                      {groupedHospitalCarts.map((hosp) => {
+                        const isSelected = selectedHospitalTab === hosp.labId;
+                        return (
+                          <TouchableOpacity
+                            key={hosp.labId}
+                            style={[
+                              styles.hospitalFilterPill,
+                              isSelected && styles.hospitalFilterPillActive,
+                            ]}
+                            onPress={() => setSelectedHospitalTab(hosp.labId)}
+                          >
+                            <Ionicons
+                              name="business"
+                              size={12}
+                              color={isSelected ? '#FFFFFF' : colors.primary}
+                            />
+                            <Text
+                              style={[
+                                styles.hospitalFilterPillText,
+                                isSelected && styles.hospitalFilterPillTextActive,
+                              ]}
+                            >
+                              {hosp.labName.split(' ')[0]} ({hosp.itemsCount})
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  )
                 )}
 
                 {/* RENDER EACH HOSPITAL AS A DISTINCT SEPARATE CART */}
@@ -1242,7 +1327,7 @@ const CartScreen = ({ navigation, route }) => {
                         <TouchableOpacity
                           style={styles.clearHospBtn}
                           onPress={() => {
-                            Alert.alert(
+                            showAlert(
                               'Clear Hospital Cart',
                               `Remove all ${hosp.itemsCount} scan(s) for ${hosp.labName}?`,
                               [
@@ -2231,6 +2316,13 @@ const styles = StyleSheet.create({
   },
   hospitalFilterRow: {
     flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+    paddingBottom: 2,
+  },
+  hospitalFilterRowWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginBottom: 12,
     paddingBottom: 2,

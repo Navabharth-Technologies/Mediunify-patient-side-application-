@@ -221,7 +221,7 @@ const RadiologyOrderSuccessScreen = ({ route, navigation }) => {
         <TouchableOpacity
           style={styles.viewBookingsButton}
           activeOpacity={0.88}
-          onPress={() => navigation.navigate('Bookings')}
+          onPress={() => navigation.navigate('Bookings', { initialTab: 'Radiology Scans', timestamp: Date.now() })}
         >
           <Ionicons name="calendar-outline" size={18} color={colors.secondary} />
           <Text style={styles.viewBookingsButtonText}>My Appointments</Text>

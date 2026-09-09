@@ -519,87 +519,162 @@ const HealthRecordsScreen = ({ navigation }) => {
             <Text style={styles.manageFamilyLinkText}>Manage Family ({familyMembers.length})</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalChips}
-        >
-          {dynamicFilterChips.map((fam) => (
-            <TouchableOpacity
-              key={fam.id}
-              style={[
-                styles.patientChip,
-                selectedPatient === fam.id && styles.patientChipActive,
-              ]}
-              onPress={() => setSelectedPatient(fam.id)}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name={fam.id === 'all' ? 'people' : 'person'}
-                size={14}
-                color={selectedPatient === fam.id ? '#FFFFFF' : '#475569'}
-              />
-              <Text
+        {Platform.OS === 'web' ? (
+          <View style={styles.horizontalChipsWrap}>
+            {dynamicFilterChips.map((fam) => (
+              <TouchableOpacity
+                key={fam.id}
                 style={[
-                  styles.patientChipText,
-                  selectedPatient === fam.id && styles.patientChipTextActive,
+                  styles.patientChip,
+                  selectedPatient === fam.id && styles.patientChipActive,
                 ]}
+                onPress={() => setSelectedPatient(fam.id)}
+                activeOpacity={0.8}
               >
-                {fam.name}
-              </Text>
-              <View
-                style={[
-                  styles.countBadge,
-                  selectedPatient === fam.id && styles.countBadgeActive,
-                ]}
-              >
+                <Ionicons
+                  name={fam.id === 'all' ? 'people' : 'person'}
+                  size={14}
+                  color={selectedPatient === fam.id ? '#FFFFFF' : '#475569'}
+                />
                 <Text
                   style={[
-                    styles.countBadgeText,
-                    selectedPatient === fam.id && styles.countBadgeTextActive,
+                    styles.patientChipText,
+                    selectedPatient === fam.id && styles.patientChipTextActive,
                   ]}
                 >
-                  {fam.count}
+                  {fam.name}
                 </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+                <View
+                  style={[
+                    styles.countBadge,
+                    selectedPatient === fam.id && styles.countBadgeActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.countBadgeText,
+                      selectedPatient === fam.id && styles.countBadgeTextActive,
+                    ]}
+                  >
+                    {fam.count}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalChips}
+          >
+            {dynamicFilterChips.map((fam) => (
+              <TouchableOpacity
+                key={fam.id}
+                style={[
+                  styles.patientChip,
+                  selectedPatient === fam.id && styles.patientChipActive,
+                ]}
+                onPress={() => setSelectedPatient(fam.id)}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={fam.id === 'all' ? 'people' : 'person'}
+                  size={14}
+                  color={selectedPatient === fam.id ? '#FFFFFF' : '#475569'}
+                />
+                <Text
+                  style={[
+                    styles.patientChipText,
+                    selectedPatient === fam.id && styles.patientChipTextActive,
+                  ]}
+                >
+                  {fam.name}
+                </Text>
+                <View
+                  style={[
+                    styles.countBadge,
+                    selectedPatient === fam.id && styles.countBadgeActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.countBadgeText,
+                      selectedPatient === fam.id && styles.countBadgeTextActive,
+                    ]}
+                  >
+                    {fam.count}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         {/* ==========================================
             CATEGORY FILTER TABS
         ========================================== */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalTabs}
-        >
-          {filterTabs.map((tab) => (
-            <TouchableOpacity
-              key={tab.id}
-              style={[
-                styles.filterTab,
-                selectedTab === tab.id && styles.filterTabActive,
-              ]}
-              onPress={() => setSelectedTab(tab.id)}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name={tab.icon}
-                size={14}
-                color={selectedTab === tab.id ? '#0F766E' : '#64748B'}
-              />
-              <Text
+        {Platform.OS === 'web' ? (
+          <View style={styles.horizontalTabsWrap}>
+            {filterTabs.map((tab) => (
+              <TouchableOpacity
+                key={tab.id}
                 style={[
-                  styles.filterTabText,
-                  selectedTab === tab.id && styles.filterTabTextActive,
+                  styles.filterTab,
+                  selectedTab === tab.id && styles.filterTabActive,
                 ]}
+                onPress={() => setSelectedTab(tab.id)}
+                activeOpacity={0.8}
               >
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+                <Ionicons
+                  name={tab.icon}
+                  size={14}
+                  color={selectedTab === tab.id ? '#0F766E' : '#64748B'}
+                />
+                <Text
+                  style={[
+                    styles.filterTabText,
+                    selectedTab === tab.id && styles.filterTabTextActive,
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalTabs}
+          >
+            {filterTabs.map((tab) => (
+              <TouchableOpacity
+                key={tab.id}
+                style={[
+                  styles.filterTab,
+                  selectedTab === tab.id && styles.filterTabActive,
+                ]}
+                onPress={() => setSelectedTab(tab.id)}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={tab.icon}
+                  size={14}
+                  color={selectedTab === tab.id ? '#0F766E' : '#64748B'}
+                />
+                <Text
+                  style={[
+                    styles.filterTabText,
+                    selectedTab === tab.id && styles.filterTabTextActive,
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         {/* ==========================================
             DOCUMENTS LIST
@@ -1205,6 +1280,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     gap: 8,
   },
+  horizontalChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    rowGap: 8,
+    columnGap: 8,
+  },
   patientChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1288,6 +1370,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginTop: 10,
     gap: 8,
+  },
+  horizontalTabsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    marginTop: 10,
+    rowGap: 8,
+    columnGap: 8,
   },
   filterTab: {
     flexDirection: 'row',

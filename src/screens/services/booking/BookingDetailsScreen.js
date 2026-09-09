@@ -13,10 +13,12 @@ import {
   TextInput,
   Image,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
+import { syncActiveUser } from '../../../services/dataSyncService';
 
 const generateBookingDates = () => {
   const dates = [];
@@ -83,14 +85,22 @@ const BookingDetailsScreen = ({ navigation, route }) => {
     );
   }
 
+  const isPharmacy =
+    appointment.type === 'Pharmacy Order' ||
+    appointment.isPharmacyOrder ||
+    (Array.isArray(appointment.items) && appointment.items.length > 0) ||
+    (typeof appointment.id === 'string' && appointment.id.startsWith('UNC'));
+
   const isRadiology =
-    appointment.type === 'Radiology' ||
+    !isPharmacy &&
+    (appointment.type === 'Radiology' ||
     appointment.bookingType === 'Radiology' ||
     appointment.type === 'Radiology Scan' ||
     appointment.details?.bookingType === 'Radiology' ||
-    appointment.details?.type === 'Radiology';
+    appointment.details?.type === 'Radiology');
 
   const isVideo =
+    !isPharmacy &&
     !isRadiology &&
     (appointment.type === 'Video Consultation' ||
     appointment.type === 'Video' ||
@@ -98,12 +108,30 @@ const BookingDetailsScreen = ({ navigation, route }) => {
     !!appointment.videoRoomLink);
 
   const isLabTest =
+    !isPharmacy &&
     !isRadiology &&
     !isVideo &&
     (appointment.type === 'Lab Test' ||
     appointment.type === 'Diagnostic Lab Test' ||
     appointment.type === 'Lab' ||
     (Array.isArray(appointment.tests) && appointment.tests.length > 0));
+
+  const isLabHomeSample =
+    isLabTest &&
+    (appointment.collectionMode?.includes('Home') ||
+    appointment.visitType?.includes('Home') ||
+    (typeof appointment.address === 'string' && appointment.address.length > 0));
+
+  const isNurse =
+    !isPharmacy &&
+    !isRadiology &&
+    !isVideo &&
+    !isLabTest &&
+    (appointment.type === 'Home Nurse Care' ||
+    appointment.type === 'Nurse' ||
+    appointment.serviceType === 'nurse' ||
+    appointment.assignedNurse !== undefined ||
+    (typeof appointment.serviceName === 'string' && appointment.serviceName.includes('Staff')));
 
   const testsList =
     Array.isArray(appointment.tests) && appointment.tests.length > 0
@@ -124,6 +152,8 @@ const BookingDetailsScreen = ({ navigation, route }) => {
       ? 'MediUnify Virtual TeleHealth Room'
       : isRadiology
       ? 'Unnathi Diagnostic & Imaging Center'
+      : isNurse
+      ? 'Unnathi Professional Home Healthcare Services'
       : 'Unnathi Multispeciality Clinic');
   const clinicAddress =
     labInfo.address ||
@@ -132,8 +162,10 @@ const BookingDetailsScreen = ({ navigation, route }) => {
       ? 'Online Video Consultation Room (Live HD Encrypted)'
       : isRadiology
       ? 'No. 112, Kalidasa Road, Jayalakshmipuram, Mysore - 570012'
+      : isNurse
+      ? (appointment.address || 'Doorstep Home Visit, Mysore')
       : 'No. 24, 5th Cross, Near Vishwamanava Double Road, Kuvempunagar, Mysore - 570023');
-  const clinicArea = labInfo.area || doctor.clinicArea || (isVideo ? 'Virtual Care Hub' : isRadiology ? 'Jayalakshmipuram, Mysore' : 'Kuvempunagar, Mysore');
+  const clinicArea = labInfo.area || doctor.clinicArea || (isVideo ? 'Virtual Care Hub' : isRadiology ? 'Jayalakshmipuram, Mysore' : isNurse ? 'Mysore Home Care' : 'Kuvempunagar, Mysore');
   const clinicPhone = labInfo.phone || doctor.phone || '+91 821 251 4400';
   const distance = doctor.distance || (isVideo ? 'Instant Online' : isRadiology ? '1.4 km away' : '0.8 km away');
   const latitude = doctor.latitude || 12.2858;
@@ -187,17 +219,17 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         if (supported) {
           Linking.openURL(telUrl);
         } else {
-          Alert.alert('Clinic Contact', `Call clinic reception at: ${clinicPhone}`);
+          showAlert('Clinic Contact', `Call clinic reception at: ${clinicPhone}`);
         }
       })
       .catch(() => {
-        Alert.alert('Clinic Contact', `Call clinic reception at: ${clinicPhone}`);
+        showAlert('Clinic Contact', `Call clinic reception at: ${clinicPhone}`);
       });
   };
 
   // Handle Cancel Appointment
   const handleCancelAppointment = () => {
-    Alert.alert(
+    showAlert(
       'Cancel Appointment?',
       `Are you sure you want to cancel your appointment with ${doctor.name || 'the doctor'} on ${currentDate}?`,
       [
@@ -239,16 +271,41 @@ const BookingDetailsScreen = ({ navigation, route }) => {
                 await AsyncStorage.setItem('@radiologyBookings', JSON.stringify(updatedRad));
               }
 
+              // 4. Update lab bookings if applicable
+              const labJson = await AsyncStorage.getItem('@labBookings');
+              if (labJson) {
+                const storedLabs = JSON.parse(labJson);
+                const updatedLabs = storedLabs.map((l) =>
+                  l.id === appointment.id ? { ...l, status: 'Cancelled' } : l
+                );
+                await AsyncStorage.setItem('@labBookings', JSON.stringify(updatedLabs));
+              }
+
+              // 5. Update nurse bookings if applicable
+              const nurseJson = await AsyncStorage.getItem('@unnathi_nurse_bookings');
+              if (nurseJson) {
+                const storedNurse = JSON.parse(nurseJson);
+                const updatedNurse = storedNurse.map((n) =>
+                  n.id === appointment.id ? { ...n, status: 'Cancelled' } : n
+                );
+                await AsyncStorage.setItem('@unnathi_nurse_bookings', JSON.stringify(updatedNurse));
+              }
+
+              // Trigger background server sync
+              try {
+                await syncActiveUser();
+              } catch (sErr) {}
+
               setCurrentStatus('Cancelled');
               setIsCancelling(false);
 
-              Alert.alert(
+              showAlert(
                 'Appointment Cancelled',
                 `Your appointment has been cancelled successfully.\n\nFee refund (₹${appointment.paidAmount || doctor.fee || 450}) has been initiated to your MediUnify Wallet.`
               );
             } catch (err) {
               setIsCancelling(false);
-              Alert.alert('Error', 'Unable to cancel appointment. Please try again.');
+              showAlert('Error', 'Unable to cancel appointment. Please try again.');
             }
           },
         },
@@ -259,7 +316,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
   // Confirm Reschedule
   const handleConfirmReschedule = async () => {
     if (!rescheduleTime) {
-      Alert.alert('Select Time Slot', 'Please select a new time slot.');
+      showAlert('Select Time Slot', 'Please select a new time slot.');
       return;
     }
 
@@ -324,6 +381,45 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         await AsyncStorage.setItem('@radiologyBookings', JSON.stringify(updatedRad));
       }
 
+      // 4. Update in @labBookings
+      const labJson = await AsyncStorage.getItem('@labBookings');
+      if (labJson) {
+        const storedLabs = JSON.parse(labJson);
+        const updatedLabs = storedLabs.map((l) =>
+          l.id === appointment.id
+            ? {
+                ...l,
+                date: newDateStr,
+                time: newTimeStr,
+                status: 'Rescheduled',
+              }
+            : l
+        );
+        await AsyncStorage.setItem('@labBookings', JSON.stringify(updatedLabs));
+      }
+
+      // 5. Update in @unnathi_nurse_bookings
+      const nurseJson = await AsyncStorage.getItem('@unnathi_nurse_bookings');
+      if (nurseJson) {
+        const storedNurse = JSON.parse(nurseJson);
+        const updatedNurse = storedNurse.map((n) =>
+          n.id === appointment.id
+            ? {
+                ...n,
+                date: newDateStr,
+                time: newTimeStr,
+                status: 'Rescheduled',
+              }
+            : n
+        );
+        await AsyncStorage.setItem('@unnathi_nurse_bookings', JSON.stringify(updatedNurse));
+      }
+
+      // Trigger background server sync
+      try {
+        await syncActiveUser();
+      } catch (sErr) {}
+
       setCurrentDate(newDateStr);
       setCurrentDay(newDayStr);
       setCurrentTime(newTimeStr);
@@ -331,13 +427,13 @@ const BookingDetailsScreen = ({ navigation, route }) => {
       setIsSavingReschedule(false);
       setIsRescheduleOpen(false);
 
-      Alert.alert(
+      showAlert(
         'Appointment Rescheduled! 🎉',
         `Your consultation with ${doctor.name} has been rescheduled to ${newDateStr} at ${newTimeStr}.`
       );
     } catch (e) {
       setIsSavingReschedule(false);
-      Alert.alert('Error', 'Failed to reschedule. Please try again.');
+      showAlert('Error', 'Failed to reschedule. Please try again.');
     }
   };
 
@@ -350,7 +446,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') {
           setIsUploadingDoc(false);
-          Alert.alert('Permission Needed', 'Please allow camera access to capture documents.');
+          showAlert('Permission Needed', 'Please allow camera access to capture documents.');
           return;
         }
         result = await ImagePicker.launchCameraAsync({
@@ -361,7 +457,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
           setIsUploadingDoc(false);
-          Alert.alert('Permission Needed', 'Please allow photo library access to upload documents.');
+          showAlert('Permission Needed', 'Please allow photo library access to upload documents.');
           return;
         }
         result = await ImagePicker.launchImageLibraryAsync({
@@ -407,7 +503,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
           }
         }
 
-        Alert.alert(
+        showAlert(
           'Document Uploaded! 📄',
           `"${newDoc.name}" has been attached to your appointment record.`
         );
@@ -415,7 +511,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
     } catch (err) {
       setIsUploadingDoc(false);
       console.log('Error uploading document:', err);
-      Alert.alert('Upload Error', 'Failed to upload document. Please try again.');
+      showAlert('Upload Error', 'Failed to upload document. Please try again.');
     }
   };
 
@@ -507,8 +603,174 @@ const BookingDetailsScreen = ({ navigation, route }) => {
           </View>
         )}
 
+        {/* ====================================================
+            LIVE PHARMACY DELIVERY TRACKING CARD
+        ==================================================== */}
+        {isPharmacy && (
+          <View style={[styles.directionCard, { borderColor: '#FDE68A', backgroundColor: '#FFFBEB' }]}>
+            <View style={styles.directionCardHeader}>
+              <View style={[styles.mapIconCircle, { backgroundColor: '#D97706' }]}>
+                <Ionicons name="bicycle" size={20} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={[styles.directionHeaderLabel, { color: '#B45309' }]}>LIVE MEDICINE DELIVERY TRACKING</Text>
+                <Text style={styles.clinicName}>Out for Express Delivery</Text>
+              </View>
+              <View style={[styles.distanceBadge, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
+                <Ionicons name="time" size={12} color="#D97706" />
+                <Text style={[styles.distanceBadgeText, { color: '#B45309' }]}>ETA ~25m</Text>
+              </View>
+            </View>
+
+            {/* RIDER & OTP ROW */}
+            <View style={[styles.addressBox, { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#FEF3C7', padding: 12 }]}>
+              <Image
+                source={{ uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200' }}
+                style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#E2E8F0' }}
+              />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A' }}>Santosh M.</Text>
+                  <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                </View>
+                <Text style={{ fontSize: 11.5, color: '#64748B' }}>Two-Wheeler KA-09-EG-4412 • 4.95 ★</Text>
+                <Text style={{ fontSize: 11, color: '#059669', fontWeight: '700', marginTop: 2 }}>Contactless & Sanitized Kit Verified</Text>
+              </View>
+              <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, alignItems: 'center' }}>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#92400E' }}>DELIVERY PIN</Text>
+                <Text style={{ fontSize: 16, fontWeight: '900', color: '#B45309' }}>9241</Text>
+              </View>
+            </View>
+
+            {/* LIVE TIMELINE STAGES */}
+            <View style={{ backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#FEF3C7', gap: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="checkmark-circle" size={16} color="#059669" />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#1E293B' }}>Prescription Verified & Order Packed</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="checkmark-circle" size={16} color="#059669" />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#1E293B' }}>Dispatched from Kuvempunagar Pharmacy Hub</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: '#FEF3C7', borderWidth: 2, borderColor: '#D97706', alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#D97706' }} />
+                </View>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: '#D97706' }}>Rider En Route to Your Address (Live Now)</Text>
+              </View>
+            </View>
+
+            {/* ACTION BUTTONS */}
+            <View style={styles.directionBtnRow}>
+              <TouchableOpacity
+                style={[styles.getDirectionsBtn, { backgroundColor: '#D97706', flex: 1 }]}
+                onPress={() => Linking.openURL('tel:+919876543210')}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="call" size={16} color="#FFFFFF" />
+                <Text style={styles.getDirectionsText}>Call Rider Santosh</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.callClinicBtn}
+                onPress={() => Linking.openURL('tel:+918212459905')}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="headset" size={15} color={colors.primary} />
+                <Text style={styles.callClinicText}>Pharmacy Support</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* ====================================================
+            LIVE LAB HOME SAMPLE COLLECTION TRACKING CARD
+        ==================================================== */}
+        {isLabHomeSample && (
+          <View style={[styles.directionCard, { borderColor: '#A7F3D0', backgroundColor: '#ECFDF5' }]}>
+            <View style={styles.directionCardHeader}>
+              <View style={[styles.mapIconCircle, { backgroundColor: '#059669' }]}>
+                <Ionicons name="navigate" size={20} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={[styles.directionHeaderLabel, { color: '#047857' }]}>LIVE DOORSTEP SAMPLE COLLECTION</Text>
+                <Text style={styles.clinicName}>Phlebotomist En Route</Text>
+              </View>
+              <View style={[styles.distanceBadge, { backgroundColor: '#D1FAE5', borderColor: '#6EE7B7' }]}>
+                <Ionicons name="time" size={12} color="#059669" />
+                <Text style={[styles.distanceBadgeText, { color: '#047857' }]}>ETA ~20m</Text>
+              </View>
+            </View>
+
+            {/* PHLEBOTOMIST & OTP ROW */}
+            <View style={[styles.addressBox, { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#A7F3D0', padding: 12 }]}>
+              <Image
+                source={{ uri: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=200' }}
+                style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#E2E8F0' }}
+              />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A' }}>Praveen M.</Text>
+                  <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                </View>
+                <Text style={{ fontSize: 11.5, color: '#64748B' }}>ICMR & NABL Certified Phlebotomist</Text>
+                <Text style={{ fontSize: 11, color: '#059669', fontWeight: '700', marginTop: 2 }}>Sterile Kit Verified • Cold-Chain Storage</Text>
+              </View>
+              <View style={{ backgroundColor: '#D1FAE5', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, alignItems: 'center' }}>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#065F46' }}>DOORSTEP OTP</Text>
+                <Text style={{ fontSize: 16, fontWeight: '900', color: '#047857' }}>4829</Text>
+              </View>
+            </View>
+
+            {/* LIVE TIMELINE STAGES */}
+            <View style={{ backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#A7F3D0', gap: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="checkmark-circle" size={16} color="#059669" />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#1E293B' }}>Booking Confirmed & Central Lab Assigned</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="checkmark-circle" size={16} color="#059669" />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#1E293B' }}>Phlebotomist Assigned with Sealed Vacuum Tubes</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: '#ECFDF5', borderWidth: 2, borderColor: '#059669', alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#059669' }} />
+                </View>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: '#059669' }}>En Route to Doorstep (Live Now • ~20 Mins)</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="ellipse-outline" size={16} color="#CBD5E1" />
+                <Text style={{ fontSize: 12, color: '#94A3B8' }}>Painless Blood/Swab Collection & Tube Barcoding</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="ellipse-outline" size={16} color="#CBD5E1" />
+                <Text style={{ fontSize: 12, color: '#94A3B8' }}>Cold-Chain Transit to NABL Lab (Report within 6 hrs)</Text>
+              </View>
+            </View>
+
+            {/* ACTION BUTTONS */}
+            <View style={styles.directionBtnRow}>
+              <TouchableOpacity
+                style={[styles.getDirectionsBtn, { backgroundColor: '#059669', flex: 1 }]}
+                onPress={() => Linking.openURL('tel:+919876543210')}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="call" size={16} color="#FFFFFF" />
+                <Text style={styles.getDirectionsText}>Call Phlebotomist Praveen</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.callClinicBtn}
+                onPress={() => Linking.openURL('tel:18001089999')}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="headset" size={15} color={colors.primary} />
+                <Text style={styles.callClinicText}>Lab Helpline</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* CLINIC / DIAGNOSTIC CENTER / VIDEO CONSULTATION DIRECTIONS & LOCATION */}
-        {isVideo ? (
+        {!isPharmacy && !isLabHomeSample && (isVideo ? (
           <View style={[styles.directionCard, { borderColor: '#DDD6FE', backgroundColor: '#FAF5FF' }]}>
             <View style={styles.directionCardHeader}>
               <View style={[styles.mapIconCircle, { backgroundColor: '#7C3AED' }]}>
@@ -598,7 +860,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
               </TouchableOpacity>
             </View>
           </View>
-        )}
+        ))}
 
         {/* DOCTOR / CENTER INFO CARD */}
         <View style={styles.card}>
@@ -1367,6 +1629,9 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 40,
+    maxWidth: 900,
+    width: '100%',
+    alignSelf: 'center',
   },
   successCard: {
     flexDirection: 'row',
@@ -1730,15 +1995,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: 14,
-    borderRadius: 14,
+    paddingVertical: 11,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    height: 44,
     gap: 8,
     marginTop: 4,
     marginBottom: 10,
   },
   rebookButtonText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
   },
   homeButton: {

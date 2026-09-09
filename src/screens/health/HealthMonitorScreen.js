@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
+import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -366,7 +367,7 @@ const HealthMonitorScreen = ({ navigation }) => {
 
     if (formType === 'sugar') {
       if (!sugarVal.trim()) {
-        Alert.alert('Required', 'Please enter your blood glucose reading.');
+        showAlert('Required', 'Please enter your blood glucose reading.');
         return;
       }
       const evalRes = evaluateSugar(sugarVal, sugarContext);
@@ -387,7 +388,7 @@ const HealthMonitorScreen = ({ navigation }) => {
       };
     } else if (formType === 'bp') {
       if (!bpSystolic.trim() || !bpDiastolic.trim()) {
-        Alert.alert('Required', 'Please enter both Systolic and Diastolic blood pressure values.');
+        showAlert('Required', 'Please enter both Systolic and Diastolic blood pressure values.');
         return;
       }
       const evalRes = evaluateBP(bpSystolic, bpDiastolic);
@@ -410,7 +411,7 @@ const HealthMonitorScreen = ({ navigation }) => {
       };
     } else if (formType === 'spo2') {
       if (!spo2Val.trim()) {
-        Alert.alert('Required', 'Please enter your SpO2 percentage reading.');
+        showAlert('Required', 'Please enter your SpO2 percentage reading.');
         return;
       }
       const evalRes = evaluateSpO2(spo2Val);
@@ -430,7 +431,7 @@ const HealthMonitorScreen = ({ navigation }) => {
       };
     } else if (formType === 'temp') {
       if (!tempVal.trim()) {
-        Alert.alert('Required', 'Please enter your body temperature in °F.');
+        showAlert('Required', 'Please enter your body temperature in °F.');
         return;
       }
       const evalRes = evaluateTemp(tempVal);
@@ -450,7 +451,7 @@ const HealthMonitorScreen = ({ navigation }) => {
       };
     } else if (formType === 'weight') {
       if (!weightVal.trim()) {
-        Alert.alert('Required', 'Please enter your weight in kg.');
+        showAlert('Required', 'Please enter your weight in kg.');
         return;
       }
       const effectiveCm = heightUnit === 'cm' ? (heightVal.trim() || '170') : convertFtInToCm(heightFeet, heightInches);
@@ -483,7 +484,7 @@ const HealthMonitorScreen = ({ navigation }) => {
       saveVitals(updated);
       setModalVisible(false);
       resetForm();
-      Alert.alert('Vitals Logged', `Successfully updated your ${PARAM_CONFIG[formType].name} report.`);
+      showAlert('Vitals Logged', `Successfully updated your ${PARAM_CONFIG[formType].name} report.`);
     }
   };
 
@@ -499,7 +500,7 @@ const HealthMonitorScreen = ({ navigation }) => {
   };
 
   const handleDeleteEntry = (id) => {
-    Alert.alert('Delete Reading', 'Are you sure you want to remove this health record?', [
+    showAlert('Delete Reading', 'Are you sure you want to remove this health record?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -781,26 +782,49 @@ const HealthMonitorScreen = ({ navigation }) => {
           </View>
 
           {/* FILTER CHIPS */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-            {[
-              { id: 'all', label: 'All Vitals' },
-              { id: 'sugar', label: 'Sugar' },
-              { id: 'bp', label: 'Blood Pressure' },
-              { id: 'spo2', label: 'SpO2' },
-              { id: 'temp', label: 'Temperature' },
-              { id: 'weight', label: 'Weight' },
-            ].map((f) => (
-              <TouchableOpacity
-                key={f.id}
-                style={[styles.filterChip, selectedFilter === f.id && styles.filterChipActive]}
-                onPress={() => setSelectedFilter(f.id)}
-              >
-                <Text style={[styles.filterText, selectedFilter === f.id && styles.filterTextActive]}>
-                  {f.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          {Platform.OS === 'web' ? (
+            <View style={styles.filterWrap}>
+              {[
+                { id: 'all', label: 'All Vitals' },
+                { id: 'sugar', label: 'Sugar' },
+                { id: 'bp', label: 'Blood Pressure' },
+                { id: 'spo2', label: 'SpO2' },
+                { id: 'temp', label: 'Temperature' },
+                { id: 'weight', label: 'Weight' },
+              ].map((f) => (
+                <TouchableOpacity
+                  key={f.id}
+                  style={[styles.filterChip, selectedFilter === f.id && styles.filterChipActive]}
+                  onPress={() => setSelectedFilter(f.id)}
+                >
+                  <Text style={[styles.filterText, selectedFilter === f.id && styles.filterTextActive]}>
+                    {f.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+              {[
+                { id: 'all', label: 'All Vitals' },
+                { id: 'sugar', label: 'Sugar' },
+                { id: 'bp', label: 'Blood Pressure' },
+                { id: 'spo2', label: 'SpO2' },
+                { id: 'temp', label: 'Temperature' },
+                { id: 'weight', label: 'Weight' },
+              ].map((f) => (
+                <TouchableOpacity
+                  key={f.id}
+                  style={[styles.filterChip, selectedFilter === f.id && styles.filterChipActive]}
+                  onPress={() => setSelectedFilter(f.id)}
+                >
+                  <Text style={[styles.filterText, selectedFilter === f.id && styles.filterTextActive]}>
+                    {f.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
 
           {/* LIST */}
           {filteredList.length === 0 ? (
@@ -1434,6 +1458,12 @@ const styles = StyleSheet.create({
   filterScroll: {
     flexDirection: 'row',
     marginBottom: 16,
+  },
+  filterWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 16,
+    rowGap: 8,
   },
   filterChip: {
     paddingHorizontal: 14,

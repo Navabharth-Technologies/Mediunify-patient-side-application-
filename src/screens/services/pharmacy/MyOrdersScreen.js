@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   TextInput,
   Image,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 
 import colors from '../../../theme/colors';
@@ -106,7 +107,7 @@ const MyOrdersScreen = ({ navigation }) => {
       );
     });
 
-    Alert.alert(
+    showAlert(
       'Items Added to Cart! 🛒',
       'All items from this order have been added to your basket.',
       [
@@ -148,7 +149,7 @@ const MyOrdersScreen = ({ navigation }) => {
     );
 
     if (selectedItemIds.length === 0) {
-      Alert.alert(
+      showAlert(
         'Select Items',
         'Please select at least one item from the order to return.'
       );
@@ -156,7 +157,7 @@ const MyOrdersScreen = ({ navigation }) => {
     }
 
     if (!issueDescription.trim() || issueDescription.trim().length < 5) {
-      Alert.alert(
+      showAlert(
         'Provide Issue Details',
         'Please write a brief description of the issue to help our quality & returns team.'
       );
@@ -180,7 +181,7 @@ const MyOrdersScreen = ({ navigation }) => {
 
     setReturnModalVisible(false);
 
-    Alert.alert(
+    showAlert(
       'Return Request Submitted! 🔄',
       `Your return request for Order #${orderToReturn.id} has been accepted.\n\nDoorstep pickup will be completed within 24-48 hours. Refund of ₹${orderToReturn.total} will be credited to your ${
         refundMethod === 'WALLET' ? 'MediUnify Wallet' : 'Original Bank Account'
@@ -223,13 +224,7 @@ const MyOrdersScreen = ({ navigation }) => {
           <Text style={styles.subtitle}>Track, reorder & return medicines</Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.cartButton}
-          onPress={() => navigation.navigate('Cart')}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="cart-outline" size={22} color={colors.secondary} />
-        </TouchableOpacity>
+        <View style={styles.headerPlaceholder} />
       </View>
 
       {/* FILTER TABS */}
@@ -685,7 +680,7 @@ const MyOrdersScreen = ({ navigation }) => {
               </View>
               <TouchableOpacity
                 style={styles.callBtn}
-                onPress={() => Alert.alert('Calling Partner', 'Connecting to delivery partner: 9876543210')}
+                onPress={() => showAlert('Calling Partner', 'Connecting to delivery partner: 9876543210')}
               >
                 <Ionicons name="call" size={18} color={colors.white} />
               </TouchableOpacity>
@@ -772,13 +767,8 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginTop: 1,
   },
-  cartButton: {
+  headerPlaceholder: {
     width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 
   tabContainer: {

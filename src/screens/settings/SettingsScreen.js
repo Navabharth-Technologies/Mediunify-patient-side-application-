@@ -14,6 +14,7 @@ import {
   Platform,
   ToastAndroid,
 } from 'react-native';
+import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -62,7 +63,7 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   const handleClearCache = () => {
-    Alert.alert(
+    showAlert(
       t('clear_cache'),
       'Do you want to clear temporary offline cache, search suggestions, and temporary images (' + cacheSize + ')?',
       [
@@ -84,7 +85,7 @@ const SettingsScreen = ({ navigation }) => {
                 await AsyncStorage.multiRemove(tempKeys);
               }
               setCacheSize('0.0 KB');
-              Alert.alert(
+              showAlert(
                 t('cache_cleared_title'),
                 t('cache_cleared_msg')
               );
@@ -100,15 +101,15 @@ const SettingsScreen = ({ navigation }) => {
 
   const handleUpdatePassword = async () => {
     if (!oldPassword.trim() || !newPassword.trim() || !confirmPassword.trim()) {
-      Alert.alert('Error', 'Please fill in all password fields.');
+      showAlert('Error', 'Please fill in all password fields.');
       return;
     }
     if (newPassword.length < 6) {
-      Alert.alert('Weak Password', 'New password must be at least 6 characters long.');
+      showAlert('Weak Password', 'New password must be at least 6 characters long.');
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert('Mismatch', 'New password and confirm password do not match.');
+      showAlert('Mismatch', 'New password and confirm password do not match.');
       return;
     }
 
@@ -138,7 +139,7 @@ const SettingsScreen = ({ navigation }) => {
       if (activeEmail && registeredUsers[activeEmail]) {
         const currentSavedPass = registeredUsers[activeEmail].password;
         if (currentSavedPass && currentSavedPass !== oldPassword) {
-          Alert.alert('Incorrect Password', 'The current password you entered is incorrect.');
+          showAlert('Incorrect Password', 'The current password you entered is incorrect.');
           return;
         }
 
@@ -158,29 +159,78 @@ const SettingsScreen = ({ navigation }) => {
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      Alert.alert('Password Updated! 🔒', 'Your account password has been updated securely.');
+      showAlert('Password Updated! 🔒', 'Your account password has been updated securely.');
       showFeedback('Password changed successfully! 🔒');
     } catch (e) {
       console.log('Error updating password:', e);
-      Alert.alert('Error', 'Could not update password. Please try again.');
+      showAlert('Error', 'Could not update password. Please try again.');
     }
   };
 
   const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to log out from MediUnify?', [
-      { text: t('cancel'), style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await AsyncStorage.multiRemove(['userToken', '@unnathi_active_patient']);
-          } catch (e) {}
-          navigation.getParent()?.reset({
+    const doLogout = async () => {
+      try {
+        await AsyncStorage.multiRemove([
+          'userToken',
+          'isLoggedIn',
+          '@unnathi_active_patient',
+          'user',
+          'userName',
+          'userEmail',
+          'userPhone',
+        ]);
+      } catch (e) {
+        console.log('Logout storage clear err:', e);
+      }
+
+      let navigated = false;
+      const parent = navigation?.getParent?.();
+      if (parent?.reset) {
+        try {
+          parent.reset({
+            index: 0,
+            routes: [{ name: 'Auth', state: { routes: [{ name: 'Login' }] } }],
+          });
+          navigated = true;
+        } catch (e) {}
+      }
+      if (!navigated && parent?.navigate) {
+        try {
+          parent.navigate('Auth', { screen: 'Login' });
+          navigated = true;
+        } catch (e) {}
+      }
+      if (!navigated && navigation?.reset) {
+        try {
+          navigation.reset({
             index: 0,
             routes: [{ name: 'Auth' }],
           });
-        },
+          navigated = true;
+        } catch (e) {}
+      }
+      if (!navigated && navigation?.navigate) {
+        try {
+          navigation.navigate('Auth', { screen: 'Login' });
+          navigated = true;
+        } catch (e) {}
+      }
+
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        setTimeout(() => {
+          if (window.location) {
+            window.location.href = '/';
+          }
+        }, 150);
+      }
+    };
+
+    showAlert('Logout', 'Are you sure you want to log out from Unnathi Healthcare?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: doLogout,
       },
     ]);
   };

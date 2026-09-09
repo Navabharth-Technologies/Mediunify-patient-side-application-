@@ -9,13 +9,27 @@ import {
   TextInput,
   ScrollView,
   StatusBar,
+  useWindowDimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import labTests, { labCategories } from '../../../data/labTests';
 import colors from '../../../theme/colors';
 
-const LabTestsScreen = ({ navigation }) => {
-  const [search, setSearch] = useState('');
+const LabTestsScreen = ({ navigation, route }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+
+  const [search, setSearch] = useState(route?.params?.query || route?.params?.search || '');
+
+  React.useEffect(() => {
+    if (route?.params?.query !== undefined) {
+      setSearch(route.params.query);
+    } else if (route?.params?.search !== undefined) {
+      setSearch(route.params.search);
+    }
+  }, [route?.params?.query, route?.params?.search]);
+
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [collectionFilter, setCollectionFilter] = useState('all'); // 'all' | 'home' | 'hospital' | 'packages'
 
@@ -261,129 +275,190 @@ const LabTestsScreen = ({ navigation }) => {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* ==================================================
-          HEADER
+          HEADER (MOBILE ONLY)
       ================================================== */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.secondary} />
-        </TouchableOpacity>
-
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Diagnostic Lab Tests</Text>
-          <View style={styles.locationRow}>
-            <Ionicons name="location" size={12} color={colors.primary} />
-            <Text style={styles.locationText} numberOfLines={1}>
-              Near Kuvempunagar, Mysore
-            </Text>
-          </View>
-        </View>
-
-        {selectedTestIds.length > 0 && (
+      {!isDesktopWeb && (
+        <View style={styles.header}>
           <TouchableOpacity
-            style={styles.cartBadgeBtn}
-            onPress={handleProceedWithSelected}
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
             activeOpacity={0.8}
           >
-            <Ionicons name="flask" size={18} color="#FFFFFF" />
-            <View style={styles.cartBadgeCount}>
-              <Text style={styles.cartBadgeCountText}>{selectedTestIds.length}</Text>
-            </View>
+            <Ionicons name="arrow-back" size={22} color={colors.secondary} />
           </TouchableOpacity>
-        )}
-      </View>
+
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Diagnostic Lab Tests</Text>
+            <View style={styles.locationRow}>
+              <Ionicons name="location" size={12} color={colors.primary} />
+              <Text style={styles.locationText} numberOfLines={1}>
+                Near Kuvempunagar, Mysore
+              </Text>
+            </View>
+          </View>
+
+          {selectedTestIds.length > 0 && (
+            <TouchableOpacity
+              style={styles.cartBadgeBtn}
+              onPress={handleProceedWithSelected}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="flask" size={18} color="#FFFFFF" />
+              <View style={styles.cartBadgeCount}>
+                <Text style={styles.cartBadgeCountText}>{selectedTestIds.length}</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+
 
       {/* ==================================================
           COLLECTION MODE QUICK FILTER TABS
       ================================================== */}
       <View style={styles.collectionTabsContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.collectionTabsScroll}
-        >
-          {[
-            { id: 'all', label: 'All Tests & Packages' },
-            { id: 'home', label: '🏠 Home Collection Available' },
-            { id: 'hospital', label: '🏥 Lab / Hospital Visit Only' },
-            { id: 'packages', label: '⭐ Full Health Packages' },
-          ].map((tab) => {
-            const isTabActive = collectionFilter === tab.id;
-            return (
-              <TouchableOpacity
-                key={tab.id}
-                style={[styles.collectionTabPill, isTabActive && styles.collectionTabPillActive]}
-                activeOpacity={0.8}
-                onPress={() => setCollectionFilter(tab.id)}
-              >
-                <Text
-                  style={[
-                    styles.collectionTabText,
-                    isTabActive && styles.collectionTabTextActive,
-                  ]}
+        {Platform.OS === 'web' ? (
+          <View style={styles.collectionTabsWrap}>
+            {[
+              { id: 'all', label: 'All Tests & Packages' },
+              { id: 'home', label: '🏠 Home Collection Available' },
+              { id: 'hospital', label: '🏥 Lab / Hospital Visit Only' },
+              { id: 'packages', label: '⭐ Full Health Packages' },
+            ].map((tab) => {
+              const isTabActive = collectionFilter === tab.id;
+              return (
+                <TouchableOpacity
+                  key={tab.id}
+                  style={[styles.collectionTabPill, isTabActive && styles.collectionTabPillActive]}
+                  activeOpacity={0.8}
+                  onPress={() => setCollectionFilter(tab.id)}
                 >
-                  {tab.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                  <Text
+                    style={[
+                      styles.collectionTabText,
+                      isTabActive && styles.collectionTabTextActive,
+                    ]}
+                  >
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.collectionTabsScroll}
+          >
+            {[
+              { id: 'all', label: 'All Tests & Packages' },
+              { id: 'home', label: '🏠 Home Collection Available' },
+              { id: 'hospital', label: '🏥 Lab / Hospital Visit Only' },
+              { id: 'packages', label: '⭐ Full Health Packages' },
+            ].map((tab) => {
+              const isTabActive = collectionFilter === tab.id;
+              return (
+                <TouchableOpacity
+                  key={tab.id}
+                  style={[styles.collectionTabPill, isTabActive && styles.collectionTabPillActive]}
+                  activeOpacity={0.8}
+                  onPress={() => setCollectionFilter(tab.id)}
+                >
+                  <Text
+                    style={[
+                      styles.collectionTabText,
+                      isTabActive && styles.collectionTabTextActive,
+                    ]}
+                  >
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
       </View>
 
       {/* ==================================================
-          SEARCH INPUT
+          SEARCH INPUT (MOBILE ONLY)
       ================================================== */}
-      <View style={styles.searchBarContainer}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search-outline" size={19} color={colors.textSecondary} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search test name, CBC, Thyroid, Sugar, LFT..."
-            placeholderTextColor="#94A3B8"
-            value={search}
-            onChangeText={setSearch}
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <Ionicons name="close-circle" size={18} color="#94A3B8" />
-            </TouchableOpacity>
-          )}
+      {!isDesktopWeb && (
+        <View style={styles.searchBarContainer}>
+          <View style={styles.searchBox}>
+            <Ionicons name="search-outline" size={19} color={colors.textSecondary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search test name, CBC, Thyroid, Sugar, LFT..."
+              placeholderTextColor="#94A3B8"
+              value={search}
+              onChangeText={setSearch}
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch('')}>
+                <Ionicons name="close-circle" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
+      )}
 
       {/* ==================================================
           CATEGORY PILLS
       ================================================== */}
       <View style={styles.categoriesContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoriesScroll}
-        >
-          {labCategories.map((cat) => {
-            const isCatActive = selectedCategory === cat.id;
-            return (
-              <TouchableOpacity
-                key={cat.id}
-                style={[styles.catPill, isCatActive && styles.catPillActive]}
-                activeOpacity={0.8}
-                onPress={() => setSelectedCategory(cat.id)}
-              >
-                <Ionicons
-                  name={cat.icon}
-                  size={14}
-                  color={isCatActive ? '#FFFFFF' : colors.primary}
-                />
-                <Text style={[styles.catPillText, isCatActive && styles.catPillTextActive]}>
-                  {cat.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {Platform.OS === 'web' ? (
+          <View style={styles.categoriesWrap}>
+            {labCategories.map((cat) => {
+              const isCatActive = selectedCategory === cat.id;
+              return (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[styles.catPill, isCatActive && styles.catPillActive]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedCategory(cat.id)}
+                >
+                  <Ionicons
+                    name={cat.icon}
+                    size={14}
+                    color={isCatActive ? '#FFFFFF' : colors.primary}
+                  />
+                  <Text style={[styles.catPillText, isCatActive && styles.catPillTextActive]}>
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoriesScroll}
+          >
+            {labCategories.map((cat) => {
+              const isCatActive = selectedCategory === cat.id;
+              return (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[styles.catPill, isCatActive && styles.catPillActive]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedCategory(cat.id)}
+                >
+                  <Ionicons
+                    name={cat.icon}
+                    size={14}
+                    color={isCatActive ? '#FFFFFF' : colors.primary}
+                  />
+                  <Text style={[styles.catPillText, isCatActive && styles.catPillTextActive]}>
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
       </View>
 
       {/* ==================================================
@@ -555,10 +630,19 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
   },
   collectionTabsScroll: {
     paddingHorizontal: 16,
     gap: 8,
+  },
+  collectionTabsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    rowGap: 8,
   },
   collectionTabPill: {
     paddingHorizontal: 12,
@@ -584,6 +668,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 4,
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
   },
   searchBox: {
     flexDirection: 'row',
@@ -605,10 +692,19 @@ const styles = StyleSheet.create({
   // CATEGORIES
   categoriesContainer: {
     paddingVertical: 6,
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
   },
   categoriesScroll: {
     paddingHorizontal: 16,
     gap: 8,
+  },
+  categoriesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    rowGap: 8,
   },
   catPill: {
     flexDirection: 'row',
@@ -649,6 +745,9 @@ const styles = StyleSheet.create({
     gap: 6,
     borderWidth: 1,
     borderColor: '#A7F3D0',
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
   },
   homePromoText: {
     flex: 1,
@@ -661,6 +760,9 @@ const styles = StyleSheet.create({
   list: {
     paddingHorizontal: 16,
     paddingBottom: 40,
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
   },
   testCard: {
     backgroundColor: '#FFFFFF',
@@ -864,14 +966,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.teal,
-    paddingVertical: 8,
-    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 8,
+    height: 38,
     gap: 6,
   },
   upgradeActionBtnText: {
     color: '#FFFFFF',
-    fontSize: 11.5,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
   },
 
   cardFooter: {
@@ -900,39 +1004,43 @@ const styles = StyleSheet.create({
   },
   actionsGroup: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
   selectBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#EFF6FF',
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 10,
-    gap: 4,
+    borderRadius: 8,
+    height: 38,
+    gap: 5,
   },
   selectBtnActive: {
     backgroundColor: colors.primary,
   },
   selectBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
     color: colors.primary,
   },
   selectBtnTextActive: {
     color: '#FFFFFF',
   },
   bookNowBtn: {
-    backgroundColor: colors.secondary,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 8,
+    height: 38,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   bookNowBtnText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
   },
 
   // EMPTY
@@ -1003,6 +1111,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   multiSelectBottomBar: {
+    maxWidth: 1200,
+    width: '100%',
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1038,15 +1149,45 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primary,
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 10,
     gap: 6,
+    height: 44,
   },
   proceedButtonText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
+  },
+
+  webBreadcrumbWrap: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    marginBottom: 10,
+  },
+  webBreadcrumbRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  webBreadcrumbLink: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#0071DC',
+  },
+  webBreadcrumbCurrent: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  webBreadcrumbQuery: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0F172A',
   },
 });
 

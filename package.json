@@ -4,6 +4,7 @@
   "homepage": "https://hemanthgowdatn2003.github.io/mediunify-patient",
   "scripts": {
     "start": "expo start",
+    "server": "node server/syncServer.js",
     "web": "expo start --web",
     "predeploy": "npx expo export -p web --base-url /mediunify-patient && node -e \"require('fs').writeFileSync('dist/.nojekyll', '')\"",
     "deploy": "gh-pages -d dist -t"

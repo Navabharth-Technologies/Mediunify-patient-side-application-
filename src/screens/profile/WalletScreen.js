@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Alert,
   StatusBar,
 } from 'react-native';
+import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../theme/colors';
@@ -85,7 +86,7 @@ const WalletScreen = ({ navigation }) => {
   const handleAddMoney = async (amt) => {
     const num = parseInt(amt, 10);
     if (isNaN(num) || num <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid top-up amount.');
+      showAlert('Invalid Amount', 'Please enter a valid top-up amount.');
       return;
     }
 
@@ -108,7 +109,7 @@ const WalletScreen = ({ navigation }) => {
     await AsyncStorage.setItem('@unnathi_wallet_transactions', JSON.stringify(updatedTxList));
 
     setTopUpModalVisible(false);
-    Alert.alert('Top-Up Successful! 💳', `₹${num.toLocaleString('en-IN')} has been added to your MediUnify Wallet.`);
+    showAlert('Top-Up Successful! 💳', `₹${num.toLocaleString('en-IN')} has been added to your MediUnify Wallet.`);
   };
 
   return (

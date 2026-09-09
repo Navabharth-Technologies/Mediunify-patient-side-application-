@@ -216,23 +216,25 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
 
       {/* STICKY BOTTOM ACTION BAR */}
       <View style={styles.bottomBar}>
-        <View style={styles.bottomPriceCol}>
-          <Text style={styles.bottomFeeLabel}>In-Person Fee</Text>
-          <Text style={styles.bottomFeeAmount}>₹{doctor.fee || 500}</Text>
-        </View>
+        <View style={styles.bottomBarInner}>
+          <View style={styles.bottomPriceCol}>
+            <Text style={styles.bottomFeeLabel}>In-Person Fee</Text>
+            <Text style={styles.bottomFeeAmount}>₹{doctor.fee || 500}</Text>
+          </View>
 
-        <TouchableOpacity
-          style={styles.bookMainButton}
-          activeOpacity={0.88}
-          onPress={() =>
-            navigation.navigate('DoctorBooking', {
-              doctor: doctor,
-            })
-          }
-        >
-          <Text style={styles.bookMainButtonText}>Book Appointment</Text>
-          <Ionicons name="calendar" size={18} color="#FFFFFF" />
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.bookMainButton}
+            activeOpacity={0.88}
+            onPress={() =>
+              navigation.navigate('DoctorBooking', {
+                doctor: doctor,
+              })
+            }
+          >
+            <Text style={styles.bookMainButtonText}>Book Appointment</Text>
+            <Ionicons name="calendar" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -271,6 +273,9 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 110,
+    maxWidth: 900,
+    width: '100%',
+    alignSelf: 'center',
   },
 
   // PROFILE CARD
@@ -517,11 +522,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
     elevation: 8,
@@ -529,6 +531,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
+  },
+  bottomBarInner: {
+    maxWidth: 900,
+    width: '100%',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   bottomPriceCol: {},
   bottomFeeLabel: {
@@ -544,10 +554,12 @@ const styles = StyleSheet.create({
   bookMainButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.primary,
     paddingHorizontal: 22,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 11,
+    borderRadius: 10,
+    height: 44,
     gap: 8,
   },
   bookMainButtonText: {

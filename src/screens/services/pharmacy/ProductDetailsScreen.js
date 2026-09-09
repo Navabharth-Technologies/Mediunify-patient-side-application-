@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+﻿import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,10 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  useWindowDimensions,
+  Platform,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 
 import colors from '../../../theme/colors';
@@ -41,6 +44,9 @@ const getCategoryIcon = (category) => {
 };
 
 const ProductDetailsScreen = ({ navigation, route }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+
   const { productId, product: passedProduct, store: passedStore } = route.params || {};
   const { cart, addToCart, cartCount, selectedPharmacyStore } = useCart();
 
@@ -80,7 +86,7 @@ const ProductDetailsScreen = ({ navigation, route }) => {
 
   const handleAddToCart = () => {
     addToCart(product, quantity, 'pharmacy', currentStore);
-    Alert.alert(
+    showAlert(
       'Added to Cart! 🛒',
       `${quantity} × ${product.name} added to your basket (${currentStore?.name || 'Apollo Pharmacy'}).`,
       [
@@ -114,20 +120,24 @@ const ProductDetailsScreen = ({ navigation, route }) => {
           Product Details
         </Text>
 
-        <TouchableOpacity
-          style={styles.cartButton}
-          onPress={() => navigation.navigate('Cart')}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="cart-outline" size={24} color={colors.secondary} />
-          {cartCount > 0 && (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>
-                {cartCount > 99 ? '99+' : cartCount}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        {!isDesktopWeb ? (
+          <TouchableOpacity
+            style={styles.cartButton}
+            onPress={() => navigation.navigate('Cart')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="cart-outline" size={24} color={colors.secondary} />
+            {cartCount > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>
+                  {cartCount > 99 ? '99+' : cartCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 38 }} />
+        )}
       </View>
 
       <ScrollView
@@ -314,29 +324,31 @@ const ProductDetailsScreen = ({ navigation, route }) => {
 
       {/* BOTTOM ACTION BAR */}
       <View style={styles.bottomBar}>
-        <View style={styles.bottomPriceWrap}>
-          <Text style={styles.bottomPriceLabel}>Total ({quantity} item{quantity > 1 ? 's' : ''})</Text>
-          <Text style={styles.bottomPriceValue}>₹{product.price * quantity}</Text>
-        </View>
+        <View style={styles.bottomBarInner}>
+          <View style={styles.bottomPriceWrap}>
+            <Text style={styles.bottomPriceLabel}>Total ({quantity} item{quantity > 1 ? 's' : ''})</Text>
+            <Text style={styles.bottomPriceValue}>₹{product.price * quantity}</Text>
+          </View>
 
-        <View style={styles.bottomBtnGroup}>
-          <TouchableOpacity
-            style={styles.addCartBtn}
-            activeOpacity={0.85}
-            onPress={handleAddToCart}
-          >
-            <Ionicons name="cart-outline" size={18} color={colors.primary} />
-            <Text style={styles.addCartText}>Add to Cart</Text>
-          </TouchableOpacity>
+          <View style={styles.bottomBtnGroup}>
+            <TouchableOpacity
+              style={styles.addCartBtn}
+              activeOpacity={0.85}
+              onPress={handleAddToCart}
+            >
+              <Ionicons name="cart-outline" size={18} color={colors.primary} />
+              <Text style={styles.addCartText}>Add to Cart</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.buyNowBtn}
-            activeOpacity={0.85}
-            onPress={handleBuyNow}
-          >
-            <Ionicons name="flash" size={16} color={colors.white} />
-            <Text style={styles.buyNowText}>Buy Now</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.buyNowBtn}
+              activeOpacity={0.85}
+              onPress={handleBuyNow}
+            >
+              <Ionicons name="flash" size={16} color={colors.white} />
+              <Text style={styles.buyNowText}>Buy Now</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </SafeAreaView>
@@ -402,6 +414,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 20,
+    width: '100%',
+    maxWidth: 900,
+    alignSelf: 'center',
   },
   imageCard: {
     height: 220,
@@ -688,14 +703,19 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     elevation: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.1,
     shadowRadius: 6,
+  },
+  bottomBarInner: {
+    width: '100%',
+    maxWidth: 900,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   bottomPriceWrap: {
     justifyContent: 'center',
@@ -713,32 +733,39 @@ const styles = StyleSheet.create({
   bottomBtnGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   addCartBtn: {
+    height: 44,
     backgroundColor: '#E6FAF7',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 14,
+    paddingHorizontal: 18,
+    borderRadius: 10,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
     borderWidth: 1,
     borderColor: '#B3EFE6',
   },
   addCartText: {
     color: colors.primary,
-    fontSize: 12,
-    fontWeight: '900',
+    fontSize: 13,
+    fontWeight: '700',
   },
   buyNowBtn: {
+    height: 44,
     backgroundColor: colors.primary,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 14,
+    paddingHorizontal: 24,
+    borderRadius: 10,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
+  },
+  buyNowText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '800',
   },
   storeBadgeCard: {
     flexDirection: 'row',

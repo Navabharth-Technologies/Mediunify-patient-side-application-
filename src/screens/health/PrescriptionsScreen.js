@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Modal,
   Alert,
 } from 'react-native';
+import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -120,7 +121,7 @@ const PrescriptionsScreen = ({ navigation }) => {
       );
     });
 
-    Alert.alert(
+    showAlert(
       'Medicines Added to Cart! 🛒',
       `All ${rx.medicines.length} prescribed medicines have been added to your cart with prescription linked.`,
       [
@@ -134,7 +135,7 @@ const PrescriptionsScreen = ({ navigation }) => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Needed', 'Please grant photo gallery permission.');
+        showAlert('Permission Needed', 'Please grant photo gallery permission.');
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -157,10 +158,10 @@ const PrescriptionsScreen = ({ navigation }) => {
           doctorAdvice: 'Document will be verified by Unnathi pharmacist.',
         };
         setPrescriptions([newRx, ...prescriptions]);
-        Alert.alert('Prescription Uploaded! 📄', 'Your prescription document has been added.');
+        showAlert('Prescription Uploaded! 📄', 'Your prescription document has been added.');
       }
     } catch (e) {
-      Alert.alert('Upload Simulated', 'Prescription saved to your medical records.');
+      showAlert('Upload Simulated', 'Prescription saved to your medical records.');
     }
   };
 
@@ -350,7 +351,7 @@ const PrescriptionsScreen = ({ navigation }) => {
               <View style={styles.modalActionGroup}>
                 <TouchableOpacity
                   style={styles.downloadPdfBtn}
-                  onPress={() => Alert.alert('Prescription Downloaded', 'PDF saved to your device.')}
+                  onPress={() => showAlert('Prescription Downloaded', 'PDF saved to your device.')}
                 >
                   <Ionicons name="download-outline" size={16} color={colors.primary} />
                   <Text style={styles.downloadPdfText}>Download PDF</Text>

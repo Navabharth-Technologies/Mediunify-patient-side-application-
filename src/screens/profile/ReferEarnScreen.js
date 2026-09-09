@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Linking,
   Share,
 } from 'react-native';
+import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../theme/colors';
@@ -72,7 +73,7 @@ const ReferEarnScreen = ({ navigation }) => {
 
   const handleCopyCode = () => {
     setCopied(true);
-    Alert.alert(
+    showAlert(
       'Referral Code Copied! 📋',
       `Your code "${referralCode}" has been copied. Share it with friends & family to earn ₹250 each!`
     );

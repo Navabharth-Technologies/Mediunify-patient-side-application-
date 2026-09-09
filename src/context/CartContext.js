@@ -86,7 +86,26 @@ export const CartProvider = ({ children }) => {
   const loadSavedData = async () => {
     try {
       const storedOrders = await AsyncStorage.getItem(ORDERS_STORAGE_KEY);
-      if (storedOrders) setOrders(JSON.parse(storedOrders));
+      const storedGenOrders = await AsyncStorage.getItem('@orders');
+      let combinedOrders = [];
+      if (storedOrders) {
+        try { combinedOrders = JSON.parse(storedOrders); } catch (e) {}
+      }
+      if (storedGenOrders) {
+        try {
+          const parsedGen = JSON.parse(storedGenOrders);
+          if (Array.isArray(parsedGen)) {
+            const map = new Map();
+            [...combinedOrders, ...parsedGen].forEach((o) => {
+              if (o && o.id) map.set(o.id, o);
+            });
+            combinedOrders = Array.from(map.values());
+          }
+        } catch (e) {}
+      }
+      if (combinedOrders.length > 0) {
+        setOrders(combinedOrders);
+      }
 
       const storedAddress = await AsyncStorage.getItem(ADDRESS_STORAGE_KEY);
       if (storedAddress) setSelectedAddress(JSON.parse(storedAddress));
@@ -528,9 +547,18 @@ export const CartProvider = ({ children }) => {
         ORDERS_STORAGE_KEY,
         JSON.stringify(updatedOrders)
       );
+      await AsyncStorage.setItem(
+        '@orders',
+        JSON.stringify(updatedOrders)
+      );
     } catch (e) {
       console.log('Error saving order to storage:', e);
     }
+    // Background sync to central server
+    try {
+      const { syncActiveUser } = require('../services/dataSyncService');
+      await syncActiveUser();
+    } catch (err) {}
   };
 
   const requestProductReturn = async (orderId, returnPayload) => {

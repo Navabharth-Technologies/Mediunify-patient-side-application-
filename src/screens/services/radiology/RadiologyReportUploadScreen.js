@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 
 import {
   View,
@@ -11,6 +11,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 
 import * as ImagePicker from 'expo-image-picker';
 
@@ -49,7 +50,7 @@ const RadiologyReportUploadScreen = ({
 
       if (!permission.granted) {
 
-        Alert.alert(
+        showAlert(
           'Camera Permission Required',
           'Please allow camera access to capture your medical report.'
         );
@@ -83,7 +84,7 @@ const RadiologyReportUploadScreen = ({
         error
       );
 
-      Alert.alert(
+      showAlert(
         'Camera Error',
         'Unable to open the camera.'
       );
@@ -105,7 +106,7 @@ const RadiologyReportUploadScreen = ({
 
       if (!permission.granted) {
 
-        Alert.alert(
+        showAlert(
           'Gallery Permission Required',
           'Please allow access to your photos.'
         );
@@ -139,7 +140,7 @@ const RadiologyReportUploadScreen = ({
         error
       );
 
-      Alert.alert(
+      showAlert(
         'Gallery Error',
         'Unable to open your gallery.'
       );
@@ -153,7 +154,7 @@ const RadiologyReportUploadScreen = ({
 
   const chooseImage = () => {
 
-    Alert.alert(
+    showAlert(
       'Upload Scan / Report',
       'Choose how you want to add your medical image.',
       [
@@ -183,7 +184,7 @@ const RadiologyReportUploadScreen = ({
 
   const removeImage = () => {
 
-    Alert.alert(
+    showAlert(
       'Remove Image',
       'Do you want to remove this image?',
       [
@@ -211,7 +212,7 @@ const RadiologyReportUploadScreen = ({
 
     if (!booking) {
 
-      Alert.alert(
+      showAlert(
         'Booking Error',
         'Booking information is unavailable.'
       );
@@ -222,7 +223,7 @@ const RadiologyReportUploadScreen = ({
 
     if (!imageUri) {
 
-      Alert.alert(
+      showAlert(
         'Report Required',
         'Please upload an X-ray, CT, MRI, ultrasound image, or medical report.'
       );
@@ -285,7 +286,7 @@ const RadiologyReportUploadScreen = ({
       setSaving(false);
 
 
-      Alert.alert(
+      showAlert(
         'Appointment Submitted',
         `Your radiology appointment with ${booking.radiologistName} has been submitted successfully.`,
         [
@@ -318,7 +319,7 @@ const RadiologyReportUploadScreen = ({
       setSaving(false);
 
 
-      Alert.alert(
+      showAlert(
         'Submission Error',
         'Unable to save the radiology appointment.'
       );

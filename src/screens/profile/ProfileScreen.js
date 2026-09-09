@@ -11,10 +11,12 @@ import {
   StatusBar,
   Linking,
 } from 'react-native';
+import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../theme/colors';
 import { useTheme } from '../../context/ThemeContext';
+import { syncActiveUser } from '../../services/dataSyncService';
 
 const ProfileScreen = ({ navigation, route }) => {
   const { isDarkMode, theme, language, LANGUAGES } = useTheme();
@@ -33,6 +35,7 @@ const ProfileScreen = ({ navigation, route }) => {
 
   const [walletBalance, setWalletBalance] = useState(1250);
   const [carePoints, setCarePoints] = useState(500);
+  const [familyCount, setFamilyCount] = useState(1);
 
   // Load Saved Data on Mount & Screen Focus
   useEffect(() => {
@@ -123,6 +126,42 @@ const ProfileScreen = ({ navigation, route }) => {
       if (savedWallet) {
         setWalletBalance(parseInt(savedWallet, 10) || 1250);
       }
+
+      // Load cached family members count
+      try {
+        const famStr = await AsyncStorage.getItem('@unnathi_family_members');
+        if (famStr) {
+          const parsedFam = JSON.parse(famStr);
+          if (Array.isArray(parsedFam) && parsedFam.length > 0) {
+            setFamilyCount(parsedFam.length);
+          }
+        }
+      } catch (e) {}
+
+      // Background sync with Central Server (live Web <-> Mobile shared data)
+      try {
+        syncActiveUser().then((latest) => {
+          if (latest) {
+            setUser((prev) => ({
+              ...prev,
+              name: latest.name || prev.name,
+              email: latest.email || prev.email,
+              phone: latest.phone || prev.phone,
+              bloodGroup: latest.bloodGroup || prev.bloodGroup,
+              age: latest.age || prev.age,
+              gender: latest.gender || prev.gender,
+              emergencyContact: latest.emergencyContact || prev.emergencyContact,
+              dob: latest.dob || prev.dob || '',
+            }));
+            if (latest.walletBalance !== undefined) {
+              setWalletBalance(latest.walletBalance);
+            }
+            if (latest.familyMembers && Array.isArray(latest.familyMembers) && latest.familyMembers.length > 0) {
+              setFamilyCount(latest.familyMembers.length);
+            }
+          }
+        });
+      } catch (syncErr) {}
     } catch (e) {
       console.log('Error loading profile data:', e);
     }
@@ -133,28 +172,72 @@ const ProfileScreen = ({ navigation, route }) => {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout from MediUnify',
+    const doLogout = async () => {
+      try {
+        await AsyncStorage.multiRemove([
+          'userToken',
+          'isLoggedIn',
+          '@unnathi_active_patient',
+          'user',
+          'userName',
+          'userEmail',
+          'userPhone',
+        ]);
+      } catch (e) {
+        console.log('Logout storage clear err:', e);
+      }
+
+      let navigated = false;
+      const parent = navigation?.getParent?.();
+      if (parent?.reset) {
+        try {
+          parent.reset({
+            index: 0,
+            routes: [{ name: 'Auth', state: { routes: [{ name: 'Login' }] } }],
+          });
+          navigated = true;
+        } catch (e) {}
+      }
+      if (!navigated && parent?.navigate) {
+        try {
+          parent.navigate('Auth', { screen: 'Login' });
+          navigated = true;
+        } catch (e) {}
+      }
+      if (!navigated && navigation?.reset) {
+        try {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Auth' }],
+          });
+          navigated = true;
+        } catch (e) {}
+      }
+      if (!navigated && navigation?.navigate) {
+        try {
+          navigation.navigate('Auth', { screen: 'Login' });
+          navigated = true;
+        } catch (e) {}
+      }
+
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        setTimeout(() => {
+          if (window.location) {
+            window.location.href = '/';
+          }
+        }, 150);
+      }
+    };
+
+    showAlert(
+      'Logout from Unnathi Healthcare',
       'Are you sure you want to securely log out of your healthcare account?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Logout',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await AsyncStorage.multiRemove([
-                'userToken',
-                '@unnathi_active_patient',
-              ]);
-            } catch (e) {
-              console.log('Logout storage clear err:', e);
-            }
-            navigation.getParent()?.reset({
-              index: 0,
-              routes: [{ name: 'Auth' }],
-            });
-          },
+          onPress: doLogout,
         },
       ]
     );
@@ -339,10 +422,12 @@ const ProfileScreen = ({ navigation, route }) => {
             </View>
             <View style={styles.itemTextWrap}>
               <Text style={styles.itemTitle}>Family Members & Dependents</Text>
-              <Text style={styles.itemSubtitle}>Manage 4 family profiles & medical history</Text>
+              <Text style={styles.itemSubtitle}>
+                {familyCount === 1 ? '1 family profile configured' : `Manage ${familyCount} family profiles & medical history`}
+              </Text>
             </View>
             <View style={styles.badgePill}>
-              <Text style={styles.badgePillText}>4 Profiles</Text>
+              <Text style={styles.badgePillText}>{familyCount} {familyCount === 1 ? 'Profile' : 'Profiles'}</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
           </TouchableOpacity>
@@ -361,6 +446,48 @@ const ProfileScreen = ({ navigation, route }) => {
             <View style={styles.itemTextWrap}>
               <Text style={styles.itemTitle}>My Appointments & Slips</Text>
               <Text style={styles.itemSubtitle}>Doctor visits, home lab tokens & scan slips</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          {/* PHARMACY ORDERS & LIVE TRACKING */}
+          <TouchableOpacity
+            style={styles.groupItem}
+            onPress={() => navigation.navigate('MyOrders')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.itemIconWrap, { backgroundColor: '#FEF3C7' }]}>
+              <Ionicons name="cart" size={20} color="#D97706" />
+            </View>
+            <View style={styles.itemTextWrap}>
+              <Text style={styles.itemTitle}>Pharmacy Orders & Live Tracking</Text>
+              <Text style={styles.itemSubtitle}>Track medicine delivery rider, OTP, bills & refills</Text>
+            </View>
+            <View style={[styles.badgePill, { backgroundColor: '#FEF3C7' }]}>
+              <Text style={[styles.badgePillText, { color: '#B45309' }]}>Live Track</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          {/* LAB HOME SAMPLE COLLECTION TRACKING */}
+          <TouchableOpacity
+            style={styles.groupItem}
+            onPress={() => navigation.navigate('Bookings', { initialTab: 'Sample Tracking' })}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.itemIconWrap, { backgroundColor: '#ECFDF5' }]}>
+              <Ionicons name="navigate" size={20} color="#059669" />
+            </View>
+            <View style={styles.itemTextWrap}>
+              <Text style={styles.itemTitle}>Home Sample Collection Tracking</Text>
+              <Text style={styles.itemSubtitle}>Track phlebotomist live ETA, doorstep OTP & tube status</Text>
+            </View>
+            <View style={[styles.badgePill, { backgroundColor: '#ECFDF5' }]}>
+              <Text style={[styles.badgePillText, { color: '#047857' }]}>Live ETA</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
           </TouchableOpacity>
@@ -524,7 +651,7 @@ const ProfileScreen = ({ navigation, route }) => {
           <TouchableOpacity
             style={styles.groupItem}
             onPress={() => {
-              Alert.alert(
+              showAlert(
                 '24x7 MediUnify Doctor Support',
                 'Call our medical support helpline for emergency or app assistance.',
                 [

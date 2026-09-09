@@ -12,9 +12,11 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
+import { requestLocationPermissionWebSafe, getCurrentPositionWebSafe, reverseGeocodeWebSafe } from '../../../utils/locationHelper';
 
 import colors from '../../../theme/colors';
 import { useCart } from '../../../context/CartContext';
@@ -139,18 +141,18 @@ const CheckoutScreen = ({ navigation }) => {
   const handleGpsAutofill = async () => {
     try {
       setGpsLoading(true);
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Needed', 'Please allow location permission to auto-fill address.');
+      const perm = await requestLocationPermissionWebSafe();
+      if (!perm.granted && perm.status !== 'granted') {
+        showAlert('Permission Needed', 'Please allow location permission to auto-fill address.');
         setGpsLoading(false);
         return;
       }
 
-      const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
+      const position = await getCurrentPositionWebSafe({
+        accuracy: Location.Accuracy.Balanced,
       });
 
-      const addresses = await Location.reverseGeocodeAsync({
+      const addresses = await reverseGeocodeWebSafe({
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
       });
@@ -177,10 +179,10 @@ const CheckoutScreen = ({ navigation }) => {
           tag,
         });
 
-        Alert.alert('Address Detected! 📍', 'Your delivery address has been filled from GPS.');
+        showAlert('Address Detected! 📍', 'Your delivery address has been filled from GPS.');
       }
     } catch (e) {
-      Alert.alert('Error', 'Unable to auto-detect location. Please type manually.');
+      showAlert('Error', 'Unable to auto-detect location. Please type manually.');
     } finally {
       setGpsLoading(false);
     }
@@ -191,7 +193,7 @@ const CheckoutScreen = ({ navigation }) => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Please allow gallery access to select your prescription.');
+        showAlert('Permission needed', 'Please allow gallery access to select your prescription.');
         return;
       }
 
@@ -227,7 +229,7 @@ const CheckoutScreen = ({ navigation }) => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Please allow camera access to take a photo of your prescription.');
+        showAlert('Permission needed', 'Please allow camera access to take a photo of your prescription.');
         return;
       }
 
@@ -273,31 +275,31 @@ const CheckoutScreen = ({ navigation }) => {
   // Place Order Handler with full validation
   const handlePlaceOrder = async () => {
     if (cart.length === 0) {
-      Alert.alert('Empty Cart', 'Your cart has no items to checkout.');
+      showAlert('Empty Cart', 'Your cart has no items to checkout.');
       return;
     }
 
     // 1. Basic Details Validation
     if (!name.trim()) {
-      Alert.alert('Missing Details', 'Please enter recipient name.');
+      showAlert('Missing Details', 'Please enter recipient name.');
       return;
     }
     if (!phone.trim() || phone.trim().length < 10) {
-      Alert.alert('Invalid Mobile Number', 'Please enter a valid 10-digit mobile number.');
+      showAlert('Invalid Mobile Number', 'Please enter a valid 10-digit mobile number.');
       return;
     }
     if (!addressLine.trim()) {
-      Alert.alert('Missing Address', 'Please enter flat/house number and street address.');
+      showAlert('Missing Address', 'Please enter flat/house number and street address.');
       return;
     }
     if (!pincode.trim() || pincode.trim().length < 6) {
-      Alert.alert('Invalid Pincode', 'Please enter a valid 6-digit postal pincode.');
+      showAlert('Invalid Pincode', 'Please enter a valid 6-digit postal pincode.');
       return;
     }
 
     // 2. Prescription Validation (Required if tablets/prescription items are in cart)
     if (isPrescriptionRequired && !uploadedPrescription) {
-      Alert.alert(
+      showAlert(
         'Prescription Required 📄',
         'Your cart contains prescription medicines/tablets. Please upload a doctor prescription or choose an e-prescription before payment.',
         [
@@ -822,28 +824,30 @@ const CheckoutScreen = ({ navigation }) => {
 
       {/* BOTTOM PLACE ORDER BAR */}
       <View style={styles.bottomBar}>
-        <View style={styles.bottomPriceWrap}>
-          <Text style={styles.bottomPriceLabel}>Total Payable</Text>
-          <Text style={styles.bottomPriceValue}>₹{finalTotal}</Text>
-        </View>
+        <View style={styles.bottomBarInner}>
+          <View style={styles.bottomPriceWrap}>
+            <Text style={styles.bottomPriceLabel}>Total Payable</Text>
+            <Text style={styles.bottomPriceValue}>₹{finalTotal}</Text>
+          </View>
 
-        <TouchableOpacity
-          style={styles.placeOrderBtn}
-          activeOpacity={0.85}
-          onPress={handlePlaceOrder}
-          disabled={isPlacingOrder}
-        >
-          {isPlacingOrder ? (
-            <ActivityIndicator size="small" color={colors.white} />
-          ) : (
-            <>
-              <Text style={styles.placeOrderText}>
-                {paymentMethod === 'COD' ? 'Confirm & Place Order' : `Pay ₹${finalTotal}`}
-              </Text>
-              <Ionicons name="arrow-forward" size={18} color={colors.white} />
-            </>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.placeOrderBtn}
+            activeOpacity={0.85}
+            onPress={handlePlaceOrder}
+            disabled={isPlacingOrder}
+          >
+            {isPlacingOrder ? (
+              <ActivityIndicator size="small" color={colors.white} />
+            ) : (
+              <>
+                <Text style={styles.placeOrderText}>
+                  {paymentMethod === 'COD' ? 'Confirm & Place Order' : `Pay ₹${finalTotal}`}
+                </Text>
+                <Ionicons name="arrow-forward" size={18} color={colors.white} />
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* SAMPLE / SAVED E-PRESCRIPTIONS MODAL */}
@@ -928,6 +932,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
+    width: '100%',
+    maxWidth: 900,
+    alignSelf: 'center',
   },
   sectionCard: {
     backgroundColor: colors.white,
@@ -1321,14 +1328,19 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     elevation: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.1,
     shadowRadius: 6,
+  },
+  bottomBarInner: {
+    width: '100%',
+    maxWidth: 900,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   bottomPriceWrap: {
     justifyContent: 'center',
@@ -1345,17 +1357,18 @@ const styles = StyleSheet.create({
   },
   placeOrderBtn: {
     backgroundColor: colors.primary,
-    paddingHorizontal: 22,
-    paddingVertical: 13,
-    borderRadius: 14,
+    height: 44,
+    paddingHorizontal: 24,
+    borderRadius: 10,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
   },
   placeOrderText: {
     color: colors.white,
-    fontSize: 13,
-    fontWeight: '900',
+    fontSize: 14,
+    fontWeight: '800',
   },
   modalOverlay: {
     flex: 1,

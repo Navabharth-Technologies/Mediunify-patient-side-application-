@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+﻿import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,9 @@ import {
   StatusBar,
   Linking,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../../theme/colors';
@@ -22,9 +24,19 @@ import {
   insuranceHelpline,
 } from '../../../data/healthInsuranceData';
 
-const HealthInsuranceScreen = ({ navigation }) => {
+const HealthInsuranceScreen = ({ navigation, route }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 992;
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(route?.params?.query || route?.params?.search || '');
+
+  useEffect(() => {
+    if (route?.params?.query !== undefined) {
+      setSearch(route.params.query);
+    } else if (route?.params?.search !== undefined) {
+      setSearch(route.params.search);
+    }
+  }, [route?.params?.query, route?.params?.search]);
 
   // Call Enquiry Modal
   const [callbackModalVisible, setCallbackModalVisible] = useState(false);
@@ -62,7 +74,7 @@ const HealthInsuranceScreen = ({ navigation }) => {
   const handleCallAdvisor = () => {
     const phone = insuranceHelpline.directPhone.replace(/\s+/g, '');
     Linking.openURL(`tel:${phone}`).catch(() => {
-      Alert.alert('Phone Dialing', `Please call the Insurance Desk directly at ${insuranceHelpline.directPhone}`);
+      showAlert('Phone Dialing', `Please call the Insurance Desk directly at ${insuranceHelpline.directPhone}`);
     });
   };
 
@@ -71,17 +83,17 @@ const HealthInsuranceScreen = ({ navigation }) => {
       'Hi MediUnify Healthcare Insurance Desk! I would like to get a quote and enquiry for Health Insurance plans.'
     )}`;
     Linking.openURL(url).catch(() => {
-      Alert.alert('WhatsApp', 'Could not open WhatsApp. Please call our toll-free number.');
+      showAlert('WhatsApp', 'Could not open WhatsApp. Please call our toll-free number.');
     });
   };
 
   const handleSubmitCallback = () => {
     if (!enquiryName.trim() || !enquiryPhone.trim()) {
-      Alert.alert('Required Fields', 'Please enter your name and phone number.');
+      showAlert('Required Fields', 'Please enter your name and phone number.');
       return;
     }
     setCallbackModalVisible(false);
-    Alert.alert(
+    showAlert(
       'Callback Scheduled! 📞',
       `Our certified IRDAI health insurance specialist will call you at ${enquiryPhone} within 15 minutes.`
     );
@@ -95,7 +107,7 @@ const HealthInsuranceScreen = ({ navigation }) => {
   const toggleMember = (member) => {
     if (coveredMembers.includes(member)) {
       if (coveredMembers.length === 1) {
-        Alert.alert('Member Selection', 'At least 1 member must be covered under the policy.');
+        showAlert('Member Selection', 'At least 1 member must be covered under the policy.');
         return;
       }
       setCoveredMembers(coveredMembers.filter((m) => m !== member));
@@ -213,7 +225,7 @@ const HealthInsuranceScreen = ({ navigation }) => {
       setSuccessModalVisible(true);
     } catch (e) {
       console.log('Error saving policy:', e);
-      Alert.alert('Purchase Error', 'Could not complete policy registration. Please try again.');
+      showAlert('Purchase Error', 'Could not complete policy registration. Please try again.');
     }
   };
 
@@ -222,32 +234,36 @@ const HealthInsuranceScreen = ({ navigation }) => {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* ==================================================
-          HEADER
+          HEADER (MOBILE ONLY)
       ================================================== */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.secondary} />
-        </TouchableOpacity>
+      {!isDesktopWeb && (
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-back" size={22} color={colors.secondary} />
+          </TouchableOpacity>
 
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Health Insurance & Mediclaim</Text>
-          <Text style={styles.headerSubtitle}>
-            100% Cashless at Top Hospitals & Instant Policy
-          </Text>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Health Insurance & Mediclaim</Text>
+            <Text style={styles.headerSubtitle}>
+              100% Cashless at Top Hospitals & Instant Policy
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.headerCallBtn}
+            activeOpacity={0.8}
+            onPress={handleCallAdvisor}
+          >
+            <Ionicons name="call" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
         </View>
+      )}
 
-        <TouchableOpacity
-          style={styles.headerCallBtn}
-          activeOpacity={0.8}
-          onPress={handleCallAdvisor}
-        >
-          <Ionicons name="call" size={18} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
+
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -315,23 +331,25 @@ const HealthInsuranceScreen = ({ navigation }) => {
         </View>
 
         {/* ==================================================
-            SEARCH BAR
+            SEARCH BAR (MOBILE ONLY)
         ================================================== */}
-        <View style={styles.searchBox}>
-          <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search health insurance plans, insurers..."
-            placeholderTextColor="#94A3B8"
-            value={search}
-            onChangeText={setSearch}
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <Ionicons name="close-circle" size={17} color="#94A3B8" />
-            </TouchableOpacity>
-          )}
-        </View>
+        {!isDesktopWeb && (
+          <View style={styles.searchBox}>
+            <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search health insurance plans, insurers..."
+              placeholderTextColor="#94A3B8"
+              value={search}
+              onChangeText={setSearch}
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch('')}>
+                <Ionicons name="close-circle" size={17} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         {/* ==================================================
             QUICK FAMILY MEMBERS SELECTOR (REAL-TIME PRICE RECALCULATOR)
@@ -398,40 +416,73 @@ const HealthInsuranceScreen = ({ navigation }) => {
         {/* ==================================================
             CATEGORY SELECTOR PILLS
         ================================================== */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryScroll}
-        >
-          {insuranceCategories.map((cat) => {
-            const isSelected = selectedCategory === cat.id;
-            return (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.categoryPill,
-                  isSelected && styles.categoryPillActive,
-                ]}
-                activeOpacity={0.8}
-                onPress={() => setSelectedCategory(cat.id)}
-              >
-                <Ionicons
-                  name={cat.icon}
-                  size={14}
-                  color={isSelected ? '#FFFFFF' : colors.primary}
-                />
-                <Text
+        {Platform.OS === 'web' ? (
+          <View style={styles.categoryWrap}>
+            {insuranceCategories.map((cat) => {
+              const isSelected = selectedCategory === cat.id;
+              return (
+                <TouchableOpacity
+                  key={cat.id}
                   style={[
-                    styles.categoryPillText,
-                    isSelected && styles.categoryPillTextActive,
+                    styles.categoryPill,
+                    isSelected && styles.categoryPillActive,
                   ]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedCategory(cat.id)}
                 >
-                  {cat.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                  <Ionicons
+                    name={cat.icon}
+                    size={14}
+                    color={isSelected ? '#FFFFFF' : colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.categoryPillText,
+                      isSelected && styles.categoryPillTextActive,
+                    ]}
+                  >
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryScroll}
+          >
+            {insuranceCategories.map((cat) => {
+              const isSelected = selectedCategory === cat.id;
+              return (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[
+                    styles.categoryPill,
+                    isSelected && styles.categoryPillActive,
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedCategory(cat.id)}
+                >
+                  <Ionicons
+                    name={cat.icon}
+                    size={14}
+                    color={isSelected ? '#FFFFFF' : colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.categoryPillText,
+                      isSelected && styles.categoryPillTextActive,
+                    ]}
+                  >
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {/* ==================================================
             INSURANCE PLANS LIST
@@ -926,6 +977,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
   },
 
   // HELPLINE CARD
@@ -971,32 +1025,36 @@ const styles = StyleSheet.create({
   },
   callNowBtn: {
     flex: 1,
+    maxWidth: 220,
+    height: 40,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
     borderRadius: 10,
     gap: 6,
   },
   callNowBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
   requestCallbackBtn: {
     flex: 1,
+    maxWidth: 220,
+    height: 40,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#EFF6FF',
-    paddingVertical: 10,
+    paddingHorizontal: 16,
     borderRadius: 10,
     gap: 6,
   },
   requestCallbackBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
     color: colors.secondary,
   },
 
@@ -1117,6 +1175,12 @@ const styles = StyleSheet.create({
   categoryScroll: {
     paddingBottom: 10,
     gap: 8,
+  },
+  categoryWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingBottom: 10,
+    rowGap: 8,
   },
   categoryPill: {
     flexDirection: 'row',
@@ -1294,38 +1358,43 @@ const styles = StyleSheet.create({
 
   planActionsRow: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 10,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
-    paddingTop: 10,
+    paddingTop: 12,
   },
   planCallBtn: {
+    height: 40,
+    maxWidth: 160,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F1F5F9',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
     borderRadius: 10,
-    gap: 4,
+    gap: 5,
   },
   planCallBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
     color: colors.secondary,
   },
   planBuyBtn: {
+    height: 40,
+    maxWidth: 260,
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: 10,
+    paddingHorizontal: 18,
     borderRadius: 10,
     gap: 6,
   },
   planBuyBtnText: {
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: '800',
     color: '#FFFFFF',
   },
@@ -1342,6 +1411,10 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: 20,
     paddingBottom: 30,
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
+    borderRadius: 24,
   },
   modalHeaderRow: {
     flexDirection: 'row',
@@ -1413,17 +1486,18 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   modalSubmitBtn: {
+    height: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: 13,
-    borderRadius: 12,
-    marginTop: 6,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    marginTop: 8,
     marginBottom: 8,
   },
   modalSubmitBtnText: {
-    fontSize: 13.5,
+    fontSize: 14,
     fontWeight: '800',
     color: '#FFFFFF',
   },
@@ -1631,6 +1705,35 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.secondary,
     maxWidth: '65%',
+  },
+  webBreadcrumbWrap: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  webBreadcrumbRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  webBreadcrumbLink: {
+    fontSize: 13,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  webBreadcrumbCurrent: {
+    fontSize: 13,
+    color: colors.secondary,
+    fontWeight: '700',
+  },
+  webBreadcrumbQuery: {
+    fontSize: 13,
+    color: colors.primary,
+    fontWeight: '700',
   },
 });
 

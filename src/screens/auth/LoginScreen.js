@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 
 import {
   View,
@@ -13,19 +13,32 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   TouchableWithoutFeedback,
+  useWindowDimensions,
 } from 'react-native';
+import { showAlert } from '../../utils/alert';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 
 import CustomInput from '../../components/CustomInput';
 import CustomButton from '../../components/CustomButton';
 
 import colors from '../../theme/colors';
+import { syncLogin, syncRegister, autoMigrateLocalAccountsToServer } from '../../services/dataSyncService';
+import { safeNavigateToMain } from '../../utils/navigationHelper';
 
 const LoginScreen = ({ navigation }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  const handleSkipToHome = () => {
+    safeNavigateToMain(navigation);
+  };
 
   React.useEffect(() => {
     const loadLastSaved = async () => {
@@ -34,6 +47,10 @@ const LoginScreen = ({ navigation }) => {
         if (storedEmail && storedEmail.trim()) {
           setEmail(storedEmail.trim());
         }
+      } catch (e) {}
+      // Automatically sync any existing local mobile accounts to server in background
+      try {
+        autoMigrateLocalAccountsToServer();
       } catch (e) {}
     };
     loadLastSaved();
@@ -46,16 +63,45 @@ const LoginScreen = ({ navigation }) => {
   const handleLogin = async () => {
     const inputVal = email.trim();
     const inputPassword = password.trim();
+    setErrorMessage('');
 
     if (!inputVal || !inputPassword) {
-      Alert.alert(
+      setErrorMessage('Please enter your registered email/phone and password.');
+      showAlert(
         'Missing Information',
         'Please enter your registered email/phone and password.'
       );
       return;
     }
 
+    setIsLoggingIn(true);
+
     try {
+      // 0. Connect directly to Central Sync Server (live Web <-> Mobile shared data)
+      try {
+        const syncRes = await syncLogin(inputVal, inputPassword);
+        if (syncRes.success && syncRes.user) {
+          console.log('[LoginScreen] Logged in via Central Sync Server:', syncRes.user.name);
+          await AsyncStorage.setItem('isLoggedIn', 'true');
+          await safeNavigateToMain(navigation);
+          return;
+        } else if (syncRes.status === 401) {
+          setIsLoggingIn(false);
+          setErrorMessage('The password you entered is incorrect. Please verify and try again.');
+          showAlert(
+            'Incorrect Password',
+            'The password you entered is incorrect. Please verify and try again.',
+            [
+              { text: 'Try Again' },
+              { text: 'Forgot Password?', onPress: () => navigation.navigate('ForgotPassword') },
+            ]
+          );
+          return;
+        }
+      } catch (syncErr) {
+        console.warn('[LoginScreen] Central Sync Server unreachable, falling back to local storage:', syncErr);
+      }
+
       const cleanPhone = inputVal.replace(/[^0-9]/g, '');
       const cleanPhone10 = cleanPhone.length >= 10 ? cleanPhone.slice(-10) : cleanPhone;
       const lowerEmail = inputVal.toLowerCase();
@@ -76,7 +122,7 @@ const LoginScreen = ({ navigation }) => {
       if (matchingCred) {
         // Enforce password match
         if (matchingCred.password && matchingCred.password !== inputPassword) {
-          Alert.alert(
+          showAlert(
             'Incorrect Password',
             'The password you entered is incorrect. Please verify and try again.',
             [
@@ -247,34 +293,30 @@ const LoginScreen = ({ navigation }) => {
         'true'
       );
 
-
       console.log(
         'User saved:',
         userData
       );
 
+      // Background push to Central Sync Server
+      try {
+        syncRegister(userData, inputPassword);
+      } catch (e) {}
 
       // ==========================================
-      // GO TO MAIN APP
+      // GO TO MAIN APP (Safe on both Web & Mobile)
       // ==========================================
 
-      navigation
-        .getParent()
-        ?.replace('MainApp');
-
+      await safeNavigateToMain(navigation);
 
     } catch (error) {
-
-      console.log(
-        'Login storage error:',
-        error
-      );
-
-      Alert.alert(
+      setIsLoggingIn(false);
+      console.log('Login storage error:', error);
+      setErrorMessage('Something went wrong while logging in. Please check your connection and try again.');
+      showAlert(
         'Login Error',
         'Something went wrong while logging in.'
       );
-
     }
 
   };
@@ -307,81 +349,127 @@ const LoginScreen = ({ navigation }) => {
 
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, isDesktopWeb && styles.safeAreaDesktop]}>
+      {isDesktopWeb && (
+        <View style={styles.webTopBar}>
+          <View style={styles.webTopBarInner}>
+            <TouchableOpacity onPress={handleSkipToHome} activeOpacity={0.8}>
+              <Image
+                source={require('../../../assets/logo.png')}
+                style={styles.webLogo}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+
+            <View style={styles.webTopRight}>
+              <TouchableOpacity
+                style={styles.skipToHomeBtn}
+                onPress={handleSkipToHome}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.skipToHomeText}>Explore as Guest / Skip to Home</Text>
+                <Ionicons name="arrow-forward" size={15} color={colors.teal} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, isDesktopWeb && styles.contentDesktop]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          {/* LOGO */}
-          <View style={styles.logoContainer}>
-            <Image
-              source={require('../../../assets/logo.png')}
-              style={styles.logo}
-              resizeMode="contain"
+          <View style={[styles.authCard, isDesktopWeb && styles.authCardDesktop]}>
+            {/* LOGO */}
+            <View style={styles.logoContainer}>
+              <Image
+                source={require('../../../assets/logo.png')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
+
+            {/* HEADER */}
+            <View style={styles.header}>
+              <Text style={styles.title}>Welcome Back</Text>
+              <Text style={styles.subtitle}>
+                Login to your Unnathi Healthcare account.
+              </Text>
+            </View>
+
+            {/* EMAIL OR PHONE */}
+            <CustomInput
+              label="Email or Mobile Phone"
+              placeholder="Enter your email or 10-digit phone"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
             />
-          </View>
 
-          {/* HEADER */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>
-              Login to your MediUnify account.
-            </Text>
-          </View>
+            {/* PASSWORD WITH EYE TOGGLE */}
+            <CustomInput
+              label="Password"
+              placeholder="Enter your password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              isPassword
+            />
 
-          {/* EMAIL OR PHONE */}
-          <CustomInput
-            label="Email or Mobile Phone"
-            placeholder="Enter your email or 10-digit phone"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-
-          {/* PASSWORD WITH EYE TOGGLE */}
-          <CustomInput
-            label="Password"
-            placeholder="Enter your password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            isPassword
-          />
-
-          {/* FORGOT PASSWORD */}
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={handleForgotPassword}
-            style={styles.forgotBtn}
-          >
-            <Text style={styles.forgot}>Forgot Password?</Text>
-          </TouchableOpacity>
-
-          {/* LOGIN BUTTON */}
-          <CustomButton
-            title="Login"
-            onPress={() => {
-              Keyboard.dismiss();
-              handleLogin();
-            }}
-          />
-
-          {/* REGISTER */}
-          <View style={styles.registerContainer}>
-            <Text style={styles.registerText}>Don't have an account?</Text>
+            {/* FORGOT PASSWORD */}
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={handleRegister}
+              onPress={handleForgotPassword}
+              style={styles.forgotBtn}
             >
-              <Text style={styles.registerLink}> Create Account</Text>
+              <Text style={styles.forgot}>Forgot Password?</Text>
+            </TouchableOpacity>
+
+            {/* INLINE ERROR BANNER */}
+            {errorMessage ? (
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle" size={18} color="#DC2626" />
+                <Text style={styles.errorText}>{errorMessage}</Text>
+              </View>
+            ) : null}
+
+            {/* LOGIN BUTTON */}
+            <CustomButton
+              title={isLoggingIn ? 'Logging In...' : 'Login'}
+              disabled={isLoggingIn}
+              onPress={() => {
+                Keyboard.dismiss();
+                handleLogin();
+              }}
+            />
+
+            {/* REGISTER */}
+            <View style={styles.registerContainer}>
+              <Text style={styles.registerText}>Don't have an account?</Text>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={handleRegister}
+              >
+                <Text style={styles.registerLink}> Create Account</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.skipHomeLink}
+              onPress={handleSkipToHome}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.skipHomeLinkText}>
+                Explore as Guest / Skip to Home &gt;
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -395,126 +483,157 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.white,
   },
+  safeAreaDesktop: {
+    backgroundColor: colors.background,
+  },
+  webTopBar: {
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  webTopBarInner: {
+    maxWidth: 1320,
+    width: '100%',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  webLogo: {
+    width: 150,
+    height: 44,
+  },
+  webTopRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  skipToHomeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.lightTeal,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  skipToHomeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.teal,
+  },
   content: {
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 24,
     paddingVertical: 24,
   },
+  contentDesktop: {
+    paddingVertical: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  authCard: {
+    width: '100%',
+    maxWidth: 440,
+    alignSelf: 'center',
+  },
+  authCardDesktop: {
+    backgroundColor: colors.white,
+    borderRadius: 24,
+    padding: 36,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.07,
+    shadowRadius: 28,
+    elevation: 4,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  logo: {
+    width: 220,
+    height: 90,
+  },
+  header: {
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: colors.secondary, // Navy Blue
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: colors.slate, // Slate
+    lineHeight: 20,
+    textAlign: 'center',
+  },
   forgotBtn: {
     alignSelf: 'flex-end',
-    marginBottom: 20,
-    marginTop: 4,
+    marginBottom: 16,
+    marginTop: 2,
   },
-
-  logoContainer: {
-
-    alignItems:
-      'center',
-
-    marginBottom:
-      25,
-
-  },
-
-  logo: {
-
-    width:
-      180,
-
-    height:
-      90,
-
-  },
-
-  header: {
-
-    marginBottom:
-      30,
-
-  },
-
-  title: {
-
-    fontSize:
-      30,
-
-    fontWeight:
-      '800',
-
-    color:
-      colors.text,
-
-    marginBottom:
-      10,
-
-  },
-
-  subtitle: {
-
-    fontSize:
-      15,
-
-    color:
-      colors.textSecondary,
-
-    lineHeight:
-      22,
-
-  },
-
   forgot: {
-
-    textAlign:
-      'right',
-
-    color:
-      colors.primary,
-
-    fontWeight:
-      '600',
-
-    marginBottom:
-      15,
-
+    textAlign: 'right',
+    color: colors.teal, // Teal
+    fontWeight: '700',
+    fontSize: 13,
   },
-
   registerContainer: {
-
-    flexDirection:
-      'row',
-
-    justifyContent:
-      'center',
-
-    marginTop:
-      25,
-
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 22,
   },
-
   registerText: {
-
-    color:
-      colors.textSecondary,
-
-    fontSize:
-      14,
-
+    color: colors.slate,
+    fontSize: 14,
   },
-
   registerLink: {
-
-    color:
-      colors.primary,
-
-    fontWeight:
-      '700',
-
-    fontSize:
-      14,
-
+    color: colors.teal,
+    fontWeight: '700',
+    fontSize: 14,
   },
-
+  skipHomeLink: {
+    marginTop: 20,
+    alignSelf: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  skipHomeLinkText: {
+    fontSize: 13,
+    color: colors.slate,
+    fontWeight: '700',
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  errorText: {
+    fontSize: 13,
+    color: '#B91C1C',
+    fontWeight: '600',
+    flex: 1,
+    lineHeight: 18,
+  },
 });
 
 export default LoginScreen;

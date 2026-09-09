@@ -14,9 +14,12 @@ import {
   Alert,
   Modal,
   ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import { requestLocationPermissionWebSafe, getCurrentPositionWebSafe, reverseGeocodeWebSafe } from '../../../utils/locationHelper';
 import colors from '../../../theme/colors';
 import {
   surgeryHospitals,
@@ -53,7 +56,18 @@ const calculateDistanceKm = (lat1, lon1, lat2, lon2) => {
 };
 
 const HospitalCareScreen = ({ navigation, route }) => {
-  const [search, setSearch] = useState('');
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 992;
+  const [search, setSearch] = useState(route?.params?.query || route?.params?.search || '');
+
+  useEffect(() => {
+    if (route?.params?.query !== undefined) {
+      setSearch(route.params.query);
+    } else if (route?.params?.search !== undefined) {
+      setSearch(route.params.search);
+    }
+  }, [route?.params?.query, route?.params?.search]);
+
   const [selectedSpecialty, setSelectedSpecialty] = useState('all');
   const [selectedFilter, setSelectedFilter] = useState('All');
 
@@ -79,16 +93,16 @@ const HospitalCareScreen = ({ navigation, route }) => {
   const detectLocation = async () => {
     try {
       setLoadingGps(true);
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
+      const perm = await requestLocationPermissionWebSafe();
+      if (!perm.granted && perm.status !== 'granted') {
         setLoadingGps(false);
-        Alert.alert(
+        showAlert(
           'Location Permission Required',
           'Please enable device location permission or pick an area from the list below.'
         );
         return;
       }
-      const position = await Location.getCurrentPositionAsync({
+      const position = await getCurrentPositionWebSafe({
         accuracy: Location.Accuracy.Balanced,
       });
 
@@ -98,18 +112,18 @@ const HospitalCareScreen = ({ navigation, route }) => {
       };
       setUserCoords(newCoords);
 
-      const reverse = await Location.reverseGeocodeAsync(newCoords);
+      const reverse = await reverseGeocodeWebSafe(newCoords);
       let detectedName = 'Current Location';
       if (reverse && reverse.length > 0) {
         const item = reverse[0];
-        detectedName = `${item.subregion || item.district || item.name || 'Current Area'}, ${item.city || 'Mysore'}`;
+        detectedName = item.formattedAddress || `${item.district || item.subregion || item.name || 'Current Area'}, ${item.city || 'Mysore'}`;
       }
       setUserLocality(detectedName);
       setLocationModalVisible(false);
       showToast(`Location set to: ${detectedName}`);
     } catch (e) {
       console.log('GPS detection error:', e);
-      Alert.alert('GPS Notice', 'Could not detect live position. You can select any neighborhood from the list.');
+      showAlert('GPS Notice', 'Could not detect live position. You can select any neighborhood from the list.');
     } finally {
       setLoadingGps(false);
     }
@@ -366,8 +380,8 @@ const HospitalCareScreen = ({ navigation, route }) => {
               })
             }
           >
-            <Text style={styles.viewSurgeriesBtnText}>View Surgeries & Get Quote</Text>
-            <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
+            <Text style={styles.viewSurgeriesBtnText}>View Surgeries</Text>
+            <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       </View>
@@ -379,57 +393,63 @@ const HospitalCareScreen = ({ navigation, route }) => {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* ==================================================
-          HEADER
+          HEADER (MOBILE ONLY)
       ================================================== */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.secondary} />
-        </TouchableOpacity>
+      {!isDesktopWeb && (
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-back" size={22} color={colors.secondary} />
+          </TouchableOpacity>
 
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Surgeries & Hospital Care</Text>
-          <Text style={styles.headerSubtitle}>
-            Nearest Surgical Hospitals & Custom Price Estimates
-          </Text>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Surgeries & Hospital Care</Text>
+            <Text style={styles.headerSubtitle}>
+              Nearest Surgical Hospitals & Custom Price Estimates
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.quoteHistoryBtn}
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate('TransactionHistory')}
+          >
+            <Ionicons name="receipt-outline" size={20} color={colors.secondary} />
+          </TouchableOpacity>
         </View>
+      )}
 
-        <TouchableOpacity
-          style={styles.quoteHistoryBtn}
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate('TransactionHistory')}
-        >
-          <Ionicons name="receipt-outline" size={20} color={colors.secondary} />
-        </TouchableOpacity>
-      </View>
+
 
       {/* ==================================================
-          LOCATION SELECTOR BANNER BAR
+          LOCATION SELECTOR BANNER BAR (MOBILE ONLY)
       ================================================== */}
-      <TouchableOpacity
-        style={styles.locationBannerBar}
-        activeOpacity={0.88}
-        onPress={() => setLocationModalVisible(true)}
-      >
-        <View style={styles.locationBannerIconBox}>
-          <Ionicons name="location" size={16} color={colors.primary} />
-        </View>
+      {!isDesktopWeb && (
+        <TouchableOpacity
+          style={styles.locationBannerBar}
+          activeOpacity={0.88}
+          onPress={() => setLocationModalVisible(true)}
+        >
+          <View style={styles.locationBannerIconBox}>
+            <Ionicons name="location" size={16} color={colors.primary} />
+          </View>
 
-        <View style={styles.locationBannerTextCol}>
-          <Text style={styles.locationBannerLabel}>SHOWING HOSPITALS NEARBY</Text>
-          <Text style={styles.locationBannerArea} numberOfLines={1}>
-            {userLocality}
-          </Text>
-        </View>
+          <View style={styles.locationBannerTextCol}>
+            <Text style={styles.locationBannerLabel}>SHOWING HOSPITALS NEARBY</Text>
+            <Text style={styles.locationBannerArea} numberOfLines={1}>
+              {userLocality}
+            </Text>
+          </View>
 
-        <View style={styles.changeLocBtn}>
-          <Text style={styles.changeLocBtnText}>Change</Text>
-          <Ionicons name="chevron-down" size={14} color={colors.primary} />
-        </View>
-      </TouchableOpacity>
+          <View style={styles.changeLocBtn}>
+            <Text style={styles.changeLocBtnText}>Change</Text>
+            <Ionicons name="chevron-down" size={14} color={colors.primary} />
+          </View>
+        </TouchableOpacity>
+      )}
 
       {/* TOAST NOTIFICATION */}
       {locationToast && (
@@ -440,96 +460,156 @@ const HospitalCareScreen = ({ navigation, route }) => {
       )}
 
       {/* ==================================================
-          SEARCH BAR
+          SEARCH BAR (MOBILE ONLY)
       ================================================== */}
-      <View style={styles.searchBarContainer}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search surgery, procedure, hospital, or area..."
-            placeholderTextColor="#94A3B8"
-            value={search}
-            onChangeText={setSearch}
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <Ionicons name="close-circle" size={17} color="#94A3B8" />
-            </TouchableOpacity>
-          )}
+      {!isDesktopWeb && (
+        <View style={styles.searchBarContainer}>
+          <View style={styles.searchBox}>
+            <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search surgery, procedure, hospital, or area..."
+              placeholderTextColor="#94A3B8"
+              value={search}
+              onChangeText={setSearch}
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch('')}>
+                <Ionicons name="close-circle" size={17} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
+      )}
 
       {/* ==================================================
           SURGERY SPECIALTY PILLS SCROLL
       ================================================== */}
       <View style={styles.specialtiesScrollWrap}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.specialtiesScroll}
-        >
-          {surgerySpecialties.map((spec) => {
-            const isSelected = selectedSpecialty === spec.id;
-            return (
-              <TouchableOpacity
-                key={spec.id}
-                style={[
-                  styles.specialtyPill,
-                  isSelected && styles.specialtyPillActive,
-                ]}
-                activeOpacity={0.8}
-                onPress={() => setSelectedSpecialty(spec.id)}
-              >
-                <Ionicons
-                  name={spec.icon}
-                  size={14}
-                  color={isSelected ? '#FFFFFF' : colors.primary}
-                />
-                <Text
+        {Platform.OS === 'web' ? (
+          <View style={styles.specialtiesWrap}>
+            {surgerySpecialties.map((spec) => {
+              const isSelected = selectedSpecialty === spec.id;
+              return (
+                <TouchableOpacity
+                  key={spec.id}
                   style={[
-                    styles.specialtyPillText,
-                    isSelected && styles.specialtyPillTextActive,
+                    styles.specialtyPill,
+                    isSelected && styles.specialtyPillActive,
                   ]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedSpecialty(spec.id)}
                 >
-                  {spec.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                  <Ionicons
+                    name={spec.icon}
+                    size={14}
+                    color={isSelected ? '#FFFFFF' : colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.specialtyPillText,
+                      isSelected && styles.specialtyPillTextActive,
+                    ]}
+                  >
+                    {spec.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.specialtiesScroll}
+          >
+            {surgerySpecialties.map((spec) => {
+              const isSelected = selectedSpecialty === spec.id;
+              return (
+                <TouchableOpacity
+                  key={spec.id}
+                  style={[
+                    styles.specialtyPill,
+                    isSelected && styles.specialtyPillActive,
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedSpecialty(spec.id)}
+                >
+                  <Ionicons
+                    name={spec.icon}
+                    size={14}
+                    color={isSelected ? '#FFFFFF' : colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.specialtyPillText,
+                      isSelected && styles.specialtyPillTextActive,
+                    ]}
+                  >
+                    {spec.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
       </View>
 
       {/* ==================================================
           QUICK FILTER TABS
       ================================================== */}
       <View style={styles.filterTabsWrap}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterTabsScroll}
-        >
-          {filterTabs.map((tab) => {
-            const isTabActive = selectedFilter === tab;
-            return (
-              <TouchableOpacity
-                key={tab}
-                style={[styles.filterTab, isTabActive && styles.filterTabActive]}
-                activeOpacity={0.8}
-                onPress={() => setSelectedFilter(tab)}
-              >
-                <Text
-                  style={[
-                    styles.filterTabText,
-                    isTabActive && styles.filterTabTextActive,
-                  ]}
+        {Platform.OS === 'web' ? (
+          <View style={styles.filterTabsWrapRow}>
+            {filterTabs.map((tab) => {
+              const isTabActive = selectedFilter === tab;
+              return (
+                <TouchableOpacity
+                  key={tab}
+                  style={[styles.filterTab, isTabActive && styles.filterTabActive]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedFilter(tab)}
                 >
-                  {tab}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                  <Text
+                    style={[
+                      styles.filterTabText,
+                      isTabActive && styles.filterTabTextActive,
+                    ]}
+                  >
+                    {tab}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterTabsScroll}
+          >
+            {filterTabs.map((tab) => {
+              const isTabActive = selectedFilter === tab;
+              return (
+                <TouchableOpacity
+                  key={tab}
+                  style={[styles.filterTab, isTabActive && styles.filterTabActive]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedFilter(tab)}
+                >
+                  <Text
+                    style={[
+                      styles.filterTabText,
+                      isTabActive && styles.filterTabTextActive,
+                    ]}
+                  >
+                    {tab}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
       </View>
 
       {/* ==================================================
@@ -855,6 +935,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     gap: 8,
   },
+  specialtiesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    rowGap: 8,
+  },
   specialtyPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -887,6 +973,12 @@ const styles = StyleSheet.create({
   filterTabsScroll: {
     paddingHorizontal: 16,
     gap: 8,
+  },
+  filterTabsWrapRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    rowGap: 8,
   },
   filterTab: {
     paddingHorizontal: 12,
@@ -1111,39 +1203,41 @@ const styles = StyleSheet.create({
 
   cardActionsRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
     gap: 8,
-    paddingTop: 8,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
   },
   directionsBtn: {
-    flex: 1,
+    height: 36,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#EFF6FF',
-    paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 8,
     gap: 4,
   },
   directionsBtnText: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
     color: colors.secondary,
   },
   viewSurgeriesBtn: {
-    flex: 2,
+    height: 36,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: 10,
-    borderRadius: 10,
-    gap: 6,
+    borderRadius: 8,
+    gap: 5,
   },
   viewSurgeriesBtnText: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#FFFFFF',
   },
 
@@ -1319,6 +1413,35 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 12,
+  },
+  webBreadcrumbWrap: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  webBreadcrumbRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  webBreadcrumbLink: {
+    fontSize: 13,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  webBreadcrumbCurrent: {
+    fontSize: 13,
+    color: colors.secondary,
+    fontWeight: '700',
+  },
+  webBreadcrumbQuery: {
+    fontSize: 13,
+    color: colors.primary,
+    fontWeight: '700',
   },
 });
 

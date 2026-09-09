@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   StatusBar,
   Platform,
 } from 'react-native';
+import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../theme/colors';
@@ -443,27 +444,47 @@ const TransactionHistoryScreen = ({ navigation }) => {
           FILTER TABS
       ================================================== */}
       <View style={styles.tabsContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabsScroll}
-        >
-          {FILTER_TABS.map((tab) => {
-            const isTabActive = selectedTab === tab.id;
-            return (
-              <TouchableOpacity
-                key={tab.id}
-                style={[styles.tabPill, isTabActive && styles.tabPillActive]}
-                activeOpacity={0.8}
-                onPress={() => setSelectedTab(tab.id)}
-              >
-                <Text style={[styles.tabPillText, isTabActive && styles.tabPillTextActive]}>
-                  {tab.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {Platform.OS === 'web' ? (
+          <View style={styles.tabsWrap}>
+            {FILTER_TABS.map((tab) => {
+              const isTabActive = selectedTab === tab.id;
+              return (
+                <TouchableOpacity
+                  key={tab.id}
+                  style={[styles.tabPill, isTabActive && styles.tabPillActive]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedTab(tab.id)}
+                >
+                  <Text style={[styles.tabPillText, isTabActive && styles.tabPillTextActive]}>
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabsScroll}
+          >
+            {FILTER_TABS.map((tab) => {
+              const isTabActive = selectedTab === tab.id;
+              return (
+                <TouchableOpacity
+                  key={tab.id}
+                  style={[styles.tabPill, isTabActive && styles.tabPillActive]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedTab(tab.id)}
+                >
+                  <Text style={[styles.tabPillText, isTabActive && styles.tabPillTextActive]}>
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
       </View>
 
       {/* ==================================================
@@ -592,7 +613,7 @@ const TransactionHistoryScreen = ({ navigation }) => {
                     style={styles.downloadInvoiceBtn}
                     activeOpacity={0.88}
                     onPress={() => {
-                      Alert.alert(
+                      showAlert(
                         'Invoice Downloaded',
                         `Tax Invoice receipt for ${selectedTxn.id} has been saved to your downloads.`
                       );
@@ -735,6 +756,12 @@ const styles = StyleSheet.create({
   tabsScroll: {
     paddingHorizontal: 16,
     gap: 8,
+  },
+  tabsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    rowGap: 8,
   },
   tabPill: {
     paddingHorizontal: 14,

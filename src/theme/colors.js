@@ -34,6 +34,7 @@ const colors = {
   lightGreen: '#F0F9EE',
   lightCoral: '#FFF1EB',
   lightBlue: '#E8EEF9',
+  lightNavy: '#EEF2FF',
   lightSlate: '#F1F5F9',
 };
 

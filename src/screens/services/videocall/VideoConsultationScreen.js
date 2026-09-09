@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
   Modal,
   ScrollView,
   StatusBar,
+  useWindowDimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { videoDoctors, videoSpecialties } from '../../../data/videoDoctors';
@@ -18,8 +20,20 @@ import colors from '../../../theme/colors';
 
 const LANGUAGES_LIST = ['All', 'English', 'Kannada', 'Hindi', 'Telugu', 'Malayalam'];
 
-const VideoConsultationScreen = ({ navigation }) => {
-  const [search, setSearch] = useState('');
+const VideoConsultationScreen = ({ navigation, route }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 992;
+  const initialSearch = route?.params?.query || route?.params?.search || '';
+  const [search, setSearch] = useState(initialSearch);
+
+  useEffect(() => {
+    if (route?.params?.query !== undefined) {
+      setSearch(route.params.query);
+    } else if (route?.params?.search !== undefined) {
+      setSearch(route.params.search);
+    }
+  }, [route?.params?.query, route?.params?.search]);
+
   const [selectedSpecialty, setSelectedSpecialty] = useState('all');
 
   // Filter state
@@ -223,42 +237,44 @@ const VideoConsultationScreen = ({ navigation }) => {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* ==================================================
-          HEADER
+          HEADER (Mobile Only)
       ================================================== */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.secondary} />
-        </TouchableOpacity>
+      {!isDesktopWeb && (
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-back" size={22} color={colors.secondary} />
+          </TouchableOpacity>
 
-        <View style={styles.headerCenter}>
-          <View style={styles.headerTitleRow}>
-            <Text style={styles.headerTitle}>Video Consultation</Text>
-            <View style={styles.liveDot} />
-          </View>
-          <Text style={styles.headerSubtitle}>Consult Top Certified Doctors Online</Text>
-        </View>
-
-        <TouchableOpacity
-          style={[styles.filterHeaderBtn, activeFiltersCount > 0 && styles.filterHeaderBtnActive]}
-          activeOpacity={0.8}
-          onPress={() => setFilterModalVisible(true)}
-        >
-          <Ionicons
-            name="options-outline"
-            size={20}
-            color={activeFiltersCount > 0 ? '#FFFFFF' : colors.secondary}
-          />
-          {activeFiltersCount > 0 && (
-            <View style={styles.filterBadgeCount}>
-              <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+          <View style={styles.headerCenter}>
+            <View style={styles.headerTitleRow}>
+              <Text style={styles.headerTitle}>Video Consultation</Text>
+              <View style={styles.liveDot} />
             </View>
-          )}
-        </TouchableOpacity>
-      </View>
+            <Text style={styles.headerSubtitle}>Consult Top Certified Doctors Online</Text>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.filterHeaderBtn, activeFiltersCount > 0 && styles.filterHeaderBtnActive]}
+            activeOpacity={0.8}
+            onPress={() => setFilterModalVisible(true)}
+          >
+            <Ionicons
+              name="options-outline"
+              size={20}
+              color={activeFiltersCount > 0 ? '#FFFFFF' : colors.secondary}
+            />
+            {activeFiltersCount > 0 && (
+              <View style={styles.filterBadgeCount}>
+                <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* ==================================================
           HERO PROMO BANNER
@@ -277,83 +293,158 @@ const VideoConsultationScreen = ({ navigation }) => {
       </View>
 
       {/* ==================================================
-          SEARCH BAR & FILTER CHIP
+          SEARCH BAR & FILTER CHIP (Mobile Only)
       ================================================== */}
-      <View style={styles.searchBarContainer}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search-outline" size={19} color={colors.textSecondary} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search doctor, specialty, language..."
-            placeholderTextColor="#94A3B8"
-            value={search}
-            onChangeText={setSearch}
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <Ionicons name="close-circle" size={18} color="#94A3B8" />
-            </TouchableOpacity>
-          )}
-        </View>
+      {!isDesktopWeb && (
+        <View style={styles.searchBarContainer}>
+          <View style={styles.searchBox}>
+            <Ionicons name="search-outline" size={19} color={colors.textSecondary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search doctor, specialty, language..."
+              placeholderTextColor="#94A3B8"
+              value={search}
+              onChangeText={setSearch}
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch('')}>
+                <Ionicons name="close-circle" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
+          </View>
 
-        <TouchableOpacity
-          style={[styles.filterTriggerPill, activeFiltersCount > 0 && styles.filterTriggerPillActive]}
-          onPress={() => setFilterModalVisible(true)}
-        >
-          <Ionicons
-            name="filter"
-            size={14}
-            color={activeFiltersCount > 0 ? '#FFFFFF' : colors.secondary}
-          />
-          <Text
-            style={[
-              styles.filterTriggerPillText,
-              activeFiltersCount > 0 && styles.filterTriggerPillTextActive,
-            ]}
+          <TouchableOpacity
+            style={[styles.filterTriggerPill, activeFiltersCount > 0 && styles.filterTriggerPillActive]}
+            onPress={() => setFilterModalVisible(true)}
           >
-            {activeFiltersCount > 0 ? `${activeFiltersCount} Filters` : 'Filters'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+            <Ionicons
+              name="filter"
+              size={14}
+              color={activeFiltersCount > 0 ? '#FFFFFF' : colors.secondary}
+            />
+            <Text
+              style={[
+                styles.filterTriggerPillText,
+                activeFiltersCount > 0 && styles.filterTriggerPillTextActive,
+              ]}
+            >
+              {activeFiltersCount > 0 ? `${activeFiltersCount} Filters` : 'Filters'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* ==================================================
           SPECIALTY SELECTOR PILLS
       ================================================== */}
       <View style={styles.specialtyContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.specialtiesScroll}
-        >
-          {videoSpecialties.map((spec) => {
-            const isSelected = selectedSpecialty === spec.id;
-            return (
+        {Platform.OS === 'web' ? (
+          <View style={styles.specialtiesWrap}>
+            {isDesktopWeb && (
               <TouchableOpacity
-                key={spec.id}
-                style={[
-                  styles.specialtyPill,
-                  isSelected && styles.specialtyPillActive,
-                ]}
-                activeOpacity={0.8}
-                onPress={() => setSelectedSpecialty(spec.id)}
+                style={[styles.filterTriggerPill, activeFiltersCount > 0 && styles.filterTriggerPillActive, { marginRight: 8, height: 38, alignSelf: 'center' }]}
+                onPress={() => setFilterModalVisible(true)}
               >
                 <Ionicons
-                  name={spec.icon}
-                  size={15}
-                  color={isSelected ? '#FFFFFF' : colors.primary}
+                  name="filter"
+                  size={14}
+                  color={activeFiltersCount > 0 ? '#FFFFFF' : colors.secondary}
                 />
                 <Text
                   style={[
-                    styles.specialtyPillText,
-                    isSelected && styles.specialtyPillTextActive,
+                    styles.filterTriggerPillText,
+                    activeFiltersCount > 0 && styles.filterTriggerPillTextActive,
                   ]}
                 >
-                  {spec.name}
+                  {activeFiltersCount > 0 ? `${activeFiltersCount} Filters` : 'Filters'}
                 </Text>
               </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+            )}
+            {videoSpecialties.map((spec) => {
+              const isSelected = selectedSpecialty === spec.id;
+              return (
+                <TouchableOpacity
+                  key={spec.id}
+                  style={[
+                    styles.specialtyPill,
+                    isSelected && styles.specialtyPillActive,
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedSpecialty(spec.id)}
+                >
+                  <Ionicons
+                    name={spec.icon}
+                    size={15}
+                    color={isSelected ? '#FFFFFF' : colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.specialtyPillText,
+                      isSelected && styles.specialtyPillTextActive,
+                    ]}
+                  >
+                    {spec.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.specialtiesScroll}
+          >
+            {isDesktopWeb && (
+              <TouchableOpacity
+                style={[styles.filterTriggerPill, activeFiltersCount > 0 && styles.filterTriggerPillActive, { marginRight: 8, height: 38, alignSelf: 'center' }]}
+                onPress={() => setFilterModalVisible(true)}
+              >
+                <Ionicons
+                  name="filter"
+                  size={14}
+                  color={activeFiltersCount > 0 ? '#FFFFFF' : colors.secondary}
+                />
+                <Text
+                  style={[
+                    styles.filterTriggerPillText,
+                    activeFiltersCount > 0 && styles.filterTriggerPillTextActive,
+                  ]}
+                >
+                  {activeFiltersCount > 0 ? `${activeFiltersCount} Filters` : 'Filters'}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {videoSpecialties.map((spec) => {
+              const isSelected = selectedSpecialty === spec.id;
+              return (
+                <TouchableOpacity
+                  key={spec.id}
+                  style={[
+                    styles.specialtyPill,
+                    isSelected && styles.specialtyPillActive,
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedSpecialty(spec.id)}
+                >
+                  <Ionicons
+                    name={spec.icon}
+                    size={15}
+                    color={isSelected ? '#FFFFFF' : colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.specialtyPillText,
+                      isSelected && styles.specialtyPillTextActive,
+                    ]}
+                  >
+                    {spec.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
       </View>
 
       {/* ==================================================
@@ -861,6 +952,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     gap: 8,
   },
+  specialtiesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    rowGap: 8,
+  },
   specialtyPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -909,6 +1006,9 @@ const styles = StyleSheet.create({
   list: {
     paddingHorizontal: 16,
     paddingBottom: 40,
+    maxWidth: 1200,
+    width: '100%',
+    alignSelf: 'center',
   },
   card: {
     backgroundColor: '#FFFFFF',
@@ -1098,6 +1198,7 @@ const styles = StyleSheet.create({
   // CARD ACTIONS
   cardActionsRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
     paddingTop: 8,
     borderTopWidth: 1,
@@ -1105,32 +1206,36 @@ const styles = StyleSheet.create({
   },
   bioButton: {
     flex: 1,
+    maxWidth: 180,
+    height: 40,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#EFF6FF',
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
     gap: 6,
   },
   bioButtonText: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
     color: colors.secondary,
   },
   bookVideoButton: {
     flex: 1.6,
+    maxWidth: 240,
+    height: 40,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
     gap: 6,
   },
   bookVideoButtonText: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
 
@@ -1409,6 +1514,32 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
+  },
+  webBreadcrumbBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  webBreadcrumbLink: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  webBreadcrumbCurrent: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.secondary,
+  },
+  webBreadcrumbQuery: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
   },
 });
 

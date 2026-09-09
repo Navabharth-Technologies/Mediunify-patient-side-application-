@@ -268,46 +268,85 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
         {/* ==================================================
             CATEGORY FILTER PILLS
         ================================================== */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryPillsScroll}
-        >
-          {radiologyCategories.map((cat) => {
-            const isSelected = selectedCategory === cat.id;
-            const countInLab =
-              cat.id === 'all'
-                ? lab.availableTests.length
-                : lab.availableTests.filter((t) => t.category === cat.id).length;
+        {Platform.OS === 'web' ? (
+          <View style={styles.categoryPillsWrap}>
+            {radiologyCategories.map((cat) => {
+              const isSelected = selectedCategory === cat.id;
+              const countInLab =
+                cat.id === 'all'
+                  ? lab.availableTests.length
+                  : lab.availableTests.filter((t) => t.category === cat.id).length;
 
-            if (cat.id !== 'all' && countInLab === 0) return null;
+              if (cat.id !== 'all' && countInLab === 0) return null;
 
-            return (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.categoryPill,
-                  isSelected && styles.categoryPillActive,
-                ]}
-                onPress={() => setSelectedCategory(cat.id)}
-              >
-                <Ionicons
-                  name={cat.icon}
-                  size={15}
-                  color={isSelected ? '#FFFFFF' : colors.primary}
-                />
-                <Text
+              return (
+                <TouchableOpacity
+                  key={cat.id}
                   style={[
-                    styles.categoryPillText,
-                    isSelected && styles.categoryPillTextActive,
+                    styles.categoryPill,
+                    isSelected && styles.categoryPillActive,
                   ]}
+                  onPress={() => setSelectedCategory(cat.id)}
                 >
-                  {cat.name} ({countInLab})
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                  <Ionicons
+                    name={cat.icon}
+                    size={15}
+                    color={isSelected ? '#FFFFFF' : colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.categoryPillText,
+                      isSelected && styles.categoryPillTextActive,
+                    ]}
+                  >
+                    {cat.name} ({countInLab})
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryPillsScroll}
+          >
+            {radiologyCategories.map((cat) => {
+              const isSelected = selectedCategory === cat.id;
+              const countInLab =
+                cat.id === 'all'
+                  ? lab.availableTests.length
+                  : lab.availableTests.filter((t) => t.category === cat.id).length;
+
+              if (cat.id !== 'all' && countInLab === 0) return null;
+
+              return (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[
+                    styles.categoryPill,
+                    isSelected && styles.categoryPillActive,
+                  ]}
+                  onPress={() => setSelectedCategory(cat.id)}
+                >
+                  <Ionicons
+                    name={cat.icon}
+                    size={15}
+                    color={isSelected ? '#FFFFFF' : colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.categoryPillText,
+                      isSelected && styles.categoryPillTextActive,
+                    ]}
+                  >
+                    {cat.name} ({countInLab})
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {/* ==================================================
             TESTS CATALOG
@@ -827,6 +866,13 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     gap: 8,
   },
+  categoryPillsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    rowGap: 8,
+  },
   categoryPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1074,9 +1120,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.lightTeal,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: 8,
+    height: 38,
     borderWidth: 1,
     borderColor: colors.primary,
     gap: 4,
@@ -1085,22 +1132,25 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   cartAddBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: 12.5,
+    fontWeight: '700',
     color: colors.primary,
   },
   cartAddBtnTextActive: {
     color: '#FFFFFF',
   },
   bookNowBtn: {
-    backgroundColor: colors.secondary,
-    paddingHorizontal: 14,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
     paddingVertical: 9,
-    borderRadius: 10,
+    borderRadius: 8,
+    height: 38,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   bookNowBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
 

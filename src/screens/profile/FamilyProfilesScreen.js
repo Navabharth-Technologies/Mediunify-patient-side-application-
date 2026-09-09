@@ -14,10 +14,16 @@ import {
   KeyboardAvoidingView,
   TouchableWithoutFeedback,
 } from 'react-native';
+import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import colors from '../../theme/colors';
+import {
+  syncSaveFamilyMembers,
+  syncFetchFamilyMembers,
+  syncDeleteFamilyMember,
+} from '../../services/dataSyncService';
 
 const RELATIONSHIPS = ['Spouse', 'Father', 'Mother', 'Son', 'Daughter', 'Sibling', 'Grandparent', 'Other'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
@@ -187,6 +193,33 @@ const FamilyProfilesScreen = ({ navigation }) => {
         setActiveMemberId(currentMembers[0].id);
         await AsyncStorage.setItem('@unnathi_active_patient', JSON.stringify(currentMembers[0]));
       }
+
+      // 3. Background Sync with Central Server (Web <-> Mobile bidirectional sync)
+      try {
+        syncFetchFamilyMembers().then((serverMembers) => {
+          if (serverMembers && Array.isArray(serverMembers) && serverMembers.length > 0) {
+            let hasSelf = false;
+            let merged = serverMembers.map((m) => {
+              if (m.id === 'self' || m.isPrimary || m.relation === 'Self') {
+                hasSelf = true;
+                return {
+                  ...m,
+                  name: `${effectiveName} (Self)`,
+                  displayName: `${cleanDisplayName} (Self)`,
+                  age: primaryOwnerAge,
+                  gender: primaryOwnerGender,
+                  bloodGroup: primaryOwnerBlood,
+                };
+              }
+              return m;
+            });
+            if (!hasSelf) {
+              merged.unshift(primaryMember);
+            }
+            setMembers(merged);
+          }
+        });
+      } catch (syncErr) {}
     } catch (e) {
       console.log('Error loading family profiles:', e);
     }
@@ -199,12 +232,16 @@ const FamilyProfilesScreen = ({ navigation }) => {
       const cleanName = (member.displayName || member.name).replace(/\s*\([Ss]elf\)/g, '').split(' ')[0];
       await AsyncStorage.setItem('userName', cleanName);
     }
-    Alert.alert('Active Patient Selected 🩺', `${member.name} is now selected for appointments & orders.`);
+    if (Platform.OS === 'web') {
+      // Non-blocking banner or subtle feedback on web
+    } else {
+      showAlert('Active Patient Selected 🩺', `${member.name} is now selected for appointments & orders.`);
+    }
   };
 
   const handleAddMember = async () => {
     if (!name.trim() || !age.trim()) {
-      Alert.alert('Incomplete Info', 'Please enter member name and age.');
+      showAlert('Incomplete Info', 'Please enter member name and age.');
       return;
     }
 
@@ -237,32 +274,52 @@ const FamilyProfilesScreen = ({ navigation }) => {
     setAge('');
     setAllergies('');
     setConditions('');
-    Alert.alert('Family Member Added! 👨‍👩‍👧', `${newMember.name} is now linked and set as active patient for appointments.`);
+
+    // Push live sync to server for instant Web & Mobile availability
+    try {
+      await syncSaveFamilyMembers(updated);
+    } catch (e) {}
+
+    showAlert('Family Member Added! 👨‍👩‍👧', `${newMember.name} is now linked and set as active patient for appointments.`);
+  };
+
+  const executeDeleteMember = async (member) => {
+    const updated = members.filter((m) => m.id !== member.id);
+    setMembers(updated);
+
+    const userFamKey = `@unnathi_family_members_${currentUserKey}`;
+    await AsyncStorage.setItem(userFamKey, JSON.stringify(updated));
+    await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(updated));
+
+    if (activeMemberId === member.id) {
+      const fallback = updated[0];
+      if (fallback) {
+        setActiveMemberId(fallback.id);
+        await AsyncStorage.setItem('@unnathi_active_patient', JSON.stringify(fallback));
+      }
+    }
+
+    // Push live delete to Central Server
+    try {
+      await syncDeleteFamilyMember(member.id);
+      await syncSaveFamilyMembers(updated);
+    } catch (e) {}
+
+    showAlert('Member Removed', `${member.name} has been removed from family profiles.`);
   };
 
   const handleDeleteMember = (member) => {
     if (member.isPrimary) {
-      Alert.alert('Cannot Remove', 'Primary account holder profile cannot be deleted.');
+      showAlert('Cannot Remove', 'Primary account holder profile cannot be deleted.');
       return;
     }
 
-    Alert.alert('Remove Member', `Do you want to remove ${member.name} from family profiles?`, [
+    showAlert('Remove Member', `Do you want to remove ${member.name} from family profiles?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
         style: 'destructive',
-        onPress: async () => {
-          const updated = members.filter((m) => m.id !== member.id);
-          setMembers(updated);
-          const userFamKey = `@unnathi_family_members_${currentUserKey}`;
-          await AsyncStorage.setItem(userFamKey, JSON.stringify(updated));
-          await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(updated));
-          if (activeMemberId === member.id) {
-            const fallback = updated[0];
-            setActiveMemberId(fallback.id);
-            await AsyncStorage.setItem('@unnathi_active_patient', JSON.stringify(fallback));
-          }
-        },
+        onPress: () => executeDeleteMember(member),
       },
     ]);
   };
@@ -472,22 +529,41 @@ const FamilyProfilesScreen = ({ navigation }) => {
                 />
 
                 <Text style={styles.inputLabel}>Relationship</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillsScroll}>
-                  {RELATIONSHIPS.map((rel) => (
-                    <TouchableOpacity
-                      key={rel}
-                      style={[styles.modalPill, relation === rel && styles.modalPillActive]}
-                      onPress={() => {
-                        Keyboard.dismiss();
-                        setRelation(rel);
-                      }}
-                    >
-                      <Text style={[styles.modalPillText, relation === rel && styles.modalPillTextActive]}>
-                        {rel}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                {Platform.OS === 'web' ? (
+                  <View style={[styles.pillsScroll, { flexWrap: 'wrap', rowGap: 8 }]}>
+                    {RELATIONSHIPS.map((rel) => (
+                      <TouchableOpacity
+                        key={rel}
+                        style={[styles.modalPill, relation === rel && styles.modalPillActive]}
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          setRelation(rel);
+                        }}
+                      >
+                        <Text style={[styles.modalPillText, relation === rel && styles.modalPillTextActive]}>
+                          {rel}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillsScroll}>
+                    {RELATIONSHIPS.map((rel) => (
+                      <TouchableOpacity
+                        key={rel}
+                        style={[styles.modalPill, relation === rel && styles.modalPillActive]}
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          setRelation(rel);
+                        }}
+                      >
+                        <Text style={[styles.modalPillText, relation === rel && styles.modalPillTextActive]}>
+                          {rel}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
 
                 <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
                   <View style={{ flex: 1 }}>
@@ -524,22 +600,41 @@ const FamilyProfilesScreen = ({ navigation }) => {
                 </View>
 
                 <Text style={[styles.inputLabel, { marginTop: 12 }]}>Blood Group</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillsScroll}>
-                  {BLOOD_GROUPS.map((bg) => (
-                    <TouchableOpacity
-                      key={bg}
-                      style={[styles.modalPill, bloodGroup === bg && styles.modalPillActive]}
-                      onPress={() => {
-                        Keyboard.dismiss();
-                        setBloodGroup(bg);
-                      }}
-                    >
-                      <Text style={[styles.modalPillText, bloodGroup === bg && styles.modalPillTextActive]}>
-                        {bg}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                {Platform.OS === 'web' ? (
+                  <View style={[styles.pillsScroll, { flexWrap: 'wrap', rowGap: 8 }]}>
+                    {BLOOD_GROUPS.map((bg) => (
+                      <TouchableOpacity
+                        key={bg}
+                        style={[styles.modalPill, bloodGroup === bg && styles.modalPillActive]}
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          setBloodGroup(bg);
+                        }}
+                      >
+                        <Text style={[styles.modalPillText, bloodGroup === bg && styles.modalPillTextActive]}>
+                          {bg}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillsScroll}>
+                    {BLOOD_GROUPS.map((bg) => (
+                      <TouchableOpacity
+                        key={bg}
+                        style={[styles.modalPill, bloodGroup === bg && styles.modalPillActive]}
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          setBloodGroup(bg);
+                        }}
+                      >
+                        <Text style={[styles.modalPillText, bloodGroup === bg && styles.modalPillTextActive]}>
+                          {bg}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
 
                 <Text style={[styles.inputLabel, { marginTop: 12 }]}>Known Allergies (Optional)</Text>
                 <TextInput

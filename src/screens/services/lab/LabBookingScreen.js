@@ -14,12 +14,15 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
+import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import { requestLocationPermissionWebSafe, getCurrentPositionWebSafe, reverseGeocodeWebSafe } from '../../../utils/locationHelper';
 import labTests, { nearbyLabCenters } from '../../../data/labTests';
 import colors from '../../../theme/colors';
+import { pushAppointment } from '../../../services/dataSyncService';
 
 const generateBookingDates = () => {
   const dates = [];
@@ -96,7 +99,7 @@ const LabBookingScreen = ({ route, navigation }) => {
       setSelectedTests([pkg]);
       setCollectionMode('HOME');
       setSelectedSlot(HOME_SLOTS[0]);
-      Alert.alert(
+      showAlert(
         'Upgraded to 6-in-1 Master Package! 🌟',
         'Your booking now includes Complete Blood Count, Lipid Profile, Thyroid, Diabetes Sugar, Liver LFT & Kidney KFT (58 Parameters) for only ₹666!'
       );
@@ -169,26 +172,27 @@ const LabBookingScreen = ({ route, navigation }) => {
   const detectGpsAddress = async () => {
     try {
       setLocationLoading(true);
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
+      const perm = await requestLocationPermissionWebSafe();
+      if (!perm.granted && perm.status !== 'granted') {
         setLocationLoading(false);
-        Alert.alert('Permission Denied', 'Location permission is required to detect your address.');
+        showAlert('Permission Denied', 'Location permission is required to detect your address.');
         return;
       }
-      const position = await Location.getCurrentPositionAsync({
+      const position = await getCurrentPositionWebSafe({
         accuracy: Location.Accuracy.Balanced,
       });
-      const reverse = await Location.reverseGeocodeAsync({
+      const reverse = await reverseGeocodeWebSafe({
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
       });
       if (reverse && reverse.length > 0) {
         const item = reverse[0];
-        const formatted = `${item.name || ''} ${item.street || ''}, ${item.subregion || item.district || ''}, ${item.city || 'Mysore'} - ${item.postalCode || '570023'}`.trim();
+        const formatted = item.formattedAddress || `${item.name || ''} ${item.street || ''}, ${item.subregion || item.district || ''}, ${item.city || 'Mysore'} - ${item.postalCode || '570023'}`.trim();
         setAddressLine(formatted);
       }
     } catch (e) {
       console.log('GPS error:', e);
+      showAlert('GPS Notice', 'Could not fetch live GPS position. Please enter your address manually.');
     } finally {
       setLocationLoading(false);
     }
@@ -201,7 +205,7 @@ const LabBookingScreen = ({ route, navigation }) => {
       if (useCamera) {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permission Needed', 'Camera access is required.');
+          showAlert('Permission Needed', 'Camera access is required.');
           return;
         }
         result = await ImagePicker.launchCameraAsync({
@@ -211,7 +215,7 @@ const LabBookingScreen = ({ route, navigation }) => {
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permission Needed', 'Gallery access is required.');
+          showAlert('Permission Needed', 'Gallery access is required.');
           return;
         }
         result = await ImagePicker.launchImageLibraryAsync({
@@ -258,7 +262,7 @@ const LabBookingScreen = ({ route, navigation }) => {
   const handleRemoveTest = (indexToRemove) => {
     const testToRemove = selectedTests[indexToRemove];
     if (selectedTests.length === 1) {
-      Alert.alert(
+      showAlert(
         'Remove Test',
         `"${testToRemove.name}" is the only test selected. Removing it will return to lab tests list. Proceed?`,
         [
@@ -269,7 +273,7 @@ const LabBookingScreen = ({ route, navigation }) => {
       return;
     }
 
-    Alert.alert(
+    showAlert(
       'Remove Test from Booking',
       `Remove "${testToRemove.name}" from your selection?`,
       [
@@ -287,15 +291,15 @@ const LabBookingScreen = ({ route, navigation }) => {
 
   const handleBooking = async () => {
     if (!patientName.trim()) {
-      Alert.alert('Patient Name Required', 'Please enter patient full name.');
+      showAlert('Patient Name Required', 'Please enter patient full name.')
       return;
     }
     if (!patientPhone.trim() || patientPhone.length < 10) {
-      Alert.alert('Mobile Number Required', 'Please enter a valid 10-digit mobile number.');
+      showAlert('Mobile Number Required', 'Please enter a valid 10-digit mobile number.')
       return;
     }
     if (collectionMode === 'HOME' && !addressLine.trim()) {
-      Alert.alert('Address Required', 'Please enter your sample collection address.');
+      showAlert('Address Required', 'Please enter your sample collection address.')
       return;
     }
 
@@ -311,7 +315,7 @@ const LabBookingScreen = ({ route, navigation }) => {
       if (paymentOption === 'WALLET') {
         if (walletBalance < totalAmount) {
           setIsBooking(false);
-          Alert.alert(
+          showAlert(
             'Insufficient MediUnify Wallet Balance',
             `Your current wallet balance is ₹${walletBalance}, but this booking requires ₹${totalAmount}.\n\nPlease top up your wallet or choose another payment method.`,
             [
@@ -404,19 +408,28 @@ const LabBookingScreen = ({ route, navigation }) => {
         JSON.stringify([newBooking, ...existingLab])
       );
 
+      // 3. Immediately push to central server database for live cross-device sync
+      try {
+        await pushAppointment(newBooking);
+      } catch (pushErr) {
+        console.warn('Could not push lab appointment to server:', pushErr);
+      }
+
       setIsBooking(false);
 
-      Alert.alert(
+      showAlert(
         'Lab Booking Confirmed! 🧪',
         collectionMode === 'HOME'
           ? `Our certified Lab Technician will visit your address on ${selectedDate.fullText} during ${selectedSlot}.\n\nBooking ID: ${bookingId}\nToken: ${tokenNumber}`
-          : `Your lab visit appointment at ${selectedLabCenter.name} is confirmed for ${selectedDate.fullText} (${selectedSlot}).\n\nBooking ID: ${bookingId}\nToken: ${tokenNumber}`,
+          : `Your lab visit appointment at ${selectedLabCenter?.name || 'Diagnostic Center'} is confirmed for ${selectedDate.fullText} (${selectedSlot}).\n\nBooking ID: ${bookingId}\nToken: ${tokenNumber}`,
         [
           {
             text: 'View Appointments',
             onPress: () => {
               navigation.navigate('Bookings', {
                 newAppointment: newBooking,
+                initialTab: 'Lab Tests',
+                timestamp: Date.now(),
               });
             },
           },
@@ -431,7 +444,7 @@ const LabBookingScreen = ({ route, navigation }) => {
     } catch (e) {
       console.log('Error saving lab booking:', e);
       setIsBooking(false);
-      Alert.alert('Booking Error', 'Could not process booking. Please try again.');
+      showAlert('Booking Error', 'Could not process booking. Please try again.');
     }
   };
 
@@ -588,7 +601,7 @@ const LabBookingScreen = ({ route, navigation }) => {
             activeOpacity={requiresHospitalVisit ? 1 : 0.8}
             onPress={() => {
               if (requiresHospitalVisit) {
-                Alert.alert(
+                showAlert(
                   'Lab Visit Required',
                   'One or more tests in your selection cannot be collected at home. Please visit our diagnostic center.'
                 );
@@ -1026,28 +1039,30 @@ const LabBookingScreen = ({ route, navigation }) => {
 
       {/* BOTTOM CONFIRMATION BAR */}
       <View style={styles.bottomBar}>
-        <View style={styles.bottomCol}>
-          <Text style={styles.bottomFeeLabel}>Total Payable</Text>
-          <Text style={styles.bottomFeeValue}>₹{totalAmount}</Text>
-        </View>
+        <View style={styles.bottomBarInner}>
+          <View style={styles.bottomCol}>
+            <Text style={styles.bottomFeeLabel}>Total Payable</Text>
+            <Text style={styles.bottomFeeValue}>₹{totalAmount}</Text>
+          </View>
 
-        <TouchableOpacity
-          style={[styles.confirmBtn, isBooking && styles.confirmBtnDisabled]}
-          activeOpacity={0.88}
-          disabled={isBooking}
-          onPress={handleBooking}
-        >
-          {isBooking ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <>
-              <Text style={styles.confirmBtnText}>
-                {collectionMode === 'HOME' ? 'Confirm Home Collection' : 'Confirm Lab Appointment'}
-              </Text>
-              <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
-            </>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.confirmBtn, isBooking && styles.confirmBtnDisabled]}
+            activeOpacity={0.88}
+            disabled={isBooking}
+            onPress={handleBooking}
+          >
+            {isBooking ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Text style={styles.confirmBtnText}>
+                  {collectionMode === 'HOME' ? 'Confirm Home Collection' : 'Confirm Lab Appointment'}
+                </Text>
+                <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -1109,6 +1124,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 110,
+    maxWidth: 900,
+    width: '100%',
+    alignSelf: 'center',
   },
 
   // SECTION CARD
@@ -1783,11 +1801,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
     elevation: 8,
@@ -1795,6 +1810,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
+  },
+  bottomBarInner: {
+    maxWidth: 900,
+    width: '100%',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   bottomCol: {},
   bottomFeeLabel: {
@@ -1810,10 +1833,12 @@ const styles = StyleSheet.create({
   confirmBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 11,
+    borderRadius: 10,
+    height: 44,
     gap: 8,
   },
   confirmBtnDisabled: {
@@ -1821,7 +1846,7 @@ const styles = StyleSheet.create({
   },
   confirmBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
   },
 

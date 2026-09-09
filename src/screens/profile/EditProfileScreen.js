@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -15,9 +15,11 @@ import {
   KeyboardAvoidingView,
   TouchableWithoutFeedback,
 } from 'react-native';
+import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../theme/colors';
+import { syncActiveUser } from '../../services/dataSyncService';
 
 const BLOOD_GROUPS = [
   'O+ Positive',
@@ -130,18 +132,18 @@ const EditProfileScreen = ({ navigation, route }) => {
     const cleanPhone10 = phone.replace(/[^0-9]/g, '').slice(0, 10);
 
     if (!trimmedName) {
-      Alert.alert('Missing Name', 'Please enter your full name.');
+      showAlert('Missing Name', 'Please enter your full name.');
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
-      Alert.alert('Invalid Email', 'Please enter a valid email address.');
+      showAlert('Invalid Email', 'Please enter a valid email address.');
       return;
     }
 
     if (cleanPhone10.length < 10) {
-      Alert.alert(
+      showAlert(
         'Incomplete Mobile Number',
         cleanPhone10.length === 0
           ? 'Please enter your 10-digit mobile number.'
@@ -151,7 +153,7 @@ const EditProfileScreen = ({ navigation, route }) => {
     }
 
     if (!/^[6-9]\d{9}$/.test(cleanPhone10)) {
-      Alert.alert(
+      showAlert(
         'Invalid Mobile Number',
         'Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.'
       );
@@ -161,15 +163,15 @@ const EditProfileScreen = ({ navigation, route }) => {
     // Password validation if user opted to change password
     if (showPasswordSection || currentPassword || newPassword || confirmPassword) {
       if (!currentPassword) {
-        Alert.alert('Current Password Required', 'Please enter your current password to update security credentials.');
+        showAlert('Current Password Required', 'Please enter your current password to update security credentials.');
         return;
       }
       if (!newPassword || newPassword.length < 6) {
-        Alert.alert('Weak New Password', 'New password must be at least 6 characters long.');
+        showAlert('Weak New Password', 'New password must be at least 6 characters long.');
         return;
       }
       if (newPassword !== confirmPassword) {
-        Alert.alert('Password Mismatch', 'New password and confirm password do not match.');
+        showAlert('Password Mismatch', 'New password and confirm password do not match.');
         return;
       }
     }
@@ -198,7 +200,7 @@ const EditProfileScreen = ({ navigation, route }) => {
           const entryEmail = (existingEmailEntry.email || '').trim().toLowerCase();
           // If it does not belong to current user
           if (entryPhone !== initialPhoneDigits && entryEmail !== initialEmail) {
-            Alert.alert(
+            showAlert(
               'Email Already in Use',
               `The email address "${trimmedEmail}" is already registered to another user account. Multiple accounts cannot have the same email address.`
             );
@@ -215,7 +217,7 @@ const EditProfileScreen = ({ navigation, route }) => {
           const entryEmail = (existingPhoneEntry.email || '').trim().toLowerCase();
           // If it does not belong to current user
           if (entryEmail !== initialEmail && entryPhone !== initialPhoneDigits) {
-            Alert.alert(
+            showAlert(
               'Mobile Number Already Registered',
               `The mobile number "+91 ${cleanPhone10}" is already registered to another user account. Multiple accounts cannot share the same phone number.`
             );
@@ -237,7 +239,7 @@ const EditProfileScreen = ({ navigation, route }) => {
           .filter(Boolean);
 
         if (otherUserNames.includes(trimmedName.toLowerCase())) {
-          Alert.alert(
+          showAlert(
             'Full Name Already Registered',
             `An account under the name "${trimmedName}" already exists. Please use your unique full name.`
           );
@@ -407,10 +409,17 @@ const EditProfileScreen = ({ navigation, route }) => {
       await AsyncStorage.setItem(userFamKey, JSON.stringify(updatedFam));
       await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(updatedFam));
 
+      // Synchronize updated profile to Central Server (live Web <-> Mobile shared data)
+      try {
+        await syncActiveUser();
+      } catch (syncErr) {
+        console.warn('[EditProfileScreen] Sync notice:', syncErr);
+      }
+
       setSaving(false);
       setOtpModalVisible(false);
 
-      Alert.alert(
+      showAlert(
         'Profile Saved Successfully 🎉',
         'Your profile details have been verified and updated!',
         [
@@ -424,7 +433,7 @@ const EditProfileScreen = ({ navigation, route }) => {
       );
     } catch (error) {
       setSaving(false);
-      Alert.alert('Save Error', 'Could not update profile details. Please try again.');
+      showAlert('Save Error', 'Could not update profile details. Please try again.');
     }
   };
 
@@ -479,7 +488,7 @@ const EditProfileScreen = ({ navigation, route }) => {
             <Ionicons name="person" size={44} color="#FFFFFF" />
             <TouchableOpacity
               style={styles.cameraIconBtn}
-              onPress={() => Alert.alert('Change Photo', 'Upload or capture a new patient profile photo.')}
+              onPress={() => showAlert('Change Photo', 'Upload or capture a new patient profile photo.')}
             >
               <Ionicons name="camera" size={14} color="#FFFFFF" />
             </TouchableOpacity>
@@ -654,37 +663,67 @@ const EditProfileScreen = ({ navigation, route }) => {
           {/* BLOOD GROUP */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Blood Group</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.bloodGroupScroll}
-            >
-              {BLOOD_GROUPS.map((bg) => (
-                <TouchableOpacity
-                  key={bg}
-                  style={[
-                    styles.bloodPill,
-                    bloodGroup === bg && styles.bloodPillActive,
-                  ]}
-                  onPress={() => setBloodGroup(bg)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name="water"
-                    size={12}
-                    color={bloodGroup === bg ? '#FFFFFF' : '#EF4444'}
-                  />
-                  <Text
+            {Platform.OS === 'web' ? (
+              <View style={[styles.bloodGroupScroll, { flexDirection: 'row', flexWrap: 'wrap' }]}>
+                {BLOOD_GROUPS.map((bg) => (
+                  <TouchableOpacity
+                    key={bg}
                     style={[
-                      styles.bloodPillText,
-                      bloodGroup === bg && styles.bloodPillTextActive,
+                      styles.bloodPill,
+                      bloodGroup === bg && styles.bloodPillActive,
                     ]}
+                    onPress={() => setBloodGroup(bg)}
+                    activeOpacity={0.8}
                   >
-                    {bg}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+                    <Ionicons
+                      name="water"
+                      size={12}
+                      color={bloodGroup === bg ? '#FFFFFF' : '#EF4444'}
+                    />
+                    <Text
+                      style={[
+                        styles.bloodPillText,
+                        bloodGroup === bg && styles.bloodPillTextActive,
+                      ]}
+                    >
+                      {bg}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.bloodGroupScroll}
+              >
+                {BLOOD_GROUPS.map((bg) => (
+                  <TouchableOpacity
+                    key={bg}
+                    style={[
+                      styles.bloodPill,
+                      bloodGroup === bg && styles.bloodPillActive,
+                    ]}
+                    onPress={() => setBloodGroup(bg)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name="water"
+                      size={12}
+                      color={bloodGroup === bg ? '#FFFFFF' : '#EF4444'}
+                    />
+                    <Text
+                      style={[
+                        styles.bloodPillText,
+                        bloodGroup === bg && styles.bloodPillTextActive,
+                      ]}
+                    >
+                      {bg}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
           </View>
 
           {/* EMERGENCY CONTACT (10 DIGITS ONLY) */}
