@@ -358,8 +358,7 @@ const HealthRecordsScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerBadge}>MEDIUNIFY DIGITAL VAULT</Text>
-          <Text style={styles.headerTitle}>MediUnify Health Records</Text>
+          <Text style={styles.headerTitle}>My Health</Text>
         </View>
 
         <TouchableOpacity
@@ -367,7 +366,7 @@ const HealthRecordsScreen = ({ navigation }) => {
           onPress={() => setUploadModalVisible(true)}
           activeOpacity={0.85}
         >
-          <Ionicons name="cloud-upload" size={16} color="#FFFFFF" />
+          <Ionicons name="add" size={16} color="#FFFFFF" />
           <Text style={styles.uploadHeaderBtnText}>Upload</Text>
         </TouchableOpacity>
       </View>
@@ -380,107 +379,72 @@ const HealthRecordsScreen = ({ navigation }) => {
         </View>
       )}
 
+      {/* TOP TAB STRIP (FROM MOCKUP) */}
+      <View style={styles.mockupTabStrip}>
+        {[
+          { id: 'all', label: 'Records' },
+          { id: 'rx', label: 'Prescriptions' },
+          { id: 'labs', label: 'Reports' },
+          { id: 'bills', label: 'Others' },
+        ].map((tab) => {
+          const isActive = selectedTab === tab.id;
+          return (
+            <TouchableOpacity
+              key={tab.id}
+              style={[styles.mockupTabBtn, isActive && styles.mockupTabBtnActive]}
+              onPress={() => setSelectedTab(tab.id)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.mockupTabText, isActive && styles.mockupTabTextActive]}>
+                {tab.label}
+              </Text>
+              {isActive && <View style={styles.mockupTabIndicator} />}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* ==========================================
-            SECURITY HERO BANNER
-        ========================================== */}
-        <View style={styles.heroBanner}>
-          <View style={styles.heroOrb1} />
-          <View style={styles.heroOrb2} />
-
-          <View style={styles.heroTopRow}>
-            <View style={styles.abdmBadge}>
-              <Ionicons name="shield-checkmark" size={12} color="#2DD4BF" />
-              <Text style={styles.abdmBadgeText}>MEDIUNIFY SECURE • 256-BIT ENCRYPTED</Text>
-            </View>
-            <View style={styles.heroRecordsPill}>
-              <Text style={styles.heroRecordsPillText}>{allRecords.length} Documents</Text>
-            </View>
-          </View>
-
-          <Text style={styles.heroTitle}>Centralized Health Locker</Text>
-          <Text style={styles.heroSubtitle}>
-            Prescriptions, 3T scans & lab reports available anytime for doctors and consultations.
-          </Text>
-
-          {/* METRICS ROW */}
-          <View style={styles.heroMetricsRow}>
-            <View style={styles.heroMetric}>
-              <Text style={styles.heroMetricValue}>3</Text>
-              <Text style={styles.heroMetricLabel}>Prescriptions</Text>
-            </View>
-            <View style={styles.heroMetricDivider} />
-            <View style={styles.heroMetric}>
-              <Text style={styles.heroMetricValue}>5</Text>
-              <Text style={styles.heroMetricLabel}>Lab Reports</Text>
-            </View>
-            <View style={styles.heroMetricDivider} />
-            <View style={styles.heroMetric}>
-              <Text style={styles.heroMetricValue}>2</Text>
-              <Text style={styles.heroMetricLabel}>3T Scans</Text>
-            </View>
-            <View style={styles.heroMetricDivider} />
-            <View style={styles.heroMetric}>
-              <Text style={styles.heroMetricValue}>100%</Text>
-              <Text style={styles.heroMetricLabel}>Digital Sync</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ==========================================
-            QUICK CATEGORY SHORTCUTS (4 HUBS)
-        ========================================== */}
-        <View style={styles.shortcutsGrid}>
-          <TouchableOpacity
-            style={[styles.shortcutCard, { backgroundColor: '#F0FDFA', borderColor: '#CCFBF1' }]}
-            onPress={() => navigation.navigate('Prescriptions')}
-            activeOpacity={0.88}
-          >
-            <View style={[styles.shortcutIcon, { backgroundColor: '#E6F8F4' }]}>
-              <Ionicons name="medkit" size={20} color={colors.teal} />
-            </View>
-            <Text style={styles.shortcutTitle}>Doctor Rx</Text>
-            <Text style={styles.shortcutSub}>3 Prescriptions ›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.shortcutCard, { backgroundColor: '#E8EEF9', borderColor: '#DBEAFE' }]}
-            onPress={() => navigation.navigate('Reports')}
-            activeOpacity={0.88}
-          >
-            <View style={[styles.shortcutIcon, { backgroundColor: '#DBEAFE' }]}>
-              <Ionicons name="flask" size={20} color={colors.navyBlue} />
-            </View>
-            <Text style={styles.shortcutTitle}>Lab Reports</Text>
-            <Text style={styles.shortcutSub}>4 Blood Tests ›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.shortcutCard, { backgroundColor: '#E5F9FA', borderColor: '#CCFBF1' }]}
-            onPress={() => navigation.navigate('Reports')}
-            activeOpacity={0.88}
-          >
-            <View style={[styles.shortcutIcon, { backgroundColor: '#CCFBF1' }]}>
-              <Ionicons name="scan" size={20} color={colors.aqua} />
-            </View>
-            <Text style={styles.shortcutTitle}>3T Scans</Text>
-            <Text style={styles.shortcutSub}>MRI / CT Scans ›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.shortcutCard, { backgroundColor: '#FFF1EB', borderColor: '#FEE2E2' }]}
-            onPress={() => navigation.navigate('HealthMonitor')}
-            activeOpacity={0.88}
-          >
-            <View style={[styles.shortcutIcon, { backgroundColor: '#FEE2E2' }]}>
-              <Ionicons name="pulse" size={20} color={colors.coral} />
-            </View>
-            <Text style={styles.shortcutTitle}>Vitals Log</Text>
-            <Text style={styles.shortcutSub}>Sugar & BP ›</Text>
-          </TouchableOpacity>
+        {/* 7 CATEGORIZED ROWS (FROM MOCKUP) */}
+        <View style={styles.categoriesRowsCard}>
+          {[
+            { id: 'labs', name: 'Lab Reports', icon: 'flask', bg: '#E0F2FE', color: '#0284C7', count: '5 Reports' },
+            { id: 'rx', name: 'Doctor Prescriptions', icon: 'medkit', bg: '#E6FFFA', color: '#00B894', count: '3 Rx' },
+            { id: 'scans', name: 'Scan & X-Ray Reports', icon: 'scan', bg: '#EDE9FE', color: '#7C3AED', count: '2 Scans' },
+            { id: 'discharge', name: 'Hospital Discharge Summaries', icon: 'business', bg: '#FCE7F3', color: '#DB2777', count: '1 File' },
+            { id: 'vaccine', name: 'Vaccination Records', icon: 'shield-checkmark', bg: '#FEF3C7', color: '#D97706', count: '2 Doses' },
+            { id: 'bills', name: 'Medical Invoices & Bills', icon: 'receipt', bg: '#EFF6FF', color: '#2563EB', count: '4 Bills' },
+            { id: 'vitals', name: 'Vitals & Health History', icon: 'heart', bg: '#FEE2E2', color: '#EF4444', count: 'Daily Log' },
+          ].map((catRow) => (
+            <TouchableOpacity
+              key={catRow.id}
+              style={styles.categoryRowItem}
+              activeOpacity={0.75}
+              onPress={() => {
+                if (catRow.id === 'vitals') {
+                  navigation.navigate('HealthMonitor');
+                } else if (catRow.id === 'discharge') {
+                  setSelectedTab('all');
+                } else {
+                  setSelectedTab(catRow.id);
+                }
+              }}
+            >
+              <View style={[styles.catRowIconSquare, { backgroundColor: catRow.bg }]}>
+                <Ionicons name={catRow.icon} size={20} color={catRow.color} />
+              </View>
+              <View style={styles.catRowTextCol}>
+                <Text style={styles.catRowTitle}>{catRow.name}</Text>
+              </View>
+              <View style={styles.catRowCountPill}>
+                <Text style={styles.catRowCountText}>{catRow.count}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+            </TouchableOpacity>
+          ))}
         </View>
 
         {/* ==========================================
@@ -1068,6 +1032,92 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12.5,
     fontWeight: '700',
+  },
+
+  // MOCKUP TAB STRIP
+  mockupTabStrip: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingHorizontal: 16,
+  },
+  mockupTabBtn: {
+    paddingVertical: 12,
+    marginRight: 20,
+    position: 'relative',
+  },
+  mockupTabBtnActive: {},
+  mockupTabText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  mockupTabTextActive: {
+    color: '#00B894',
+    fontWeight: '800',
+  },
+  mockupTabIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 2.5,
+    backgroundColor: '#00B894',
+    borderRadius: 2,
+  },
+
+  // 7 CATEGORIZED ROWS
+  categoriesRowsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 5,
+    elevation: 1,
+  },
+  categoryRowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  catRowIconSquare: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  catRowTextCol: {
+    flex: 1,
+  },
+  catRowTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  catRowCountPill: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  catRowCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
   },
 
   scrollContent: {

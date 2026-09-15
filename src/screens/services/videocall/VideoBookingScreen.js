@@ -7,75 +7,41 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
   Image,
   StatusBar,
   Platform,
+  KeyboardAvoidingView,
+  useWindowDimensions,
 } from 'react-native';
 import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import colors from '../../../theme/colors';
 import { pushAppointment } from '../../../services/dataSyncService';
-
-const generateBookingDates = () => {
-  const dates = [];
-  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-  for (let i = 0; i < 10; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    dates.push({
-      dateStr: d.toISOString().split('T')[0],
-      dayName: i === 0 ? 'Today' : i === 1 ? 'Tmrw' : daysOfWeek[d.getDay()],
-      dayNum: d.getDate(),
-      month: months[d.getMonth()],
-      fullText: `${daysOfWeek[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]}`,
-    });
-  }
-  return dates;
-};
-
-const DEFAULT_VIDEO_SLOTS = {
-  morning: ['09:30 AM', '10:45 AM', '11:30 AM', '12:15 PM'],
-  afternoon: ['02:30 PM', '03:45 PM', '04:30 PM'],
-  evening: ['05:30 PM', '06:45 PM', '07:30 PM', '08:15 PM'],
-};
-
-const UPI_OPTIONS = [
-  { id: 'gpay', name: 'Google Pay', icon: 'logo-google', color: '#4285F4' },
-  { id: 'phonepe', name: 'PhonePe', icon: 'phone-portrait', color: '#5F259F' },
-  { id: 'paytm', name: 'Paytm UPI', icon: 'wallet', color: '#00BAF2' },
-  { id: 'bhim', name: 'BHIM UPI', icon: 'flash', color: '#00875A' },
-];
+import WebFooter from '../../../components/web/WebFooter';
 
 const VideoBookingScreen = ({ route, navigation }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   const doctor = route?.params?.doctor;
 
-  const dates = generateBookingDates();
-  const [selectedDate, setSelectedDate] = useState(dates[0]);
-  const [selectedTime, setSelectedTime] = useState(
-    doctor?.slots?.[0] || DEFAULT_VIDEO_SLOTS.morning[0]
-  );
+  const [selectedTime, setSelectedTime] = useState('Tomorrow, 10:30 AM');
 
-  // Patient Info
-  const [patientName, setPatientName] = useState('Ramesh Kumar');
-  const [patientAge, setPatientAge] = useState('32');
-  const [patientGender, setPatientGender] = useState('Male');
-  const [patientPhone, setPatientPhone] = useState('9876543210');
-  const [consultReason, setConsultReason] = useState('');
-  const [uploadedReport, setUploadedReport] = useState(null);
+  // Patient Info (matching screenshot)
+  const [patientName, setPatientName] = useState('Ramesh (Self)');
+  const [patientPhone, setPatientPhone] = useState('+91 98450 12345');
+  const [healthConcern, setHealthConcern] = useState('Stress, Joint Pain & Wellness');
+
+  // Uploaded Medical Document / PDF / Image
+  const [uploadedDocument, setUploadedDocument] = useState(null);
 
   // Payment
-  const [selectedUpi, setSelectedUpi] = useState('gpay');
   const [paymentMethod, setPaymentMethod] = useState('WALLET'); // 'WALLET' | 'UPI'
   const [walletBalance, setWalletBalance] = useState(1250);
   const [isBooking, setIsBooking] = useState(false);
 
-  // Load saved user and wallet
   useEffect(() => {
     loadUserData();
   }, []);
@@ -84,67 +50,135 @@ const VideoBookingScreen = ({ route, navigation }) => {
     try {
       const storedName = await AsyncStorage.getItem('userName');
       if (storedName && storedName.trim()) {
-        setPatientName(storedName.trim());
+        setPatientName(`${storedName.trim()} (Self)`);
+      }
+      const storedPhone = await AsyncStorage.getItem('userPhone');
+      if (storedPhone && storedPhone.trim()) {
+        setPatientPhone(storedPhone.trim().startsWith('+91') ? storedPhone.trim() : `+91 ${storedPhone.trim()}`);
       }
       const bal = await AsyncStorage.getItem('@unnathi_wallet_balance');
       if (bal) setWalletBalance(parseInt(bal, 10) || 1250);
     } catch (e) {
-      console.log('Error loading user data:', e);
+      console.log('Error loading user data in video booking:', e);
     }
   };
 
-  // Upload Medical Report / Prescription
-  const pickReportImage = async (useCamera = false) => {
+  // Upload PDF or Image handler
+  const handlePickDocument = async (typeChoice = 'any') => {
     try {
-      let result;
-      if (useCamera) {
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== 'granted') {
-          showAlert('Permission Needed', 'Camera permission is required.');
-          return;
+      if (typeChoice === 'camera') {
+        if (Platform.OS !== 'web') {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== 'granted') {
+            showAlert('Permission Required', 'Camera permission is required to capture documents.');
+            return;
+          }
         }
-        result = await ImagePicker.launchCameraAsync({
+        const result = await ImagePicker.launchCameraAsync({
           quality: 0.8,
           allowsEditing: true,
         });
-      } else {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') {
-          showAlert('Permission Needed', 'Gallery access is required.');
-          return;
+        if (!result.canceled && result.assets?.[0]) {
+          const asset = result.assets[0];
+          setUploadedDocument({
+            name: asset.fileName || `Prescription_Camera_${Date.now()}.jpg`,
+            uri: asset.uri,
+            type: 'image',
+            size: asset.fileSize ? `${(asset.fileSize / (1024 * 1024)).toFixed(1)} MB` : '1.2 MB',
+          });
         }
-        result = await ImagePicker.launchImageLibraryAsync({
+        return;
+      }
+
+      if (typeChoice === 'image') {
+        if (Platform.OS !== 'web') {
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== 'granted') {
+            showAlert('Permission Required', 'Gallery access is required.');
+            return;
+          }
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
           quality: 0.8,
           allowsEditing: true,
         });
+        if (!result.canceled && result.assets?.[0]) {
+          const asset = result.assets[0];
+          setUploadedDocument({
+            name: asset.fileName || `Medical_Image_${Date.now()}.jpg`,
+            uri: asset.uri,
+            type: 'image',
+            size: asset.fileSize ? `${(asset.fileSize / (1024 * 1024)).toFixed(1)} MB` : '1.5 MB',
+          });
+        }
+        return;
       }
 
-      if (!result.canceled && result.assets?.[0]) {
-        setUploadedReport(result.assets[0].uri);
+      // PDF / Document Picker
+      if (Platform.OS === 'web') {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = typeChoice === 'pdf' ? '.pdf,application/pdf' : '.pdf,image/*,application/pdf';
+        input.onchange = (e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            const url = URL.createObjectURL(file);
+            const isPdf = file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf');
+            setUploadedDocument({
+              name: file.name,
+              uri: url,
+              type: isPdf ? 'pdf' : 'image',
+              size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+            });
+          }
+        };
+        input.click();
+      } else {
+        const result = await DocumentPicker.getDocumentAsync({
+          type: typeChoice === 'pdf' ? 'application/pdf' : ['application/pdf', 'image/*'],
+          copyToCacheDirectory: true,
+        });
+        if (!result.canceled && result.assets?.[0]) {
+          const file = result.assets[0];
+          const isPdf = file.mimeType?.includes('pdf') || file.name?.toLowerCase().endsWith('.pdf');
+          setUploadedDocument({
+            name: file.name,
+            uri: file.uri,
+            type: isPdf ? 'pdf' : 'image',
+            size: file.size ? `${(file.size / (1024 * 1024)).toFixed(2)} MB` : 'PDF Document',
+          });
+        }
       }
-    } catch (e) {
-      console.log('Error uploading report:', e);
+    } catch (err) {
+      console.log('Error picking document:', err);
+      showAlert('Upload Error', 'Could not open file picker. Please try again.');
     }
   };
 
   if (!doctor) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={60} color="#D32F2F" />
-          <Text style={styles.errorTitle}>Doctor Information Unavailable</Text>
-          <Text style={styles.errorText}>Please go back and select a doctor again.</Text>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.backButtonText}>Go Back</Text>
-          </TouchableOpacity>
+        <View style={styles.scrollContent}>
+          <View style={styles.modalCard}>
+            <View style={styles.errorContainer}>
+              <Ionicons name="alert-circle-outline" size={50} color="#D32F2F" />
+              <Text style={styles.errorTitle}>Doctor Information Unavailable</Text>
+              <Text style={styles.errorText}>Please go back and select a doctor again.</Text>
+              <TouchableOpacity
+                style={styles.confirmBookingBtn}
+                onPress={() => navigation.goBack()}
+              >
+                <Text style={styles.confirmBookingBtnText}>Go Back</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </SafeAreaView>
     );
   }
+
+  const fee = doctor.fee || 450;
 
   const handleConfirmAndPay = async () => {
     if (!patientName.trim()) {
@@ -152,16 +186,15 @@ const VideoBookingScreen = ({ route, navigation }) => {
       return;
     }
     if (!patientPhone.trim() || patientPhone.length < 10) {
-      showAlert('Mobile Number Required', 'Please enter a valid 10-digit mobile number.');
+      showAlert('Mobile Number Required', 'Please enter a valid mobile number.');
       return;
     }
     if (!selectedTime) {
-      showAlert('Select Time Slot', 'Please choose an online video slot.');
+      showAlert('Select Slot', 'Please choose an appointment slot.');
       return;
     }
 
     if (paymentMethod === 'WALLET') {
-      const fee = doctor.fee || 450;
       if (walletBalance < fee) {
         showAlert(
           'Insufficient Wallet Balance 💳',
@@ -178,12 +211,11 @@ const VideoBookingScreen = ({ route, navigation }) => {
     setIsBooking(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 800));
 
       const bookingId = `VID-${Math.floor(100000 + Math.random() * 900000)}`;
       const tokenNumber = `TK-${Math.floor(10 + Math.random() * 90)}`;
       const videoRoomLink = `https://telehealth.unnathi.org/room/${bookingId}`;
-      const fee = doctor.fee || 450;
 
       // Deduct from wallet if paid via wallet
       if (paymentMethod === 'WALLET') {
@@ -219,9 +251,9 @@ const VideoBookingScreen = ({ route, navigation }) => {
           languages: doctor.languages,
           image: doctor.image,
         },
-        day: selectedDate.dayName,
-        date: selectedDate.fullText,
-        time: selectedTime,
+        day: selectedTime.includes('Tomorrow') ? 'Tomorrow' : 'Day After',
+        date: selectedTime,
+        time: selectedTime.split(', ')[1] || selectedTime,
         status: 'Confirmed',
         paidAmount: fee,
         paymentStatus: paymentMethod === 'WALLET' ? 'Paid via MediUnify Wallet' : 'Paid Online (UPI)',
@@ -229,11 +261,11 @@ const VideoBookingScreen = ({ route, navigation }) => {
         videoRoomLink,
         patient: {
           name: patientName,
-          age: patientAge,
-          gender: patientGender,
           phone: patientPhone,
-          reason: consultReason,
-          reportUri: uploadedReport,
+          reason: healthConcern,
+          reportUri: uploadedDocument?.uri || null,
+          reportName: uploadedDocument?.name || null,
+          reportType: uploadedDocument?.type || null,
         },
       };
 
@@ -253,7 +285,7 @@ const VideoBookingScreen = ({ route, navigation }) => {
         JSON.stringify([newVideoBooking, ...existingVid])
       );
 
-      // 3. Immediately push to central server database for live cross-device sync
+      // 3. Push to central server database
       try {
         await pushAppointment(newVideoBooking);
       } catch (pushErr) {
@@ -263,30 +295,21 @@ const VideoBookingScreen = ({ route, navigation }) => {
       setIsBooking(false);
 
       showAlert(
-        'Video Consultation Confirmed! 📹',
-        `Your online appointment with ${doctor.name} is booked for ${selectedDate.fullText} at ${selectedTime}.\n\nBooking ID: ${bookingId}\nRoom Token: ${tokenNumber}`,
+        'Video Appointment Confirmed! 📹',
+        `Your online consultation with ${doctor.name} has been booked for ${selectedTime}.${uploadedDocument ? '\n\nAttached Record: ' + uploadedDocument.name : ''}\n\nBooking ID: ${bookingId}\nRoom Token: ${tokenNumber}`,
         [
           {
             text: 'Go to My Bookings',
             onPress: () => {
               navigation.navigate('Bookings', {
                 newAppointment: newVideoBooking,
-                initialTab: 'Video Consults',
+                initialTab: 'Consultations',
                 timestamp: Date.now(),
               });
             },
           },
           {
-            text: 'Join Video Call Now',
-            onPress: () => {
-              navigation.navigate('VideoMeeting', {
-                appointment: newVideoBooking,
-                doctor: newVideoBooking.doctor,
-              });
-            },
-          },
-          {
-            text: 'Home',
+            text: 'Done',
             onPress: () => {
               navigation.navigate('Home');
             },
@@ -294,9 +317,9 @@ const VideoBookingScreen = ({ route, navigation }) => {
         ]
       );
     } catch (e) {
-      console.log('Error booking video consultation:', e);
+      console.log('Error booking video consult:', e);
       setIsBooking(false);
-      showAlert('Payment Error', 'Could not process transaction. Please try again.');
+      showAlert('Booking Error', 'Could not complete your video consultation booking. Please try again.');
     }
   };
 
@@ -304,400 +327,243 @@ const VideoBookingScreen = ({ route, navigation }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* HEADER */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerBackButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.secondary} />
-        </TouchableOpacity>
-
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Video Consultation</Text>
-          <Text style={styles.headerSubtitle}>Private & Encrypted</Text>
-        </View>
-
-        <View style={styles.secureBadge}>
-          <Ionicons name="shield-checkmark" size={12} color="#059669" />
-          <Text style={styles.secureBadgeText}>HD Ready</Text>
-        </View>
-      </View>
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
       >
-        {/* DOCTOR SUMMARY CARD */}
-        <View style={styles.doctorSummaryCard}>
-          <View style={styles.doctorSummaryRow}>
-            <Image source={{ uri: doctor.image }} style={styles.summaryAvatar} />
-            <View style={styles.summaryInfoCol}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Text style={styles.summaryDocName}>{doctor.name}</Text>
-                <Ionicons name="checkmark-circle" size={15} color={colors.primary} />
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[
+            styles.scrollContent,
+            isDesktopWeb && styles.scrollContentDesktop,
+          ]}
+        >
+          {/* DESKTOP BREADCRUMBS ROW */}
+          {isDesktopWeb && (
+            <View style={styles.breadcrumbsRow}>
+              <TouchableOpacity onPress={() => navigation.navigate('Home')}>
+                <Text style={styles.breadcrumbLink}>Home</Text>
+              </TouchableOpacity>
+              <Text style={styles.breadcrumbSlash}>/</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('VideoConsultation')}>
+                <Text style={styles.breadcrumbLink}>Video Doctors</Text>
+              </TouchableOpacity>
+              <Text style={styles.breadcrumbSlash}>/</Text>
+              <Text style={styles.breadcrumbCurrent}>Book Video Consultation</Text>
+            </View>
+          )}
+
+          {/* CARD CONTAINER */}
+          <View style={[styles.modalCard, isDesktopWeb && { maxWidth: 500 }]}>
+            {/* MODAL HEADER */}
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <View style={styles.confidentialBadgePill}>
+                  <Ionicons name="videocam" size={11} color="#059669" />
+                  <Text style={styles.confidentialBadgePillText}>100% VERIFIED VIDEO CARE</Text>
+                </View>
+                <Text style={styles.modalTitle}>Book Online Video Consultation</Text>
+                <Text style={styles.modalSub} numberOfLines={1}>
+                  {doctor.name}
+                </Text>
               </View>
-              <Text style={styles.summaryDocSpec}>{doctor.specialty} • {doctor.experience || '10+ Yrs'}</Text>
-              <Text style={styles.summaryLanguages}>
-                🗣 {doctor.languages ? doctor.languages.join(', ') : 'English, Kannada, Hindi'}
-              </Text>
+              <TouchableOpacity
+                onPress={() => navigation.goBack()}
+                style={styles.modalCloseBtn}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
             </View>
-          </View>
 
-          <View style={styles.summaryDivider} />
-
-          <View style={styles.summaryInclusionsRow}>
-            <View style={styles.inclusionItem}>
-              <Ionicons name="videocam" size={13} color={colors.primary} />
-              <Text style={styles.inclusionText}>HD Call</Text>
-            </View>
-            <View style={styles.inclusionItem}>
-              <Ionicons name="document-text" size={13} color={colors.secondary} />
-              <Text style={styles.inclusionText}>e-Prescription</Text>
-            </View>
-            <View style={styles.inclusionItem}>
-              <Ionicons name="chatbubbles" size={13} color="#059669" />
-              <Text style={styles.inclusionText}>Free Chat</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* 1. SELECT DATE */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeaderRow}>
-            <Ionicons name="calendar-outline" size={17} color={colors.secondary} />
-            <Text style={styles.sectionTitle}>Select Date</Text>
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.datesScroll}
-          >
-            {dates.map((item, index) => {
-              const isSelected = selectedDate.dateStr === item.dateStr;
-              return (
-                <TouchableOpacity
-                  key={index}
-                  style={[styles.datePill, isSelected && styles.datePillActive]}
-                  activeOpacity={0.8}
-                  onPress={() => setSelectedDate(item)}
-                >
-                  <Text style={[styles.datePillDay, isSelected && styles.datePillDayActive]}>
-                    {item.dayName}
-                  </Text>
-                  <Text style={[styles.datePillNum, isSelected && styles.datePillNumActive]}>
-                    {item.dayNum}
-                  </Text>
-                  <Text style={[styles.datePillMonth, isSelected && styles.datePillMonthActive]}>
-                    {item.month}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          <View style={styles.selectedDateBadge}>
-            <Ionicons name="calendar" size={12} color={colors.primary} />
-            <Text style={styles.selectedDateBadgeText}>
-              {selectedDate.fullText}
-            </Text>
-          </View>
-        </View>
-
-        {/* 2. SELECT TIME SLOT */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeaderRow}>
-            <Ionicons name="time-outline" size={17} color={colors.secondary} />
-            <Text style={styles.sectionTitle}>Select Slot</Text>
-          </View>
-
-          <View style={styles.slotsGrid}>
-            {(doctor.slots && doctor.slots.length > 0 ? doctor.slots : DEFAULT_VIDEO_SLOTS.morning.concat(DEFAULT_VIDEO_SLOTS.evening)).map((slot, sIdx) => {
-              const isSelected = selectedTime === slot;
-              return (
-                <TouchableOpacity
-                  key={sIdx}
-                  style={[styles.slotItem, isSelected && styles.slotItemActive]}
-                  onPress={() => setSelectedTime(slot)}
-                >
-                  <Ionicons name="videocam-outline" size={13} color={isSelected ? '#FFFFFF' : colors.primary} />
-                  <Text style={[styles.slotItemText, isSelected && styles.slotItemTextActive]}>
-                    {slot}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* 3. PATIENT DETAILS */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeaderRow}>
-            <Ionicons name="person-outline" size={17} color={colors.secondary} />
-            <Text style={styles.sectionTitle}>Patient Details</Text>
-          </View>
-
-          <View style={styles.formGroup}>
-            <Text style={styles.inputLabel}>Full Name *</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Enter patient name"
-              value={patientName}
-              onChangeText={setPatientName}
-            />
-          </View>
-
-          <View style={styles.rowTwo}>
-            <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
-              <Text style={styles.inputLabel}>Age *</Text>
+            {/* FORM BODY */}
+            <ScrollView style={styles.modalForm} showsVerticalScrollIndicator={false}>
+              {/* PATIENT FULL NAME */}
+              <Text style={styles.inputLabel}>Patient Full Name</Text>
               <TextInput
                 style={styles.textInput}
-                placeholder="Age"
-                keyboardType="numeric"
-                value={patientAge}
-                onChangeText={setPatientAge}
+                value={patientName}
+                onChangeText={setPatientName}
+                placeholder="Enter patient name"
+                placeholderTextColor="#94A3B8"
               />
-            </View>
 
-            <View style={[styles.formGroup, { flex: 1.5 }]}>
-              <Text style={styles.inputLabel}>Gender *</Text>
-              <View style={styles.genderRow}>
-                {['Male', 'Female', 'Other'].map((g) => {
-                  const isSelected = patientGender === g;
-                  return (
+              {/* MOBILE NUMBER */}
+              <Text style={styles.inputLabel}>Mobile Number</Text>
+              <TextInput
+                style={styles.textInput}
+                value={patientPhone}
+                onChangeText={setPatientPhone}
+                keyboardType="phone-pad"
+                placeholder="+91 98450 12345"
+                placeholderTextColor="#94A3B8"
+              />
+
+              {/* PRIMARY HEALTH CONCERN */}
+              <Text style={styles.inputLabel}>Primary Health Concern</Text>
+              <TextInput
+                style={styles.textInput}
+                value={healthConcern}
+                onChangeText={setHealthConcern}
+                placeholder="Stress, Joint Pain & Wellness"
+                placeholderTextColor="#94A3B8"
+              />
+
+              {/* UPLOAD PDF OR IMAGE OPTION */}
+              <Text style={styles.inputLabel}>Medical Records / Prescription (PDF or Image)</Text>
+              {!uploadedDocument ? (
+                <View style={styles.uploadContainer}>
+                  <View style={styles.uploadButtonsRow}>
+                    {/* UPLOAD PDF BUTTON */}
                     <TouchableOpacity
-                      key={g}
-                      style={[styles.genderBtn, isSelected && styles.genderBtnActive]}
-                      onPress={() => setPatientGender(g)}
+                      style={styles.uploadActionBtn}
+                      onPress={() => handlePickDocument('pdf')}
+                      activeOpacity={0.8}
                     >
-                      <Text style={[styles.genderBtnText, isSelected && styles.genderBtnTextActive]}>
-                        {g}
-                      </Text>
+                      <Ionicons name="document-text" size={18} color="#DC2626" />
+                      <Text style={styles.uploadActionBtnText}>Upload PDF</Text>
                     </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          </View>
 
-          <View style={styles.formGroup}>
-            <Text style={styles.inputLabel}>Mobile Number *</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="10-digit number"
-              keyboardType="phone-pad"
-              maxLength={10}
-              value={patientPhone}
-              onChangeText={setPatientPhone}
-            />
-          </View>
+                    {/* UPLOAD IMAGE BUTTON */}
+                    <TouchableOpacity
+                      style={styles.uploadActionBtn}
+                      onPress={() => handlePickDocument('image')}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="image" size={18} color="#059669" />
+                      <Text style={styles.uploadActionBtnText}>Upload Image</Text>
+                    </TouchableOpacity>
 
-          <View style={styles.formGroup}>
-            <Text style={styles.inputLabel}>Reason (Optional)</Text>
-            <TextInput
-              style={[styles.textInput, styles.textArea]}
-              placeholder="Brief symptoms or concern..."
-              multiline
-              numberOfLines={2}
-              value={consultReason}
-              onChangeText={setConsultReason}
-            />
-          </View>
-
-          {/* ATTACH PREVIOUS REPORT */}
-          <Text style={styles.inputLabel}>Attach Report / Photo (Optional)</Text>
-          {uploadedReport ? (
-            <View style={styles.reportPreviewRow}>
-              <Image source={{ uri: uploadedReport }} style={styles.reportImg} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.reportAttachedText}>File Attached</Text>
-                <TouchableOpacity onPress={() => setUploadedReport(null)}>
-                  <Text style={styles.removeReportText}>Remove</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.uploadBtnsRow}>
-              <TouchableOpacity
-                style={styles.uploadBtn}
-                onPress={() => pickReportImage(false)}
-              >
-                <Ionicons name="images-outline" size={16} color={colors.primary} />
-                <Text style={styles.uploadBtnText}>Gallery / PDF</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.uploadBtn}
-                onPress={() => pickReportImage(true)}
-              >
-                <Ionicons name="camera-outline" size={16} color={colors.secondary} />
-                <Text style={styles.uploadBtnText}>Take Photo</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        {/* 4. PAYMENT METHOD */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeaderRow}>
-            <Ionicons name="card-outline" size={17} color={colors.secondary} />
-            <Text style={styles.sectionTitle}>Select Payment Method</Text>
-          </View>
-
-          {/* METHOD TOGGLES */}
-          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
-            <TouchableOpacity
-              style={[
-                styles.methodToggleBtn,
-                paymentMethod === 'WALLET' && styles.methodToggleBtnActive,
-              ]}
-              onPress={() => setPaymentMethod('WALLET')}
-            >
-              <Ionicons
-                name="wallet"
-                size={16}
-                color={paymentMethod === 'WALLET' ? '#FFFFFF' : '#059669'}
-              />
-              <Text
-                style={[
-                  styles.methodToggleText,
-                  paymentMethod === 'WALLET' && styles.methodToggleTextActive,
-                ]}
-              >
-                MediUnify Wallet
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.methodToggleBtn,
-                paymentMethod === 'UPI' && styles.methodToggleBtnActive,
-              ]}
-              onPress={() => setPaymentMethod('UPI')}
-            >
-              <Ionicons
-                name="flash"
-                size={16}
-                color={paymentMethod === 'UPI' ? '#FFFFFF' : colors.primary}
-              />
-              <Text
-                style={[
-                  styles.methodToggleText,
-                  paymentMethod === 'UPI' && styles.methodToggleTextActive,
-                ]}
-              >
-                Instant UPI Pay
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {paymentMethod === 'WALLET' ? (
-            <View style={styles.walletBox}>
-              <View style={styles.walletRow}>
-                <Text style={styles.walletLabel}>
-                  Available Balance: <Text style={{ fontWeight: '900', color: '#059669' }}>₹{walletBalance.toLocaleString('en-IN')}</Text>
-                </Text>
-                {walletBalance >= (doctor.fee || 450) ? (
-                  <View style={styles.sufficientBadge}>
-                    <Ionicons name="checkmark-circle" size={14} color="#059669" />
-                    <Text style={styles.sufficientText}>Sufficient</Text>
+                    {/* CAMERA OPTION */}
+                    <TouchableOpacity
+                      style={styles.uploadActionBtn}
+                      onPress={() => handlePickDocument('camera')}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="camera" size={18} color="#2563EB" />
+                      <Text style={styles.uploadActionBtnText}>Camera</Text>
+                    </TouchableOpacity>
                   </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.topUpBtn}
-                    onPress={() => navigation.navigate('Wallet')}
-                  >
-                    <Text style={styles.topUpBtnText}>+ Top Up</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              {walletBalance >= (doctor.fee || 450) ? (
-                <Text style={styles.walletPerkNote}>
-                  ✓ 1-Click Pay: ₹{doctor.fee || 450} will be instantly debited from your MediUnify Wallet.
-                </Text>
+                  <Text style={styles.uploadHintText}>
+                    Attach past prescriptions, lab tests, or scan reports (PDF, JPG, PNG up to 15MB). Dr. {doctor.name} will review this before your call.
+                  </Text>
+                </View>
               ) : (
-                <Text style={styles.walletLowNote}>
-                  ⚠️ Insufficient balance (Need ₹{(doctor.fee || 450) - walletBalance} more). Please top up or switch to UPI.
-                </Text>
-              )}
-            </View>
-          ) : (
-            <View style={styles.upiGrid}>
-              {UPI_OPTIONS.map((upi) => {
-                const isSelected = selectedUpi === upi.id;
-                return (
+                <View style={styles.uploadedFileCard}>
+                  <View style={styles.uploadedFileIconWrap}>
+                    {uploadedDocument.type === 'pdf' ? (
+                      <Ionicons name="document-text" size={26} color="#DC2626" />
+                    ) : (
+                      <Image source={{ uri: uploadedDocument.uri }} style={styles.uploadedFileThumb} />
+                    )}
+                  </View>
+                  <View style={{ flex: 1, marginHorizontal: 10 }}>
+                    <Text style={styles.uploadedFileName} numberOfLines={1}>
+                      {uploadedDocument.name}
+                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                      <Text style={styles.uploadedFileSize}>{uploadedDocument.size}</Text>
+                      <Text style={styles.uploadedFileDot}>•</Text>
+                      <Ionicons name="checkmark-circle" size={12} color="#059669" />
+                      <Text style={styles.uploadedFileReady}>Attached for Doctor</Text>
+                    </View>
+                  </View>
                   <TouchableOpacity
-                    key={upi.id}
-                    style={[styles.upiItem, isSelected && styles.upiItemActive]}
-                    onPress={() => setSelectedUpi(upi.id)}
+                    onPress={() => setUploadedDocument(null)}
+                    style={styles.removeFileBtn}
+                    activeOpacity={0.7}
                   >
-                    <Ionicons name={upi.icon} size={18} color={upi.color} />
-                    <Text style={[styles.upiItemText, isSelected && styles.upiItemTextActive]}>
-                      {upi.name}
+                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* PREFERRED APPOINTMENT SLOT */}
+              <Text style={styles.inputLabel}>Preferred Appointment Slot</Text>
+              <View style={styles.slotPickerRow}>
+                {['Tomorrow, 10:30 AM', 'Tomorrow, 04:30 PM', 'Day After, 11:00 AM'].map((slot, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={[styles.slotChip, selectedTime === slot && styles.slotChipSelected]}
+                    onPress={() => setSelectedTime(slot)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.slotChipText, selectedTime === slot && styles.slotChipTextSelected]}>
+                      {slot}
                     </Text>
                   </TouchableOpacity>
-                );
-              })}
+                ))}
+              </View>
+
+              {/* PAYMENT OPTION PILLS */}
+              <Text style={styles.inputLabel}>Payment Option</Text>
+              <View style={styles.payOptionsRow}>
+                <TouchableOpacity
+                  style={[styles.payMethodChip, paymentMethod === 'WALLET' && styles.payMethodChipActive]}
+                  onPress={() => setPaymentMethod('WALLET')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.payMethodText, paymentMethod === 'WALLET' && styles.payMethodTextActive]}>
+                    Wallet (₹{walletBalance})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.payMethodChip, paymentMethod === 'UPI' && styles.payMethodChipActive]}
+                  onPress={() => setPaymentMethod('UPI')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.payMethodText, paymentMethod === 'UPI' && styles.payMethodTextActive]}>
+                    UPI / Online
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* PRICING SUMMARY BOX */}
+              <View style={styles.pricingSummaryBox}>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Total Payable Online</Text>
+                  <Text style={styles.summaryValue}>₹{fee}</Text>
+                </View>
+                <Text style={styles.summaryNote}>
+                  ✓ Zero cancellation fee • Digital prescription included • Instant confirmation
+                </Text>
+              </View>
+
+              {/* PRIVACY & VERIFIED ASSURANCE BOX */}
+              <View style={styles.privacyAssuranceBox}>
+                <Ionicons name="shield-checkmark" size={16} color="#059669" />
+                <Text style={styles.privacyAssuranceText}>
+                  End-to-end encrypted private video consultation, zero call recording, instant digital prescription, and encrypted personal records.
+                </Text>
+              </View>
+            </ScrollView>
+
+            {/* MODAL FOOTER & CONFIRM BUTTON */}
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.confirmBookingBtn, isBooking && styles.confirmBookingBtnDisabled]}
+                onPress={handleConfirmAndPay}
+                activeOpacity={0.88}
+                disabled={isBooking}
+              >
+                {isBooking ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.confirmBookingBtnText}>Confirm Appointment</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {isDesktopWeb && (
+            <View style={{ width: '100%', marginTop: 40 }}>
+              <WebFooter />
             </View>
           )}
-        </View>
-
-        {/* 5. INVOICE BREAKDOWN */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Summary</Text>
-          <View style={styles.billLine}>
-            <Text style={styles.billLabel}>Consultation Fee</Text>
-            <Text style={styles.billVal}>₹{doctor.mrpFee || 650}</Text>
-          </View>
-          <View style={styles.billLine}>
-            <Text style={[styles.billLabel, { color: '#059669' }]}>Special Discount</Text>
-            <Text style={[styles.billVal, { color: '#059669', fontWeight: '700' }]}>
-              - ₹{(doctor.mrpFee || 650) - (doctor.fee || 450)}
-            </Text>
-          </View>
-          <View style={styles.billLine}>
-            <Text style={styles.billLabel}>e-Prescription & Chat</Text>
-            <Text style={[styles.billVal, { color: '#059669' }]}>FREE</Text>
-          </View>
-          <View style={styles.billDivider} />
-          <View style={styles.billTotalLine}>
-            <View>
-              <Text style={styles.billTotalLabel}>Total</Text>
-              <Text style={styles.billSavedText}>
-                Save ₹{(doctor.mrpFee || 650) - (doctor.fee || 450)}
-              </Text>
-            </View>
-            <Text style={styles.billTotalAmount}>₹{doctor.fee || 450}</Text>
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* BOTTOM ACTION BAR */}
-      <View style={styles.bottomBar}>
-        <View style={styles.bottomBarInner}>
-          <View style={styles.bottomCol}>
-            <Text style={styles.bottomFeeLabel}>Total</Text>
-            <Text style={styles.bottomFeeValue}>₹{doctor.fee || 450}</Text>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.confirmBtn, isBooking && styles.confirmBtnDisabled]}
-            activeOpacity={0.88}
-            disabled={isBooking}
-            onPress={handleConfirmAndPay}
-          >
-            {isBooking ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <>
-                <Text style={styles.confirmBtnText}>Confirm Video Call</Text>
-                <Ionicons name="videocam" size={17} color="#FFFFFF" />
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -705,582 +571,358 @@ const VideoBookingScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: Platform.OS === 'web' ? 'rgba(15, 23, 42, 0.65)' : '#F8FAFC',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  scrollContentDesktop: {
+    paddingVertical: 32,
+  },
+  breadcrumbsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 500,
+    marginBottom: 16,
+    gap: 6,
+  },
+  breadcrumbLink: {
+    fontSize: 12,
+    color: Platform.OS === 'web' ? '#34D399' : '#059669',
+    fontWeight: '600',
+  },
+  breadcrumbSlash: {
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  breadcrumbCurrent: {
+    fontSize: 12,
+    color: Platform.OS === 'web' ? '#CBD5E1' : '#64748B',
+    fontWeight: '500',
   },
 
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  // MODAL CARD
+  modalCard: {
     backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    width: '100%',
+    maxWidth: 500,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 25,
+    elevation: 8,
+  },
+
+  // MODAL HEADER
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#F1F5F9',
   },
-  headerBackButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerCenter: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.secondary,
-  },
-  headerSubtitle: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginTop: 1,
-  },
-  secureBadge: {
+  confidentialBadgePill: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
     backgroundColor: '#ECFDF5',
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    gap: 4,
+    paddingVertical: 3,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
   },
-  secureBadgeText: {
-    fontSize: 10,
+  confidentialBadgePillText: {
+    fontSize: 9.5,
     fontWeight: '800',
     color: '#059669',
+    letterSpacing: 0.3,
   },
-
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 110,
-    maxWidth: 900,
-    width: '100%',
-    alignSelf: 'center',
-  },
-
-  // DOCTOR SUMMARY
-  doctorSummaryCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  doctorSummaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  summaryAvatar: {
-    width: 58,
-    height: 58,
-    borderRadius: 14,
-    marginRight: 12,
-  },
-  summaryInfoCol: {
-    flex: 1,
-  },
-  summaryDocName: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.secondary,
-  },
-  summaryDocSpec: {
-    fontSize: 12,
-    color: colors.primary,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  summaryLanguages: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  summaryDivider: {
-    height: 1,
-    backgroundColor: '#F1F5F9',
-    marginVertical: 10,
-  },
-  summaryInclusionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  inclusionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  inclusionText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.text,
-  },
-
-  // SECTION CARD
-  sectionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-    gap: 6,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.secondary,
-  },
-
-  // DATES
-  datesScroll: {
-    gap: 8,
-    paddingBottom: 6,
-  },
-  datePill: {
-    width: 60,
-    height: 72,
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  datePillActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  datePillDay: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  datePillDayActive: {
-    color: '#FFFFFF',
-  },
-  datePillNum: {
+  modalTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: colors.text,
-    marginVertical: 2,
+    color: '#0F172A',
   },
-  datePillNumActive: {
-    color: '#FFFFFF',
-  },
-  datePillMonth: {
-    fontSize: 10,
-    color: colors.textSecondary,
-  },
-  datePillMonthActive: {
-    color: '#FFFFFF',
-  },
-  selectedDateBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.lightTeal,
-    padding: 8,
-    borderRadius: 8,
-    marginTop: 6,
-    gap: 6,
-  },
-  selectedDateBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-
-  // SLOTS
-  slotGroupLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    marginBottom: 8,
-  },
-  slotsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 4,
-  },
-  slotItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 5,
-  },
-  slotItemActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  slotItemText: {
+  modalSub: {
     fontSize: 12,
-    fontWeight: '700',
-    color: colors.text,
+    color: '#059669',
+    fontWeight: '600',
+    maxWidth: 320,
+    marginTop: 2,
   },
-  slotItemTextActive: {
-    color: '#FFFFFF',
+  modalCloseBtn: {
+    padding: 4,
+    marginLeft: 8,
   },
 
-  // FORM
-  formGroup: {
-    marginBottom: 10,
-  },
-  rowTwo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  // FORM BODY
+  modalForm: {
+    padding: 16,
   },
   inputLabel: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '700',
-    color: colors.secondary,
-    marginBottom: 4,
+    color: '#334155',
+    marginBottom: 6,
+    marginTop: 10,
   },
   textInput: {
     backgroundColor: '#F8FAFC',
-    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#CBD5E1',
+    borderRadius: 10,
     paddingHorizontal: 12,
-    height: 42,
+    paddingVertical: 9,
     fontSize: 13,
-    color: colors.text,
-  },
-  textArea: {
-    height: 65,
-    textAlignVertical: 'top',
-    paddingTop: 8,
-  },
-  genderRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  genderBtn: {
-    flex: 1,
-    height: 42,
-    borderRadius: 10,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  genderBtnActive: {
-    backgroundColor: colors.lightTeal,
-    borderColor: colors.primary,
-  },
-  genderBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  genderBtnTextActive: {
-    color: colors.primary,
+    color: '#0F172A',
   },
 
-  // REPORT UPLOAD
-  uploadBtnsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
-  },
-  uploadBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  // UPLOAD CONTAINER
+  uploadContainer: {
     backgroundColor: '#F8FAFC',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
     borderStyle: 'dashed',
-    borderRadius: 10,
-    paddingVertical: 10,
-    gap: 6,
-  },
-  uploadBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.secondary,
-  },
-  reportPreviewRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 8,
-    gap: 10,
-    marginTop: 4,
-  },
-  reportImg: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-  },
-  reportAttachedText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  removeReportText: {
-    fontSize: 10,
-    color: '#EF4444',
-    fontWeight: '700',
-    marginTop: 2,
-  },
-
-  // UPI GRID
-  upiGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  upiItem: {
-    flex: 1,
-    minWidth: '45%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 8,
-  },
-  upiItemActive: {
-    backgroundColor: colors.lightTeal,
-    borderColor: colors.primary,
-  },
-  upiItemText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  upiItemTextActive: {
-    color: colors.primary,
-  },
-
-  // BILL
-  billLine: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  billLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  billVal: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  billDivider: {
-    height: 1,
-    backgroundColor: '#E2E8F0',
-    marginVertical: 8,
-  },
-  billTotalLine: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  billTotalLabel: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.secondary,
-  },
-  billSavedText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#059669',
-    marginTop: 2,
-  },
-  billTotalAmount: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-
-  // BOTTOM BAR
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-  },
-  bottomBarInner: {
-    maxWidth: 900,
-    width: '100%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  bottomCol: {},
-  bottomFeeLabel: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  bottomFeeValue: {
-    fontSize: 19,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  confirmBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 11,
-    borderRadius: 10,
-    height: 44,
-    gap: 8,
-  },
-  confirmBtnDisabled: {
-    opacity: 0.7,
-  },
-  confirmBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-
-  // ERROR
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 30,
-  },
-  errorTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#D32F2F',
-    marginTop: 12,
-  },
-  errorText: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginTop: 6,
-  },
-  backButton: {
-    marginTop: 16,
-    backgroundColor: colors.secondary,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  backButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  methodToggleBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingVertical: 10,
-    borderRadius: 10,
-    gap: 6,
-  },
-  methodToggleBtnActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  methodToggleText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.secondary,
-  },
-  methodToggleTextActive: {
-    color: '#FFFFFF',
-  },
-  walletBox: {
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
     borderRadius: 12,
     padding: 12,
   },
-  walletRow: {
+  uploadButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  uploadActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 9,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  uploadActionBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  uploadHintText: {
+    fontSize: 10,
+    color: '#64748B',
+    lineHeight: 14,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+
+  // UPLOADED FILE CARD
+  uploadedFileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    borderRadius: 10,
+    padding: 10,
+  },
+  uploadedFileIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+  },
+  uploadedFileThumb: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+  },
+  uploadedFileName: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  uploadedFileSize: {
+    fontSize: 10.5,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  uploadedFileDot: {
+    fontSize: 10,
+    color: '#94A3B8',
+  },
+  uploadedFileReady: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  removeFileBtn: {
+    padding: 6,
+  },
+
+  // PREFERRED APPOINTMENT SLOTS
+  slotPickerRow: {
+    gap: 6,
+    marginTop: 4,
+  },
+  slotChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  slotChipSelected: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#059669',
+  },
+  slotChipText: {
+    fontSize: 11.5,
+    color: '#475569',
+  },
+  slotChipTextSelected: {
+    fontWeight: '800',
+    color: '#065F46',
+  },
+
+  // PAYMENT OPTIONS
+  payOptionsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 2,
+  },
+  payMethodChip: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  payMethodChipActive: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#059669',
+  },
+  payMethodText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  payMethodTextActive: {
+    color: '#065F46',
+    fontWeight: '800',
+  },
+
+  // PRICING SUMMARY BOX
+  pricingSummaryBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  summaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  walletLabel: {
+  summaryLabel: {
     fontSize: 12,
-    color: '#065F46',
+    color: '#475569',
     fontWeight: '600',
   },
-  sufficientBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#D1FAE5',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 4,
+  summaryValue: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
   },
-  sufficientText: {
-    fontSize: 11,
-    fontWeight: '800',
+  summaryNote: {
+    fontSize: 10,
     color: '#059669',
+    marginTop: 6,
   },
-  topUpBtn: {
-    backgroundColor: '#059669',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+
+  // PRIVACY ASSURANCE BOX
+  privacyAssuranceBox: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: '#ECFDF5',
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 14,
+    alignItems: 'flex-start',
   },
-  topUpBtnText: {
+  privacyAssuranceText: {
     fontSize: 11,
+    color: '#065F46',
+    flex: 1,
+    lineHeight: 16,
+  },
+
+  // MODAL FOOTER & CONFIRM BUTTON
+  modalFooter: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  confirmBookingBtn: {
+    backgroundColor: '#059669',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmBookingBtnDisabled: {
+    opacity: 0.65,
+  },
+  confirmBookingBtnText: {
+    fontSize: 13,
     fontWeight: '800',
     color: '#FFFFFF',
   },
-  walletPerkNote: {
-    fontSize: 11,
-    color: '#047857',
-    marginTop: 6,
-    fontWeight: '500',
+
+  // ERROR CONTAINER
+  errorContainer: {
+    padding: 24,
+    alignItems: 'center',
   },
-  walletLowNote: {
-    fontSize: 11,
-    color: '#DC2626',
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  errorText: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
     marginTop: 6,
-    fontWeight: '600',
+    marginBottom: 16,
   },
 });
 

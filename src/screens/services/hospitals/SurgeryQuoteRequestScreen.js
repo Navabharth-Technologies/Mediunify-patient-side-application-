@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,13 +12,17 @@ import {
   StatusBar,
   Linking,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../../theme/colors';
+import WebFooter from '../../../components/web/WebFooter';
 
 const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   const { hospital, surgery } = route.params || {};
 
   // Form State
@@ -158,8 +162,27 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        {/* DESKTOP BREADCRUMBS */}
+        {isDesktopWeb && (
+          <View style={styles.breadcrumbsRow}>
+            <TouchableOpacity onPress={() => navigation.navigate('Home')}>
+              <Text style={styles.breadcrumbLink}>Home</Text>
+            </TouchableOpacity>
+            <Text style={styles.breadcrumbSlash}>/</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('HospitalCare')}>
+              <Text style={styles.breadcrumbLink}>Hospitals & Surgeries</Text>
+            </TouchableOpacity>
+            <Text style={styles.breadcrumbSlash}>/</Text>
+            <Text style={styles.breadcrumbCurrent}>Price Quote Request</Text>
+          </View>
+        )}
+
         {/* SELECTED PROCEDURE SUMMARY CARD */}
         <View style={styles.selectedSurgeryCard}>
+          <View style={styles.confidentialBadgePill}>
+            <Ionicons name="shield-checkmark" size={11} color="#0D9488" />
+            <Text style={styles.confidentialBadgePillText}>100% CONFIDENTIAL & ACCREDITED SURGICAL CARE</Text>
+          </View>
           <View style={styles.selectedBadgeRow}>
             <View style={styles.selectedCategoryBadge}>
               <Text style={styles.selectedCategoryText}>
@@ -378,6 +401,14 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
           />
         </View>
 
+        {/* UNIFIED PRIVACY & SURGICAL ASSURANCE BOX */}
+        <View style={styles.privacyAssuranceBoxUnified}>
+          <Ionicons name="shield-checkmark" size={17} color="#059669" />
+          <Text style={styles.privacyAssuranceTextUnified}>
+            100% discrete inquiry. Dedicated hospital surgical care coordinator will contact you privately with insurance coverage pre-authorization and transparent package pricing.
+          </Text>
+        </View>
+
         {/* SUBMIT BUTTON */}
         <TouchableOpacity
           style={styles.submitBtn}
@@ -390,6 +421,12 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
           </Text>
           <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
         </TouchableOpacity>
+
+        {isDesktopWeb && (
+          <View style={{ width: '100%', marginTop: 40, marginHorizontal: -16 }}>
+            <WebFooter />
+          </View>
+        )}
       </ScrollView>
 
       {/* ==================================================
@@ -522,6 +559,29 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
+    maxWidth: 860,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  breadcrumbsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 6,
+  },
+  breadcrumbLink: {
+    fontSize: 12,
+    color: '#00B894',
+    fontWeight: '600',
+  },
+  breadcrumbSlash: {
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  breadcrumbCurrent: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
   },
 
   // SELECTED SURGERY CARD
@@ -895,6 +955,43 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: colors.secondary,
+  },
+
+  // UNIFIED REFERENCE DESIGN STYLES
+  confidentialBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+  },
+  confidentialBadgePillText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#0D9488',
+    letterSpacing: 0.5,
+  },
+  privacyAssuranceBoxUnified: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: '#ECFDF5',
+    padding: 12,
+    borderRadius: 12,
+    marginVertical: 14,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  privacyAssuranceTextUnified: {
+    fontSize: 11,
+    color: '#065F46',
+    flex: 1,
+    lineHeight: 16,
   },
 });
 

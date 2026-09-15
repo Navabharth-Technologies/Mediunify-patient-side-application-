@@ -9,542 +9,634 @@ import {
   Modal,
   Image,
   Platform,
-  ActivityIndicator,
   ScrollView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../theme/colors';
 import { useCart } from '../../context/CartContext';
-import { detectUserLocationWithAddress, MYSORE_LOCALITIES } from '../../utils/locationHelper';
 
-// Flipkart-style Category Strip (Filtered & Focused)
-const FLIPKART_CATEGORIES = [
-  { id: 'for-you', label: 'For You', icon: 'bag-handle-outline', activeIcon: 'bag-handle', route: 'Home' },
-  { id: 'doctors', label: 'Doctors', icon: 'people-outline', activeIcon: 'people', route: 'DoctorList' },
-  { id: 'video-call', label: 'Video Call', icon: 'videocam-outline', activeIcon: 'videocam', route: 'VideoConsultation' },
-  { id: 'hospitals', label: 'Nearby Hospitals', icon: 'business-outline', activeIcon: 'business', route: 'HospitalList' },
-  { id: 'medicines', label: 'Medicines', icon: 'medkit-outline', activeIcon: 'medkit', route: 'Pharmacy' },
-  { id: 'lab-tests', label: 'Lab Tests', icon: 'flask-outline', activeIcon: 'flask', route: 'LabTests' },
-  { id: 'scans', label: 'Scans & MRI', icon: 'scan-outline', activeIcon: 'scan', route: 'Imaging' },
-  { id: 'surgeries', label: 'Surgeries', icon: 'medkit-outline', activeIcon: 'medkit', route: 'HospitalCare' },
-  { id: 'insurance', label: 'Insurance', icon: 'shield-checkmark-outline', activeIcon: 'shield-checkmark', route: 'HealthInsurance' },
-  { id: 'home-care', label: 'Home Care', icon: 'heart-outline', activeIcon: 'heart', route: 'NurseBooking' },
+const NAV_LINKS = [
+  { id: 'find-care', label: 'Find Care', hasDropdown: true },
+  { id: 'consultation', label: 'Consultation', hasDropdown: true },
+  { id: 'lab-tests', label: 'Lab Tests', route: 'LabTests' },
+  { id: 'radiology', label: 'Radiology', route: 'Imaging' },
+  { id: 'pharmacy', label: 'Pharmacy', route: 'Pharmacy' },
+  { id: 'hospitals', label: 'Hospital & Surgery', route: 'HospitalCare' },
+  { id: 'insurance', label: 'Insurance', route: 'HealthInsurance' },
+  { id: 'more', label: 'More', hasDropdown: true },
 ];
 
-const LOCATIONS = [
-  'Kuvempunagar, Mysore',
-  'Jayalakshmipuram, Mysore',
-  'Gokulam, Mysore',
-  'Vijayanagar, Mysore',
-  'Indiranagar, Bangalore',
-  'Koramangala, Bangalore',
+const SCROLLING_ADS = [
+  { id: 'ad-med', badge: 'FLAT 20% OFF', text: 'Doorstep Medicines & Jan Aushadhi in 60 mins • Code: MEDI20', icon: 'medkit', route: 'Pharmacy' },
+  { id: 'ad-ayu', badge: 'AYURVEDA & WELLNESS', text: 'Authentic Nadi Pariksha & Classical Panchakarma Starting @ ₹999 • AYUSH Certified Vaidyas', icon: 'leaf', route: 'AyurvedaWellness' },
+  { id: 'ad-fert', badge: 'FERTILITY & IVF', text: '0% EMI IVF Packages & Confidential Fertility Guidance • Top Specialists across Karnataka', icon: 'heart', route: 'FertilityIvf' },
+  { id: 'ad-equip', badge: 'EQUIPMENT RENTAL', text: 'Rent Hospital Beds, 10L Oxygen Concentrators & Wheelchairs at Home in 4 Hours', icon: 'fitness', route: 'EquipmentRental' },
+  { id: 'ad-lab', badge: 'NABL CERTIFIED', text: 'Full Body Health Checkup (68 Vital Tests) From ₹999 • Free Home Pickup & Digital Reports in 12h', icon: 'flask', route: 'LabTests' },
+  { id: 'ad-doc', badge: 'VERIFIED DOCTORS', text: 'Instant Video Consultation starting @ ₹299 • Zero Waiting Time with Top Specialists', icon: 'videocam', route: 'VideoConsultation' },
+  { id: 'ad-scan', badge: 'UP TO 40% OFF', text: 'High-Precision 3T MRI, CT & Ultrasound Scans at Top Diagnostic Centers across Karnataka', icon: 'scan', route: 'Imaging' },
+  { id: 'ad-ins', badge: '100% CASHLESS', text: 'Ayushman & Health Insurance Hospitalization Pre-Approval Support • Zero Deposit', icon: 'shield-checkmark', route: 'HealthInsurance' },
+  { id: 'ad-nurse', badge: 'HOME NURSING', text: '24/7 Certified Nurse for Injections, Wound Dressing & Post-Op Recovery at Home', icon: 'heart', route: 'NurseBooking' },
+  { id: 'ad-emg', badge: '24/7 HOTLINE', text: 'Immediate Medical Emergency & Free Ambulance Response: 1800-425-0099 / 108', icon: 'call', route: 'Emergency' },
 ];
+
+const CONSULTATION_ITEMS = [
+  {
+    label: 'In-Clinic Physical Appointment',
+    route: 'DoctorList',
+    params: { mode: 'physical' },
+    icon: 'business-outline',
+    desc: 'Physical appointment at doctor clinic or hospital',
+  },
+  {
+    label: 'Online Video Consultation',
+    route: 'VideoConsultation',
+    params: { mode: 'online' },
+    icon: 'videocam-outline',
+    desc: 'Connect in 15 mins via private HD video call',
+  },
+  {
+    label: 'Ayurveda & Panchakarma Vaidya',
+    route: 'AyurvedaWellness',
+    icon: 'leaf-outline',
+    desc: 'Pulse diagnosis, classical detox & herbal care',
+  },
+];
+
+const FIND_CARE_ITEMS = [
+  { label: 'Hospitals & Surgeries', route: 'HospitalCare', icon: 'medkit-outline', desc: 'Accredited hospitals & surgical care' },
+  { label: 'Fertility & IVF Care', route: 'FertilityIvf', icon: 'heart-outline', desc: 'Advanced IVF, IUI & reproductive medicine' },
+  { label: 'Equipment Rental at Home', route: 'EquipmentRental', icon: 'fitness-outline', desc: 'Hospital beds, oxygen & wheelchairs' },
+  { label: '24/7 Emergency Care', route: 'Emergency', icon: 'flash-outline', desc: 'Immediate ambulance & emergency' },
+];
+
+const MORE_ITEMS = [
+  { label: 'Ayurveda & Wellness', route: 'AyurvedaWellness', icon: 'leaf-outline' },
+  { label: 'Fertility & IVF Care', route: 'FertilityIvf', icon: 'heart-outline' },
+  { label: 'Medical Equipment Rental', route: 'EquipmentRental', icon: 'fitness-outline' },
+  { label: 'Home Care & Nursing', route: 'NurseBooking', icon: 'heart-outline' },
+  { label: 'Digital Health Records', route: 'HealthRecords', icon: 'document-text-outline' },
+  { label: 'My Bookings', route: 'Bookings', icon: 'calendar-outline' },
+  { label: 'Health Wallet', route: 'Wallet', icon: 'wallet-outline' },
+  { label: 'Help & Support', route: 'HelpSupport', icon: 'help-circle-outline' },
+];
+
+const CITIES = ['Mysuru', 'Bengaluru', 'Mangaluru', 'Hubballi', 'Belagavi'];
 
 const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
-  const { cartItems } = useCart();
-  const cartCount = cartItems?.reduce((acc, item) => acc + (item.quantity || 1), 0) || 0;
+  const isTablet = width >= 768 && width < 1024;
 
-  const [selectedLocation, setSelectedLocation] = useState('Mysore Central');
-  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
-  const [detectingGps, setDetectingGps] = useState(false);
-  const [locSearchQuery, setLocSearchQuery] = useState('');
-  const [searchQuery, setSearchQuery] = useState(currentParams?.query || '');
-  const [userName, setUserName] = useState('Hemanth');
-  const [walletBalance, setWalletBalance] = useState(1250);
-  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
-  const [activeCategory, setActiveCategory] = useState('for-you');
+  const [selectedCity, setSelectedCity] = useState('Mysuru');
+  const [isCityModalOpen, setIsCityModalOpen] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState(null); // 'find-care' | 'more' | null
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState('');
 
-  useEffect(() => {
-    const routeCategoryMap = {
-      Home: 'for-you',
-      DoctorList: 'doctors',
-      DoctorBooking: 'doctors',
-      VideoConsultation: 'video-call',
-      VideoBooking: 'video-call',
-      VideoMeeting: 'video-call',
-      HospitalList: 'hospitals',
-      Pharmacy: 'medicines',
-      PharmacyStoreDetail: 'medicines',
-      LabTests: 'lab-tests',
-      Imaging: 'scans',
-      RadiologyLabs: 'scans',
-      HospitalCare: 'surgeries',
-      HospitalSurgeryDetails: 'surgeries',
-      SurgeryQuoteRequest: 'surgeries',
-      HealthInsurance: 'insurance',
-      NurseBooking: 'home-care',
-    };
-    if (routeCategoryMap[currentRoute]) {
-      setActiveCategory(routeCategoryMap[currentRoute]);
+  const { pharmacyCartCount = 0, pharmacyFinalTotal = 0, labCartCount = 0 } = useCart() || {};
+  const totalCartCount = (pharmacyCartCount || 0) + (labCartCount || 0);
+
+  const getBadgeStyle = (badge) => {
+    if (!badge) return { bg: '#CCFBF1', border: '#99F6E4', text: '#0F766E', iconColor: '#0D9488' };
+    const b = badge.toUpperCase();
+    if (b.includes('20%') || b.includes('40%') || b.includes('OFF')) {
+      return { bg: '#FEF3C7', border: '#FDE68A', text: '#B45309', iconColor: '#D97706' };
     }
-  }, [currentRoute]);
-
-  useEffect(() => {
-    if (currentRoute === 'GlobalSearch' && currentParams?.query !== undefined) {
-      setSearchQuery(currentParams.query);
+    if (b.includes('CERTIFIED') || b.includes('NABL')) {
+      return { bg: '#E0F2FE', border: '#BAE6FD', text: '#0369A1', iconColor: '#0284C7' };
     }
-  }, [currentRoute, currentParams?.query]);
+    if (b.includes('DOCTOR') || b.includes('VERIFIED')) {
+      return { bg: '#F3E8FF', border: '#E9D5FF', text: '#7E22CE', iconColor: '#9333EA' };
+    }
+    if (b.includes('HOTLINE') || b.includes('24/7')) {
+      return { bg: '#FEE2E2', border: '#FECACA', text: '#DC2626', iconColor: '#EF4444' };
+    }
+    if (b.includes('CASHLESS') || b.includes('100%')) {
+      return { bg: '#DCFCE7', border: '#BBF7D0', text: '#15803D', iconColor: '#16A34A' };
+    }
+    if (b.includes('NURSING') || b.includes('HOME')) {
+      return { bg: '#FCE7F3', border: '#FBCFE8', text: '#BE185D', iconColor: '#DB2777' };
+    }
+    if (b.includes('AYURVEDA') || b.includes('PANCHAKARMA')) {
+      return { bg: '#ECFDF5', border: '#A7F3D0', text: '#065F46', iconColor: '#059669' };
+    }
+    if (b.includes('FERTILITY') || b.includes('IVF')) {
+      return { bg: '#FDF2F8', border: '#FBCFE8', text: '#9D174D', iconColor: '#DB2777' };
+    }
+    if (b.includes('EQUIPMENT') || b.includes('RENTAL')) {
+      return { bg: '#FAF5FF', border: '#DDD6FE', text: '#5B21B6', iconColor: '#7C3AED' };
+    }
+    return { bg: '#CCFBF1', border: '#99F6E4', text: '#0F766E', iconColor: '#0D9488' };
+  };
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const savedActive = await AsyncStorage.getItem('@unnathi_active_patient');
-        if (savedActive) {
-          const parsed = JSON.parse(savedActive);
-          if (parsed?.displayName || parsed?.name) {
-            const raw = (parsed.displayName || parsed.name).trim();
-            const first = raw.replace(/\s*\([Ss]elf\)/g, '').split(' ')[0] || raw;
-            if (first) {
-              setUserName(first);
-            }
-          }
-        } else {
-          const stored = await AsyncStorage.getItem('userName');
-          if (stored && stored.trim()) {
-            setUserName(stored.trim());
-          }
-        }
-
-        const storedWallet = await AsyncStorage.getItem('@unnathi_wallet_balance');
-        if (storedWallet !== null) {
-          setWalletBalance(parseInt(storedWallet, 10) || 1250);
-        }
-
-        const savedLoc = await AsyncStorage.getItem('@unnathi_user_location');
-        if (savedLoc && savedLoc.trim()) {
-          setSelectedLocation(savedLoc.trim());
-        }
-      } catch (e) {
-        console.log('Error reading user data in WebHeader:', e);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const styleId = 'mediunify-ticker-css';
+      let styleEl = document.getElementById(styleId);
+      if (!styleEl) {
+        styleEl = document.createElement('style');
+        styleEl.id = styleId;
+        document.head.appendChild(styleEl);
       }
-    };
-    fetchUserData();
+      styleEl.innerHTML = `
+        @keyframes adScrollMarquee {
+          0% { transform: translateX(0%); }
+          100% { transform: translateX(-50%); }
+        }
+        .scrolling-ads-wrapper {
+          display: flex;
+          align-items: center;
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+          position: relative;
+          -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,1) 24px, rgba(0,0,0,1) calc(100% - 24px), transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,1) 24px, rgba(0,0,0,1) calc(100% - 24px), transparent 100%);
+        }
+        .scrolling-ads-track {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          width: max-content;
+          animation: adScrollMarquee 38s linear infinite;
+          will-change: transform;
+        }
+        .scrolling-ads-track:hover {
+          animation-play-state: paused;
+        }
+        .scrolling-ads-track * {
+          cursor: pointer;
+        }
+      `;
+    }
   }, []);
 
-  const handleDetectLiveGps = async () => {
-    try {
-      setDetectingGps(true);
-      const res = await detectUserLocationWithAddress();
-      if (res.success) {
-        setSelectedLocation(res.shortLoc);
-        setIsLocationModalOpen(false);
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('isLoggedIn');
+        setIsLoggedIn(stored === 'true');
+        const name = await AsyncStorage.getItem('userName');
+        if (name) setUserName(name);
+      } catch (e) {}
+    };
+    checkAuth();
+  }, [currentRoute]);
+
+  const handleNavigate = (routeName, params = {}) => {
+    setOpenDropdown(null);
+    setShowSearchModal(false);
+    if (!navigation) return;
+
+    // Navigate smoothly inside MainApp
+    if (navigation.navigate) {
+      if (['Login', 'Register', 'Auth'].includes(routeName)) {
+        navigation.navigate('Auth', { screen: routeName === 'Register' ? 'Register' : 'Login' });
       } else {
-        alert(res.message || 'Unable to detect GPS position. Please select an area from the list.');
+        navigation.navigate('MainApp', { screen: routeName, params });
       }
-    } catch (e) {
-      alert('Could not detect location. Please select an area from the list.');
-    } finally {
-      setDetectingGps(false);
     }
   };
 
-  const handleNavigate = (routeName) => {
-    if (navigation?.navigate) {
-      navigation.navigate('MainApp', { screen: routeName });
-    }
-  };
-
-  const handleLogout = async () => {
-    setIsMoreMenuOpen(false);
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const confirmed = window.confirm('Are you sure you want to securely log out of your healthcare account?');
-      if (!confirmed) return;
-    }
-    try {
-      await AsyncStorage.multiRemove([
-        'userToken',
-        'isLoggedIn',
-        '@unnathi_active_patient',
-        'user',
-        'userName',
-        'userEmail',
-        'userPhone',
-      ]);
-    } catch (e) {
-      console.log('Logout storage clear err:', e);
-    }
-
-    let navigated = false;
-    const parent = navigation?.getParent?.();
-    if (parent?.reset) {
-      try {
-        parent.reset({
-          index: 0,
-          routes: [{ name: 'Auth', state: { routes: [{ name: 'Login' }] } }],
-        });
-        navigated = true;
-      } catch (e) {}
-    }
-    if (!navigated && parent?.navigate) {
-      try {
-        parent.navigate('Auth', { screen: 'Login' });
-        navigated = true;
-      } catch (e) {}
-    }
-    if (!navigated && navigation?.reset) {
-      try {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Auth' }],
-        });
-        navigated = true;
-      } catch (e) {}
-    }
-    if (!navigated && navigation?.navigate) {
-      try {
-        navigation.navigate('Auth', { screen: 'Login' });
-        navigated = true;
-      } catch (e) {}
-    }
-
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      setTimeout(() => {
-        if (window.location) {
-          window.location.href = '/';
-        }
-      }, 150);
-    }
+  const isTabActive = (item) => {
+    if (item.id === 'lab-tests' && currentRoute === 'LabTests') return true;
+    if (item.id === 'radiology' && ['Imaging', 'RadiologyLabs'].includes(currentRoute)) return true;
+    if (item.id === 'consultation' && ['VideoConsultation', 'VideoBooking', 'AyurvedaWellness'].includes(currentRoute)) return true;
+    if (item.id === 'pharmacy' && ['Pharmacy', 'PharmacyStoreDetail', 'Cart'].includes(currentRoute)) return true;
+    if (item.id === 'hospitals' && ['HospitalCare', 'HospitalSurgeryDetails'].includes(currentRoute)) return true;
+    if (item.id === 'insurance' && currentRoute === 'HealthInsurance') return true;
+    if (item.id === 'find-care' && ['DoctorList', 'DoctorDetails', 'FertilityIvf', 'EquipmentRental'].includes(currentRoute)) return true;
+    if (item.id === 'more' && ['NurseBooking', 'AyurvedaWellness', 'FertilityIvf', 'EquipmentRental'].includes(currentRoute)) return true;
+    return false;
   };
 
   return (
-    <View style={styles.headerWrapper}>
-      {/* ============================================================
-          MAIN SEARCH & BRAND ROW (Official Logo + Search + User + Cart)
-      ============================================================ */}
-      <View style={styles.mainSearchNav}>
-        <View style={styles.mainSearchInner}>
-          {/* Official Mediunify Brand Logo */}
-          <TouchableOpacity
-            style={styles.brandContainer}
-            onPress={() => handleNavigate('Home')}
-            activeOpacity={0.85}
-          >
+    <View style={styles.headerRoot}>
+      <View style={styles.headerContainer}>
+        {/* ============================================================
+            LEFT: BRAND LOGO + SUBTITLE
+        ============================================================ */}
+        <TouchableOpacity
+          style={styles.brandCol}
+          onPress={() => handleNavigate('Home')}
+          activeOpacity={0.85}
+        >
+          <View style={styles.brandRow}>
             <Image
               source={require('../../../assets/logo.png')}
-              style={styles.brandLogoImage}
+              style={styles.logoImg}
               resizeMode="contain"
             />
-          </TouchableOpacity>
+            <View style={styles.brandTextCol}>
+              <View style={styles.brandTitleRow}>
+                <Text style={styles.brandTitle}>Medi</Text>
+                <Text style={styles.brandTitleAccent}>Unify</Text>
+              </View>
+              <Text style={styles.brandTagline} numberOfLines={1}>
+                All your healthcare. One intelligent platform.
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
 
-          {/* Location Delivery Selector with Live GPS */}
+        {/* ============================================================
+            CENTER: NAVIGATION LINKS (Desktop only)
+        ============================================================ */}
+        {isDesktop && (
+          <View style={styles.navLinksRow}>
+            {NAV_LINKS.map((item) => {
+              const active = isTabActive(item);
+              const isOpen = openDropdown === item.id;
+
+              return (
+                <View key={item.id} style={styles.navItemWrapper}>
+                  <TouchableOpacity
+                    style={[styles.navLinkBtn, active && styles.navLinkBtnActive]}
+                    onPress={() => {
+                      if (item.hasDropdown) {
+                        setOpenDropdown(isOpen ? null : item.id);
+                      } else if (item.route) {
+                        setOpenDropdown(null);
+                        handleNavigate(item.route);
+                      }
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <Text
+                      style={[
+                        styles.navLinkText,
+                        active && styles.navLinkTextActive,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                    {item.hasDropdown && (
+                      <Ionicons
+                        name={isOpen ? 'chevron-up' : 'chevron-down'}
+                        size={12}
+                        color={active ? '#00B894' : '#64748B'}
+                        style={styles.chevronIcon}
+                      />
+                    )}
+                    {active && <View style={styles.activeUnderline} />}
+                  </TouchableOpacity>
+
+                  {/* Find Care Dropdown Menu */}
+                  {item.id === 'find-care' && isOpen && (
+                    <View style={styles.dropdownMenu}>
+                      {FIND_CARE_ITEMS.map((sub, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          style={styles.dropdownItem}
+                          onPress={() => handleNavigate(sub.route, sub.params)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name={sub.icon} size={18} color="#00B894" style={{ marginRight: 10 }} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.dropdownItemTitle}>{sub.label}</Text>
+                            <Text style={styles.dropdownItemDesc}>{sub.desc}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Consultation Dropdown Menu */}
+                  {item.id === 'consultation' && isOpen && (
+                    <View style={styles.dropdownMenu}>
+                      {CONSULTATION_ITEMS.map((sub, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          style={styles.dropdownItem}
+                          onPress={() => handleNavigate(sub.route, sub.params)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name={sub.icon} size={18} color="#00B894" style={{ marginRight: 10 }} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.dropdownItemTitle}>{sub.label}</Text>
+                            <Text style={styles.dropdownItemDesc}>{sub.desc}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* More Dropdown Menu */}
+                  {item.id === 'more' && isOpen && (
+                    <View style={[styles.dropdownMenu, { width: 230, right: 0, left: 'auto' }]}>
+                      {MORE_ITEMS.map((sub, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          style={styles.dropdownItemCompact}
+                          onPress={() => handleNavigate(sub.route)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name={sub.icon} size={16} color="#00B894" style={{ marginRight: 10 }} />
+                          <Text style={styles.dropdownItemTitle}>{sub.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* ============================================================
+            RIGHT: LOCATION + SEARCH + LOGIN + SIGN UP
+        ============================================================ */}
+        <View style={styles.rightActionsRow}>
+          {/* Location Selector (Mysuru ▾) */}
           <TouchableOpacity
-            style={styles.locationPillBtn}
-            onPress={() => setIsLocationModalOpen(true)}
+            style={styles.locationSelectorBtn}
+            onPress={() => setIsCityModalOpen(true)}
             activeOpacity={0.8}
           >
-            <Ionicons name="location-sharp" size={17} color="#00B894" />
-            <View style={styles.locationPillTextCol}>
-              <Text style={styles.locationPillSmall}>Deliver to</Text>
-              <Text style={styles.locationPillMain} numberOfLines={1}>
-                {selectedLocation}
-              </Text>
-            </View>
-            <Ionicons name="chevron-down" size={13} color="#64748B" />
+            <Ionicons name="location-sharp" size={15} color="#00C2CB" />
+            <Text style={styles.locationCityText}>{selectedCity}</Text>
+            <Ionicons name="chevron-down" size={12} color="#64748B" />
           </TouchableOpacity>
 
-          {/* Search Bar Box */}
-          <View style={styles.searchBarBox}>
-            <TouchableOpacity
-              onPress={() => {
-                if (searchQuery.trim()) {
-                  handleNavigate('GlobalSearch', { query: searchQuery.trim() });
-                }
-              }}
-              activeOpacity={0.7}
-              style={{ marginRight: 8, padding: 2 }}
-            >
-              <Ionicons name="search" size={19} color="#717478" />
-            </TouchableOpacity>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search for Doctors, Medicines, Lab Tests, Scans and More"
-              placeholderTextColor="#717478"
-              value={searchQuery}
-              onChangeText={(text) => {
-                setSearchQuery(text);
-                if (currentRoute === 'GlobalSearch' && navigation?.navigate) {
-                  navigation.navigate('GlobalSearch', { query: text });
-                }
-              }}
-              onSubmitEditing={() => {
-                if (searchQuery.trim()) {
-                  handleNavigate('GlobalSearch', { query: searchQuery.trim() });
-                }
-              }}
-              returnKeyType="search"
+          {/* Search Icon */}
+          <TouchableOpacity
+            style={styles.searchIconButton}
+            onPress={() => setShowSearchModal(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="search-outline" size={19} color="#1E3A8A" />
+          </TouchableOpacity>
+
+          {/* Cart Icon & Badge */}
+          <TouchableOpacity
+            style={[styles.headerCartBtn, totalCartCount > 0 && styles.headerCartBtnActive]}
+            onPress={() => handleNavigate('Cart', { initialTab: 'pharmacy' })}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="cart-outline"
+              size={20}
+              color={totalCartCount > 0 ? '#00B894' : '#1E3A8A'}
             />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity
-                onPress={() => {
-                  setSearchQuery('');
-                  if (currentRoute === 'GlobalSearch' && navigation?.navigate) {
-                    navigation.navigate('GlobalSearch', { query: '' });
-                  }
-                }}
-                style={{ padding: 2 }}
-              >
-                <Ionicons name="close-circle" size={18} color="#94A3B8" />
-              </TouchableOpacity>
+            {totalCartCount > 0 && (
+              <View style={styles.headerCartBadge}>
+                <Text style={styles.headerCartBadgeText}>{totalCartCount}</Text>
+              </View>
             )}
-          </View>
+          </TouchableOpacity>
 
-          {/* Right Side Actions: Notification, Wallet, User, More, Cart */}
-          <View style={styles.actionButtonsRow}>
-            {/* Notification Alerts Icon */}
+          {/* Auth Action Buttons */}
+          {isLoggedIn ? (
             <TouchableOpacity
-              style={styles.notifButton}
-              onPress={() => handleNavigate('Notifications')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.notifIconWrapper}>
-                <Ionicons name="notifications-outline" size={21} color="#0F172A" />
-                <View style={styles.notifRedDot} />
-              </View>
-              <Text style={styles.notifLabelText}>Alerts</Text>
-            </TouchableOpacity>
-
-            {/* Health Wallet Quick Button */}
-            <TouchableOpacity
-              style={styles.walletQuickBtn}
-              onPress={() => handleNavigate('Wallet')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.walletIconCircle}>
-                <Ionicons name="wallet-outline" size={17} color="#059669" />
-              </View>
-              <View style={styles.walletTextCol}>
-                <Text style={styles.walletMiniTitle}>Wallet</Text>
-                <Text style={styles.walletMiniBal}>₹{walletBalance.toLocaleString('en-IN')}</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* User Profile (Hemanth / Ramesh) - Arrow mark removed */}
-            <TouchableOpacity
-              style={styles.userProfileBtn}
+              style={styles.userProfilePill}
               onPress={() => handleNavigate('Profile')}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="person-circle-outline" size={21} color="#0F172A" />
-              <Text style={styles.userNameText} numberOfLines={1}>
-                {userName || 'Account'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* More Menu Dropdown Container */}
-            <View style={styles.moreMenuWrapper}>
-              <TouchableOpacity
-                style={styles.moreMenuBtn}
-                onPress={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.moreMenuText}>More</Text>
-                <Ionicons name="chevron-down" size={14} color="#0F172A" />
-              </TouchableOpacity>
-
-              {/* More Dropdown Modal / Popover right below More button */}
-              {isMoreMenuOpen && (
-                <View style={styles.dropdownPopover}>
-                  <TouchableOpacity
-                    style={styles.dropdownItem}
-                    onPress={() => {
-                      setIsMoreMenuOpen(false);
-                      handleNavigate('Bookings');
-                    }}
-                  >
-                    <Ionicons name="calendar-outline" size={16} color="#475569" />
-                    <Text style={styles.dropdownItemText}>My Appointments & Bookings</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.dropdownItem}
-                    onPress={() => {
-                      setIsMoreMenuOpen(false);
-                      handleNavigate('Notifications');
-                    }}
-                  >
-                    <Ionicons name="notifications-outline" size={16} color="#475569" />
-                    <Text style={styles.dropdownItemText}>Notification Preferences</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.dropdownItem}
-                    onPress={() => {
-                      setIsMoreMenuOpen(false);
-                      handleNavigate('Emergency');
-                    }}
-                  >
-                    <Ionicons name="call-outline" size={16} color="#EF4444" />
-                    <Text style={[styles.dropdownItemText, { color: '#EF4444' }]}>24/7 Emergency Care</Text>
-                  </TouchableOpacity>
-                  <View style={styles.dropdownDivider} />
-                  <TouchableOpacity
-                    style={styles.dropdownItem}
-                    onPress={handleLogout}
-                  >
-                    <Ionicons name="log-out-outline" size={16} color="#DC2626" />
-                    <Text style={[styles.dropdownItemText, { color: '#DC2626', fontWeight: '700' }]}>Sign Out / Log Out</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-
-            {/* Cart with Notification Counter */}
-            <TouchableOpacity
-              style={styles.cartButton}
-              onPress={() => handleNavigate('Cart')}
               activeOpacity={0.85}
             >
-              <View style={styles.cartIconWrapper}>
-                <Ionicons name="cart-outline" size={22} color="#0F172A" />
-                {cartCount > 0 && (
-                  <View style={styles.cartRedBadge}>
-                    <Text style={styles.cartRedBadgeText}>{cartCount}</Text>
-                  </View>
-                )}
+              {/* Unique Avatar with Live Verified Dot */}
+              <View style={styles.userAvatarWrap}>
+                <View style={styles.userAvatarCircle}>
+                  <Text style={styles.userAvatarInitial}>
+                    {(userName || 'U').trim().charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.userStatusDot} />
               </View>
-              <Text style={styles.cartLabelText}>Cart</Text>
+
+              {/* User Name & Patient Verified Tag */}
+              <View style={styles.userTextCol}>
+                <Text style={styles.userProfileName} numberOfLines={1}>
+                  {userName ? userName.trim().split(' ')[0] : 'My Account'}
+                </Text>
+                <View style={styles.userRoleTag}>
+                  <Ionicons name="shield-checkmark" size={10} color="#00B894" />
+                  <Text style={styles.userRoleText}>Verified</Text>
+                </View>
+              </View>
             </TouchableOpacity>
-          </View>
+          ) : (
+            <View style={styles.authButtonsRow}>
+              <TouchableOpacity
+                style={styles.loginBtn}
+                onPress={() => handleNavigate('Login')}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.loginBtnText}>Login</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.signUpBtn}
+                onPress={() => handleNavigate('Register')}
+                activeOpacity={0.88}
+              >
+                <Text style={styles.signUpBtnText}>Sign Up</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
 
       {/* ============================================================
-          3. FLIPKART HORIZONTAL CATEGORY STRIP (Clean & Focused)
+          CONTINUOUS AUTO-SCROLLING ADS TICKER (ON SCREEN)
       ============================================================ */}
-      <View style={styles.categoryStrip}>
-        <View style={styles.categoryStripInner}>
-          {FLIPKART_CATEGORIES.map((cat) => {
-            const isSelected = activeCategory === cat.id;
-            return (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.categoryItem,
-                  isSelected && styles.categoryItemActive,
-                ]}
-                onPress={() => {
-                  setActiveCategory(cat.id);
-                  handleNavigate(cat.route);
-                }}
-                activeOpacity={0.75}
-              >
-                <View style={styles.catIconWrap}>
-                  <Ionicons
-                    name={isSelected ? cat.activeIcon : cat.icon}
-                    size={22}
-                    color={isSelected ? '#00B894' : '#1E293B'}
-                  />
-                </View>
-                <Text
-                  style={[
-                    styles.catLabel,
-                    isSelected && styles.catLabelActive,
-                  ]}
-                >
-                  {cat.label}
-                </Text>
-                {isSelected && <View style={styles.activeCategoryUnderline} />}
-              </TouchableOpacity>
-            );
-          })}
+      <View style={styles.tickerRoot}>
+        <View style={styles.tickerBadgeBox}>
+          <View style={styles.tickerBadgePill}>
+            <Ionicons name="sparkles" size={12} color="#FBBF24" />
+            <Text style={styles.tickerBadgeTitle}>SPECIAL OFFERS</Text>
+            <View style={styles.tickerLiveDot} />
+          </View>
+          <View style={styles.tickerDivider} />
+        </View>
+
+        <View style={styles.tickerContentWrap}>
+          {Platform.OS === 'web' ? (
+            <div className="scrolling-ads-wrapper">
+              <div className="scrolling-ads-track">
+                {[...SCROLLING_ADS, ...SCROLLING_ADS].map((ad, idx) => {
+                  const bStyle = getBadgeStyle(ad.badge);
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      style={styles.tickerItem}
+                      onPress={() => handleNavigate(ad.route)}
+                      activeOpacity={0.7}
+                    >
+                      <View
+                        style={[
+                          styles.adBadgePill,
+                          { backgroundColor: bStyle.bg, borderColor: bStyle.border },
+                        ]}
+                      >
+                        <Ionicons
+                          name={ad.icon}
+                          size={11}
+                          color={bStyle.iconColor}
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text style={[styles.adBadgePillText, { color: bStyle.text }]}>
+                          {ad.badge}
+                        </Text>
+                      </View>
+                      <Text style={styles.tickerAdText}>{ad.text}</Text>
+                      <Text style={styles.tickerSeparator}>•</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {SCROLLING_ADS.map((ad, idx) => {
+                const bStyle = getBadgeStyle(ad.badge);
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    style={styles.tickerItem}
+                    onPress={() => handleNavigate(ad.route)}
+                    activeOpacity={0.7}
+                  >
+                    <View
+                      style={[
+                        styles.adBadgePill,
+                        { backgroundColor: bStyle.bg, borderColor: bStyle.border },
+                      ]}
+                    >
+                      <Ionicons
+                        name={ad.icon}
+                        size={11}
+                        color={bStyle.iconColor}
+                        style={{ marginRight: 4 }}
+                      />
+                      <Text style={[styles.adBadgePillText, { color: bStyle.text }]}>
+                        {ad.badge}
+                      </Text>
+                    </View>
+                    <Text style={styles.tickerAdText}>{ad.text}</Text>
+                    <Text style={styles.tickerSeparator}>•</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
         </View>
       </View>
 
-      {/* Location Modal */}
+      {/* ============================================================
+          LOCATION MODAL
+      ============================================================ */}
       <Modal
-        visible={isLocationModalOpen}
+        visible={isCityModalOpen}
         transparent
         animationType="fade"
-        onRequestClose={() => setIsLocationModalOpen(false)}
+        onRequestClose={() => setIsCityModalOpen(false)}
       >
         <TouchableOpacity
-          style={styles.modalBackdrop}
+          style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setIsLocationModalOpen(false)}
+          onPress={() => setIsCityModalOpen(false)}
         >
-          <View style={styles.locationModalCard} onStartShouldSetResponder={() => true}>
-            <View style={styles.locationModalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="location-sharp" size={20} color={colors.primary} />
-                <Text style={styles.locationModalTitle}>Select Delivery Location</Text>
-              </View>
-              <TouchableOpacity onPress={() => setIsLocationModalOpen(false)}>
-                <Ionicons name="close" size={22} color="#64748B" />
+          <View style={styles.cityModalCard}>
+            <View style={styles.cityModalHeader}>
+              <Text style={styles.cityModalTitle}>Select Your City</Text>
+              <TouchableOpacity onPress={() => setIsCityModalOpen(false)}>
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.cityModalSub}>Services & home collection available across Karnataka</Text>
+            <View style={styles.cityList}>
+              {CITIES.map((city) => (
+                <TouchableOpacity
+                  key={city}
+                  style={[styles.cityItem, selectedCity === city && styles.cityItemActive]}
+                  onPress={() => {
+                    setSelectedCity(city);
+                    setIsCityModalOpen(false);
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons
+                    name="business-outline"
+                    size={17}
+                    color={selectedCity === city ? '#00A389' : '#64748B'}
+                  />
+                  <Text
+                    style={[
+                      styles.cityItemText,
+                      selectedCity === city && styles.cityItemTextActive,
+                    ]}
+                  >
+                    {city}
+                  </Text>
+                  {selectedCity === city && (
+                    <Ionicons name="checkmark-circle" size={17} color="#00A389" style={{ marginLeft: 'auto' }} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ============================================================
+          SEARCH MODAL
+      ============================================================ */}
+      <Modal
+        visible={showSearchModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSearchModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSearchModal(false)}
+        >
+          <View style={styles.searchModalCard}>
+            <View style={styles.searchModalInputRow}>
+              <Ionicons name="search" size={20} color="#64748B" />
+              <TextInput
+                style={styles.searchModalInput}
+                placeholder="Search doctors, lab tests, scans, medicines..."
+                placeholderTextColor="#94A3B8"
+                autoFocus
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onSubmitEditing={() => {
+                  if (searchQuery.trim()) {
+                    handleNavigate('GlobalSearch', { query: searchQuery.trim() });
+                  }
+                }}
+              />
+              <TouchableOpacity
+                style={styles.searchModalSubmit}
+                onPress={() => {
+                  if (searchQuery.trim()) {
+                    handleNavigate('GlobalSearch', { query: searchQuery.trim() });
+                  }
+                }}
+              >
+                <Text style={styles.searchModalSubmitText}>Search</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Live GPS Detection Button */}
-            <TouchableOpacity
-              style={styles.gpsDetectButton}
-              onPress={handleDetectLiveGps}
-              disabled={detectingGps}
-              activeOpacity={0.85}
-            >
-              {detectingGps ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Ionicons name="navigate-circle" size={22} color="#FFFFFF" />
-              )}
-              <View style={{ flex: 1 }}>
-                <Text style={styles.gpsDetectButtonText}>
-                  {detectingGps ? 'Detecting Live GPS Position...' : 'Use My Current Live GPS Location'}
-                </Text>
-                <Text style={styles.gpsDetectSubtext}>
-                  Instant auto-detect via satellite GPS / Wi-Fi
-                </Text>
+            {/* Quick Suggestions */}
+            <View style={styles.searchSuggestions}>
+              <Text style={styles.suggestionsLabel}>Popular searches:</Text>
+              <View style={styles.suggestionPills}>
+                {['CBC Test', 'Thyroid Profile', 'Vitamin D', 'MRI Scan', 'CT Scan', 'Cardiologist'].map((s, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={styles.suggestionPill}
+                    onPress={() => handleNavigate('GlobalSearch', { query: s })}
+                  >
+                    <Text style={styles.suggestionPillText}>{s}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-            </TouchableOpacity>
-
-            {/* Area Search Box */}
-            <View style={styles.locSearchBox}>
-              <Ionicons name="search" size={16} color="#94A3B8" />
-              <TextInput
-                style={styles.locSearchInput}
-                placeholder="Search neighborhood or area..."
-                placeholderTextColor="#94A3B8"
-                value={locSearchQuery}
-                onChangeText={setLocSearchQuery}
-              />
             </View>
-
-            <ScrollView style={{ maxHeight: 260 }} showsVerticalScrollIndicator={false}>
-              {MYSORE_LOCALITIES.filter((l) =>
-                !locSearchQuery ||
-                l.name.toLowerCase().includes(locSearchQuery.toLowerCase()) ||
-                l.full.toLowerCase().includes(locSearchQuery.toLowerCase())
-              ).map((loc) => (
-                <TouchableOpacity
-                  key={loc.id}
-                  style={[
-                    styles.locationOption,
-                    selectedLocation.includes(loc.name) && styles.locationOptionSelected,
-                  ]}
-                  onPress={async () => {
-                    setSelectedLocation(loc.full);
-                    await AsyncStorage.setItem('@unnathi_user_location', loc.full);
-                    setIsLocationModalOpen(false);
-                  }}
-                >
-                  <Ionicons
-                    name={selectedLocation.includes(loc.name) ? 'checkmark-circle' : 'radio-button-off'}
-                    size={18}
-                    color={selectedLocation.includes(loc.name) ? colors.primary : '#94A3B8'}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={[
-                        styles.locationOptionText,
-                        selectedLocation.includes(loc.name) && styles.locationOptionTextSelected,
-                      ]}
-                    >
-                      {loc.name}
-                    </Text>
-                    <Text style={{ fontSize: 11, color: '#64748B' }}>{loc.city} • Pincode: {loc.pincode}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -553,488 +645,550 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
 };
 
 const styles = StyleSheet.create({
-  headerWrapper: {
+  headerRoot: {
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-    zIndex: 999,
-    elevation: 4,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-  },
-
-  // 1. TOP UTILITY ROW
-  topBar: {
-    backgroundColor: '#F1F2F4',
-    paddingVertical: 6,
-    paddingHorizontal: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  topBarInner: {
-    maxWidth: 1320,
+    borderBottomColor: '#E2E8F0',
+    zIndex: 9999,
     width: '100%',
+    ...Platform.select({
+      web: {
+        position: 'sticky',
+        top: 0,
+      },
+    }),
+  },
+  headerContainer: {
+    width: '100%',
+    maxWidth: 1360,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 28,
+    height: 72,
+    position: 'relative',
+    zIndex: 1000,
   },
-  topLeftInfo: {
+
+  // Brand Logo
+  brandCol: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
   },
-  emergencyLink: {
+  brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 10,
   },
-  emergencyLinkText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#EF4444',
+  logoImg: {
+    width: 36,
+    height: 36,
   },
-  topRightInfo: {
+  brandTextCol: {
+    justifyContent: 'center',
+  },
+  brandTitleRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
+    alignItems: 'baseline',
   },
-  locationTrigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
+  brandTitle: {
+    fontSize: 21,
+    fontWeight: '900',
+    color: '#1E3A8A',
+    letterSpacing: -0.5,
   },
-  locationStaticText: {
-    fontSize: 12,
-    color: '#0F172A',
-    fontWeight: '500',
-  },
-  locationActionLink: {
+  brandTitleAccent: {
+    fontSize: 21,
+    fontWeight: '900',
     color: '#00B894',
-    fontWeight: '700',
+    letterSpacing: -0.5,
   },
-  coinsBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    gap: 4,
-  },
-  coinCircle: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#FDE68A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  coinsCount: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#92400E',
-  },
-
-  // 2. MAIN SEARCH & BRAND ROW
-  mainSearchNav: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-    position: 'relative',
-    zIndex: 100,
-  },
-  mainSearchInner: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 20,
-  },
-  brandContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  brandLogoImage: {
-    width: 140,
-    height: 52,
-  },
-  searchBarBox: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0F5FF', // Flipkart Soft Search Blue-Grey
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#E0E7FF',
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: '#0F172A',
-    outlineStyle: 'none',
-    padding: 0,
-  },
-  actionButtonsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    position: 'relative',
-    zIndex: 101,
-  },
-  notifButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 6,
-  },
-  notifIconWrapper: {
-    position: 'relative',
-  },
-  notifRedDot: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: '#EF4444',
-  },
-  notifLabelText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-  walletQuickBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  walletIconCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  walletTextCol: {
-    justifyContent: 'center',
-  },
-  walletMiniTitle: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#059669',
-    textTransform: 'uppercase',
-  },
-  walletMiniBal: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#065F46',
-  },
-  walletHeaderTinyText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#059669',
-    marginRight: 4,
-  },
-  userProfileBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-  },
-  userNameText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0F172A',
-    maxWidth: 100,
-  },
-  moreMenuBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-  },
-  moreMenuText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-  cartButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-  },
-  cartIconWrapper: {
-    position: 'relative',
-  },
-  cartRedBadge: {
-    position: 'absolute',
-    top: -6,
-    right: -8,
-    backgroundColor: '#FF7F50',
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  cartRedBadgeText: {
-    color: '#FFFFFF',
+  brandTagline: {
     fontSize: 10,
-    fontWeight: '800',
-  },
-  cartLabelText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0F172A',
+    color: '#64748B',
+    fontWeight: '500',
+    marginTop: -1,
   },
 
-  moreMenuWrapper: {
+  // Center Navigation Links
+  navLinksRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    position: 'relative',
+    zIndex: 1001,
+  },
+  navItemWrapper: {
     position: 'relative',
     zIndex: 1002,
   },
-  dropdownPopover: {
+  navLinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    position: 'relative',
+  },
+  navLinkBtnActive: {
+    // Active styling
+  },
+  navLinkText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  navLinkTextActive: {
+    color: '#1E3A8A',
+    fontWeight: '800',
+  },
+  chevronIcon: {
+    marginLeft: 4,
+  },
+  activeUnderline: {
     position: 'absolute',
-    top: 36,
-    right: -75,
+    bottom: 2,
+    left: 12,
+    right: 12,
+    height: 2.5,
+    borderRadius: 2,
+    backgroundColor: '#00B894',
+  },
+
+  // Dropdown Popovers
+  dropdownMenu: {
+    position: 'absolute',
+    top: 50,
+    left: 0,
+    width: 280,
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 12,
-    zIndex: 9999,
+    borderRadius: 12,
+    padding: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    minWidth: 220,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 20,
+    zIndex: 99999,
   },
   dropdownItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 6,
+    padding: 10,
+    borderRadius: 8,
   },
-  dropdownItemText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#334155',
-  },
-
-  // 3. FLIPKART HORIZONTAL CATEGORY STRIP
-  categoryStrip: {
-    backgroundColor: '#FFFFFF',
-    paddingTop: 8,
-    paddingBottom: 4,
-    paddingHorizontal: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    position: 'relative',
-    zIndex: 1,
-  },
-  categoryStripInner: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
+  dropdownItemCompact: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    overflow: 'hidden',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 8,
   },
-  categoryItem: {
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    position: 'relative',
+  dropdownItemTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
   },
-  categoryItemActive: {},
-  catIconWrap: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  catLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
-  },
-  catLabelActive: {
-    color: '#00B894',
-    fontWeight: '800',
-  },
-  activeCategoryUnderline: {
-    position: 'absolute',
-    bottom: 0,
-    left: 12,
-    right: 12,
-    height: 3,
-    backgroundColor: '#00B894',
-    borderRadius: 2,
+  dropdownItemDesc: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
   },
 
-  // LOCATION MODAL
-  modalBackdrop: {
+  // Right Actions
+  rightActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  locationSelectorBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 11,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+    gap: 6,
+  },
+  locationCityText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E3A8A',
+  },
+  searchIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  headerCartBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    position: 'relative',
+  },
+  headerCartBtnActive: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#00B894',
+  },
+  headerCartBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#EF4444',
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  headerCartBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+
+  // Auth Buttons
+  authButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  loginBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#1E3A8A',
+    backgroundColor: '#FFFFFF',
+  },
+  loginBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E3A8A',
+  },
+  signUpBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    borderRadius: 8,
+    backgroundColor: '#00B894',
+  },
+  signUpBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  userProfilePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#00B894',
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.14,
+    shadowRadius: 6,
+    elevation: 3,
+    cursor: 'pointer',
+  },
+  userAvatarWrap: {
+    position: 'relative',
+  },
+  userAvatarCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#00B894',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+  },
+  userAvatarInitial: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.2,
+  },
+  userStatusDot: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10B981',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  userTextCol: {
+    justifyContent: 'center',
+    paddingRight: 2,
+  },
+  userProfileName: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0F172A',
+    maxWidth: 120,
+    lineHeight: 15,
+  },
+  userRoleTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 1,
+  },
+  userRoleText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#00B894',
+    letterSpacing: 0.3,
+  },
+
+  // Modals
+  modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
-  locationModalCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+  cityModalCard: {
     width: '100%',
-    maxWidth: 440,
-    padding: 24,
+    maxWidth: 400,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 22,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.15,
     shadowRadius: 24,
     elevation: 8,
   },
-  locationModalHeader: {
+  cityModalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 4,
   },
-  locationModalTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+  cityModalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
     color: '#0F172A',
   },
-  locationList: {
+  cityModalSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 16,
+  },
+  cityList: {
     gap: 8,
   },
-  locationOption: {
+  cityItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 8,
+    gap: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    borderRadius: 10,
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    gap: 12,
   },
-  locationOptionSelected: {
+  cityItemActive: {
     backgroundColor: '#F0F9FF',
-    borderColor: colors.primary,
+    borderColor: '#00B894',
   },
-  locationOptionText: {
+  cityItemText: {
     fontSize: 14,
-    color: '#334155',
-    fontWeight: '500',
+    fontWeight: '600',
+    color: '#1E3A8A',
   },
-  locationOptionTextSelected: {
-    color: colors.primary,
-    fontWeight: '700',
+  cityItemTextActive: {
+    color: '#00B894',
+    fontWeight: '800',
   },
 
-  // Location Selector Button in Header
-  locationPillBtn: {
+  // Search Modal
+  searchModalCard: {
+    width: '100%',
+    maxWidth: 620,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.15,
+    shadowRadius: 28,
+    elevation: 10,
+  },
+  searchModalInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F8FAFC',
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderRadius: 9,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    gap: 7,
-    maxWidth: 160,
+    paddingHorizontal: 14,
+    height: 48,
+    gap: 10,
   },
-  locationPillTextCol: {
+  searchModalInput: {
     flex: 1,
+    fontSize: 14,
+    color: '#1E3A8A',
+    outlineStyle: 'none',
   },
-  locationPillSmall: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#64748B',
-    lineHeight: 12,
+  searchModalSubmit: {
+    backgroundColor: '#00B894',
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 7,
   },
-  locationPillMain: {
+  searchModalSubmitText: {
+    color: '#FFFFFF',
     fontSize: 12.5,
     fontWeight: '700',
-    color: '#0F172A',
-    lineHeight: 15,
+  },
+  searchSuggestions: {
+    marginTop: 14,
+  },
+  suggestionsLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  suggestionPills: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  suggestionPill: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+  },
+  suggestionPillText: {
+    fontSize: 12,
+    color: '#334155',
+    fontWeight: '600',
   },
 
-  // GPS Detect Button in Modal
-  gpsDetectButton: {
+  // SCROLLING ADS TICKER
+  tickerRoot: {
+    backgroundColor: '#F0F9FF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 40,
+    overflow: 'hidden',
+    width: '100%',
+    position: 'relative',
+    zIndex: 1,
+  },
+  tickerBadgeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 16,
+    paddingRight: 6,
+    height: '100%',
+    zIndex: 10,
+    backgroundColor: '#F0F9FF',
+  },
+  tickerBadgePill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#00B894',
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    gap: 12,
-    marginBottom: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 4.5,
+    borderRadius: 20,
+    gap: 6,
     shadowColor: '#00B894',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  gpsDetectButtonText: {
-    fontSize: 13.5,
+  tickerBadgeTitle: {
+    fontSize: 10.5,
     fontWeight: '800',
     color: '#FFFFFF',
+    letterSpacing: 0.6,
   },
-  gpsDetectSubtext: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.85)',
-    fontWeight: '500',
-    marginTop: 1,
+  tickerLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#7BC96F',
   },
-
-  // Location Search Box
-  locSearchBox: {
+  tickerDivider: {
+    width: 1,
+    height: 18,
+    backgroundColor: '#E2E8F0',
+    marginLeft: 12,
+  },
+  tickerContentWrap: {
+    flex: 1,
+    overflow: 'hidden',
+    height: '100%',
+    justifyContent: 'center',
+  },
+  tickerItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 9,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 8,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    height: 40,
   },
-  locSearchInput: {
-    flex: 1,
-    fontSize: 13,
-    color: '#0F172A',
-    outlineStyle: 'none',
+  adBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    marginRight: 8,
+  },
+  adBadgePillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  tickerAdText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  tickerSeparator: {
+    fontSize: 14,
+    color: '#94A3B8',
+    marginLeft: 16,
+    marginRight: 4,
   },
 });
 

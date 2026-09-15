@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1E293B',
+    color: '#1E3A8A',
   },
   headerSubtitle: {
     fontSize: 12,
@@ -275,22 +275,27 @@ const styles = StyleSheet.create({
   searchBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     margin: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#1E3A8A',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 8,
+    elevation: 3,
   },
   searchInput: {
     flex: 1,
     marginLeft: 8,
     fontSize: 14,
-    color: '#1E293B',
+    color: '#1E3A8A',
   },
   searchGoBtn: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#00B894',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
@@ -317,7 +322,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: '#F0F9FF',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
@@ -325,7 +330,7 @@ const styles = StyleSheet.create({
   coordsTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1E293B',
+    color: '#1E3A8A',
     marginBottom: 4,
   },
   coordsText: {
@@ -336,7 +341,7 @@ const styles = StyleSheet.create({
   locateMeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary,
+    backgroundColor: '#00B894',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
@@ -357,7 +362,7 @@ const styles = StyleSheet.create({
   cardHeader: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1E293B',
+    color: '#1E3A8A',
     marginBottom: 12,
   },
   addressInput: {

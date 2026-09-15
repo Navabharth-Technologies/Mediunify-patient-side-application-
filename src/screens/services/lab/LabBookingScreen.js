@@ -13,6 +13,7 @@ import {
   Linking,
   Platform,
   StatusBar,
+  useWindowDimensions,
 } from 'react-native';
 import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +24,7 @@ import { requestLocationPermissionWebSafe, getCurrentPositionWebSafe, reverseGeo
 import labTests, { nearbyLabCenters } from '../../../data/labTests';
 import colors from '../../../theme/colors';
 import { pushAppointment } from '../../../services/dataSyncService';
+import WebFooter from '../../../components/web/WebFooter';
 
 const generateBookingDates = () => {
   const dates = [];
@@ -63,6 +65,8 @@ const LAB_VISIT_SLOTS = [
 ];
 
 const LabBookingScreen = ({ route, navigation }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   // Support both single test object or selectedTests array as reactive state
   const initialTests = route?.params?.selectedTests || (route?.params?.test ? [route.params.test] : []);
   const [selectedTests, setSelectedTests] = useState(initialTests);
@@ -497,8 +501,27 @@ const LabBookingScreen = ({ route, navigation }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        {/* DESKTOP BREADCRUMBS */}
+        {isDesktopWeb && (
+          <View style={styles.breadcrumbsRow}>
+            <TouchableOpacity onPress={() => navigation.navigate('Home')}>
+              <Text style={styles.breadcrumbLink}>Home</Text>
+            </TouchableOpacity>
+            <Text style={styles.breadcrumbSlash}>/</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('LabTests')}>
+              <Text style={styles.breadcrumbLink}>Lab Tests</Text>
+            </TouchableOpacity>
+            <Text style={styles.breadcrumbSlash}>/</Text>
+            <Text style={styles.breadcrumbCurrent}>Diagnostic Booking</Text>
+          </View>
+        )}
+
         {/* SELECTED TESTS SUMMARY CARD */}
         <View style={styles.sectionCard}>
+          <View style={styles.confidentialBadgePill}>
+            <Ionicons name="shield-checkmark" size={11} color="#0D9488" />
+            <Text style={styles.confidentialBadgePillText}>100% NABL ACCREDITED DIAGNOSTIC TESTING</Text>
+          </View>
           <View style={styles.sectionHeaderRow}>
             <Ionicons name="flask" size={17} color={colors.primary} />
             <Text style={styles.sectionTitle}>Selected Diagnostic Tests</Text>
@@ -1035,6 +1058,22 @@ const LabBookingScreen = ({ route, navigation }) => {
             <Text style={styles.billTotalAmount}>₹{totalAmount}</Text>
           </View>
         </View>
+
+        {/* UNIFIED PRIVACY & ACCREDITATION ASSURANCE BOX */}
+        <View style={styles.privacyAssuranceBoxUnified}>
+          <Ionicons name="shield-checkmark" size={17} color="#059669" />
+          <Text style={styles.privacyAssuranceTextUnified}>
+            NABL-accredited diagnostic testing. Free home sample collection by certified phlebotomists using vacuum-sealed barcoded vials. Smart digital report delivered in 6-12 hours.
+          </Text>
+        </View>
+
+        {isDesktopWeb && (
+          <View style={{ width: '100%', marginTop: 20, marginHorizontal: -16 }}>
+            <WebFooter />
+          </View>
+        )}
+
+        <View style={{ height: 100 }} />
       </ScrollView>
 
       {/* BOTTOM CONFIRMATION BAR */}
@@ -1124,9 +1163,29 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 110,
-    maxWidth: 900,
+    maxWidth: 1100,
     width: '100%',
     alignSelf: 'center',
+  },
+  breadcrumbsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 6,
+  },
+  breadcrumbLink: {
+    fontSize: 12,
+    color: '#00B894',
+    fontWeight: '600',
+  },
+  breadcrumbSlash: {
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  breadcrumbCurrent: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
   },
 
   // SECTION CARD
@@ -1812,7 +1871,7 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
   },
   bottomBarInner: {
-    maxWidth: 900,
+    maxWidth: 1100,
     width: '100%',
     alignSelf: 'center',
     flexDirection: 'row',
@@ -1878,6 +1937,43 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+
+  // UNIFIED REFERENCE DESIGN STYLES
+  confidentialBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+  },
+  confidentialBadgePillText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#0D9488',
+    letterSpacing: 0.5,
+  },
+  privacyAssuranceBoxUnified: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: '#ECFDF5',
+    padding: 12,
+    borderRadius: 12,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  privacyAssuranceTextUnified: {
+    fontSize: 11,
+    color: '#065F46',
+    flex: 1,
+    lineHeight: 16,
   },
 });
 

@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -33,6 +33,9 @@ const QUICK_SUGGESTIONS = [
   '🦴 Knee & Joint pain specialist',
   '📊 Update Blood Sugar & BP',
   '📦 How do I return a medicine?',
+  '🌿 Ayurveda & Panchakarma Therapies',
+  '👶 Fertility & IVF Specialists (0% EMI)',
+  '🛏️ Rent Hospital Bed & Oxygen Concentrator',
 ];
 
 // Sample prescription knowledge base for OCR analysis
@@ -99,13 +102,13 @@ const INITIAL_MESSAGES = [
   {
     id: 'msg-1',
     sender: 'bot',
-    text: 'Hello! 👋 I am **MediUnify AI Health Assistant**.\n\nHow can I help you today? You can:\n• Describe any **symptoms or health issues** for top doctor recommendations.\n• Ask about **medicines, safe usage, or side effects**.\n• **Upload a Prescription photo 📷** to scan and analyze tablets.\n• Ask for **nearby accredited Diagnostic Labs** for blood tests or MRI/CT scans.',
-    quickReplies: [
-      '🤒 Fever & Cold',
-      '❤️ Chest Pain / Heart',
-      '📷 Scan Prescription',
-      '🧪 Nearby Diagnostic Lab',
-      '📊 Health Monitor',
+    text: "Hi! I'm MediUnify AI.\nHow can I help you today?\n\nI can help you with health information, guide you to the right care, and connect you with our trusted doctors, labs, pharmacies and more.",
+    quickPrompts: [
+      { icon: 'fitness-outline', color: '#0284C7', bg: '#E0F2FE', text: 'I have fever and body pain' },
+      { icon: 'person-outline', color: '#16A34A', bg: '#F0FDF4', text: 'Find best doctor for my child' },
+      { icon: 'flask-outline', color: '#0D9488', bg: '#F0FDFA', text: 'Book a blood test at home' },
+      { icon: 'medkit-outline', color: '#EA580C', bg: '#FFF7ED', text: 'Order my medicines' },
+      { icon: 'home-outline', color: '#7C3AED', bg: '#FAF5FF', text: 'Post-surgery home care' },
     ],
   },
 ];
@@ -339,6 +342,105 @@ const ChatbotScreen = ({ navigation }) => {
             title: '📦 View Orders & Return',
             icon: 'receipt',
             action: () => navigation.navigate('MyOrders'),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // 3.5. AYURVEDA & PANCHAKARMA
+    if (
+      q.includes('ayurved') ||
+      q.includes('panchakarma') ||
+      q.includes('vaidya') ||
+      q.includes('nadi') ||
+      q.includes('dosha') ||
+      q.includes('shirodhara') ||
+      q.includes('abhyanga') ||
+      q.includes('shilajit') ||
+      q.includes('ashwagandha') ||
+      q.includes('triphala')
+    ) {
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: '🌿 **Ayurveda & Panchakarma Healing Sanctuary**\n\nMediUnify provides direct access to senior AYUSH-certified Vaidyas for:\n\n• **Nadi Pariksha (Pulse Diagnosis)** & Dosha (Vata-Pitta-Kapha) assessment.\n• **Classical Panchakarma Therapies**: Abhyanga full-body warm oil massage, Shirodhara stress relief, Janu Basti for knee joints, and 7-Day Detox.\n• **Authentic Classical Herbal Store**: Shilajit resin, KSM-66 Ashwagandha, Chyawanprash, and Kumkumadi facial oils with express doorstep delivery.',
+        actionButtons: [
+          {
+            title: '🌿 Open Ayurveda & Wellness',
+            icon: 'leaf',
+            action: () => navigation.navigate('AyurvedaWellness'),
+          },
+          {
+            title: '📅 Book Ayurvedic Vaidya (₹400)',
+            icon: 'calendar',
+            action: () => navigation.navigate('AyurvedaWellness'),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // 3.6. FERTILITY & IVF REPRODUCTIVE MEDICINE
+    if (
+      q.includes('fertility') ||
+      q.includes('ivf') ||
+      q.includes('iui') ||
+      q.includes('icsi') ||
+      q.includes('conceive') ||
+      q.includes('pregnancy problem') ||
+      q.includes('egg freezing') ||
+      q.includes('semen analysis') ||
+      q.includes('sperm') ||
+      q.includes('infertility') ||
+      q.includes('baby planning')
+    ) {
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: '💖 **Fertility & Advanced IVF Care Desk**\n\nWe provide compassionate, 100% confidential reproductive medicine with accredited centers in Mysore & Bangalore:\n\n• **Advanced IVF with ICSI** & Blastocyst Day-5 culture (up to 73% clinical pregnancy rate).\n• **Couple Fertility Workup**: AMH ovarian reserve, CASA semen analysis & pelvic 3D ultrasound.\n• **Social & Medical Egg Freezing** with vitrification cryogenic preservation.\n• **0% Interest EMI Financing**: Split treatment costs into 6, 12, 18, or 24 equal monthly installments with zero deposit.',
+        actionButtons: [
+          {
+            title: '💖 Open Fertility & IVF Hub',
+            icon: 'heart',
+            action: () => navigation.navigate('FertilityIvf'),
+          },
+          {
+            title: '🔒 Book Private Consult',
+            icon: 'lock-closed',
+            action: () => navigation.navigate('FertilityIvf'),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // 3.7. MEDICAL EQUIPMENT RENTAL
+    if (
+      q.includes('equipment') ||
+      q.includes('wheelchair') ||
+      q.includes('oxygen concentrator') ||
+      q.includes('hospital bed') ||
+      q.includes('bipap') ||
+      q.includes('cpap') ||
+      q.includes('rent cot') ||
+      q.includes('rent bed') ||
+      q.includes('patient monitor') ||
+      q.includes('walker') ||
+      q.includes('rent')
+    ) {
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: '🛏️ **Home Medical Equipment Rental Service**\n\nRent certified, hospital-grade equipment with express delivery and free technician installation:\n\n• **Hospital Beds**: 5-Function electric motorized ICU beds with remote control.\n• **Respiratory Care**: 10L medical oxygen concentrators (93% purity) & Auto-BiPAP/CPAP.\n• **Mobility Aids**: Motorized smart electric wheelchairs & standard foldable wheelchairs.\n• **Patient Monitors**: 12.1" ICU multi-parameter ECG, SpO2, and NIBP screens.\n• **Fast & Safe**: Delivered within 2-4 hours, with 100% refundable security deposit.',
+        actionButtons: [
+          {
+            title: '🛏️ Browse Equipment Rental',
+            icon: 'fitness',
+            action: () => navigation.navigate('EquipmentRental'),
           },
         ],
       };
@@ -752,9 +854,30 @@ const ChatbotScreen = ({ navigation }) => {
             </View>
           )}
 
+          {/* YOU CAN ASK ME ABOUT (MOCKUP 2 PROMPTS LIST) */}
+          {item.quickPrompts && (
+            <View style={styles.mockupPromptsContainer}>
+              <Text style={styles.mockupPromptsHeading}>You can ask me about:</Text>
+              {item.quickPrompts.map((prompt, pIdx) => (
+                <TouchableOpacity
+                  key={pIdx}
+                  style={styles.mockupPromptCard}
+                  onPress={() => handleSend(prompt.text)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.mockupPromptIconCircle, { backgroundColor: prompt.bg }]}>
+                    <Ionicons name={prompt.icon} size={16} color={prompt.color} />
+                  </View>
+                  <Text style={styles.mockupPromptCardText}>{prompt.text}</Text>
+                  <Ionicons name="chevron-forward" size={15} color="#94A3B8" />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
           {/* QUICK REPLIES */}
           {item.quickReplies && (
-            <View style={styles.quickRepliesRow}>
+            <View style={styles.quickRepliesWrap}>
               {item.quickReplies.map((reply, index) => (
                 <TouchableOpacity
                   key={index}
@@ -773,25 +896,25 @@ const ChatbotScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* HEADER */}
+      {/* HEADER (MOCKUP 2 STYLE) */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
           activeOpacity={0.8}
         >
-          <Ionicons name="arrow-back" size={22} color={colors.secondary} />
+          <Ionicons name="chevron-back" size={24} color="#1E293B" />
         </TouchableOpacity>
 
-        <View style={styles.headerTitleCol}>
-          <View style={styles.headerTitleRow}>
-            <Text style={styles.headerTitle}>MediUnify AI Assistant</Text>
-            <View style={styles.onlineBadge}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.onlineText}>Active</Text>
-            </View>
+        <View style={styles.mockupRobotHeaderWrap}>
+          <View style={styles.mockupRobotHeaderCircle}>
+            <Ionicons name="chatbubble-ellipses" size={20} color="#0D9488" />
           </View>
-          <Text style={styles.headerSubtitle}>Instant Health Triage & Doctor Suggestions</Text>
+        </View>
+
+        <View style={styles.headerTitleCol}>
+          <Text style={styles.mockupHeaderTitle}>MediUnify AI</Text>
+          <Text style={styles.mockupHeaderSubtitle}>Your personal health assistant</Text>
         </View>
 
         <TouchableOpacity
@@ -799,8 +922,7 @@ const ChatbotScreen = ({ navigation }) => {
           onPress={handleScanPrescription}
           activeOpacity={0.85}
         >
-          <Ionicons name="camera" size={18} color={colors.primary} />
-          <Text style={styles.scanHeaderBtnText}>Scan Rx</Text>
+          <Ionicons name="ellipsis-vertical" size={20} color="#64748B" />
         </TouchableOpacity>
       </View>
 
@@ -852,24 +974,15 @@ const ChatbotScreen = ({ navigation }) => {
         }
       />
 
-      {/* INPUT BAR */}
+      {/* INPUT BAR (MOCKUP 2 STYLE) */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <View style={styles.inputContainer}>
-          {/* CAMERA BUTTON */}
-          <TouchableOpacity
-            style={styles.cameraBtn}
-            onPress={handleScanPrescription}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="camera-outline" size={22} color={colors.primary} />
-          </TouchableOpacity>
-
           <TextInput
-            style={styles.textInput}
-            placeholder="Type your health question or symptom..."
+            style={styles.mockupTextInput}
+            placeholder="Type your message..."
             placeholderTextColor="#94A3B8"
             value={inputText}
             onChangeText={setInputText}
@@ -877,17 +990,34 @@ const ChatbotScreen = ({ navigation }) => {
             returnKeyType="send"
           />
 
+          {/* SPEECH / MIC BUTTON */}
+          <TouchableOpacity
+            style={styles.mockupMicBtn}
+            onPress={() => showAlert('Voice Search', 'Speak your symptom or question clearly.')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="mic" size={20} color="#0D9488" />
+          </TouchableOpacity>
+
+          {/* TEAL SEND BUTTON WITH ARROW-UP */}
           <TouchableOpacity
             style={[
-              styles.sendBtn,
-              !inputText.trim() && styles.sendBtnDisabled,
+              styles.mockupSendBtn,
+              !inputText.trim() && { backgroundColor: '#0D9488', opacity: 0.7 },
             ]}
             onPress={() => handleSend()}
-            disabled={!inputText.trim()}
             activeOpacity={0.85}
           >
-            <Ionicons name="send" size={18} color="#FFFFFF" />
+            <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
           </TouchableOpacity>
+        </View>
+
+        {/* DISCLAIMER FOOTER */}
+        <View style={styles.mockupDisclaimerRow}>
+          <Ionicons name="warning-outline" size={13} color="#64748B" />
+          <Text style={styles.mockupDisclaimerText}>
+            Important: MediUnify AI provides general health guidance. It is not a substitute for professional medical advice.
+          </Text>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -1310,6 +1440,118 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: {
     backgroundColor: '#94A3B8',
+  },
+
+  // MOCKUP SCREEN 2 STYLES
+  mockupRobotHeaderWrap: {
+    marginRight: 10,
+  },
+  mockupRobotHeaderCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#CCFBF1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#99F6E4',
+  },
+  mockupHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  mockupHeaderSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  mockupPromptsContainer: {
+    marginTop: 14,
+    paddingTop: 10,
+  },
+  mockupPromptsHeading: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#334155',
+    marginBottom: 8,
+  },
+  mockupPromptCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 8,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  mockupPromptIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mockupPromptCardText: {
+    flex: 1,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  mockupTextInput: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: '#0F172A',
+  },
+  mockupMicBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#F0FDFA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mockupSendBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#0D9488',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mockupDisclaimerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingBottom: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  mockupDisclaimerText: {
+    flex: 1,
+    fontSize: 10,
+    color: '#64748B',
+    lineHeight: 13,
+  },
+  quickRepliesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 10,
   },
 });
 

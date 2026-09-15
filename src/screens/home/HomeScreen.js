@@ -19,6 +19,8 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   TouchableWithoutFeedback,
+  FlatList,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -81,6 +83,9 @@ const SEARCH_KEYWORD_DICTIONARY = [
   // Care & Services
   { query: 'Home Nursing Care', label: 'Home Nursing & Attendant Care', category: 'Service', icon: 'bandage', route: 'NurseBooking', aliases: ['nurse', 'nursing', 'elderly care', 'attendant', 'home care', 'injection at home', 'nurce'] },
   { query: 'Ambulance SOS', label: 'Emergency 24/7 Ambulance SOS', category: 'Service', icon: 'car', route: 'Ambulance', aliases: ['ambulance', 'emergency', 'sos', 'urgent', '108', 'emergeny', 'ambulanc'] },
+  { query: 'Ayurveda & Wellness', label: 'Ayurveda & Panchakarma (Nadi Pariksha)', category: 'Service', icon: 'leaf', route: 'AyurvedaWellness', aliases: ['ayurveda', 'ayurvedic', 'panchakarma', 'vaidya', 'nadi pariksha', 'shirodhara', 'abhyanga', 'dosha', 'vata', 'pitta', 'kapha', 'herbal', 'shilajit', 'ashwagandha'] },
+  { query: 'Fertility & IVF Care', label: 'Fertility & IVF Specialists (0% EMI)', category: 'Service', icon: 'heart', route: 'FertilityIvf', aliases: ['fertility', 'ivf', 'iui', 'icsi', 'pregnancy', 'conceive', 'egg freezing', 'sperm', 'semen analysis', 'infertility', 'andrology', 'baby planning'] },
+  { query: 'Medical Equipment Rental', label: 'Equipment Rental (Hospital Beds, Oxygen, Wheelchairs)', category: 'Service', icon: 'fitness', route: 'EquipmentRental', aliases: ['equipment', 'rental', 'wheelchair', 'oxygen', 'oxygen concentrator', 'hospital bed', 'bipap', 'cpap', 'walker', 'patient bed', 'medical equipment'] },
 ];
 
 const COMMON_TYPOS_MAP = {
@@ -140,8 +145,145 @@ const CITY_AREAS_MAP = {
   ],
 };
 
+const MOBILE_HERO_ADS = [
+  {
+    id: 'm-ad-1',
+    pillText: 'HEALTH CHECK',
+    pillBg: '#FFE11B',
+    pillColor: '#0F172A',
+    title: 'Full Body Health Checkup',
+    priceText: 'From ₹999*',
+    priceColor: '#0071DC',
+    subTitle: '68 Vital Tests • Free Home Sample Pickup',
+    badgeText: 'Digital Reports in 12h',
+    bgColor: '#FDF7E7',
+    image: 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=400',
+    route: 'LabTests',
+  },
+  {
+    id: 'm-ad-2',
+    pillText: '60-MIN EXPRESS',
+    pillBg: '#EA580C',
+    pillColor: '#FFFFFF',
+    title: 'Doorstep Medicines',
+    priceText: 'Flat 20% OFF',
+    priceColor: '#EA580C',
+    subTitle: '100% Genuine Branded Drugs & Jan Aushadhi',
+    badgeText: 'Order with Prescription',
+    bgColor: '#FFF7ED',
+    image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400',
+    route: 'Pharmacy',
+  },
+  {
+    id: 'm-ad-3',
+    pillText: 'VERIFIED DOCTORS',
+    pillBg: '#2563EB',
+    pillColor: '#FFFFFF',
+    title: 'Instant Video Consult',
+    priceText: 'From ₹299*',
+    priceColor: '#38BDF8',
+    titleColor: '#FFFFFF',
+    subColor: '#94A3B8',
+    subTitle: 'Zero Waiting • Top Specialists across Karnataka',
+    badgeText: 'Connect in 10 mins',
+    bgColor: '#0B0F19',
+    image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400',
+    route: 'VideoConsultation',
+  },
+  {
+    id: 'm-ad-4',
+    pillText: '3T MRI & SCANS',
+    pillBg: '#7C3AED',
+    pillColor: '#FFFFFF',
+    title: 'High-Precision 3T Scans',
+    priceText: 'Up to 40% OFF',
+    priceColor: '#7C3AED',
+    subTitle: 'Mysore Scan Centre, Apollo & Narayana Health',
+    badgeText: 'Instant Slot Confirmation',
+    bgColor: '#FAF5FF',
+    image: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=400',
+    route: 'RadiologyLabs',
+  },
+  {
+    id: 'm-ad-5',
+    pillText: 'CASHLESS CARE',
+    pillBg: '#059669',
+    pillColor: '#FFFFFF',
+    title: 'Health Insurance Claims',
+    priceText: 'Zero Deposit',
+    priceColor: '#059669',
+    subTitle: 'Pre-Approved Hospitalization & Instant E-Card',
+    badgeText: '100% Cashless Support',
+    bgColor: '#ECFDF5',
+    image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400',
+    route: 'HealthInsurance',
+  },
+  {
+    id: 'm-ad-6',
+    pillText: 'AYUSH VAIDYA',
+    pillBg: '#059669',
+    pillColor: '#FFFFFF',
+    title: 'Ayurveda & Panchakarma',
+    priceText: 'From ₹400',
+    priceColor: '#059669',
+    subTitle: 'Nadi Pariksha, Shirodhara & Classical Therapies',
+    badgeText: 'AYUSH Certified',
+    bgColor: '#F0FDF4',
+    image: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=400',
+    route: 'AyurvedaWellness',
+  },
+  {
+    id: 'm-ad-7',
+    pillText: 'IVF & FERTILITY',
+    pillBg: '#DB2777',
+    pillColor: '#FFFFFF',
+    title: 'Fertility & IVF Care',
+    priceText: '0% EMI Plans',
+    priceColor: '#DB2777',
+    subTitle: 'High 73% Success Rate • Confidential Guidance',
+    badgeText: 'Zero Cost EMI',
+    bgColor: '#FDF2F8',
+    image: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=400',
+    route: 'FertilityIvf',
+  },
+  {
+    id: 'm-ad-8',
+    pillText: 'EQUIPMENT RENTAL',
+    pillBg: '#7C3AED',
+    pillColor: '#FFFFFF',
+    title: 'Hospital Beds & Oxygen',
+    priceText: 'From ₹80/day',
+    priceColor: '#7C3AED',
+    subTitle: 'Electric ICU Beds, 10L Oxygen & Wheelchairs',
+    badgeText: 'Free Setup in 4h',
+    bgColor: '#FAF5FF',
+    image: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=400',
+    route: 'EquipmentRental',
+  },
+];
+
 const HomeScreen = ({ navigation }) => {
   const { totalCartCount } = useCart();
+  const { width } = useWindowDimensions();
+
+  // Auto-scrolling ads state & ref
+  const [activeMobileAdIndex, setActiveMobileAdIndex] = useState(0);
+  const mobileAdScrollRef = useRef(null);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveMobileAdIndex((prev) => {
+        const next = (prev + 1) % MOBILE_HERO_ADS.length;
+        if (mobileAdScrollRef.current) {
+          try {
+            mobileAdScrollRef.current.scrollToIndex({ index: next, animated: true });
+          } catch (e) {}
+        }
+        return next;
+      });
+    }, 3500);
+    return () => clearInterval(timer);
+  }, []);
 
   // State
   const [search, setSearch] = useState('');
@@ -389,52 +531,37 @@ const HomeScreen = ({ navigation }) => {
           TOP APP BAR (LOGO, NAME, LOCATION, WALLET, NOTIFS, CART)
       ========================================== */}
       <View style={styles.topBar}>
-        {/* BRAND LOGO, USER NAME & LOCATION (LEFT) */}
+        {/* BRAND LOGO & LOCATION SELECTOR (LEFT) */}
         <View style={styles.brandHeaderLeft}>
           <Image
             source={require('../../../assets/logo.png')}
             style={styles.brandLogoImg}
             resizeMode="contain"
           />
-          <View style={styles.headerUserLocationWrap}>
-            {/* USER NAME */}
-            <TouchableOpacity
-              onPress={() => navigation.navigate('FamilyProfiles')}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.headerUserName} numberOfLines={1}>
-                Hello, {userName} 👋
-              </Text>
-            </TouchableOpacity>
-
-            {/* LOCATION ACCESS / SELECTOR (BELOW NAME) */}
-            <TouchableOpacity
-              style={styles.headerLocationRow}
-              onPress={() => setLocationModalVisible(true)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="location" size={13} color={colors.primary} />
-              <Text style={styles.headerLocationText} numberOfLines={1}>
-                {locationName}
-              </Text>
-              <Ionicons name="chevron-down" size={11} color="#64748B" />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.mockupLocationPill}
+            onPress={() => setLocationModalVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="location" size={13} color="#0D9488" />
+            <Text style={styles.mockupLocationText} numberOfLines={1}>
+              {locationName?.split(',')[0] || 'Bengaluru'}
+            </Text>
+            <Ionicons name="chevron-down" size={11} color="#64748B" />
+          </TouchableOpacity>
         </View>
 
-        {/* RIGHT ACTIONS: WALLET, NOTIFS & CART */}
+        {/* RIGHT ACTIONS: WALLET, NOTIFICATION BELL & USER AVATAR */}
         <View style={styles.topBarRight}>
-          {/* WALLET BUTTON */}
           <TouchableOpacity
             style={styles.walletPill}
             onPress={() => setWalletModalVisible(true)}
             activeOpacity={0.85}
           >
             <Ionicons name="wallet-outline" size={15} color={colors.primary} />
-            <Text style={styles.walletPillText}>₹{walletBalance.toLocaleString('en-IN')}</Text>
+            <Text style={styles.walletPillText}>₹{walletBalance}</Text>
           </TouchableOpacity>
 
-          {/* NOTIFICATIONS BUTTON */}
           <TouchableOpacity
             style={styles.iconCircle}
             onPress={() => navigation.navigate('Notifications')}
@@ -444,18 +571,16 @@ const HomeScreen = ({ navigation }) => {
             <View style={styles.notifBadgeDot} />
           </TouchableOpacity>
 
-          {/* CART BUTTON */}
           <TouchableOpacity
-            style={styles.iconCircle}
-            onPress={() => navigation.navigate('Cart')}
+            style={styles.homeUserAvatarWrap}
+            onPress={() => navigation.navigate('Profile')}
             activeOpacity={0.85}
           >
-            <Ionicons name="cart-outline" size={20} color="#1E293B" />
-            {totalCartCount > 0 && (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{totalCartCount}</Text>
-              </View>
-            )}
+            <View style={styles.homeUserAvatarCircle}>
+              <Text style={styles.homeUserAvatarLetter}>
+                {userName?.trim()?.charAt(0)?.toUpperCase() || 'U'}
+              </Text>
+            </View>
           </TouchableOpacity>
         </View>
       </View>
@@ -473,452 +598,301 @@ const HomeScreen = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
       >
 
-        {/* ==========================================
-            SMART HERO SEARCH & AUTO-CORRECTION BAR
-        ========================================== */}
-        <View style={styles.searchContainer}>
-          <View style={[styles.searchBar, isSearchFocused && styles.searchBarFocused]}>
+        {/* ============================================================
+            MOCKUP 1: GREETING BLOCK
+        ============================================================ */}
+        <View style={styles.mockupGreetingBlock}>
+          <Text style={styles.mockupGreetingTitle}>Good Morning,</Text>
+          <Text style={styles.mockupGreetingSub}>Your health matters. We're here for you.</Text>
+        </View>
+
+        {/* ============================================================
+            MOCKUP 1: ASK MEDIUNIFY AI BANNER
+        ============================================================ */}
+        <View style={styles.mockupAiCard}>
+          <View style={styles.mockupAiLeft}>
+            <Text style={styles.mockupAiTitle}>Ask MediUnify AI</Text>
+            <Text style={styles.mockupAiSub}>Tell us what you're experiencing.</Text>
             <TouchableOpacity
-              onPress={() => handleSearchSubmit()}
-              activeOpacity={0.7}
-              style={{ padding: 4 }}
-            >
-              <Ionicons name="search" size={20} color={colors.primary} />
-            </TouchableOpacity>
-
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search doctors, medicines, tests, scans..."
-              placeholderTextColor="#94A3B8"
-              value={search}
-              onChangeText={setSearch}
-              onFocus={() => setIsSearchFocused(true)}
-              onBlur={() => setTimeout(() => setIsSearchFocused(false), 250)}
-              onSubmitEditing={() => handleSearchSubmit()}
-              returnKeyType="search"
-            />
-
-            {search.length > 0 ? (
-              <TouchableOpacity onPress={() => setSearch('')} style={{ padding: 4 }}>
-                <Ionicons name="close-circle" size={18} color="#94A3B8" />
-              </TouchableOpacity>
-            ) : null}
-
-            {/* SEARCH BUTTON */}
-            {search.trim().length > 0 && (
-              <TouchableOpacity
-                style={styles.searchGoBtn}
-                onPress={() => handleSearchSubmit()}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.searchGoBtnText}>Search</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* LIVE AUTO-CORRECTION & KEYWORD SUGGESTIONS DROPDOWN */}
-          {search.trim().length > 0 && (
-            <View style={styles.suggestionsDropdownContainer}>
-              {/* TYPO AUTO-CORRECTION BANNER */}
-              {searchSuggestions.typoSuggestion &&
-                searchSuggestions.typoSuggestion.toLowerCase() !== search.trim().toLowerCase() && (
-                  <TouchableOpacity
-                    style={styles.typoCorrectionCard}
-                    onPress={() => {
-                      setSearch(searchSuggestions.typoSuggestion);
-                      handleSearchSubmit(searchSuggestions.typoSuggestion);
-                    }}
-                    activeOpacity={0.85}
-                  >
-                    <View style={styles.typoCorrectionLeft}>
-                      <Ionicons name="sparkles" size={15} color="#D97706" />
-                      <Text style={styles.typoCorrectionLabel}>Did you mean:</Text>
-                      <Text style={styles.typoCorrectionKeyword}>
-                        "{searchSuggestions.typoSuggestion}"
-                      </Text>
-                    </View>
-                    <View style={styles.typoApplyBadge}>
-                      <Text style={styles.typoApplyBadgeText}>Auto-correct ›</Text>
-                    </View>
-                  </TouchableOpacity>
-                )}
-
-              {/* MATCHED KEYWORD LIST */}
-              {searchSuggestions.matches.length > 0 ? (
-                <View style={styles.suggestionsListCard}>
-                  {searchSuggestions.matches.map((item, idx) => (
-                    <TouchableOpacity
-                      key={idx}
-                      style={[
-                        styles.suggestionItemRow,
-                        idx === searchSuggestions.matches.length - 1 && { borderBottomWidth: 0 },
-                      ]}
-                      onPress={() => {
-                        setSearch(item.query);
-                        handleSearchSubmit(item.query);
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <View style={styles.suggestionItemLeft}>
-                        <View style={styles.suggestionCategoryBadge}>
-                          <Ionicons name={item.icon || 'search'} size={12} color={colors.primary} />
-                          <Text style={styles.suggestionCategoryText}>{item.category}</Text>
-                        </View>
-                        <Text style={styles.suggestionTitleText} numberOfLines={1}>
-                          {item.label}
-                        </Text>
-                      </View>
-                      <Ionicons name="arrow-forward" size={13} color="#94A3B8" />
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              ) : null}
-            </View>
-          )}
-
-          {/* QUICK SEARCH SUGGESTION PILLS (WHEN SEARCH IS EMPTY) */}
-          {search.trim().length === 0 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.quickSearchPillsRow}
-            >
-              {[
-                { label: '🩺 Doctors', query: 'Doctor' },
-                { label: '💊 Medicines', query: 'Medicine' },
-                { label: '🧪 Blood Tests', query: 'Lab' },
-                { label: '🔬 MRI & Scans', query: 'Radiology' },
-                { label: '🏥 Hospitals', query: 'Hospital' },
-                { label: '🎥 Video Consult', query: 'Video' },
-              ].map((pill, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={styles.quickSearchPill}
-                  onPress={() => handleSearchSubmit(pill.query)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.quickSearchPillText}>{pill.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-        </View>
-
-        {/* ==========================================
-            4 MAJOR HEALTHCARE HUBS (HERO GRID)
-        ========================================== */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Healthcare Services</Text>
-          <Text style={styles.sectionSubtitle}>Complete healthcare at your fingertips</Text>
-        </View>
-
-        <View style={styles.heroGrid}>
-          {/* 1. DOCTOR APPOINTMENTS */}
-          <TouchableOpacity
-            style={[styles.heroCard, { backgroundColor: '#F0FDFA', borderColor: '#CCFBF1' }]}
-            onPress={() => navigation.navigate('DoctorList')}
-            activeOpacity={0.88}
-          >
-            <View style={[styles.heroIconCircle, { backgroundColor: colors.lightTeal }]}>
-              <Ionicons name="person" size={24} color={colors.primary} />
-            </View>
-            <Text style={styles.heroCardTitle}>Book Doctors</Text>
-            <Text style={styles.heroCardSubtitle}>50+ Verified Specialists</Text>
-            <View style={styles.heroBadgeRow}>
-              <Text style={styles.heroBadgeGreen}>Instant Slots</Text>
-              <Ionicons name="arrow-forward-circle" size={20} color={colors.primary} />
-            </View>
-          </TouchableOpacity>
-
-          {/* 2. PHARMACY STORE */}
-          <TouchableOpacity
-            style={[styles.heroCard, { backgroundColor: '#FFF7ED', borderColor: '#FFEDD5' }]}
-            onPress={() => navigation.navigate('Pharmacy')}
-            activeOpacity={0.88}
-          >
-            <View style={[styles.heroIconCircle, { backgroundColor: '#FFEDD5' }]}>
-              <Ionicons name="medkit" size={24} color="#EA580C" />
-            </View>
-            <Text style={styles.heroCardTitle}>Order Medicines</Text>
-            <Text style={styles.heroCardSubtitle}>Flat 20% OFF • 30 Mins</Text>
-            <View style={styles.heroBadgeRow}>
-              <Text style={[styles.heroBadgeGreen, { color: '#EA580C', backgroundColor: '#FFEDD5' }]}>
-                Doorstep Delivery
-              </Text>
-              <Ionicons name="arrow-forward-circle" size={20} color="#EA580C" />
-            </View>
-          </TouchableOpacity>
-
-          {/* 3. LAB TESTS */}
-          <TouchableOpacity
-            style={[styles.heroCard, { backgroundColor: '#EFF6FF', borderColor: '#DBEAFE' }]}
-            onPress={() => navigation.navigate('LabTests')}
-            activeOpacity={0.88}
-          >
-            <View style={[styles.heroIconCircle, { backgroundColor: '#DBEAFE' }]}>
-              <Ionicons name="flask" size={24} color="#2563EB" />
-            </View>
-            <Text style={styles.heroCardTitle}>Lab & Blood Tests</Text>
-            <Text style={styles.heroCardSubtitle}>Free Home Collection</Text>
-            <View style={styles.heroBadgeRow}>
-              <Text style={[styles.heroBadgeGreen, { color: '#2563EB', backgroundColor: '#DBEAFE' }]}>
-                100% Certified
-              </Text>
-              <Ionicons name="arrow-forward-circle" size={20} color="#2563EB" />
-            </View>
-          </TouchableOpacity>
-
-          {/* 4. RADIOLOGY & 3T SCANS */}
-          <TouchableOpacity
-            style={[styles.heroCard, { backgroundColor: '#FAF5FF', borderColor: '#F3E8FF' }]}
-            onPress={() => navigation.navigate('RadiologyLabs')}
-            activeOpacity={0.88}
-          >
-            <View style={[styles.heroIconCircle, { backgroundColor: '#F3E8FF' }]}>
-              <Ionicons name="radio" size={24} color="#7C3AED" />
-            </View>
-            <Text style={styles.heroCardTitle}>Radiology & Scans</Text>
-            <Text style={styles.heroCardSubtitle}>3T MRI, CT & Ultrasound</Text>
-            <View style={styles.heroBadgeRow}>
-              <Text style={[styles.heroBadgeGreen, { color: '#7C3AED', backgroundColor: '#F3E8FF' }]}>
-                Hospital Visits
-              </Text>
-              <Ionicons name="arrow-forward-circle" size={20} color="#7C3AED" />
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* ==========================================
-            HEALTH VITALS & SELF MONITOR WIDGET
-        ========================================== */}
-        <View style={styles.vitalsSection}>
-          <View style={styles.vitalsHeaderRow}>
-            <View>
-              <Text style={styles.sectionTitle}>My Health Monitor</Text>
-              <Text style={styles.sectionSubtitle}>Track your daily vital readings</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.vitalsActionBtn}
-              onPress={() => navigation.navigate('HealthMonitor')}
-            >
-              <Ionicons name="add-circle" size={16} color={colors.primary} />
-              <Text style={styles.vitalsActionBtnText}>Log Vitals</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.vitalsGrid}>
-            <View style={styles.vitalCard}>
-              <Ionicons name="water" size={18} color="#059669" />
-              <Text style={styles.vitalValue}>108 <Text style={styles.vitalUnit}>mg/dL</Text></Text>
-              <Text style={styles.vitalLabel}>Fasting Sugar (Normal)</Text>
-            </View>
-
-            <View style={styles.vitalCard}>
-              <Ionicons name="heart" size={18} color="#DC2626" />
-              <Text style={styles.vitalValue}>118/78 <Text style={styles.vitalUnit}>mmHg</Text></Text>
-              <Text style={styles.vitalLabel}>Blood Pressure (Optimal)</Text>
-            </View>
-
-            <View style={styles.vitalCard}>
-              <Ionicons name="pulse" size={18} color="#0284C7" />
-              <Text style={styles.vitalValue}>99% <Text style={styles.vitalUnit}>SpO2</Text></Text>
-              <Text style={styles.vitalLabel}>Oxygen Level (Good)</Text>
-            </View>
-
-            <View style={styles.vitalCard}>
-              <Ionicons name="speedometer" size={18} color="#D97706" />
-              <Text style={styles.vitalValue}>22.4 <Text style={styles.vitalUnit}>BMI</Text></Text>
-              <Text style={styles.vitalLabel}>Body Mass Index</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ==========================================
-            CONSULTATION MODES (IN-CLINIC & VIDEO)
-        ========================================== */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Doctor Consultations</Text>
-          <Text style={styles.sectionSubtitle}>Consult in person or via video call</Text>
-        </View>
-
-        <View style={styles.consultModesRow}>
-          {consultationServices.map((service) => (
-            <TouchableOpacity
-              key={service.id}
-              style={[styles.consultModeCard, { backgroundColor: service.background || '#F0FDFA' }]}
-              onPress={() => navigation.navigate(service.route)}
-              activeOpacity={0.88}
-            >
-              <View style={styles.consultModeHeader}>
-                <Ionicons name={service.icon} size={26} color={service.iconColor || colors.primary} />
-                <View style={[styles.arrowCircle, { backgroundColor: service.iconColor || colors.primary }]}>
-                  <Ionicons name="arrow-forward" size={12} color="#FFFFFF" />
-                </View>
-              </View>
-              <Text style={styles.consultModeTitle}>{service.title}</Text>
-              <Text style={styles.consultModeSub}>{service.subtitle}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* ==========================================
-            TOP DOCTORS NEAR YOU (CAROUSEL)
-        ========================================== */}
-        <View style={styles.sectionHeaderRow}>
-          <View>
-            <Text style={styles.sectionTitle}>Top Doctors Near You</Text>
-            <Text style={styles.sectionSubtitle}>Verified clinicians in Mysore</Text>
-          </View>
-          <TouchableOpacity onPress={() => navigation.navigate('DoctorList')}>
-            <Text style={styles.viewAllText}>View All ›</Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.doctorsScroll}>
-          {doctors.slice(0, 4).map((doc) => (
-            <TouchableOpacity
-              key={doc.id}
-              style={styles.doctorCard}
-              onPress={() => navigation.navigate('DoctorDetails', { doctor: doc })}
-              activeOpacity={0.88}
-            >
-              <Image source={{ uri: doc.image }} style={styles.doctorImg} />
-              <View style={styles.doctorCardBody}>
-                <Text style={styles.doctorCardName} numberOfLines={1}>{doc.name}</Text>
-                <Text style={styles.doctorCardSpec}>{doc.specialty}</Text>
-                <View style={styles.doctorRatingRow}>
-                  <Ionicons name="star" size={13} color="#F59E0B" />
-                  <Text style={styles.doctorRatingText}>{doc.rating} • {doc.experienceYears} Yrs</Text>
-                </View>
-                <View style={styles.doctorCardFooter}>
-                  <Text style={styles.doctorFeeText}>₹{doc.fee}</Text>
-                  <View style={styles.bookMiniBtn}>
-                    <Text style={styles.bookMiniBtnText}>Book</Text>
-                  </View>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* ==========================================
-            POPULAR HEALTH CHECKUP PACKAGES
-        ========================================== */}
-        <View style={styles.sectionHeaderRow}>
-          <View>
-            <Text style={styles.sectionTitle}>Preventive Health Packages</Text>
-            <Text style={styles.sectionSubtitle}>Comprehensive full body checkups</Text>
-          </View>
-          <TouchableOpacity onPress={() => navigation.navigate('LabTests')}>
-            <Text style={styles.viewAllText}>All Packages ›</Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.packagesScroll}>
-          {labPackages.map((pkg) => (
-            <TouchableOpacity
-              key={pkg.id}
-              style={styles.pkgCard}
-              onPress={() => navigation.navigate('LabTests')}
-              activeOpacity={0.88}
-            >
-              <View style={styles.pkgBadge}>
-                <Text style={styles.pkgBadgeText}>{pkg.discount}</Text>
-              </View>
-              <Ionicons name={pkg.icon || 'fitness'} size={28} color={colors.primary} style={{ marginVertical: 6 }} />
-              <Text style={styles.pkgTitle} numberOfLines={1}>{pkg.title}</Text>
-              <Text style={styles.pkgSub} numberOfLines={1}>{pkg.subtitle}</Text>
-              <View style={styles.pkgPriceRow}>
-                <Text style={styles.pkgPrice}>{pkg.priceStr}</Text>
-                <Text style={styles.pkgOldPrice}>{pkg.oldPrice}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* ==========================================
-            MORE HEALTHCARE HUBS
-        ========================================== */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>More Healthcare Services</Text>
-          <Text style={styles.sectionSubtitle}>Insurance, surgeries & nursing care</Text>
-        </View>
-
-        <View style={styles.moreServicesGrid}>
-          {moreServices.map((svc) => (
-            <TouchableOpacity
-              key={svc.id}
-              style={styles.moreServiceCard}
-              onPress={() => navigation.navigate(svc.route)}
+              style={styles.mockupAiChatBtn}
+              onPress={() => navigation.navigate('Chatbot')}
               activeOpacity={0.85}
             >
-              <View style={[styles.moreServiceIconCircle, { backgroundColor: svc.color || '#F0FDFA' }]}>
-                <Ionicons name={svc.icon} size={22} color={svc.iconColor || colors.primary} />
-              </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.moreServiceTitle}>{svc.title}</Text>
-                <Text style={styles.moreServiceSubtitle} numberOfLines={1}>{svc.subtitle}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+              <Text style={styles.mockupAiChatBtnText}>Chat Now →</Text>
             </TouchableOpacity>
-          ))}
+          </View>
+          <View style={styles.mockupAiRobotCircle}>
+            <Ionicons name="chatbubble-ellipses" size={38} color="#0D9488" />
+          </View>
         </View>
 
-        {/* ==========================================
-            COMBINED EMERGENCY SOS & 24x7 DOCTOR HELPLINE (BOTTOM)
-        ========================================== */}
+        {/* HOMESCREEN SEARCH BAR (BELOW CHAT NOW) */}
+        <View style={styles.homeSearchBarContainer}>
+          <TouchableOpacity
+            style={styles.homeSearchBox}
+            activeOpacity={0.88}
+            onPress={() => navigation.navigate('GlobalSearch')}
+          >
+            <Ionicons name="search-outline" size={20} color="#64748B" />
+            <Text style={styles.homeSearchPlaceholder}>
+              Search doctors, medicines, tests, clinics...
+            </Text>
+            <View style={styles.homeSearchMicBtn}>
+              <Ionicons name="mic-outline" size={17} color="#0D9488" />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* QUICK SYMPTOM CHIPS */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.mockupSymptomChipsRow}
+        >
+          {['e.g. fever', 'knee pain', 'diabetes', 'skin problem'].map((chip, idx) => (
+            <TouchableOpacity
+              key={idx}
+              style={styles.mockupSymptomChip}
+              onPress={() => navigation.navigate('Chatbot', { initialQuery: chip.replace('e.g. ', '') })}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.mockupSymptomChipText}>{chip}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* ============================================================
+            AUTO-MOVING PROMOTIONAL ADS CAROUSEL
+        ============================================================ */}
+        <View style={styles.mobileAdSection}>
+          <FlatList
+            ref={mobileAdScrollRef}
+            data={MOBILE_HERO_ADS}
+            keyExtractor={(item) => item.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            pagingEnabled
+            snapToInterval={width - 32}
+            decelerationRate="fast"
+            onMomentumScrollEnd={(e) => {
+              const idx = Math.round(e.nativeEvent.contentOffset.x / (width - 32));
+              if (idx >= 0 && idx < MOBILE_HERO_ADS.length) {
+                setActiveMobileAdIndex(idx);
+              }
+            }}
+            getItemLayout={(data, index) => ({
+              length: width - 32,
+              offset: (width - 32) * index,
+              index,
+            })}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[
+                  styles.mobileAdCard,
+                  {
+                    width: width - 32,
+                    backgroundColor: item.bgColor,
+                  },
+                ]}
+                onPress={() => navigation.navigate(item.route)}
+                activeOpacity={0.92}
+              >
+                <View style={styles.mobileAdBadgeRow}>
+                  <View style={[styles.mobileAdPill, { backgroundColor: item.pillBg }]}>
+                    <Text style={[styles.mobileAdPillText, { color: item.pillColor }]}>{item.pillText}</Text>
+                  </View>
+                  <Text style={styles.mobileAdNotice}>AD</Text>
+                </View>
+
+                <Text style={[styles.mobileAdTitle, item.titleColor ? { color: item.titleColor } : null]}>
+                  {item.title}{'\n'}
+                  <Text style={{ color: item.priceColor }}>{item.priceText}</Text>
+                </Text>
+
+                <Text
+                  style={[styles.mobileAdSub, item.subColor ? { color: item.subColor } : null]}
+                  numberOfLines={2}
+                >
+                  {item.subTitle}
+                </Text>
+
+                <View style={styles.mobileAdCtaRow}>
+                  <Text style={[styles.mobileAdCtaBadge, { color: item.priceColor }]}>
+                    {item.badgeText} →
+                  </Text>
+                </View>
+
+                <Image
+                  source={{ uri: item.image }}
+                  style={styles.mobileAdImg}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
+            )}
+          />
+
+          {/* Carousel Pagination Dots */}
+          <View style={styles.mobileAdDotsRow}>
+            {MOBILE_HERO_ADS.map((_, i) => (
+              <TouchableOpacity
+                key={i}
+                onPress={() => {
+                  setActiveMobileAdIndex(i);
+                  try {
+                    mobileAdScrollRef.current?.scrollToIndex({ index: i, animated: true });
+                  } catch (err) {}
+                }}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.mobileAdDot,
+                    activeMobileAdIndex === i && styles.mobileAdDotActive,
+                  ]}
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* ============================================================
+            MOCKUP 1: 3x3 QUICK SERVICES GRID
+        ============================================================ */}
+        <View style={styles.mockupServicesGrid}>
+          {/* 1. Consult a Doctor */}
+          <TouchableOpacity
+            style={styles.mockupServiceTile}
+            onPress={() => navigation.navigate('DoctorList')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.mockupServiceIconBox, { backgroundColor: '#E0F2FE' }]}>
+              <Ionicons name="person" size={24} color="#0284C7" />
+            </View>
+            <Text style={styles.mockupServiceLabel}>Consult a{'\n'}Doctor</Text>
+          </TouchableOpacity>
+
+          {/* 2. Book a Lab Test */}
+          <TouchableOpacity
+            style={styles.mockupServiceTile}
+            onPress={() => navigation.navigate('LabTests')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.mockupServiceIconBox, { backgroundColor: '#F0FDF4' }]}>
+              <Ionicons name="flask" size={24} color="#16A34A" />
+            </View>
+            <Text style={styles.mockupServiceLabel}>Book{'\n'}a Lab Test</Text>
+          </TouchableOpacity>
+
+          {/* 3. Order Medicines */}
+          <TouchableOpacity
+            style={styles.mockupServiceTile}
+            onPress={() => navigation.navigate('Pharmacy')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.mockupServiceIconBox, { backgroundColor: '#FFF7ED' }]}>
+              <Ionicons name="medkit" size={24} color="#EA580C" />
+            </View>
+            <Text style={styles.mockupServiceLabel}>Order{'\n'}Medicines</Text>
+          </TouchableOpacity>
+
+          {/* 4. Hospitals & Surgery */}
+          <TouchableOpacity
+            style={styles.mockupServiceTile}
+            onPress={() => navigation.navigate('HospitalCare')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.mockupServiceIconBox, { backgroundColor: '#EFF6FF' }]}>
+              <Ionicons name="business" size={24} color="#1E3A8A" />
+            </View>
+            <Text style={styles.mockupServiceLabel}>Hospitals &{'\n'}Surgery</Text>
+          </TouchableOpacity>
+
+          {/* 5. Home Nursing */}
+          <TouchableOpacity
+            style={styles.mockupServiceTile}
+            onPress={() => navigation.navigate('NurseBooking')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.mockupServiceIconBox, { backgroundColor: '#F0FDFA' }]}>
+              <Ionicons name="home" size={24} color="#0D9488" />
+            </View>
+            <Text style={styles.mockupServiceLabel}>Home{'\n'}Nursing</Text>
+          </TouchableOpacity>
+
+          {/* 6. Equipment Rental */}
+          <TouchableOpacity
+            style={styles.mockupServiceTile}
+            onPress={() => navigation.navigate('EquipmentRental')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.mockupServiceIconBox, { backgroundColor: '#FAF5FF' }]}>
+              <Ionicons name="fitness" size={24} color="#7C3AED" />
+            </View>
+            <Text style={styles.mockupServiceLabel}>Equipment{'\n'}Rental</Text>
+          </TouchableOpacity>
+
+          {/* 7. Fertility & IVF */}
+          <TouchableOpacity
+            style={styles.mockupServiceTile}
+            onPress={() => navigation.navigate('FertilityIvf')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.mockupServiceIconBox, { backgroundColor: '#FDF2F8' }]}>
+              <Ionicons name="heart" size={24} color="#DB2777" />
+            </View>
+            <Text style={styles.mockupServiceLabel}>Fertility{'\n'}& IVF</Text>
+          </TouchableOpacity>
+
+          {/* 8. Ayurveda & Wellness */}
+          <TouchableOpacity
+            style={styles.mockupServiceTile}
+            onPress={() => navigation.navigate('AyurvedaWellness')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.mockupServiceIconBox, { backgroundColor: '#ECFDF5' }]}>
+              <Ionicons name="leaf" size={24} color="#059669" />
+            </View>
+            <Text style={styles.mockupServiceLabel}>Ayurveda &{'\n'}Wellness</Text>
+          </TouchableOpacity>
+
+          {/* 9. View All */}
+          <TouchableOpacity
+            style={styles.mockupServiceTile}
+            onPress={() => navigation.navigate('GlobalSearch')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.mockupServiceIconBox, { backgroundColor: '#EEF2FF' }]}>
+              <Ionicons name="apps" size={24} color="#4F46E5" />
+            </View>
+            <Text style={styles.mockupServiceLabel}>View{'\n'}All</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ============================================================
+            MOCKUP 1: TRUSTED CARE BANNER
+        ============================================================ */}
         <TouchableOpacity
-          style={styles.combinedEmergencyCard}
-          onPress={() => setEmergencyModalVisible(true)}
+          style={styles.mockupTrustedBanner}
+          onPress={() => navigation.navigate('DoctorList')}
           activeOpacity={0.9}
         >
-          <View style={styles.combinedEmergencyIconWrap}>
-            <Ionicons name="medical" size={24} color="#FFFFFF" />
-          </View>
-          <View style={styles.combinedEmergencyTextWrap}>
-            <View style={styles.emergencyPillBadge}>
-              <View style={styles.emergencyPillDot} />
-              <Text style={styles.emergencyPillBadgeText}>24x7 EMERGENCY RESPONSE</Text>
+          <View style={styles.mockupTrustedTextCol}>
+            <Text style={styles.mockupTrustedTitle}>
+              Trusted care for{'\n'}every step of your health journey
+            </Text>
+            <View style={styles.mockupLearnMoreRow}>
+              <Text style={styles.mockupLearnMoreText}>Learn More →</Text>
             </View>
-            <Text style={styles.combinedEmergencyTitle}>Emergency SOS & Doctor Helpline</Text>
-            <Text style={styles.combinedEmergencySubtitle}>Instant Ambulance (108), 24x7 Doctor Call & ER</Text>
           </View>
-          <View style={styles.combinedEmergencyCallBtn}>
-            <Ionicons name="call" size={16} color="#DC2626" />
-            <Text style={styles.combinedEmergencyCallText}>Help</Text>
-          </View>
+          <Image
+            source={{ uri: 'https://images.unsplash.com/photo-1576765608535-5f04d1e3f289?w=400' }}
+            style={styles.mockupTrustedImg}
+            resizeMode="cover"
+          />
         </TouchableOpacity>
 
-        <View style={{ height: 75 }} />
+        <View style={{ height: 30 }} />
       </ScrollView>
-
-      {/* ==========================================
-          DRAGGABLE / MOVABLE FLOATING CHATBOT AI BUTTON (FAB)
-      ========================================== */}
-      <Animated.View
-        style={[
-          styles.floatingChatbotFab,
-          {
-            transform: pan.getTranslateTransform(),
-          },
-        ]}
-        {...panResponder.panHandlers}
-      >
-        <TouchableOpacity
-          style={styles.fabInnerTouchable}
-          onPress={() => navigation.navigate('Chatbot')}
-          activeOpacity={0.85}
-        >
-          <View style={styles.fabIconCircle}>
-            <Ionicons name="sparkles" size={20} color="#FFFFFF" />
-            <View style={styles.fabOnlineBadge} />
-          </View>
-          <View style={styles.fabTextColumn}>
-            <Text style={styles.fabTitle}>AI Doctor</Text>
-            <Text style={styles.fabSub}>Drag / Tap AI</Text>
-          </View>
-        </TouchableOpacity>
-      </Animated.View>
 
       {/* ==========================================
           EMERGENCY & 24x7 HELPLINE ACTION MODAL
@@ -983,25 +957,6 @@ const HomeScreen = ({ navigation }) => {
                 <Ionicons name="call" size={14} color={colors.primary} />
                 <Text style={[styles.callPillText, { color: colors.primary }]}>Call</Text>
               </View>
-            </TouchableOpacity>
-
-            {/* 3. NEAREST NABH HOSPITALS */}
-            <TouchableOpacity
-              style={styles.emergencyOptionCard}
-              onPress={() => {
-                setEmergencyModalVisible(false);
-                navigation.navigate('HospitalList');
-              }}
-              activeOpacity={0.85}
-            >
-              <View style={[styles.emergencyOptionIconBox, { backgroundColor: '#2563EB' }]}>
-                <Ionicons name="business" size={22} color="#FFFFFF" />
-              </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.emergencyOptionTitle}>Nearby Hospital Emergency Rooms</Text>
-                <Text style={styles.emergencyOptionSubtitle}>Locate accredited hospital ERs with 24/7 ICU</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
             </TouchableOpacity>
           </View>
         </View>
@@ -2625,6 +2580,43 @@ const styles = StyleSheet.create({
     color: '#DC2626',
   },
 
+  // HOMESCREEN SEARCH BAR (BELOW CHAT NOW)
+  homeSearchBarContainer: {
+    paddingHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  homeSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 48,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  homeSearchPlaceholder: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 13.5,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+  homeSearchMicBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#F0FDFA',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
   // FLOATING CHATBOT FAB
   floatingChatbotFab: {
     position: 'absolute',
@@ -2722,6 +2714,307 @@ const styles = StyleSheet.create({
   callPillText: {
     fontSize: 12,
     fontWeight: '800',
+  },
+
+  // AUTO-SCROLLING MOBILE ADS BANNER
+  mobileAdSection: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  mobileAdCard: {
+    borderRadius: 16,
+    padding: 16,
+    minHeight: 140,
+    justifyContent: 'space-between',
+    position: 'relative',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  mobileAdBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+    maxWidth: '65%',
+  },
+  mobileAdPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 5,
+  },
+  mobileAdPillText: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
+  mobileAdNotice: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#94A3B8',
+  },
+  mobileAdTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+    lineHeight: 21,
+    maxWidth: '65%',
+    letterSpacing: -0.3,
+  },
+  mobileAdSub: {
+    fontSize: 11.5,
+    color: '#64748B',
+    fontWeight: '500',
+    marginTop: 2,
+    maxWidth: '65%',
+  },
+  mobileAdCtaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
+  mobileAdCtaBadge: {
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  mobileAdImg: {
+    position: 'absolute',
+    right: -10,
+    bottom: -10,
+    width: 120,
+    height: 130,
+    borderRadius: 14,
+    opacity: 0.88,
+  },
+  mobileAdDotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+  },
+  mobileAdDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#CBD5E1',
+  },
+  mobileAdDotActive: {
+    width: 18,
+    backgroundColor: colors.primary,
+  },
+
+  // MOCKUP SCREEN 1 STYLES
+  mockupLocationPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+  },
+  mockupLocationText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0F766E',
+    maxWidth: 90,
+  },
+  homeUserAvatarWrap: {
+    marginLeft: 4,
+  },
+  homeUserAvatarCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#00B894',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  homeUserAvatarLetter: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  mockupGreetingBlock: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  mockupGreetingTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#1E3A8A',
+    letterSpacing: -0.4,
+  },
+  mockupGreetingSub: {
+    fontSize: 12.5,
+    color: '#64748B',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  mockupAiCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#E0F2FE',
+    marginHorizontal: 16,
+    marginTop: 10,
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  mockupAiLeft: {
+    flex: 1,
+  },
+  mockupAiTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  mockupAiSub: {
+    fontSize: 11.5,
+    color: '#475569',
+    marginTop: 3,
+    fontWeight: '500',
+  },
+  mockupAiChatBtn: {
+    backgroundColor: '#0D9488',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 10,
+    marginTop: 10,
+  },
+  mockupAiChatBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  mockupAiRobotCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+    marginLeft: 10,
+  },
+  mockupSymptomChipsRow: {
+    paddingHorizontal: 16,
+    gap: 8,
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  mockupSymptomChip: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  mockupSymptomChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  mockupServicesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    marginTop: 14,
+    gap: 8,
+    justifyContent: 'space-between',
+  },
+  mockupServiceTile: {
+    width: '31%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+    marginBottom: 8,
+  },
+  mockupServiceIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  mockupServiceLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1E293B',
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+  mockupTrustedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 14,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  mockupTrustedTextCol: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  mockupTrustedTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0F172A',
+    lineHeight: 17,
+  },
+  mockupLearnMoreRow: {
+    marginTop: 6,
+  },
+  mockupLearnMoreText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0D9488',
+  },
+  mockupTrustedImg: {
+    width: 72,
+    height: 52,
+    borderRadius: 10,
   },
 });
 

@@ -26,6 +26,8 @@ import * as Location from 'expo-location';
 import { requestLocationPermissionWebSafe, getCurrentPositionWebSafe, reverseGeocodeWebSafe } from '../../../utils/locationHelper';
 import doctors, { doctorSpecialties } from '../../../data/doctors';
 import colors from '../../../theme/colors';
+import WebFooter from '../../../components/web/WebFooter';
+import DoctorBookingModal from '../../../components/booking/DoctorBookingModal';
 
 export const POPULAR_LOCALITIES = [
   { id: '1', name: 'Kuvempunagar', city: 'Mysore', full: 'Kuvempunagar, Mysore', latitude: 12.2858, longitude: 76.6341 },
@@ -38,6 +40,17 @@ export const POPULAR_LOCALITIES = [
   { id: '8', name: 'Nazarbad', city: 'Mysore', full: 'Nazarbad, Mysore', latitude: 12.3080, longitude: 76.6650 },
   { id: '9', name: 'Hebbal 1st Stage', city: 'Mysore', full: 'Hebbal, Mysore', latitude: 12.3610, longitude: 76.6150 },
   { id: '10', name: 'Mysore Central', city: 'Mysore', full: 'Mysore Central, Mysore', latitude: 12.3050, longitude: 76.6550 },
+];
+
+export const MOCKUP_SPECIALTIES = [
+  { id: 'general', name: 'General', icon: 'person-outline', color: '#0D9488', bg: '#CCFBF1' },
+  { id: 'derma', name: 'Derma', icon: 'sparkles-outline', color: '#EC4899', bg: '#FCE7F3' },
+  { id: 'pedia', name: 'Pediatric', icon: 'happy-outline', color: '#F59E0B', bg: '#FEF3C7' },
+  { id: 'gynae', name: 'Gynecology', icon: 'female-outline', color: '#8B5CF6', bg: '#EDE9FE' },
+  { id: 'ortho', name: 'Orthopedic', icon: 'body-outline', color: '#3B82F6', bg: '#DBEAFE' },
+  { id: 'cardio', name: 'Cardiology', icon: 'heart-outline', color: '#EF4444', bg: '#FEE2E2' },
+  { id: 'neuro', name: 'Neurology', icon: 'pulse-outline', color: '#6366F1', bg: '#E0E7FF' },
+  { id: 'dental', name: 'Dentist', icon: 'medical-outline', color: '#14B8A6', bg: '#E6FFFA' },
 ];
 
 const calculateDistanceKm = (lat1, lon1, lat2, lon2) => {
@@ -90,6 +103,9 @@ const DoctorListScreen = ({ navigation, route }) => {
 
   // Navigation / Directions Modal state
   const [directionsDoctor, setDirectionsDoctor] = useState(null);
+
+  // In-Clinic Booking Modal state
+  const [selectedDoctorForBooking, setSelectedDoctorForBooking] = useState(null);
 
   // Detect Live GPS Location
   const detectLocation = async () => {
@@ -315,13 +331,13 @@ const DoctorListScreen = ({ navigation, route }) => {
         {/* TOP ROW: CLINIC LOCATION & DISTANCE BADGE */}
         <View style={styles.cardHeaderRow}>
           <View style={styles.clinicLocationWrap}>
-            <Ionicons name="business" size={13} color={colors.primary} />
+            <Ionicons name="location-outline" size={13} color="#0D9488" />
             <Text style={styles.clinicNameText} numberOfLines={1}>
-              {item.clinicName}
+              {item.clinicName} • {item.clinicArea}
             </Text>
           </View>
           <View style={styles.distanceBadge}>
-            <Ionicons name="navigate-outline" size={12} color={colors.secondary} />
+            <Ionicons name="navigate-outline" size={11} color="#00B894" />
             <Text style={styles.distanceBadgeText}>{item.distance}</Text>
           </View>
         </View>
@@ -336,52 +352,54 @@ const DoctorListScreen = ({ navigation, route }) => {
             })
           }
         >
-          <Image source={{ uri: item.image }} style={styles.avatar} />
+          <View style={styles.avatarWrapper}>
+            <Image source={{ uri: item.image }} style={styles.avatar} />
+            <View style={styles.onlineStatusDot} />
+          </View>
 
           <View style={styles.doctorInfoCol}>
             <View style={styles.nameBadgeRow}>
               <Text style={styles.doctorName}>{item.name}</Text>
-              <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
+              <Ionicons name="checkmark-circle" size={16} color="#00B894" />
             </View>
 
-            <Text style={styles.specialtyText}>{item.specialty}</Text>
+            <Text style={styles.specialtyText}>
+              {item.specialty} • {item.experienceYears || '10+'} yrs exp
+            </Text>
             <Text style={styles.qualificationText} numberOfLines={1}>
               {item.qualification}
             </Text>
 
-            {/* EXPERIENCE & RATING CHIPS */}
+            {/* RATINGS & CONSULTATION TYPE BADGES */}
             <View style={styles.metricsRow}>
-              <View style={styles.experienceChip}>
-                <Ionicons name="ribbon-outline" size={12} color="#D97706" />
-                <Text style={styles.experienceChipText}>{item.experience}</Text>
-              </View>
-
               <View style={styles.ratingChip}>
-                <Ionicons name="star" size={12} color="#FFA000" />
+                <Ionicons name="star" size={11} color="#FFA000" />
                 <Text style={styles.ratingChipText}>{item.rating}</Text>
                 <Text style={styles.reviewsCountText}>({item.reviewCount})</Text>
+              </View>
+
+              <View style={styles.videoBadge}>
+                <View style={styles.videoDot} />
+                <Text style={styles.videoBadgeText}>Video</Text>
+              </View>
+
+              <View style={styles.inClinicBadge}>
+                <Ionicons name="business" size={10} color="#0D9488" />
+                <Text style={styles.inClinicBadgeText}>In-Clinic</Text>
               </View>
             </View>
           </View>
         </TouchableOpacity>
 
-        {/* CLINIC ADDRESS ROW */}
-        <View style={styles.clinicAddressRow}>
-          <Ionicons name="location-outline" size={14} color={colors.textSecondary} style={{ marginTop: 2 }} />
-          <Text style={styles.clinicAddressText} numberOfLines={2}>
-            {item.clinicAddress}
-          </Text>
-        </View>
-
         {/* NEXT AVAILABLE SLOT & CONSULTATION FEE */}
         <View style={styles.slotAndFeeRow}>
           <View style={styles.slotBox}>
-            <Ionicons name="time-outline" size={13} color={colors.primary} />
+            <Ionicons name="time-outline" size={13} color="#0D9488" />
             <Text style={styles.slotText}>{item.nextSlot}</Text>
           </View>
 
           <View style={styles.feeBox}>
-            <Text style={styles.feeLabel}>In-Person Fee:</Text>
+            <Text style={styles.feeLabel}>Fee:</Text>
             <Text style={styles.feeAmount}>₹{item.fee}</Text>
           </View>
         </View>
@@ -394,7 +412,7 @@ const DoctorListScreen = ({ navigation, route }) => {
             activeOpacity={0.82}
             onPress={() => handleOpenDirectionsModal(item)}
           >
-            <Ionicons name="navigate" size={15} color={colors.secondary} />
+            <Ionicons name="navigate" size={14} color="#1E3A8A" />
             <Text style={styles.navigateButtonText}>Directions</Text>
           </TouchableOpacity>
 
@@ -402,300 +420,419 @@ const DoctorListScreen = ({ navigation, route }) => {
           <TouchableOpacity
             style={styles.bookAppointmentButton}
             activeOpacity={0.88}
-            onPress={() =>
-              navigation.navigate('DoctorBooking', {
-                doctor: item,
-              })
-            }
+            onPress={() => setSelectedDoctorForBooking(item)}
           >
-            <Text style={styles.bookAppointmentButtonText}>Book In-Person Visit</Text>
-            <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+            <Text style={styles.bookAppointmentButtonText}>Book</Text>
+            <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       </View>
     );
   };
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-
-      {/* ==================================================
-          HEADER (MOBILE ONLY)
-      ================================================== */}
-      {!isDesktopWeb && (
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="arrow-back" size={22} color={colors.secondary} />
-          </TouchableOpacity>
-
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>In-Person Doctor Visit</Text>
-            <Text style={styles.headerSub}>Find verified doctors near you</Text>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.filterHeaderBtn, activeFiltersCount > 0 && styles.filterHeaderBtnActive]}
-            activeOpacity={0.8}
-            onPress={() => setFilterModalVisible(true)}
-          >
-            <Ionicons
-              name="options-outline"
-              size={20}
-              color={activeFiltersCount > 0 ? '#FFFFFF' : colors.secondary}
-            />
-            {activeFiltersCount > 0 && (
-              <View style={styles.filterBadgeCount}>
-                <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
-
-
-
-      {/* ==================================================
-          TOAST FEEDBACK MESSAGE
-      ================================================== */}
-      {locationToast && (
-        <View style={styles.toastBanner}>
-          <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
-          <Text style={styles.toastBannerText}>{locationToast}</Text>
-        </View>
-      )}
-
-      {/* ==================================================
-          LOCATION ACCESS & NEARBY HOSPITALS TOOLBAR (DESKTOP & MOBILE)
-      ================================================== */}
-      <View style={[styles.doctorLocationToolbar, isDesktopWeb && styles.doctorLocationToolbarDesktop]}>
-        {/* Left Col: Location Info & Quick Detect / Change Actions */}
-        <View style={[styles.docLocationLeftCol, isDesktopWeb && styles.docLocationLeftColDesktop]}>
-          <View style={styles.docLocMetaRow}>
-            <View style={styles.docLocPinBadge}>
-              <Ionicons name="location-sharp" size={17} color="#0D9488" />
+  // DESKTOP LEFT FILTER SIDEBAR
+  const renderDesktopSidebar = () => (
+    <View style={styles.desktopSidebarCard}>
+      {/* 1. Header Row */}
+      <View style={styles.sidebarHeader}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Ionicons name="options" size={18} color="#1E3A8A" />
+          <Text style={styles.sidebarTitle}>Filters</Text>
+          {activeFiltersCount > 0 && (
+            <View style={styles.sidebarBadge}>
+              <Text style={styles.sidebarBadgeText}>{activeFiltersCount}</Text>
             </View>
-            <View style={styles.docLocInfoWrap}>
-              <Text style={styles.docLocLabel}>CONSULTATION LOCATION</Text>
-              <Text style={styles.docLocValue} numberOfLines={1}>
-                {loadingGps ? 'Detecting GPS position...' : userLocality}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.docLocActionsRow}>
-            <TouchableOpacity
-              style={[styles.docGpsBtn, loadingGps && styles.docGpsBtnDisabled]}
-              onPress={detectLocation}
-              disabled={loadingGps}
-              activeOpacity={0.8}
-            >
-              {loadingGps ? (
-                <ActivityIndicator size="small" color="#0D9488" />
-              ) : (
-                <Ionicons name="navigate-circle" size={15} color="#0D9488" />
-              )}
-              <Text style={styles.docGpsBtnText}>{loadingGps ? 'Detecting...' : 'Auto GPS'}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.docChangeBtn}
-              onPress={() => setLocationModalVisible(true)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="swap-horizontal" size={13} color="#334155" />
-              <Text style={styles.docChangeBtnText}>Change Area</Text>
-              <Ionicons name="chevron-down" size={11} color="#64748B" />
-            </TouchableOpacity>
-          </View>
+          )}
         </View>
+        <TouchableOpacity onPress={resetFilters} activeOpacity={0.7}>
+          <Text style={styles.sidebarResetLink}>Reset All</Text>
+        </TouchableOpacity>
+      </View>
 
-        {/* Right Col: Quick Nearby Hospital Access Card */}
+      {/* 2. Availability Today Toggle */}
+      <View style={styles.sidebarSection}>
         <TouchableOpacity
-          style={[styles.nearbyHospitalBannerBtn, isDesktopWeb && styles.nearbyHospitalBannerBtnDesktop]}
-          onPress={() => navigation.navigate('HospitalList')}
-          activeOpacity={0.85}
+          style={styles.sidebarToggleCard}
+          onPress={() => setOnlyAvailableToday(!onlyAvailableToday)}
+          activeOpacity={0.8}
         >
-          <View style={styles.hospitalIconCircle}>
-            <Ionicons name="business" size={18} color="#DC2626" />
-          </View>
-          <View style={styles.hospitalBannerTextWrap}>
-            <View style={styles.hospitalBannerHeaderRow}>
-              <Text style={styles.hospitalBannerTitle}>Nearby Hospitals</Text>
-              <View style={styles.emergencyTagBadge}>
-                <Text style={styles.emergencyTagText}>24/7 ICU & Beds</Text>
-              </View>
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={[styles.sidebarDot, onlyAvailableToday && { backgroundColor: '#10B981' }]} />
+              <Text style={styles.sidebarToggleTitle}>Available Today</Text>
             </View>
-            <Text style={styles.hospitalBannerSub} numberOfLines={1}>
-              Find multi-specialty hospitals & emergency care
-            </Text>
+            <Text style={styles.sidebarToggleSub}>In-clinic walk-in & appointments</Text>
           </View>
-          <View style={styles.hospitalArrowCircle}>
-            <Ionicons name="chevron-forward" size={15} color="#DC2626" />
+          <View style={[styles.miniSwitch, onlyAvailableToday && styles.miniSwitchActive]}>
+            <View style={[styles.miniKnob, onlyAvailableToday && styles.miniKnobActive]} />
           </View>
         </TouchableOpacity>
       </View>
 
-      {/* ==================================================
-          SEARCH BAR & FILTER CHIP (MOBILE ONLY)
-      ================================================== */}
-      {!isDesktopWeb && (
-        <View style={styles.searchBarContainer}>
-          <View style={styles.searchBox}>
-            <Ionicons name="search-outline" size={19} color={colors.textSecondary} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search doctor, specialty, clinic, or area..."
-              placeholderTextColor="#94A3B8"
-              value={search}
-              onChangeText={setSearch}
-            />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => setSearch('')}>
-                <Ionicons name="close-circle" size={18} color="#94A3B8" />
+      {/* 3. Distance from You */}
+      <View style={styles.sidebarSection}>
+        <Text style={styles.sidebarSectionTitle}>Distance from You</Text>
+        <View style={styles.sidebarOptionsCol}>
+          {[
+            { label: 'Any Distance', value: 'all' },
+            { label: 'Within 2 km', value: '2' },
+            { label: 'Within 5 km', value: '5' },
+            { label: 'Within 10 km', value: '10' },
+          ].map((opt) => {
+            const isSelected = maxDistance === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={styles.sidebarRadioRow}
+                onPress={() => setMaxDistance(opt.value)}
+                activeOpacity={0.75}
+              >
+                <Ionicons
+                  name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                  size={16}
+                  color={isSelected ? '#00B894' : '#94A3B8'}
+                />
+                <Text style={[styles.sidebarOptionText, isSelected && styles.sidebarOptionTextActive]}>
+                  {opt.label}
+                </Text>
               </TouchableOpacity>
-            )}
-          </View>
-
-          <TouchableOpacity
-            style={[styles.filterTriggerPill, activeFiltersCount > 0 && styles.filterTriggerPillActive]}
-            onPress={() => setFilterModalVisible(true)}
-          >
-            <Ionicons
-              name="filter"
-              size={14}
-              color={activeFiltersCount > 0 ? '#FFFFFF' : colors.secondary}
-            />
-            <Text
-              style={[
-                styles.filterTriggerPillText,
-                activeFiltersCount > 0 && styles.filterTriggerPillTextActive,
-              ]}
-            >
-              {activeFiltersCount > 0 ? `${activeFiltersCount} Filters` : 'Filters'}
-            </Text>
-          </TouchableOpacity>
+            );
+          })}
         </View>
-      )}
-
-      {/* ==================================================
-          SPECIALTY SELECTOR PILLS
-      ================================================== */}
-      <View style={[styles.specialtyContainer, isDesktopWeb && styles.desktopContentMaxWidth]}>
-        {Platform.OS === 'web' ? (
-          <View style={styles.specialtiesWrap}>
-            {doctorSpecialties.map((spec) => {
-              const isSelected = selectedSpecialty === spec.id;
-              return (
-                <TouchableOpacity
-                  key={spec.id}
-                  style={[
-                    styles.specialtyPill,
-                    isSelected && styles.specialtyPillActive,
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={() => setSelectedSpecialty(spec.id)}
-                >
-                  <Ionicons
-                    name={spec.icon}
-                    size={15}
-                    color={isSelected ? '#FFFFFF' : colors.primary}
-                  />
-                  <Text
-                    style={[
-                      styles.specialtyPillText,
-                      isSelected && styles.specialtyPillTextActive,
-                    ]}
-                  >
-                    {spec.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.specialtiesScroll}
-          >
-            {doctorSpecialties.map((spec) => {
-              const isSelected = selectedSpecialty === spec.id;
-              return (
-                <TouchableOpacity
-                  key={spec.id}
-                  style={[
-                    styles.specialtyPill,
-                    isSelected && styles.specialtyPillActive,
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={() => setSelectedSpecialty(spec.id)}
-                >
-                  <Ionicons
-                    name={spec.icon}
-                    size={15}
-                    color={isSelected ? '#FFFFFF' : colors.primary}
-                  />
-                  <Text
-                    style={[
-                      styles.specialtyPillText,
-                      isSelected && styles.specialtyPillTextActive,
-                    ]}
-                  >
-                    {spec.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
       </View>
 
-      {/* ==================================================
-          RESULT COUNT & SORT INDICATOR
-      ================================================== */}
-      <View style={[styles.resultsHeaderRow, isDesktopWeb && styles.desktopContentMaxWidth]}>
-        <Text style={styles.resultsCountText}>
-          {filteredDoctors.length} {filteredDoctors.length === 1 ? 'Doctor' : 'Doctors'} near {userLocality.split(',')[0]}
-        </Text>
-        <Text style={styles.sortedByText}>
-          Sorted: {sortBy === 'nearest' ? 'Nearest First' : sortBy === 'rating' ? 'Highest Rated' : sortBy === 'experience' ? 'Most Experienced' : 'Lowest Fee'}
-        </Text>
+      {/* 4. Doctor Specialization */}
+      <View style={styles.sidebarSection}>
+        <Text style={styles.sidebarSectionTitle}>Specialization</Text>
+        <View style={styles.sidebarSpecialtyList}>
+          {doctorSpecialties.slice(0, 9).map((spec) => {
+            const isSelected = selectedSpecialty === spec.id;
+            return (
+              <TouchableOpacity
+                key={spec.id}
+                style={[styles.sidebarSpecialtyRow, isSelected && styles.sidebarSpecialtyRowActive]}
+                onPress={() => setSelectedSpecialty(spec.id)}
+                activeOpacity={0.75}
+              >
+                <Ionicons
+                  name={spec.icon}
+                  size={14}
+                  color={isSelected ? '#00B894' : '#64748B'}
+                  style={{ width: 18 }}
+                />
+                <Text
+                  style={[styles.sidebarSpecialtyText, isSelected && styles.sidebarSpecialtyTextActive]}
+                  numberOfLines={1}
+                >
+                  {spec.name}
+                </Text>
+                {isSelected && (
+                  <Ionicons name="checkmark-circle" size={14} color="#00B894" style={{ marginLeft: 'auto' }} />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
-      {/* ==================================================
-          DOCTORS LIST
-      ================================================== */}
-      <FlatList
-        data={filteredDoctors}
-        keyExtractor={(item) => item.id}
-        renderItem={renderDoctor}
+      {/* 5. Consultation Fee */}
+      <View style={styles.sidebarSection}>
+        <Text style={styles.sidebarSectionTitle}>Consultation Fee</Text>
+        <View style={styles.sidebarOptionsCol}>
+          {[
+            { label: 'All Fees', value: 'all' },
+            { label: 'Under ₹500', value: '500' },
+            { label: 'Under ₹700', value: '700' },
+          ].map((opt) => {
+            const isSelected = maxFee === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={styles.sidebarRadioRow}
+                onPress={() => setMaxFee(opt.value)}
+                activeOpacity={0.75}
+              >
+                <Ionicons
+                  name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                  size={16}
+                  color={isSelected ? '#00B894' : '#94A3B8'}
+                />
+                <Text style={[styles.sidebarOptionText, isSelected && styles.sidebarOptionTextActive]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* 6. Doctor Experience */}
+      <View style={styles.sidebarSection}>
+        <Text style={styles.sidebarSectionTitle}>Experience</Text>
+        <View style={styles.sidebarOptionsCol}>
+          {[
+            { label: 'Any Experience', value: 'all' },
+            { label: '5+ Years', value: '5' },
+            { label: '10+ Years', value: '10' },
+            { label: '15+ Years', value: '15' },
+          ].map((opt) => {
+            const isSelected = minExperience === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={styles.sidebarRadioRow}
+                onPress={() => setMinExperience(opt.value)}
+                activeOpacity={0.75}
+              >
+                <Ionicons
+                  name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                  size={16}
+                  color={isSelected ? '#00B894' : '#94A3B8'}
+                />
+                <Text style={[styles.sidebarOptionText, isSelected && styles.sidebarOptionTextActive]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* 7. Sort By */}
+      <View style={[styles.sidebarSection, { borderBottomWidth: 0, marginBottom: 0, paddingBottom: 0 }]}>
+        <Text style={styles.sidebarSectionTitle}>Sort Doctors</Text>
+        <View style={styles.sidebarOptionsCol}>
+          {[
+            { label: 'Nearest First', value: 'nearest' },
+            { label: 'Highest Rated (★)', value: 'rating' },
+            { label: 'Most Experienced', value: 'experience' },
+            { label: 'Fee: Low to High', value: 'fee' },
+          ].map((opt) => {
+            const isSelected = sortBy === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={styles.sidebarRadioRow}
+                onPress={() => setSortBy(opt.value)}
+                activeOpacity={0.75}
+              >
+                <Ionicons
+                  name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                  size={16}
+                  color={isSelected ? '#00B894' : '#94A3B8'}
+                />
+                <Text style={[styles.sidebarOptionText, isSelected && styles.sidebarOptionTextActive]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.list, isDesktopWeb && styles.desktopContentMaxWidth]}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="search-outline" size={54} color="#CBD5E1" />
-            <Text style={styles.emptyTitle}>No Nearby Doctors Found</Text>
-            <Text style={styles.emptySubtitle}>
-              Try picking another area or resetting distance and specialty filters.
-            </Text>
+      >
+        {/* ==================================================
+            HEADER (MOBILE ONLY)
+        ================================================== */}
+        {!isDesktopWeb && (
+          <View style={styles.header}>
             <TouchableOpacity
-              style={styles.resetFilterBtn}
-              onPress={() => {
-                setSearch('');
-                setSelectedSpecialty('all');
-                resetFilters();
-              }}
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.8}
             >
-              <Text style={styles.resetFilterBtnText}>Reset All Filters</Text>
+              <Ionicons name="arrow-back" size={22} color="#1E3A8A" />
+            </TouchableOpacity>
+
+            <View style={styles.headerCenter}>
+              <Text style={styles.headerTitle}>Doctors</Text>
+              <Text style={styles.headerSub}>Consult top doctors online or in-clinic</Text>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.filterHeaderBtn, activeFiltersCount > 0 && styles.filterHeaderBtnActive]}
+              activeOpacity={0.8}
+              onPress={() => setFilterModalVisible(true)}
+            >
+              <Ionicons
+                name="options-outline"
+                size={20}
+                color={activeFiltersCount > 0 ? '#FFFFFF' : '#1E3A8A'}
+              />
+              {activeFiltersCount > 0 && (
+                <View style={styles.filterBadgeCount}>
+                  <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
-        }
-      />
+        )}
+
+        {/* ==================================================
+            TOAST FEEDBACK MESSAGE
+        ================================================== */}
+        {locationToast && (
+          <View style={styles.toastBanner}>
+            <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
+            <Text style={styles.toastBannerText}>{locationToast}</Text>
+          </View>
+        )}
+
+        {/* ==================================================
+            LOCATION ACCESS TOOLBAR (DESKTOP & MOBILE)
+        ================================================== */}
+        <View style={[styles.doctorLocationToolbar, isDesktopWeb && styles.doctorLocationToolbarDesktop]}>
+          {/* Location Info & Quick Detect / Change Actions */}
+          <View style={[styles.docLocationLeftCol, isDesktopWeb && styles.docLocationLeftColDesktop]}>
+            <View style={styles.docLocMetaRow}>
+              <View style={styles.docLocPinBadge}>
+                <Ionicons name="location-sharp" size={17} color="#0D9488" />
+              </View>
+              <View style={styles.docLocInfoWrap}>
+                <Text style={styles.docLocLabel}>CONSULTATION LOCATION</Text>
+                <Text style={styles.docLocValue} numberOfLines={1}>
+                  {loadingGps ? 'Detecting GPS position...' : userLocality}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.docLocActionsRow}>
+              <TouchableOpacity
+                style={[styles.docGpsBtn, loadingGps && styles.docGpsBtnDisabled]}
+                onPress={detectLocation}
+                disabled={loadingGps}
+                activeOpacity={0.8}
+              >
+                {loadingGps ? (
+                  <ActivityIndicator size="small" color="#0D9488" />
+                ) : (
+                  <Ionicons name="navigate-circle" size={15} color="#0D9488" />
+                )}
+                <Text style={styles.docGpsBtnText}>{loadingGps ? 'Detecting...' : 'Auto GPS'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.docChangeBtn}
+                onPress={() => setLocationModalVisible(true)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="swap-horizontal" size={13} color="#334155" />
+                <Text style={styles.docChangeBtnText}>Change Area</Text>
+                <Ionicons name="chevron-down" size={11} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* ==================================================
+            SEARCH BAR & FILTER CHIP (MOBILE ONLY)
+        ================================================== */}
+        {!isDesktopWeb && (
+          <View style={styles.searchBarContainer}>
+            <View style={styles.searchBox}>
+              <Ionicons name="search-outline" size={19} color={colors.textSecondary} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search doctor, specialty, clinic, or area..."
+                placeholderTextColor="#94A3B8"
+                value={search}
+                onChangeText={setSearch}
+              />
+              {search.length > 0 && (
+                <TouchableOpacity onPress={() => setSearch('')}>
+                  <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={[styles.filterTriggerPill, activeFiltersCount > 0 && styles.filterTriggerPillActive]}
+              onPress={() => setFilterModalVisible(true)}
+            >
+              <Ionicons
+                name="filter"
+                size={14}
+                color={activeFiltersCount > 0 ? '#FFFFFF' : '#1E3A8A'}
+              />
+              <Text
+                style={[
+                  styles.filterTriggerPillText,
+                  activeFiltersCount > 0 && styles.filterTriggerPillTextActive,
+                ]}
+              >
+                {activeFiltersCount > 0 ? `${activeFiltersCount} Filters` : 'Filters'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+
+
+        {/* ==================================================
+            MAIN CONTENT AREA: DESKTOP 2-COLUMN (VISIBLE FILTER SIDEBAR + DOCTORS LIST)
+        ================================================== */}
+        <View style={[styles.mainLayoutWrap, isDesktopWeb && styles.mainLayoutWrapDesktop]}>
+          {/* Left Filter Sidebar - Visible on Desktop! */}
+          {isDesktopWeb && (
+            <View style={styles.desktopSidebarCol}>
+              {renderDesktopSidebar()}
+            </View>
+          )}
+
+          {/* Right Content Column: Results count & Doctors Cards */}
+          <View style={[styles.doctorsColWrap, isDesktopWeb && styles.doctorsColWrapDesktop]}>
+            <View style={styles.resultsHeaderRow}>
+              <View>
+                <Text style={styles.sectionHeadingTitle}>Top Doctors Near You</Text>
+                <Text style={styles.resultsCountText}>
+                  {filteredDoctors.length} {filteredDoctors.length === 1 ? 'doctor' : 'doctors'} near {userLocality.split(',')[0]}
+                </Text>
+              </View>
+              <Text style={styles.sortedByText}>
+                {sortBy === 'nearest' ? 'Nearest' : sortBy === 'rating' ? 'Top Rated' : sortBy === 'experience' ? 'Experienced' : 'Lowest Fee'}
+              </Text>
+            </View>
+
+            {filteredDoctors.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="search-outline" size={54} color="#CBD5E1" />
+                <Text style={styles.emptyTitle}>No Nearby Doctors Found</Text>
+                <Text style={styles.emptySubtitle}>
+                  Try picking another area or resetting distance and specialty filters.
+                </Text>
+                <TouchableOpacity
+                  style={styles.resetFilterBtn}
+                  onPress={() => {
+                    setSearch('');
+                    setSelectedSpecialty('all');
+                    resetFilters();
+                  }}
+                >
+                  <Text style={styles.resetFilterBtnText}>Reset All Filters</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.doctorsCardsList}>
+                {filteredDoctors.map((doc) => (
+                  <View key={doc.id}>
+                    {renderDoctor({ item: doc })}
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        </View>
+        {isDesktopWeb && <WebFooter navigation={navigation} />}
+      </ScrollView>
 
       {/* ==================================================
           LOCATION SELECTION & GPS MODAL
@@ -1178,6 +1315,17 @@ const DoctorListScreen = ({ navigation, route }) => {
           </View>
         </View>
       </Modal>
+
+      {/* ==================================================
+          IN-CLINIC DOCTOR BOOKING MODAL (MATCHING POPUP DESIGN)
+      ================================================== */}
+      <DoctorBookingModal
+        visible={!!selectedDoctorForBooking}
+        onClose={() => setSelectedDoctorForBooking(null)}
+        doctor={selectedDoctorForBooking}
+        consultationType="In-Person"
+        navigation={navigation}
+      />
     </SafeAreaView>
   );
 };
@@ -1189,7 +1337,14 @@ const DoctorListScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F1F2F4', // Matches HomeScreen Flipkart-style background
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 60,
+  },
+  doctorsCardsList: {
+    width: '100%',
   },
 
   // HEADER
@@ -1276,20 +1431,12 @@ const styles = StyleSheet.create({
   // DOCTOR LOCATION ACCESS & NEARBY HOSPITALS TOOLBAR
   doctorLocationToolbar: {
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 8,
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
     flexDirection: 'column',
     gap: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 5,
-    elevation: 2,
   },
   doctorLocationToolbarDesktop: {
     maxWidth: 1320,
@@ -1298,8 +1445,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
     gap: 16,
   },
   docLocationLeftCol: {
@@ -1547,18 +1693,206 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 0,
     paddingVertical: 4,
-    marginBottom: 6,
+    marginBottom: 12,
   },
   resultsCountText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
-    color: colors.secondary,
+    color: '#64748B',
+  },
+  sectionHeadingTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -0.3,
   },
   sortedByText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+
+  // MAIN 2-COLUMN LAYOUT
+  mainLayoutWrap: {
+    width: '100%',
+    paddingHorizontal: 16,
+  },
+  mainLayoutWrapDesktop: {
+    flexDirection: 'row',
+    maxWidth: 1320,
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: 24,
+    gap: 24,
+    alignItems: 'flex-start',
+    marginTop: 8,
+  },
+  desktopSidebarCol: {
+    width: 280,
+    ...Platform.select({
+      web: {
+        position: 'sticky',
+        top: 20,
+      },
+    }),
+  },
+  doctorsColWrap: {
+    width: '100%',
+  },
+  doctorsColWrapDesktop: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  // DESKTOP SIDEBAR CARD
+  desktopSidebarCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  sidebarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    marginBottom: 14,
+  },
+  sidebarTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  sidebarBadge: {
+    backgroundColor: '#00B894',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  sidebarBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  sidebarResetLink: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  sidebarSection: {
+    marginBottom: 16,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
+  },
+  sidebarSectionTitle: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginBottom: 10,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  sidebarToggleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F0FDFA',
+    padding: 11,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+  },
+  sidebarDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#94A3B8',
+  },
+  sidebarToggleTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  sidebarToggleSub: {
     fontSize: 11,
-    color: colors.textSecondary,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  miniSwitch: {
+    width: 38,
+    height: 22,
+    borderRadius: 12,
+    backgroundColor: '#E2E8F0',
+    padding: 2,
+    justifyContent: 'center',
+  },
+  miniSwitchActive: {
+    backgroundColor: '#00B894',
+  },
+  miniKnob: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.5,
+  },
+  miniKnobActive: {
+    alignSelf: 'flex-end',
+  },
+  sidebarSpecialtyList: {
+    gap: 4,
+  },
+  sidebarSpecialtyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  sidebarSpecialtyRowActive: {
+    backgroundColor: '#F0FDFA',
+  },
+  sidebarSpecialtyText: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '500',
+    marginLeft: 4,
+  },
+  sidebarSpecialtyTextActive: {
+    color: '#00B894',
+    fontWeight: '800',
+  },
+  sidebarOptionsCol: {
+    gap: 8,
+  },
+  sidebarRadioRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    paddingVertical: 3,
+  },
+  sidebarOptionText: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '500',
+  },
+  sidebarOptionTextActive: {
+    color: '#1E3A8A',
+    fontWeight: '700',
   },
 
   // LIST & CARD
@@ -1568,15 +1902,15 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 14,
+    borderRadius: 14,
+    padding: 16,
     marginBottom: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
     elevation: 2,
   },
 
@@ -1652,11 +1986,123 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
 
+  avatarWrapper: {
+    position: 'relative',
+    marginRight: 12,
+  },
+  onlineStatusDot: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#10B981',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+
+  specialtiesSection: {
+    paddingHorizontal: 24,
+    paddingTop: 14,
+    paddingBottom: 18,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  specialtiesHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  specialtiesSectionTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -0.3,
+  },
+  clearSpecialtyText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  specialtiesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 16,
+    maxWidth: 1320,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  specialtyGridItem: {
+    width: '23%',
+    alignItems: 'center',
+  },
+  specialtyGridItemActive: {
+    transform: [{ scale: 1.05 }],
+  },
+  specialtyIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  specialtyLabel: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#475569',
+    textAlign: 'center',
+  },
+  specialtyLabelActive: {
+    fontWeight: '800',
+    color: '#00B894',
+  },
+
   metricsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 6,
-    gap: 8,
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  videoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    gap: 4,
+  },
+  videoDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#3B82F6',
+  },
+  videoBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+  inClinicBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    gap: 3,
+  },
+  inClinicBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#0D9488',
   },
   experienceChip: {
     flexDirection: 'row',
@@ -1746,21 +2192,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingTop: 8,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
   },
   navigateButton: {
     flex: 1,
     maxWidth: 180,
-    height: 40,
+    height: 38,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#EFF6FF',
     paddingHorizontal: 14,
-    borderRadius: 10,
+    borderRadius: 8,
     gap: 6,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
   },
   navigateButtonText: {
     fontSize: 13,
@@ -1770,13 +2218,13 @@ const styles = StyleSheet.create({
   bookAppointmentButton: {
     flex: 1.6,
     maxWidth: 240,
-    height: 40,
+    height: 38,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary,
+    backgroundColor: '#00B894',
     paddingHorizontal: 16,
-    borderRadius: 10,
+    borderRadius: 8,
     gap: 6,
   },
   bookAppointmentButtonText: {

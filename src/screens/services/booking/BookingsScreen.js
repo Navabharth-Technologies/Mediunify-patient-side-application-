@@ -14,6 +14,7 @@ import {
   Image,
   Modal,
   TextInput,
+  useWindowDimensions,
 } from 'react-native';
 import { showAlert } from '../../../utils/alert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import labTests from '../../../data/labTests';
 import { syncActiveUser } from '../../../services/dataSyncService';
+import WebFooter from '../../../components/web/WebFooter';
 
 const DEFAULT_SAMPLE_APPOINTMENTS = [
   {
@@ -163,9 +165,107 @@ const DEFAULT_SAMPLE_APPOINTMENTS = [
       reason: 'Doctor Prescribed Brain Imaging Scan',
     },
   },
+  {
+    id: 'appt-demo-equipment-1',
+    tokenNumber: 'EQ-804',
+    type: 'Medical Equipment Rental',
+    serviceType: 'equipment',
+    doctor: {
+      name: 'Philips EverFlo 5L Oxygen Concentrator',
+      specialty: '1 Month Home Rental • Technician Installed',
+      qualification: 'Medical Grade ISO/CE Certified',
+      clinicName: 'MediUnify BioMedical Equipment Hub',
+      clinicAddress: 'Doorstep Delivery & BioMedical Demo, Kuvempunagar, Mysore',
+      clinicArea: 'Kuvempunagar, Mysore',
+      phone: '+91 821 245 9908',
+      fee: 4999,
+      image: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&q=80&w=300',
+    },
+    equipment: {
+      name: 'Philips EverFlo 5L Oxygen Concentrator',
+      category: 'Respiratory Care',
+      rentalDuration: '1 Month',
+      rentAmount: 4999,
+      securityDeposit: 3000,
+    },
+    day: 'Today',
+    date: 'Today, Express Slot',
+    time: 'Technician Delivery & Setup in 4 Hrs',
+    status: 'Confirmed',
+    paidAmount: 7999,
+    paymentStatus: 'Paid Online via UPI',
+    patient: {
+      name: 'Ramesh (Self)',
+      age: '28',
+      gender: 'Male',
+      reason: 'Home Respiratory Oxygen Support',
+    },
+  },
+  {
+    id: 'appt-demo-ayurveda-1',
+    tokenNumber: 'AYU-312',
+    type: 'Ayurvedic Consultation',
+    serviceType: 'ayurveda',
+    doctor: {
+      name: 'Dr. Vaidya Madhavan Nambiar',
+      specialty: 'BAMS, MD (Ayurveda) • Chronic Disorders & Nadi Pariksha',
+      qualification: 'Senior Ayurvedic Physician (22 yrs exp)',
+      clinicName: 'Sanjeevani Ayurvedic Wellness Centre',
+      clinicAddress: 'No. 45, 3rd Main, Saraswathipuram, Mysore - 570009',
+      clinicArea: 'Saraswathipuram, Mysore',
+      phone: '+91 821 254 1102',
+      fee: 400,
+      image: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&q=80&w=300',
+    },
+    day: 'Tomorrow',
+    date: 'Tomorrow, 10:30 AM',
+    time: '10:30 AM (In-Clinic)',
+    status: 'Confirmed',
+    paidAmount: 400,
+    paymentStatus: 'Paid Online via UPI',
+    patient: {
+      name: 'Ramesh (Self)',
+      age: '28',
+      gender: 'Male',
+      reason: 'Ayurvedic Wellness & Stress Management',
+    },
+  },
+  {
+    id: 'appt-demo-fertility-1',
+    tokenNumber: 'FERT-520',
+    type: 'Fertility Specialist Consult',
+    serviceType: 'fertility',
+    doctor: {
+      name: 'Dr. Priya V. Shenoy',
+      specialty: 'MS, DNB, Fellowship in Reproductive Medicine',
+      qualification: 'Senior Fertility & IVF Specialist (16 yrs exp)',
+      clinicName: 'Nova IVF & Fertility Care Centre',
+      clinicAddress: 'No. 88, 5th Main, Gokulam 3rd Stage, Mysore - 570002',
+      clinicArea: 'Gokulam, Mysore',
+      phone: '+91 821 241 8890',
+      fee: 600,
+      image: 'https://images.unsplash.com/photo-1594824813576-92f70b79873a?auto=format&fit=crop&q=80&w=300',
+    },
+    day: 'Thursday',
+    date: 'Thursday, 11:00 AM',
+    time: '11:00 AM (Confidential Slot)',
+    status: 'Confirmed',
+    paidAmount: 600,
+    paymentStatus: 'Paid Online via UPI',
+    patient: {
+      name: 'Ramesh & Partner',
+      age: '28',
+      gender: 'Couple',
+      reason: 'Confidential Pre-Conception & Fertility Guidance',
+      confidential: true,
+    },
+  },
 ];
 
 const BookingsScreen = ({ navigation, route }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+
   const [appointments, setAppointments] = useState(DEFAULT_SAMPLE_APPOINTMENTS);
   const [selectedTab, setSelectedTab] = useState('All');
   const [activeBookingForAddTest, setActiveBookingForAddTest] = useState(null);
@@ -459,6 +559,78 @@ const BookingsScreen = ({ navigation, route }) => {
       };
     }
 
+    const isAyurveda =
+      item.type?.includes('Ayurved') ||
+      item.type?.includes('Panchakarma') ||
+      item.serviceType === 'ayurveda';
+
+    const isFertility =
+      item.type?.includes('Fertility') ||
+      item.type?.includes('IVF') ||
+      item.serviceType === 'fertility';
+
+    const isEquipment =
+      item.type?.includes('Equipment') ||
+      item.serviceType === 'equipment';
+
+    if (isAyurveda || isFertility || isEquipment) {
+      const defaultDocName = isAyurveda
+        ? (item.doctor?.name || 'Dr. Vaidya Madhavan Nambiar')
+        : isFertility
+        ? (item.doctor?.name || 'Dr. Priya V. Shenoy')
+        : (item.doctor?.name || item.equipment?.name || 'Medical Equipment Hub');
+
+      const defaultSpec = isAyurveda
+        ? (item.doctor?.specialty || item.type || 'Ayurvedic Physician & Wellness')
+        : isFertility
+        ? (item.doctor?.specialty || item.type || 'Reproductive Medicine & Fertility')
+        : (item.doctor?.specialty || (item.equipment?.category ? `${item.equipment.category} Rental` : 'BioMedical Equipment Rental'));
+
+      const defaultClinic = isAyurveda
+        ? (item.doctor?.clinicName || 'Sanjeevani Ayurvedic Wellness Centre')
+        : isFertility
+        ? (item.doctor?.clinicName || 'Nova IVF & Fertility Care Centre')
+        : (item.doctor?.clinicName || 'MediUnify BioMedical Equipment Hub');
+
+      const defaultAddress = isAyurveda
+        ? (item.doctor?.clinicAddress || 'No. 45, Saraswathipuram, Mysore')
+        : isFertility
+        ? (item.doctor?.clinicAddress || 'No. 88, Gokulam 3rd Stage, Mysore')
+        : (item.patient?.address || item.doctor?.clinicAddress || 'Doorstep Delivery & Installation, Mysore');
+
+      const defaultFee = item.paidAmount || item.fee || item.doctor?.fee || (isAyurveda ? 400 : isFertility ? 600 : 4999);
+
+      return {
+        ...item,
+        type: item.type || (isAyurveda ? 'Ayurvedic Consultation' : isFertility ? 'Fertility Specialist Consult' : 'Medical Equipment Rental'),
+        tokenNumber: item.tokenNumber || item.id,
+        doctor: {
+          name: defaultDocName,
+          specialty: defaultSpec,
+          clinicName: defaultClinic,
+          clinicAddress: defaultAddress,
+          clinicArea: isAyurveda ? 'Saraswathipuram, Mysore' : isFertility ? 'Gokulam, Mysore' : 'Mysore',
+          phone: item.doctor?.phone || '+91 821 245 9901',
+          fee: defaultFee,
+          image:
+            item.doctor?.image ||
+            (isAyurveda
+              ? 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=400'
+              : isFertility
+              ? 'https://images.unsplash.com/photo-1594824813576-92f70b79873a?w=400'
+              : 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=400'),
+        },
+        day: item.day || 'Scheduled',
+        date: item.date || 'Scheduled Date',
+        time: item.time || (isEquipment ? 'Technician Delivery & Setup in 4 Hrs' : 'Confirmed Slot'),
+        status: item.status || 'Confirmed',
+        paidAmount: defaultFee,
+        paymentStatus: item.paymentStatus || 'Paid Online via UPI',
+        patient: item.patient || { name: item.patientName || 'Patient (Self)', age: '28', gender: 'Self' },
+        details: item.details || item,
+      };
+    }
+
     // Default Doctor appointment
     return {
       ...item,
@@ -529,13 +701,33 @@ const BookingsScreen = ({ navigation, route }) => {
         }
       });
 
+      // 7. Load Ayurveda, Fertility, and Equipment bookings
+      const ayuJson = await AsyncStorage.getItem('@unnathi_ayurveda_bookings');
+      const storedAyu = ayuJson ? JSON.parse(ayuJson) : [];
+
+      const fertJson = await AsyncStorage.getItem('@unnathi_fertility_bookings');
+      const storedFert = fertJson ? JSON.parse(fertJson) : [];
+
+      const equipJson = await AsyncStorage.getItem('@unnathi_equipment_orders');
+      const storedEquip = equipJson ? JSON.parse(equipJson) : [];
+
       // Combine with newest first
       const rawAll = [];
       // If a new booking was passed in route params, ensure it is at the very front
       if (route?.params?.newAppointment) {
         rawAll.push(route.params.newAppointment);
       }
-      rawAll.push(...storedAppts, ...storedVideo, ...storedLabs, ...storedRad, ...storedNurse, ...pharmOrders);
+      rawAll.push(
+        ...storedAppts,
+        ...storedVideo,
+        ...storedLabs,
+        ...storedRad,
+        ...storedNurse,
+        ...storedAyu,
+        ...storedFert,
+        ...storedEquip,
+        ...pharmOrders
+      );
 
       if (rawAll.length === 0) {
         rawAll.push(...DEFAULT_SAMPLE_APPOINTMENTS);
@@ -599,9 +791,29 @@ const BookingsScreen = ({ navigation, route }) => {
         item.assignedNurse !== undefined ||
         (typeof item.serviceName === 'string' && item.serviceName.includes('Staff'));
       const isPharmacy = item.type === 'Pharmacy Order' || item.isPharmacyOrder;
-      const isDoc = !isLab && !isRad && !isVideo && !isPharmacy && !isNurse;
+      const isEquipment =
+        item.type?.includes('Equipment') ||
+        item.serviceType === 'equipment';
+      const isAyurveda =
+        item.type?.includes('Ayurved') ||
+        item.type?.includes('Panchakarma') ||
+        item.serviceType === 'ayurveda';
+      const isFertility =
+        item.type?.includes('Fertility') ||
+        item.type?.includes('IVF') ||
+        item.serviceType === 'fertility';
+      const isDoc = !isLab && !isRad && !isVideo && !isPharmacy && !isNurse && !isEquipment && !isAyurveda && !isFertility;
       const isSample = isLab && (item.collectionMode?.includes('Home') || item.visitType?.includes('Home'));
 
+      if (selectedTab === 'Equipment Rental') {
+        return isEquipment;
+      }
+      if (selectedTab === 'Ayurveda & Wellness') {
+        return isAyurveda;
+      }
+      if (selectedTab === 'Fertility & IVF') {
+        return isFertility;
+      }
       if (selectedTab === 'Pharmacy Orders') {
         return isPharmacy;
       }
@@ -667,7 +879,32 @@ const BookingsScreen = ({ navigation, route }) => {
           a.type !== 'Home Nurse Care' &&
           a.type !== 'Nurse' &&
           a.serviceType !== 'nurse' &&
-          a.assignedNurse === undefined
+          a.assignedNurse === undefined &&
+          !a.type?.includes('Equipment') &&
+          a.serviceType !== 'equipment' &&
+          !a.type?.includes('Ayurved') &&
+          !a.type?.includes('Panchakarma') &&
+          a.serviceType !== 'ayurveda' &&
+          !a.type?.includes('Fertility') &&
+          !a.type?.includes('IVF') &&
+          a.serviceType !== 'fertility'
+      ).length,
+      equipment: appointments.filter(
+        (a) =>
+          a.type?.includes('Equipment') ||
+          a.serviceType === 'equipment'
+      ).length,
+      ayurveda: appointments.filter(
+        (a) =>
+          a.type?.includes('Ayurved') ||
+          a.type?.includes('Panchakarma') ||
+          a.serviceType === 'ayurveda'
+      ).length,
+      fertility: appointments.filter(
+        (a) =>
+          a.type?.includes('Fertility') ||
+          a.type?.includes('IVF') ||
+          a.serviceType === 'fertility'
       ).length,
       labTests: appointments.filter(
         (a) =>
@@ -966,7 +1203,7 @@ const BookingsScreen = ({ navigation, route }) => {
     await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updatedAppointments));
   };
 
-  // Render Card
+  // Render Card (Matching HomeScreen.web.js visual standards)
   const renderAppointmentCard = ({ item }) => {
     const isPharmacy =
       item.type === 'Pharmacy Order' ||
@@ -985,13 +1222,260 @@ const BookingsScreen = ({ navigation, route }) => {
       (item.type === 'Lab Test' ||
       item.type === 'Diagnostic Lab Test' ||
       item.type === 'Lab');
+    const isEquipment =
+      item.type?.includes('Equipment') ||
+      item.serviceType === 'equipment';
+    const isAyurveda =
+      item.type?.includes('Ayurved') ||
+      item.type?.includes('Panchakarma') ||
+      item.serviceType === 'ayurveda';
+    const isFertility =
+      item.type?.includes('Fertility') ||
+      item.type?.includes('IVF') ||
+      item.serviceType === 'fertility';
+    const isNurse =
+      !isPharmacy &&
+      !isRadiology &&
+      !isVideo &&
+      !isLabTest &&
+      !isEquipment &&
+      !isAyurveda &&
+      !isFertility &&
+      (item.type === 'Home Nurse Care' ||
+      item.type === 'Nurse' ||
+      item.serviceType === 'nurse' ||
+      item.assignedNurse !== undefined ||
+      (typeof item.serviceName === 'string' && item.serviceName.includes('Staff')));
+
     const isCancelled = item.status === 'Cancelled';
     const isRescheduled = item.status === 'Rescheduled';
 
+    // Category visual accents (Curated from HomeScreen.web.js)
+    const accentColor = isPharmacy
+      ? '#D97706'
+      : isLabHomeSample
+      ? '#059669'
+      : isVideo
+      ? '#2563EB'
+      : isRadiology
+      ? '#7C3AED'
+      : isLabTest
+      ? '#0D9488'
+      : isNurse
+      ? '#EC4899'
+      : isEquipment
+      ? '#8B5CF6'
+      : isAyurveda
+      ? '#059669'
+      : isFertility
+      ? '#DB2777'
+      : '#00B894';
+
+    const accentBg = isPharmacy
+      ? '#FFFBEB'
+      : isLabHomeSample
+      ? '#ECFDF5'
+      : isVideo
+      ? '#EFF6FF'
+      : isRadiology
+      ? '#FAF5FF'
+      : isLabTest
+      ? '#F0FDFA'
+      : isNurse
+      ? '#FDF2F8'
+      : isEquipment
+      ? '#F5F3FF'
+      : isAyurveda
+      ? '#F0FDF4'
+      : isFertility
+      ? '#FFF1F2'
+      : '#F0FDF4';
+
+    const accentBorder = isPharmacy
+      ? '#FED7AA'
+      : isLabHomeSample
+      ? '#A7F3D0'
+      : isVideo
+      ? '#BFDBFE'
+      : isRadiology
+      ? '#DDD6FE'
+      : isLabTest
+      ? '#99F6E4'
+      : isNurse
+      ? '#FBCFE8'
+      : isEquipment
+      ? '#DDD6FE'
+      : isAyurveda
+      ? '#BBF7D0'
+      : isFertility
+      ? '#FECDD3'
+      : '#CCFBF1';
+
+    const serviceLabel = isPharmacy
+      ? 'PHARMACY DELIVERY'
+      : isLabHomeSample
+      ? 'HOME SAMPLE COLLECTION'
+      : isVideo
+      ? 'VIDEO CONSULTATION'
+      : isRadiology
+      ? 'RADIOLOGY & SCAN'
+      : isLabTest
+      ? 'DIAGNOSTIC LAB'
+      : isNurse
+      ? 'HOME NURSE CARE'
+      : isEquipment
+      ? 'EQUIPMENT RENTAL'
+      : isAyurveda
+      ? 'AYURVEDA & WELLNESS'
+      : isFertility
+      ? 'FERTILITY & IVF'
+      : 'IN-CLINIC VISIT';
+
+    const serviceIcon = isPharmacy
+      ? 'cart'
+      : isLabHomeSample
+      ? 'navigate'
+      : isVideo
+      ? 'videocam'
+      : isRadiology
+      ? 'radio'
+      : isLabTest
+      ? 'flask'
+      : isNurse
+      ? 'heart'
+      : isEquipment
+      ? 'construct'
+      : isAyurveda
+      ? 'leaf'
+      : isFertility
+      ? 'heart-circle'
+      : 'business';
+
+    // Status colors
+    const isDelivered = item.status === 'Delivered';
+    const statusBg = isCancelled
+      ? '#FEF2F2'
+      : isRescheduled
+      ? '#F0F9FF'
+      : isDelivered
+      ? '#ECFDF5'
+      : '#ECFDF5';
+
+    const statusBorder = isCancelled
+      ? '#FECACA'
+      : isRescheduled
+      ? '#BAE6FD'
+      : isDelivered
+      ? '#A7F3D0'
+      : '#A7F3D0';
+
+    const statusDotColor = isCancelled
+      ? '#EF4444'
+      : isRescheduled
+      ? '#0284C7'
+      : '#10B981';
+
+    const statusTextColor = isCancelled
+      ? '#DC2626'
+      : isRescheduled
+      ? '#0369A1'
+      : '#059669';
+
+    const statusText = item.status || 'Confirmed';
+
+    // Provider details
+    const providerName =
+      item.doctor?.name ||
+      (isPharmacy
+        ? 'Unnathi Certified Pharmacy Store'
+        : isEquipment
+        ? 'MediUnify BioMedical Equipment Hub'
+        : isAyurveda
+        ? 'Sanjeevani Ayurvedic Wellness Centre'
+        : isFertility
+        ? 'Nova IVF & Fertility Care Centre'
+        : isLabTest
+        ? 'MediUnify Pathology Hub'
+        : 'MediUnify Healthcare Clinic');
+
+    const providerSpec =
+      item.doctor?.specialty ||
+      (isPharmacy
+        ? `${item.itemsSummary || 'Medicine Delivery • 2 Items'}`
+        : isEquipment
+        ? 'BioMedical Equipment Rental • Technician Assisted'
+        : isAyurveda
+        ? 'Ayurvedic Physician • Natural Wellness & Detox'
+        : isFertility
+        ? 'Reproductive Medicine & IVF Specialist'
+        : isLabTest
+        ? `${item.tests ? item.tests.length : 2} Diagnostic Tests Included`
+        : isVideo
+        ? 'General Physician • Online Video Room'
+        : 'General Physician • Kuvempunagar, Mysore');
+
+    const providerLocation = isPharmacy
+      ? item.doctor?.clinicAddress || 'No. 45, Vijayanagar 2nd Stage, Mysore'
+      : isVideo
+      ? '100% Private HD Telehealth Room'
+      : isEquipment
+      ? item.patient?.address || item.doctor?.clinicAddress || 'Doorstep Delivery & BioMedical Demo, Mysore'
+      : isNurse
+      ? item.patient?.address || item.doctor?.clinicAddress || 'Doorstep Nursing Care, Mysore'
+      : isAyurveda
+      ? item.doctor?.clinicAddress || 'Saraswathipuram, Mysore'
+      : isFertility
+      ? item.doctor?.clinicAddress || 'Gokulam 3rd Stage, Mysore'
+      : item.doctor?.clinicArea || item.doctor?.clinicAddress || item.doctor?.clinicName || 'Kuvempunagar, Mysore';
+
+    const locationIcon = isPharmacy
+      ? 'location-outline'
+      : isVideo
+      ? 'videocam-outline'
+      : (isLabHomeSample || isEquipment || isNurse)
+      ? 'home-outline'
+      : 'location-outline';
+
+    const avatarUri =
+      item.doctor?.image ||
+      (isPharmacy
+        ? 'https://images.unsplash.com/photo-1586015555751-63bb77f4322a?auto=format&fit=crop&q=80&w=300'
+        : isVideo
+        ? 'https://images.unsplash.com/photo-1594824813576-92f70b79873a?auto=format&fit=crop&q=80&w=300'
+        : isRadiology
+        ? 'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&q=80&w=300'
+        : isEquipment
+        ? 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&q=80&w=300'
+        : isAyurveda
+        ? 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&q=80&w=300'
+        : isFertility
+        ? 'https://images.unsplash.com/photo-1594824813576-92f70b79873a?auto=format&fit=crop&q=80&w=300'
+        : isLabTest
+        ? 'https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&q=80&w=300'
+        : 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300');
+
+    // Schedule values
+    const scheduleDate = `${item.day ? `${item.day}, ` : ''}${item.date?.split(',')[0] || item.date || 'Today'}`;
+    const scheduleTime = item.time?.replace(' (Fasting)', '')?.replace(' (Live Room Ready)', '') || '09:30 AM';
+    const patientName = item.patient?.name || 'Self';
+    const patientDetails = item.patient?.gender && !isPharmacy
+      ? ` (${item.patient.gender}, ${item.patient.age || '32'}y)`
+      : item.patient?.age
+      ? ` (${item.patient.age}y)`
+      : '';
+
+    const feeAmount = item.paidAmount || item.doctor?.fee || item.total || 450;
+    const paymentLabel = item.paymentStatus
+      ? item.paymentStatus.replace('Paid Online via UPI', 'Paid Online').replace('Pay at Clinic Reception', 'Pay at Clinic')
+      : 'Paid Online';
+
     return (
       <TouchableOpacity
-        style={[styles.card, isCancelled && styles.cardCancelled, isVideo && styles.cardVideo]}
-        activeOpacity={0.92}
+        style={[
+          styles.appointmentCard,
+          isCancelled && styles.appointmentCardCancelled,
+        ]}
+        activeOpacity={0.95}
         onPress={() => {
           if (isPharmacy) {
             setSelectedTrackingPharmacy(item);
@@ -1002,81 +1486,13 @@ const BookingsScreen = ({ navigation, route }) => {
           }
         }}
       >
-        {/* CARD TOP BAR: TYPE, TOKEN & STATUS */}
+        {/* 1. TOP HEADER: CATEGORY BADGE, TOKEN & STATUS */}
         <View style={styles.cardHeader}>
           <View style={styles.cardHeaderLeft}>
-            <View
-              style={[
-                styles.typeBadge,
-                isPharmacy
-                  ? { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }
-                  : isLabHomeSample
-                  ? { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }
-                  : isVideo
-                  ? { backgroundColor: '#F5F3FF', borderColor: '#DDD6FE' }
-                  : isRadiology
-                  ? { backgroundColor: '#F3E8FF', borderColor: '#E9D5FF' }
-                  : isLabTest
-                  ? { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }
-                  : { backgroundColor: '#EFF6FF', borderColor: '#DBEAFE' },
-              ]}
-            >
-              <Ionicons
-                name={
-                  isPharmacy
-                    ? 'cart'
-                    : isLabHomeSample
-                    ? 'navigate'
-                    : isVideo
-                    ? 'videocam'
-                    : isRadiology
-                    ? 'radio'
-                    : isLabTest
-                    ? 'flask'
-                    : 'person'
-                }
-                size={12}
-                color={
-                  isPharmacy
-                    ? '#D97706'
-                    : isLabHomeSample
-                    ? '#059669'
-                    : isVideo
-                    ? '#7C3AED'
-                    : isRadiology
-                    ? '#7C3AED'
-                    : isLabTest
-                    ? colors.teal
-                    : '#2563EB'
-                }
-              />
-              <Text
-                style={[
-                  styles.typeBadgeText,
-                  isPharmacy
-                    ? { color: '#D97706' }
-                    : isLabHomeSample
-                    ? { color: '#059669' }
-                    : isVideo
-                    ? { color: '#7C3AED' }
-                    : isRadiology
-                    ? { color: '#7C3AED' }
-                    : isLabTest
-                    ? { color: colors.teal }
-                    : { color: '#2563EB' },
-                ]}
-              >
-                {isPharmacy
-                  ? 'Pharmacy Delivery'
-                  : isLabHomeSample
-                  ? 'Home Sample'
-                  : isVideo
-                  ? 'Video Call'
-                  : isRadiology
-                  ? 'Radiology'
-                  : isLabTest
-                  ? 'Lab Test'
-                  : 'In-Clinic'}
+            <View style={[styles.serviceBadge, { backgroundColor: accentBg, borderColor: accentBorder }]}>
+              <Ionicons name={serviceIcon} size={12} color={accentColor} />
+              <Text style={[styles.serviceBadgeText, { color: accentColor }]}>
+                {serviceLabel}
               </Text>
             </View>
 
@@ -1088,462 +1504,327 @@ const BookingsScreen = ({ navigation, route }) => {
           </View>
 
           {/* STATUS PILL */}
-          <View
-            style={[
-              styles.statusPill,
-              isCancelled
-                ? styles.statusPillCancelled
-                : isRescheduled
-                ? styles.statusPillRescheduled
-                : styles.statusPillConfirmed,
-            ]}
-          >
-            <View
-              style={[
-                styles.statusDot,
-                isCancelled
-                  ? { backgroundColor: colors.coral }
-                  : isRescheduled
-                  ? { backgroundColor: colors.aqua }
-                  : { backgroundColor: colors.freshGreen },
-              ]}
-            />
-            <Text
-              style={[
-                styles.statusPillText,
-                isCancelled
-                  ? { color: colors.coral }
-                  : isRescheduled
-                  ? { color: colors.aqua }
-                  : { color: colors.freshGreen },
-              ]}
-            >
-              {item.status}
+          <View style={[styles.statusBadge, { backgroundColor: statusBg, borderColor: statusBorder }]}>
+            <View style={[styles.statusDot, { backgroundColor: statusDotColor }]} />
+            <Text style={[styles.statusText, { color: statusTextColor }]}>
+              {statusText}
             </Text>
           </View>
         </View>
 
-        {/* PHARMACY LIVE DELIVERY BANNER */}
-        {isPharmacy && (
-          <TouchableOpacity
-            style={[styles.collectionModeRow, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}
-            onPress={() => setSelectedTrackingPharmacy(item)}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="bicycle" size={13} color="#D97706" />
-            <Text style={[styles.collectionModeRowText, { color: '#B45309', fontWeight: '700' }]} numberOfLines={1}>
-              Express Delivery • Rider Santosh M. Assigned • Tap to Track ›
-            </Text>
-          </TouchableOpacity>
-        )}
+        {/* 2. DOCTOR / PROVIDER INFO ROW WITH PRICE */}
+        <View style={styles.cardBodyRow}>
+          <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
 
-        {/* LAB SAMPLE COLLECTION BANNER */}
-        {isLabHomeSample && (
-          <TouchableOpacity
-            style={[styles.collectionModeRow, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}
-            onPress={() => setSelectedTrackingSample(item)}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="navigate-circle" size={14} color="#059669" />
-            <Text style={[styles.collectionModeRowText, { color: '#047857', fontWeight: '700' }]} numberOfLines={1}>
-              Doorstep Collection • Praveen M. (En Route) • Tap to Track ›
-            </Text>
-          </TouchableOpacity>
-        )}
+          <View style={styles.infoCol}>
+            <View style={styles.providerTitleRow}>
+              <Text style={styles.providerName} numberOfLines={1}>
+                {providerName}
+              </Text>
+              <Ionicons name="checkmark-circle" size={15} color={accentColor} />
+            </View>
 
-        {/* VIDEO CALL READY ROW */}
-        {isVideo && (
-          <View style={[styles.collectionModeRow, { backgroundColor: '#FAF5FF', borderColor: '#E9D5FF' }]}>
-            <Ionicons name="videocam" size={13} color="#7C3AED" />
-            <Text style={[styles.collectionModeRowText, { color: '#6D28D9', fontWeight: '600' }]} numberOfLines={1}>
-              Live Room Ready • Upload Docs In-Call
-            </Text>
-          </View>
-        )}
-
-        {isLabTest && !isLabHomeSample && item.collectionMode && (
-          <View style={styles.collectionModeRow}>
-            <Ionicons
-              name="business"
-              size={12}
-              color="#D97706"
-            />
-            <Text style={styles.collectionModeRowText} numberOfLines={1}>
-              {item.collectionMode} • {item.doctor?.clinicArea || 'Mysore'}
-            </Text>
-          </View>
-        )}
-
-        {/* DOCTOR / CENTER / STORE INFO ROW */}
-        <View style={styles.doctorInfoRow}>
-          <Image
-            source={{
-              uri:
-                item.doctor?.image ||
-                (isPharmacy
-                  ? 'https://images.unsplash.com/photo-1586015555751-63bb77f4322a?auto=format&fit=crop&q=80&w=300'
-                  : isVideo
-                  ? 'https://images.unsplash.com/photo-1594824813576-92f70b79873a?auto=format&fit=crop&q=80&w=300'
-                  : isRadiology
-                  ? 'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&q=80&w=300'
-                  : isLabTest
-                  ? 'https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&q=80&w=300'
-                  : 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300'),
-            }}
-            style={styles.doctorAvatar}
-          />
-
-          <View style={styles.doctorDetailsWrap}>
-            <Text style={styles.doctorName} numberOfLines={1}>
-              {item.doctor?.name || (isPharmacy ? 'Unnathi Pharmacy' : 'MediUnify Healthcare')}
-            </Text>
-            <Text style={styles.doctorSpecialty} numberOfLines={1}>
-              {item.doctor?.specialty || (isPharmacy ? 'Medicines' : isLabTest ? 'Diagnostics' : isVideo ? 'Tele-Consult' : 'General Medicine')}
+            <Text style={styles.providerSpec} numberOfLines={1}>
+              {providerSpec}
             </Text>
 
-            <View style={styles.clinicLocationRow}>
-              <Ionicons
-                name={isPharmacy ? 'bicycle' : isVideo ? 'videocam' : isLabHomeSample ? 'home' : 'location'}
-                size={11}
-                color={isPharmacy ? '#D97706' : isVideo ? '#7C3AED' : colors.primary}
-              />
-              <Text style={styles.clinicLocationText} numberOfLines={1}>
-                {isPharmacy
-                  ? item.doctor?.clinicAddress || 'Doorstep Delivery, Mysore'
-                  : isVideo
-                  ? 'Online Video Room'
-                  : item.doctor?.clinicArea || item.doctor?.clinicAddress || item.doctor?.clinicName || 'Mysore'}
+            <View style={styles.providerLocationRow}>
+              <Ionicons name={locationIcon} size={12} color="#64748B" />
+              <Text style={styles.providerLocationText} numberOfLines={1}>
+                {providerLocation}
               </Text>
             </View>
+
+            {/* Subtle Inline Highlights */}
+            {isVideo && (
+              <View style={[styles.cardLivePill, { backgroundColor: '#EFF6FF', borderColor: '#DBEAFE' }]}>
+                <Ionicons name="videocam" size={11} color="#2563EB" />
+                <Text style={[styles.cardLivePillText, { color: '#1D4ED8' }]}>
+                  Live Room Ready • Upload Docs In-Call
+                </Text>
+              </View>
+            )}
+
+            {isLabHomeSample && (
+              <View style={[styles.cardLivePill, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
+                <Ionicons name="navigate-circle" size={11} color="#059669" />
+                <Text style={[styles.cardLivePillText, { color: '#047857' }]}>
+                  Doorstep Collection • Praveen M. Assigned
+                </Text>
+              </View>
+            )}
+
+            {isPharmacy && (
+              <View style={[styles.cardLivePill, { backgroundColor: '#FFFBEB', borderColor: '#FED7AA' }]}>
+                <Ionicons name="bicycle" size={11} color="#D97706" />
+                <Text style={[styles.cardLivePillText, { color: '#B45309' }]}>
+                  Express Delivery • Rider Santosh M. Assigned
+                </Text>
+              </View>
+            )}
+
+            {isEquipment && (
+              <View style={[styles.cardLivePill, { backgroundColor: '#F5F3FF', borderColor: '#DDD6FE' }]}>
+                <Ionicons name="construct" size={11} color="#8B5CF6" />
+                <Text style={[styles.cardLivePillText, { color: '#6D28D9' }]}>
+                  BioMedical Setup & Demonstration Included
+                </Text>
+              </View>
+            )}
+
+            {isAyurveda && (
+              <View style={[styles.cardLivePill, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+                <Ionicons name="leaf" size={11} color="#059669" />
+                <Text style={[styles.cardLivePillText, { color: '#047857' }]}>
+                  Authentic Vaidya Care • Nadi & Prakriti Assessment
+                </Text>
+              </View>
+            )}
+
+            {isFertility && (
+              <View style={[styles.cardLivePill, { backgroundColor: '#FFF1F2', borderColor: '#FECDD3' }]}>
+                <Ionicons name="shield-checkmark" size={11} color="#DB2777" />
+                <Text style={[styles.cardLivePillText, { color: '#BE185D' }]}>
+                  100% Confidential • Dedicated Fertility Counselor
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Right Price Box */}
+          <View style={styles.priceCol}>
+            <Text style={styles.priceLabel}>FEE</Text>
+            <Text
+              style={[
+                styles.priceValue,
+                isCancelled && styles.priceValueCancelled,
+              ]}
+            >
+              ₹{feeAmount}
+            </Text>
+            <Text style={styles.pricePaymentTag} numberOfLines={1}>
+              {paymentLabel}
+            </Text>
           </View>
         </View>
 
-        {/* CLEAN LAB / RADIOLOGY / PHARMACY TEST INDICATOR BADGE */}
-        {isPharmacy && (
-          <View style={[styles.cleanLabBadgeRow, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
-            <Ionicons name="medical" size={13} color="#D97706" />
-            <Text style={[styles.cleanLabBadgeText, { color: '#B45309' }]} numberOfLines={1}>
-              {item.itemsSummary || 'Prescription Medicines & Health Supplies'} • Tap to Track ›
-            </Text>
-          </View>
-        )}
-
-        {(isRadiology || isLabTest || (item.tests && item.tests.length > 0)) && !isPharmacy && (
-          <View
-            style={[
-              styles.cleanLabBadgeRow,
-              isRadiology && { backgroundColor: '#F3E8FF', borderColor: '#E9D5FF' },
-            ]}
-          >
-            <Ionicons
-              name={isRadiology ? 'scan-outline' : 'flask'}
-              size={13}
-              color={isRadiology ? '#7C3AED' : colors.teal}
-            />
-            <Text
-              style={[
-                styles.cleanLabBadgeText,
-                isRadiology && { color: '#6D28D9' },
-              ]}
-              numberOfLines={1}
-            >
-              {item.tests ? item.tests.length : 1} {isRadiology ? 'Radiology Scan' : 'Diagnostic Test'}
-              {((item.tests?.length || 1) > 1) ? 's' : ''} Included • Tap card to view details ›
-            </Text>
-          </View>
-        )}
-
-        {/* SCHEDULED DATE & TIME HIGHLIGHT BOX */}
-        <View style={styles.scheduleBox}>
-          <View style={styles.scheduleBoxItem}>
-            <Ionicons name="calendar" size={13} color={colors.teal} />
-            <Text style={styles.scheduleLabel}>Date</Text>
-            <Text style={styles.scheduleValue} numberOfLines={1}>
-              {item.day ? `${item.day}, ` : ''}{item.date?.split(',')[0] || item.date}
-            </Text>
+        {/* 3. SLEEK SCHEDULE & PATIENT BAR */}
+        <View style={styles.scheduleStrip}>
+          <View style={styles.scheduleStripItem}>
+            <Ionicons name="calendar-outline" size={14} color="#00B894" />
+            <Text style={styles.scheduleStripVal}>{scheduleDate}</Text>
           </View>
 
-          <View style={styles.scheduleDivider} />
+          <View style={styles.scheduleStripDivider} />
 
-          <View style={[styles.scheduleBoxItem, { flex: 1.2 }]}>
-            <Ionicons name="time" size={13} color="#0284C7" />
-            <Text style={styles.scheduleLabel}>Slot</Text>
-            <Text style={styles.scheduleValue} numberOfLines={1}>
-              {item.time?.replace(' (Fasting)', '')?.replace(' (Live Room Ready)', '') || 'Express Slot'}
-            </Text>
+          <View style={styles.scheduleStripItem}>
+            <Ionicons name="time-outline" size={14} color="#2563EB" />
+            <Text style={styles.scheduleStripVal}>{scheduleTime}</Text>
           </View>
 
-          <View style={styles.scheduleDivider} />
+          <View style={styles.scheduleStripDivider} />
 
-          <View style={styles.scheduleBoxItem}>
-            <Ionicons name="cash" size={13} color={colors.freshGreen} />
-            <Text style={styles.scheduleLabel}>Fee</Text>
-            <Text
-              style={[
-                styles.scheduleValue,
-                isCancelled && { textDecorationLine: 'line-through', color: '#94A3B8' },
-              ]}
-              numberOfLines={1}
-            >
-              ₹{item.paidAmount || item.doctor?.fee || 350}
-            </Text>
-          </View>
-        </View>
-
-        {/* PATIENT PROFILE CHIP */}
-        {item.patient?.name && (
-          <View style={styles.patientRow}>
-            <Ionicons name="person-circle-outline" size={14} color={colors.slate} />
-            <Text style={styles.patientText} numberOfLines={1}>
+          <View style={[styles.scheduleStripItem, { flex: 1.2 }]}>
+            <Ionicons name="person-outline" size={14} color="#64748B" />
+            <Text style={styles.scheduleStripText} numberOfLines={1}>
               {isPharmacy ? 'Deliver to: ' : 'Patient: '}
-              <Text style={{ fontWeight: '700', color: '#1E293B' }}>{item.patient.name}</Text>
-              {item.patient.gender && !isPharmacy ? ` (${item.patient.gender}, ${item.patient.age || '28'}y)` : ''}
+              <Text style={styles.scheduleStripVal}>{patientName}</Text>
+              {patientDetails}
             </Text>
           </View>
-        )}
 
-        {/* ATTACHED DOCUMENTS PREVIEW BAR */}
-        {((item.documents && item.documents.length > 0) || item.patient?.reportUri) ? (
-          <TouchableOpacity
-            style={styles.attachedDocsBar}
-            onPress={() => handleOpenUploadModal(item)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="document-attach" size={13} color={colors.primary} />
-            <Text style={styles.attachedDocsBarText} numberOfLines={1}>
-              {item.documents?.length || 1} Medical Doc{((item.documents?.length || 1) > 1) ? 's' : ''} Uploaded (Tap to view / add)
-            </Text>
-            <Ionicons name="chevron-forward" size={13} color={colors.primary} />
-          </TouchableOpacity>
-        ) : null}
+          {((item.documents && item.documents.length > 0) || item.patient?.reportUri) && (
+            <TouchableOpacity
+              style={styles.docAttachBadge}
+              onPress={() => handleOpenUploadModal(item)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="attach" size={12} color="#0D9488" />
+              <Text style={styles.docAttachBadgeText}>
+                {item.documents?.length || 1} Doc
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
-        {/* ACTION BUTTONS */}
-        <View style={styles.cardActionsContainer}>
+        {/* 4. UNIFIED SINGLE ACTION BAR */}
+        <View style={styles.cardActionsBar}>
           {!isCancelled ? (
             <>
-              {/* SPECIAL FEATURED TRACKING BUTTON FOR PHARMACY ORDERS */}
-              {isPharmacy && (
-                <TouchableOpacity
-                  style={[styles.joinVideoPrimaryBtn, { backgroundColor: '#D97706' }]}
-                  onPress={() => setSelectedTrackingPharmacy(item)}
-                  activeOpacity={0.88}
-                >
-                  <View style={[styles.livePulseDot, { backgroundColor: '#FEF08A' }]} />
-                  <Ionicons name="bicycle" size={17} color="#FFFFFF" />
-                  <Text style={styles.joinVideoPrimaryBtnText}>Track Medicine Delivery (ETA ~30m)</Text>
-                  <Ionicons name="chevron-forward" size={15} color="#FFFFFF" />
-                </TouchableOpacity>
-              )}
-
-              {/* SPECIAL FEATURED TRACKING BUTTON FOR LAB SAMPLE COLLECTION */}
-              {isLabHomeSample && (
-                <TouchableOpacity
-                  style={[styles.joinVideoPrimaryBtn, { backgroundColor: '#059669' }]}
-                  onPress={() => setSelectedTrackingSample(item)}
-                  activeOpacity={0.88}
-                >
-                  <View style={[styles.livePulseDot, { backgroundColor: '#A7F3D0' }]} />
-                  <Ionicons name="navigate" size={17} color="#FFFFFF" />
-                  <Text style={styles.joinVideoPrimaryBtnText}>Track Doorstep Sample Collection</Text>
-                  <Ionicons name="chevron-forward" size={15} color="#FFFFFF" />
-                </TouchableOpacity>
-              )}
-
-              {/* SPECIAL FEATURED JOIN BUTTON FOR VIDEO CONSULTATIONS */}
-              {isVideo && (
-                <TouchableOpacity
-                  style={styles.joinVideoPrimaryBtn}
-                  onPress={() =>
-                    navigation.navigate('VideoMeeting', {
-                      appointment: item,
-                      doctor: item.doctor,
-                    })
-                  }
-                  activeOpacity={0.88}
-                >
-                  <View style={styles.livePulseDot} />
-                  <Ionicons name="videocam" size={17} color="#FFFFFF" />
-                  <Text style={styles.joinVideoPrimaryBtnText}>Join Video Call</Text>
-                  <Ionicons name="chevron-forward" size={15} color="#FFFFFF" />
-                </TouchableOpacity>
-              )}
-
-              {/* ROW 1: ACTION PILLS */}
-              <View style={styles.actionPillsRow}>
-                {isPharmacy ? (
-                  <>
-                    <TouchableOpacity
-                      style={[styles.actionPillBtn, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}
-                      onPress={() => setSelectedTrackingPharmacy(item)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="navigate-outline" size={13} color="#D97706" />
-                      <Text style={[styles.actionPillTextBlue, { color: '#B45309', fontWeight: '700' }]} numberOfLines={1}>
-                        Live Track
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.actionPillBtn}
-                      onPress={() => {
-                        const telNum = item.rider?.phone || '+919876543210';
-                        Linking.openURL(`tel:${telNum}`);
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="call-outline" size={13} color={colors.primary} />
-                      <Text style={styles.actionPillTextPrimary} numberOfLines={1}>Call Rider</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.actionPillBtnCancel}
-                      onPress={() => handleQuickCancel(item)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="close-circle-outline" size={13} color="#DC2626" />
-                      <Text style={styles.actionPillTextRed} numberOfLines={1}>Cancel</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : isLabHomeSample ? (
-                  <>
-                    <TouchableOpacity
-                      style={[styles.actionPillBtn, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}
-                      onPress={() => setSelectedTrackingSample(item)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="navigate-outline" size={13} color="#059669" />
-                      <Text style={[styles.actionPillTextBlue, { color: '#047857', fontWeight: '700' }]} numberOfLines={1}>
-                        Live Track
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.actionPillBtn}
-                      onPress={() => {
-                        Linking.openURL('tel:+919876543210');
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="call-outline" size={13} color={colors.primary} />
-                      <Text style={styles.actionPillTextPrimary} numberOfLines={1}>Call Tech</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.actionPillBtnCancel}
-                      onPress={() => handleQuickCancel(item)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="close-circle-outline" size={13} color="#DC2626" />
-                      <Text style={styles.actionPillTextRed} numberOfLines={1}>Cancel</Text>
-                    </TouchableOpacity>
-                  </>
+              <View style={styles.cardActionsLeft}>
+                {/* PRIMARY ACTION CTA */}
+                {isEquipment ? (
+                  <TouchableOpacity
+                    style={[styles.btnPrimaryAction, { backgroundColor: '#8B5CF6' }]}
+                    onPress={() => {
+                      const telNum = item.doctor?.phone || '+918212459908';
+                      Linking.openURL(`tel:${telNum}`);
+                    }}
+                    activeOpacity={0.88}
+                  >
+                    <Ionicons name="call" size={14} color="#FFFFFF" />
+                    <Text style={styles.btnPrimaryActionText}>Call BioTech</Text>
+                  </TouchableOpacity>
+                ) : isAyurveda ? (
+                  <TouchableOpacity
+                    style={[styles.btnPrimaryAction, { backgroundColor: '#059669' }]}
+                    onPress={() => handleOpenDirections(item)}
+                    activeOpacity={0.88}
+                  >
+                    <Ionicons name="navigate-outline" size={14} color="#FFFFFF" />
+                    <Text style={styles.btnPrimaryActionText}>Directions</Text>
+                  </TouchableOpacity>
+                ) : isFertility ? (
+                  <TouchableOpacity
+                    style={[styles.btnPrimaryAction, { backgroundColor: '#DB2777' }]}
+                    onPress={() => handleOpenDirections(item)}
+                    activeOpacity={0.88}
+                  >
+                    <Ionicons name="navigate-outline" size={14} color="#FFFFFF" />
+                    <Text style={styles.btnPrimaryActionText}>Directions</Text>
+                  </TouchableOpacity>
                 ) : isVideo ? (
-                  <>
-                    <TouchableOpacity
-                      style={[styles.actionPillBtn, { backgroundColor: '#F5F3FF', borderColor: '#DDD6FE' }]}
-                      onPress={() => handleOpenUploadModal(item)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="cloud-upload-outline" size={13} color="#7C3AED" />
-                      <Text style={[styles.actionPillTextBlue, { color: '#7C3AED' }]} numberOfLines={1}>
-                        Upload Doc
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.actionPillBtn}
-                      onPress={() => {
-                        navigation.navigate('BookingDetails', { appointment: item });
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="calendar-outline" size={13} color={colors.primary} />
-                      <Text style={styles.actionPillTextPrimary} numberOfLines={1}>Reschedule</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.actionPillBtnCancel}
-                      onPress={() => handleQuickCancel(item)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="close-circle-outline" size={13} color="#DC2626" />
-                      <Text style={styles.actionPillTextRed} numberOfLines={1}>Cancel</Text>
-                    </TouchableOpacity>
-                  </>
+                  <TouchableOpacity
+                    style={[styles.btnPrimaryAction, { backgroundColor: '#2563EB' }]}
+                    onPress={() =>
+                      navigation.navigate('VideoMeeting', {
+                        appointment: item,
+                        doctor: item.doctor,
+                      })
+                    }
+                    activeOpacity={0.88}
+                  >
+                    <View style={styles.livePulseDot} />
+                    <Ionicons name="videocam" size={14} color="#FFFFFF" />
+                    <Text style={styles.btnPrimaryActionText}>Join Video Call</Text>
+                    <Ionicons name="chevron-forward" size={13} color="#FFFFFF" />
+                  </TouchableOpacity>
+                ) : isPharmacy ? (
+                  <TouchableOpacity
+                    style={[styles.btnPrimaryAction, { backgroundColor: '#D97706' }]}
+                    onPress={() => setSelectedTrackingPharmacy(item)}
+                    activeOpacity={0.88}
+                  >
+                    <Ionicons name="bicycle" size={14} color="#FFFFFF" />
+                    <Text style={styles.btnPrimaryActionText}>Track Delivery</Text>
+                    <Ionicons name="chevron-forward" size={13} color="#FFFFFF" />
+                  </TouchableOpacity>
+                ) : isLabHomeSample ? (
+                  <TouchableOpacity
+                    style={[styles.btnPrimaryAction, { backgroundColor: '#059669' }]}
+                    onPress={() => setSelectedTrackingSample(item)}
+                    activeOpacity={0.88}
+                  >
+                    <Ionicons name="navigate" size={14} color="#FFFFFF" />
+                    <Text style={styles.btnPrimaryActionText}>Track Sample</Text>
+                    <Ionicons name="chevron-forward" size={13} color="#FFFFFF" />
+                  </TouchableOpacity>
                 ) : (
-                  <>
-                    <TouchableOpacity
-                      style={styles.actionPillBtn}
-                      onPress={() => handleOpenDirections(item)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="navigate" size={13} color="#0284C7" />
-                      <Text style={styles.actionPillTextBlue} numberOfLines={1}>Directions</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.actionPillBtn}
-                      onPress={() => {
-                        navigation.navigate('BookingDetails', { appointment: item });
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="calendar-outline" size={13} color={colors.primary} />
-                      <Text style={styles.actionPillTextPrimary} numberOfLines={1}>Reschedule</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.actionPillBtnCancel}
-                      onPress={() => handleQuickCancel(item)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="close-circle-outline" size={13} color="#DC2626" />
-                      <Text style={styles.actionPillTextRed} numberOfLines={1}>Cancel</Text>
-                    </TouchableOpacity>
-                  </>
+                  <TouchableOpacity
+                    style={[styles.btnPrimaryAction, { backgroundColor: '#00B894' }]}
+                    onPress={() => handleOpenDirections(item)}
+                    activeOpacity={0.88}
+                  >
+                    <Ionicons name="navigate-outline" size={14} color="#FFFFFF" />
+                    <Text style={styles.btnPrimaryActionText}>Directions</Text>
+                  </TouchableOpacity>
                 )}
-              </View>
 
-              {/* ROW 2: FULL WIDTH DETAILS BUTTON */}
-              <TouchableOpacity
-                style={styles.fullDetailsBtn}
-                onPress={() => {
-                  navigation.navigate('BookingDetails', { appointment: item });
-                }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="receipt-outline" size={13} color={colors.primary} />
-                <Text style={styles.fullDetailsBtnText}>View Details & Receipt</Text>
-                <Ionicons name="chevron-forward" size={13} color={colors.primary} />
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              {/* CANCELLED ROW */}
-              <View style={styles.actionPillsRow}>
-                <TouchableOpacity
-                  style={styles.rebookBtnFilled}
-                  onPress={() =>
-                    navigation.navigate(
-                      isVideo ? 'VideoConsultation' : isRadiology ? 'RadiologyLabs' : isLabTest ? 'LabTests' : 'DoctorList'
-                    )
-                  }
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="refresh" size={13} color="#FFFFFF" />
-                  <Text style={styles.rebookBtnFilledText}>Rebook</Text>
-                </TouchableOpacity>
+                {/* SECONDARY ACTION */}
+                {isVideo && (
+                  <TouchableOpacity
+                    style={styles.btnSecondaryAction}
+                    onPress={() => handleOpenUploadModal(item)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="cloud-upload-outline" size={13} color="#2563EB" />
+                    <Text style={[styles.btnSecondaryActionText, { color: '#2563EB' }]}>Upload Doc</Text>
+                  </TouchableOpacity>
+                )}
 
+                {isPharmacy && (
+                  <TouchableOpacity
+                    style={styles.btnSecondaryAction}
+                    onPress={() => {
+                      const telNum = item.rider?.phone || '+919876543210';
+                      Linking.openURL(`tel:${telNum}`);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="call-outline" size={13} color="#D97706" />
+                    <Text style={[styles.btnSecondaryActionText, { color: '#D97706' }]}>Call Rider</Text>
+                  </TouchableOpacity>
+                )}
+
+                {isLabHomeSample && (
+                  <TouchableOpacity
+                    style={styles.btnSecondaryAction}
+                    onPress={() => Linking.openURL('tel:+919876543210')}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="call-outline" size={13} color="#059669" />
+                    <Text style={[styles.btnSecondaryActionText, { color: '#059669' }]}>Call Tech</Text>
+                  </TouchableOpacity>
+                )}
+
+                {!isPharmacy && !isLabHomeSample && (
+                  <TouchableOpacity
+                    style={styles.btnSecondaryAction}
+                    onPress={() => navigation.navigate('BookingDetails', { appointment: item })}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="calendar-outline" size={13} color="#2563EB" />
+                    <Text style={[styles.btnSecondaryActionText, { color: '#2563EB' }]}>Reschedule</Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* DETAILS & RECEIPT ACTION */}
                 <TouchableOpacity
-                  style={styles.viewSummaryBtn}
+                  style={styles.btnSecondaryAction}
                   onPress={() => navigation.navigate('BookingDetails', { appointment: item })}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="receipt-outline" size={13} color="#64748B" />
-                  <Text style={styles.viewSummaryBtnText}>Summary</Text>
+                  <Ionicons name="receipt-outline" size={13} color="#334155" />
+                  <Text style={styles.btnSecondaryActionText}>Details & Receipt</Text>
+                  <Ionicons name="chevron-forward" size={11} color="#64748B" />
                 </TouchableOpacity>
               </View>
+
+              {/* CANCEL ACTION */}
+              <TouchableOpacity
+                style={styles.btnCancelAction}
+                onPress={() => handleQuickCancel(item)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close-circle-outline" size={13} color="#EF4444" />
+                <Text style={styles.btnCancelActionText}>Cancel</Text>
+              </TouchableOpacity>
             </>
+          ) : (
+            /* CANCELLED ACTIONS ROW */
+            <View style={styles.cardActionsLeft}>
+              <TouchableOpacity
+                style={[styles.btnPrimaryAction, { backgroundColor: '#00B894' }]}
+                onPress={() =>
+                  navigation.navigate(
+                    isVideo ? 'VideoConsultation' : isRadiology ? 'RadiologyLabs' : isLabTest ? 'LabTests' : 'DoctorList'
+                  )
+                }
+                activeOpacity={0.88}
+              >
+                <Ionicons name="refresh" size={14} color="#FFFFFF" />
+                <Text style={styles.btnPrimaryActionText}>Rebook Visit</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.btnSecondaryAction}
+                onPress={() => navigation.navigate('BookingDetails', { appointment: item })}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="receipt-outline" size={13} color="#475569" />
+                <Text style={styles.btnSecondaryActionText}>View Summary</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       </TouchableOpacity>
@@ -1554,162 +1835,588 @@ const BookingsScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* TOP HEADER (CLEAN & CENTERED WITHOUT +BOOK BUTTON) */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="arrow-back" size={20} color="#1E293B" />
-        </TouchableOpacity>
-
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>My Appointments</Text>
-          <Text style={styles.headerSubtitle}>
-            {counts.all} Total • {counts.confirmed} Active
-          </Text>
-        </View>
-
-        {/* LIVE SYNC / REFRESH BUTTON */}
-        <TouchableOpacity
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            backgroundColor: '#F8FAFC',
-            borderWidth: 1,
-            borderColor: '#E2E8F0',
-            paddingHorizontal: 12,
-            paddingVertical: 7,
-            borderRadius: 20,
-            gap: 5,
-          }}
-          onPress={() => loadAppointments()}
-          activeOpacity={0.75}
-        >
-          <Ionicons name="sync-outline" size={16} color={colors.primary} />
-          {Platform.OS === 'web' && (
-            <Text style={{ fontSize: 12, fontWeight: '600', color: colors.primary }}>Sync</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {/* FILTER TABS (WITH VIDEO, LAB, SCANS, DOCTOR, NURSE) */}
-      <View style={styles.tabsContainer}>
-        {Platform.OS === 'web' ? (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 8 }}>
-            {[
-              { key: 'All', label: `All (${counts.all})`, icon: 'apps' },
-              { key: 'Sample Tracking', label: `Sample Tracking (${counts.sampleTracking})`, icon: 'navigate' },
-              { key: 'Pharmacy Orders', label: `Pharmacy (${counts.pharmacy})`, icon: 'cart' },
-              { key: 'Video Consults', label: `Video Calls (${counts.videoCalls})`, icon: 'videocam' },
-              { key: 'Doctor Visits', label: `In-Clinic (${counts.doctors})`, icon: 'person' },
-              { key: 'Lab Tests', label: `Lab Tests (${counts.labTests})`, icon: 'flask' },
-              { key: 'Radiology Scans', label: `Scans (${counts.radiology})`, icon: 'radio' },
-              { key: 'Home Care', label: `Nurse (${counts.nurse})`, icon: 'heart' },
-              { key: 'Confirmed', label: `Upcoming (${counts.confirmed})`, icon: 'checkmark-circle' },
-              { key: 'Cancelled', label: `Cancelled (${counts.cancelled})`, icon: 'close-circle' },
-            ].map((item) => {
-              const isSelected = selectedTab === item.key;
-              return (
-                <TouchableOpacity
-                  key={item.key}
-                  style={[styles.filterTab, isSelected && styles.filterTabActive]}
-                  onPress={() => setSelectedTab(item.key)}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons
-                    name={item.icon}
-                    size={14}
-                    color={isSelected ? '#FFFFFF' : '#64748B'}
-                  />
-                  <Text style={[styles.filterTabText, isSelected && styles.filterTabTextActive]}>
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        ) : (
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            data={[
-              { key: 'All', label: `All (${counts.all})`, icon: 'apps' },
-              { key: 'Sample Tracking', label: `Sample Tracking (${counts.sampleTracking})`, icon: 'navigate' },
-              { key: 'Pharmacy Orders', label: `Pharmacy (${counts.pharmacy})`, icon: 'cart' },
-              { key: 'Video Consults', label: `Video Calls (${counts.videoCalls})`, icon: 'videocam' },
-              { key: 'Doctor Visits', label: `In-Clinic (${counts.doctors})`, icon: 'person' },
-              { key: 'Lab Tests', label: `Lab Tests (${counts.labTests})`, icon: 'flask' },
-              { key: 'Radiology Scans', label: `Scans (${counts.radiology})`, icon: 'radio' },
-              { key: 'Home Care', label: `Nurse (${counts.nurse})`, icon: 'heart' },
-              { key: 'Confirmed', label: `Upcoming (${counts.confirmed})`, icon: 'checkmark-circle' },
-              { key: 'Cancelled', label: `Cancelled (${counts.cancelled})`, icon: 'close-circle' },
-            ]}
-            keyExtractor={(item) => item.key}
-            contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
-            renderItem={({ item }) => {
-              const isSelected = selectedTab === item.key;
-              return (
-                <TouchableOpacity
-                  style={[styles.filterTab, isSelected && styles.filterTabActive]}
-                  onPress={() => setSelectedTab(item.key)}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons
-                    name={item.icon}
-                    size={14}
-                    color={isSelected ? '#FFFFFF' : '#64748B'}
-                  />
-                  <Text style={[styles.filterTabText, isSelected && styles.filterTabTextActive]}>
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            }}
-          />
-        )}
-      </View>
-
-      {/* APPOINTMENTS LIST OR EMPTY STATE */}
-      {filteredAppointments.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <View style={styles.emptyIconCircle}>
-            <Ionicons name="flask-outline" size={54} color={colors.primary} />
-          </View>
-          <Text style={styles.emptyTitle}>No Bookings Found</Text>
-          <Text style={styles.emptySubtitle}>
-            You have no appointments or tests scheduled under "{selectedTab}".
-          </Text>
-
-          <View style={styles.emptyActionRow}>
-            <TouchableOpacity
-              style={styles.emptyPrimaryBtn}
-              onPress={() => navigation.navigate('LabTests')}
-              activeOpacity={0.88}
-            >
-              <Ionicons name="flask" size={16} color="#FFFFFF" />
-              <Text style={styles.emptyPrimaryBtnText}>Book Blood & Lab Tests</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.emptySecondaryBtn}
-              onPress={() => navigation.navigate('DoctorList')}
-              activeOpacity={0.88}
-            >
-              <Ionicons name="person" size={16} color={colors.primary} />
-              <Text style={styles.emptySecondaryBtnText}>Consult a Doctor</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredAppointments}
-          keyExtractor={(item) => item.id}
-          renderItem={renderAppointmentCard}
-          contentContainerStyle={styles.listContent}
+      {isDesktopWeb ? (
+        <ScrollView
           showsVerticalScrollIndicator={false}
-        />
+          contentContainerStyle={styles.desktopPageScroll}
+        >
+          {/* DESKTOP BREADCRUMBS */}
+          <View style={styles.webBreadcrumbsRow}>
+            <TouchableOpacity onPress={() => navigation.navigate('Home')} activeOpacity={0.7}>
+              <Text style={styles.webBreadcrumbLink}>Home</Text>
+            </TouchableOpacity>
+            <Text style={styles.webBreadcrumbSlash}>/</Text>
+            <Text style={styles.webBreadcrumbCurrent}>My Appointments & Bookings</Text>
+          </View>
+
+          {/* HERO PROMOTIONAL BANNER */}
+          <View style={styles.heroBannerDesktop}>
+            <View style={styles.heroContent}>
+              <View style={styles.heroTag}>
+                <Ionicons name="sparkles" size={13} color="#FFFFFF" />
+                <Text style={styles.heroTagText}>MEDIUNIFY HEALTH DASHBOARD</Text>
+              </View>
+              <View style={styles.heroTitleRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.heroTitle}>My Appointments & Health Care</Text>
+                  <Text style={styles.heroSubtitle}>
+                    Track in-clinic physical visits, live HD video calls, home lab collections, radiology scans, and pharmacy deliveries in real time.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.heroSyncBtn}
+                  onPress={() => loadAppointments()}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="sync-outline" size={16} color="#FFFFFF" />
+                  <Text style={styles.heroSyncBtnText}>Sync Live</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* QUICK STATS ROW */}
+              <View style={styles.heroStatsRow}>
+                <TouchableOpacity
+                  style={[styles.heroStatItem, selectedTab === 'All' && styles.heroStatItemActive]}
+                  onPress={() => setSelectedTab('All')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.heroStatNum}>{counts.all}</Text>
+                  <Text style={styles.heroStatLabel}>Total Bookings</Text>
+                </TouchableOpacity>
+                <View style={styles.heroStatDivider} />
+                <TouchableOpacity
+                  style={[styles.heroStatItem, selectedTab === 'Confirmed' && styles.heroStatItemActive]}
+                  onPress={() => setSelectedTab('Confirmed')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.heroStatNum, { color: '#34D399' }]}>{counts.confirmed}</Text>
+                  <Text style={styles.heroStatLabel}>Active / Upcoming</Text>
+                </TouchableOpacity>
+                <View style={styles.heroStatDivider} />
+                <TouchableOpacity
+                  style={[styles.heroStatItem, selectedTab === 'Doctor Visits' && styles.heroStatItemActive]}
+                  onPress={() => setSelectedTab('Doctor Visits')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.heroStatNum}>{counts.doctors}</Text>
+                  <Text style={styles.heroStatLabel}>In-Clinic Visits</Text>
+                </TouchableOpacity>
+                <View style={styles.heroStatDivider} />
+                <TouchableOpacity
+                  style={[styles.heroStatItem, selectedTab === 'Video Consults' && styles.heroStatItemActive]}
+                  onPress={() => setSelectedTab('Video Consults')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.heroStatNum}>{counts.videoCalls}</Text>
+                  <Text style={styles.heroStatLabel}>Video Calls</Text>
+                </TouchableOpacity>
+                <View style={styles.heroStatDivider} />
+                <TouchableOpacity
+                  style={[styles.heroStatItem, selectedTab === 'Lab Tests' && styles.heroStatItemActive]}
+                  onPress={() => setSelectedTab('Lab Tests')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.heroStatNum}>{counts.labTests}</Text>
+                  <Text style={styles.heroStatLabel}>Lab Tests</Text>
+                </TouchableOpacity>
+                <View style={styles.heroStatDivider} />
+                <TouchableOpacity
+                  style={[styles.heroStatItem, selectedTab === 'Equipment Rental' && styles.heroStatItemActive]}
+                  onPress={() => setSelectedTab('Equipment Rental')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.heroStatNum, { color: '#8B5CF6' }]}>{counts.equipment}</Text>
+                  <Text style={styles.heroStatLabel}>Equipment</Text>
+                </TouchableOpacity>
+                <View style={styles.heroStatDivider} />
+                <TouchableOpacity
+                  style={[styles.heroStatItem, selectedTab === 'Ayurveda & Wellness' && styles.heroStatItemActive]}
+                  onPress={() => setSelectedTab('Ayurveda & Wellness')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.heroStatNum, { color: '#059669' }]}>{counts.ayurveda}</Text>
+                  <Text style={styles.heroStatLabel}>Ayurveda</Text>
+                </TouchableOpacity>
+                <View style={styles.heroStatDivider} />
+                <TouchableOpacity
+                  style={[styles.heroStatItem, selectedTab === 'Fertility & IVF' && styles.heroStatItemActive]}
+                  onPress={() => setSelectedTab('Fertility & IVF')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.heroStatNum, { color: '#DB2777' }]}>{counts.fertility}</Text>
+                  <Text style={styles.heroStatLabel}>Fertility</Text>
+                </TouchableOpacity>
+                <View style={styles.heroStatDivider} />
+                <TouchableOpacity
+                  style={[styles.heroStatItem, selectedTab === 'Pharmacy Orders' && styles.heroStatItemActive]}
+                  onPress={() => setSelectedTab('Pharmacy Orders')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.heroStatNum}>{counts.pharmacy}</Text>
+                  <Text style={styles.heroStatLabel}>Pharmacy Orders</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+          {/* MAIN 2-COLUMN LAYOUT */}
+          <View style={styles.mainLayoutWrapDesktop}>
+            {/* LEFT COLUMN: DEDICATED STICKY FILTER SIDEBAR */}
+            <View style={styles.desktopFilterSidebarCol}>
+              <View style={styles.filterSidebarCard}>
+                {/* FILTER HEADER */}
+                <View style={styles.filterSidebarHeader}>
+                  <View style={styles.filterSidebarHeaderLeft}>
+                    <View style={styles.filterIconCircle}>
+                      <Ionicons name="funnel" size={14} color="#0D9488" />
+                    </View>
+                    <Text style={styles.filterSidebarTitle}>Filter Bookings</Text>
+                  </View>
+                  {selectedTab !== 'All' && (
+                    <TouchableOpacity
+                      style={styles.filterResetBtn}
+                      onPress={() => setSelectedTab('All')}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.filterResetBtnText}>Reset</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* FILTER SECTION 1: CARE SERVICES */}
+                <View style={styles.filterSection}>
+                  <Text style={styles.filterSectionLabel}>CARE SERVICES</Text>
+                  <View style={styles.filterItemsList}>
+                    {[
+                      { key: 'All', label: 'All Bookings', count: counts.all, icon: 'apps', color: '#0D9488' },
+                      { key: 'Doctor Visits', label: 'In-Clinic Visits', count: counts.doctors, icon: 'business', color: '#00B894' },
+                      { key: 'Video Consults', label: 'Video Calls', count: counts.videoCalls, icon: 'videocam', color: '#2563EB' },
+                      { key: 'Lab Tests', label: 'Lab Tests', count: counts.labTests, icon: 'flask', color: '#0D9488' },
+                      { key: 'Equipment Rental', label: 'Equipment Rental', count: counts.equipment, icon: 'construct', color: '#8B5CF6' },
+                      { key: 'Ayurveda & Wellness', label: 'Ayurveda & Wellness', count: counts.ayurveda, icon: 'leaf', color: '#059669' },
+                      { key: 'Fertility & IVF', label: 'Fertility & IVF', count: counts.fertility, icon: 'heart-circle', color: '#DB2777' },
+                      { key: 'Sample Tracking', label: 'Sample Tracking', count: counts.sampleTracking, icon: 'navigate', color: '#059669' },
+                      { key: 'Pharmacy Orders', label: 'Pharmacy Orders', count: counts.pharmacy, icon: 'cart', color: '#D97706' },
+                      { key: 'Radiology Scans', label: 'Radiology Scans', count: counts.radiology, icon: 'radio', color: '#7C3AED' },
+                      { key: 'Home Care', label: 'Nurse Care', count: counts.nurse, icon: 'heart', color: '#EC4899' },
+                    ].map((item) => {
+                      const isSelected = selectedTab === item.key;
+                      return (
+                        <TouchableOpacity
+                          key={item.key}
+                          style={[
+                            styles.filterItemBtn,
+                            isSelected && styles.filterItemBtnActive,
+                          ]}
+                          onPress={() => setSelectedTab(item.key)}
+                          activeOpacity={0.8}
+                        >
+                          <View style={styles.filterItemLeft}>
+                            <View
+                              style={[
+                                styles.filterItemIconBox,
+                                isSelected ? { backgroundColor: item.color } : { backgroundColor: '#F1F5F9' },
+                              ]}
+                            >
+                              <Ionicons
+                                name={item.icon}
+                                size={14}
+                                color={isSelected ? '#FFFFFF' : item.color}
+                              />
+                            </View>
+                            <Text
+                              style={[
+                                styles.filterItemText,
+                                isSelected && styles.filterItemTextActive,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {item.label}
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              styles.filterCountBadge,
+                              isSelected && [styles.filterCountBadgeActive, { backgroundColor: item.color }],
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.filterCountBadgeText,
+                                isSelected && styles.filterCountBadgeTextActive,
+                              ]}
+                            >
+                              {item.count}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                {/* FILTER SECTION 2: BY STATUS */}
+                <View style={styles.filterSection}>
+                  <Text style={styles.filterSectionLabel}>BY STATUS</Text>
+                  <View style={styles.filterItemsList}>
+                    {[
+                      { key: 'Confirmed', label: 'Upcoming / Active', count: counts.confirmed, icon: 'checkmark-circle', color: '#059669' },
+                      { key: 'Cancelled', label: 'Cancelled Bookings', count: counts.cancelled, icon: 'close-circle', color: '#DC2626' },
+                    ].map((item) => {
+                      const isSelected = selectedTab === item.key;
+                      return (
+                        <TouchableOpacity
+                          key={item.key}
+                          style={[
+                            styles.filterItemBtn,
+                            isSelected && styles.filterItemBtnActive,
+                          ]}
+                          onPress={() => setSelectedTab(item.key)}
+                          activeOpacity={0.8}
+                        >
+                          <View style={styles.filterItemLeft}>
+                            <View
+                              style={[
+                                styles.filterItemIconBox,
+                                isSelected ? { backgroundColor: item.color } : { backgroundColor: '#F1F5F9' },
+                              ]}
+                            >
+                              <Ionicons
+                                name={item.icon}
+                                size={14}
+                                color={isSelected ? '#FFFFFF' : item.color}
+                              />
+                            </View>
+                            <Text
+                              style={[
+                                styles.filterItemText,
+                                isSelected && styles.filterItemTextActive,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {item.label}
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              styles.filterCountBadge,
+                              isSelected && [styles.filterCountBadgeActive, { backgroundColor: item.color }],
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.filterCountBadgeText,
+                                isSelected && styles.filterCountBadgeTextActive,
+                              ]}
+                            >
+                              {item.count}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                <View style={styles.filterSidebarDivider} />
+
+                {/* QUICK SERVICES SHORTCUTS */}
+                <View style={styles.filterSection}>
+                  <Text style={styles.filterSectionLabel}>BOOK NEW CARE</Text>
+                  <View style={styles.quickCareRow}>
+                    <TouchableOpacity
+                      style={styles.quickCareBtn}
+                      onPress={() => navigation.navigate('DoctorList')}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="business" size={13} color="#2563EB" />
+                      <Text style={styles.quickCareBtnText}>Doctor</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.quickCareBtn}
+                      onPress={() => navigation.navigate('VideoDoctorList')}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="videocam" size={13} color="#7C3AED" />
+                      <Text style={styles.quickCareBtnText}>Video</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.quickCareBtn}
+                      onPress={() => navigation.navigate('LabTests')}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="flask" size={13} color="#059669" />
+                      <Text style={styles.quickCareBtnText}>Lab</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.quickCareBtn}
+                      onPress={() => navigation.navigate('PharmacyHome')}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="cart" size={13} color="#D97706" />
+                      <Text style={styles.quickCareBtnText}>Meds</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.filterSidebarDivider} />
+
+                {/* 24/7 HELPLINE */}
+                <View style={styles.supportBox}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <Ionicons name="headset" size={15} color="#0D9488" />
+                    <Text style={styles.supportBoxTitle}>Patient Concierge</Text>
+                  </View>
+                  <Text style={styles.supportBoxSub}>
+                    Need assistance with rescheduling or reports?
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.supportCallBtn}
+                    onPress={() => Linking.openURL('tel:+918212459900')}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="call" size={13} color="#FFFFFF" />
+                    <Text style={styles.supportCallBtnText}>Call 24/7 Help Desk</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.secureBadgeRow}>
+                  <Ionicons name="shield-checkmark" size={13} color="#059669" />
+                  <Text style={styles.secureBadgeText}>
+                    100% Confidential & NABL Certified
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* RIGHT COLUMN: MAIN APPOINTMENT CARDS LIST */}
+            <View style={styles.desktopMainCol}>
+              {/* ACTIVE TAB INFO & BREADCRUMB BAR */}
+              <View style={styles.tabSummaryHeader}>
+                <View style={styles.tabSummaryLeft}>
+                  <Text style={styles.tabSummaryTitle}>
+                    Showing {selectedTab === 'All' ? 'All Bookings' : selectedTab}
+                  </Text>
+                  {selectedTab !== 'All' && (
+                    <View style={styles.activeFilterChip}>
+                      <Text style={styles.activeFilterChipText}>{selectedTab}</Text>
+                      <TouchableOpacity
+                        onPress={() => setSelectedTab('All')}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons name="close" size={13} color="#0F766E" />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.tabSummaryCount}>
+                  {filteredAppointments.length} record{filteredAppointments.length === 1 ? '' : 's'}
+                </Text>
+              </View>
+
+              {/* APPOINTMENT CARDS / EMPTY STATE */}
+              {filteredAppointments.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <View style={styles.emptyIconCircle}>
+                    <Ionicons name="calendar-outline" size={50} color="#0D9488" />
+                  </View>
+                  <Text style={styles.emptyTitle}>No Bookings Found</Text>
+                  <Text style={styles.emptySubtitle}>
+                    You have no appointments or orders scheduled under "{selectedTab}".
+                  </Text>
+                  <View style={styles.emptyActionRow}>
+                    <TouchableOpacity
+                      style={styles.emptyPrimaryBtn}
+                      onPress={() => navigation.navigate('DoctorList')}
+                      activeOpacity={0.88}
+                    >
+                      <Ionicons name="business" size={16} color="#FFFFFF" />
+                      <Text style={styles.emptyPrimaryBtnText}>Book In-Clinic Doctor</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.emptySecondaryBtn}
+                      onPress={() => navigation.navigate('VideoDoctorList')}
+                      activeOpacity={0.88}
+                    >
+                      <Ionicons name="videocam" size={16} color="#0D9488" />
+                      <Text style={styles.emptySecondaryBtnText}>Consult Doctor Online</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.cardsListWrap}>
+                  {filteredAppointments.map((item) => (
+                    <View key={item.id}>
+                      {renderAppointmentCard({ item })}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* DESKTOP WEB FOOTER */}
+          <WebFooter navigation={navigation} />
+        </ScrollView>
+      ) : (
+        <>
+          {/* TOP HEADER (CLEAN & CENTERED WITHOUT +BOOK BUTTON) */}
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="arrow-back" size={20} color="#1E293B" />
+            </TouchableOpacity>
+
+            <View style={styles.headerCenter}>
+              <Text style={styles.headerTitle}>My Appointments</Text>
+              <Text style={styles.headerSubtitle}>
+                {counts.all} Total • {counts.confirmed} Active
+              </Text>
+            </View>
+
+            {/* LIVE SYNC / REFRESH BUTTON */}
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: '#F8FAFC',
+                borderWidth: 1,
+                borderColor: '#E2E8F0',
+                paddingHorizontal: 12,
+                paddingVertical: 7,
+                borderRadius: 20,
+                gap: 5,
+              }}
+              onPress={() => loadAppointments()}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="sync-outline" size={16} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* FILTER TABS (WITH VIDEO, LAB, SCANS, DOCTOR, NURSE) */}
+          <View style={styles.tabsContainer}>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={[
+                { key: 'All', label: `All (${counts.all})`, icon: 'apps' },
+                { key: 'Doctor Visits', label: `In-Clinic (${counts.doctors})`, icon: 'business' },
+                { key: 'Video Consults', label: `Video Calls (${counts.videoCalls})`, icon: 'videocam' },
+                { key: 'Lab Tests', label: `Lab Tests (${counts.labTests})`, icon: 'flask' },
+                { key: 'Equipment Rental', label: `Equipment (${counts.equipment})`, icon: 'construct' },
+                { key: 'Ayurveda & Wellness', label: `Ayurveda (${counts.ayurveda})`, icon: 'leaf' },
+                { key: 'Fertility & IVF', label: `Fertility (${counts.fertility})`, icon: 'heart-circle' },
+                { key: 'Sample Tracking', label: `Sample Tracking (${counts.sampleTracking})`, icon: 'navigate' },
+                { key: 'Pharmacy Orders', label: `Pharmacy (${counts.pharmacy})`, icon: 'cart' },
+                { key: 'Radiology Scans', label: `Scans (${counts.radiology})`, icon: 'radio' },
+                { key: 'Home Care', label: `Nurse (${counts.nurse})`, icon: 'heart' },
+                { key: 'Confirmed', label: `Upcoming (${counts.confirmed})`, icon: 'checkmark-circle' },
+                { key: 'Cancelled', label: `Cancelled (${counts.cancelled})`, icon: 'close-circle' },
+              ]}
+              keyExtractor={(item) => item.key}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+              renderItem={({ item }) => {
+                const isSelected = selectedTab === item.key;
+                return (
+                  <TouchableOpacity
+                    style={[styles.filterTab, isSelected && styles.filterTabActive]}
+                    onPress={() => setSelectedTab(item.key)}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons
+                      name={item.icon}
+                      size={14}
+                      color={isSelected ? '#FFFFFF' : '#64748B'}
+                    />
+                    <Text style={[styles.filterTabText, isSelected && styles.filterTabTextActive]}>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
+
+          {/* APPOINTMENTS LIST OR EMPTY STATE */}
+          {filteredAppointments.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconCircle}>
+                <Ionicons name="flask-outline" size={54} color={colors.primary} />
+              </View>
+              <Text style={styles.emptyTitle}>No Bookings Found</Text>
+              <Text style={styles.emptySubtitle}>
+                You have no appointments or tests scheduled under "{selectedTab}".
+              </Text>
+
+              <View style={styles.emptyActionRow}>
+                {selectedTab === 'Equipment Rental' ? (
+                  <TouchableOpacity
+                    style={[styles.emptyPrimaryBtn, { backgroundColor: '#8B5CF6' }]}
+                    onPress={() => navigation.navigate('EquipmentRental')}
+                    activeOpacity={0.88}
+                  >
+                    <Ionicons name="construct" size={16} color="#FFFFFF" />
+                    <Text style={styles.emptyPrimaryBtnText}>Rent Medical Equipment</Text>
+                  </TouchableOpacity>
+                ) : selectedTab === 'Ayurveda & Wellness' ? (
+                  <TouchableOpacity
+                    style={[styles.emptyPrimaryBtn, { backgroundColor: '#059669' }]}
+                    onPress={() => navigation.navigate('AyurvedaWellness')}
+                    activeOpacity={0.88}
+                  >
+                    <Ionicons name="leaf" size={16} color="#FFFFFF" />
+                    <Text style={styles.emptyPrimaryBtnText}>Book Ayurveda & Wellness</Text>
+                  </TouchableOpacity>
+                ) : selectedTab === 'Fertility & IVF' ? (
+                  <TouchableOpacity
+                    style={[styles.emptyPrimaryBtn, { backgroundColor: '#DB2777' }]}
+                    onPress={() => navigation.navigate('FertilityIvf')}
+                    activeOpacity={0.88}
+                  >
+                    <Ionicons name="heart-circle" size={16} color="#FFFFFF" />
+                    <Text style={styles.emptyPrimaryBtnText}>Consult Fertility Specialist</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={styles.emptyPrimaryBtn}
+                      onPress={() => navigation.navigate('DoctorList')}
+                      activeOpacity={0.88}
+                    >
+                      <Ionicons name="business" size={16} color="#FFFFFF" />
+                      <Text style={styles.emptyPrimaryBtnText}>Consult a Doctor</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.emptySecondaryBtn}
+                      onPress={() => navigation.navigate('LabTests')}
+                      activeOpacity={0.88}
+                    >
+                      <Ionicons name="flask" size={16} color={colors.primary} />
+                      <Text style={styles.emptySecondaryBtnText}>Book Blood & Lab Tests</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            </View>
+          ) : (
+            <FlatList
+              data={filteredAppointments}
+              keyExtractor={(item) => item.id}
+              renderItem={renderAppointmentCard}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+            />
+          )}
+        </>
       )}
 
       {/* ====================================================
@@ -2452,24 +3159,24 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
 
-  // CARD ARCHITECTURE
-  card: {
+  // MODERN APPOINTMENT CARD (Matching HomeScreen.web.js standard)
+  appointmentCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 14,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
     elevation: 2,
   },
-  cardCancelled: {
+  appointmentCardCancelled: {
     backgroundColor: '#FAF5F5',
     borderColor: '#FEE2E2',
-    opacity: 0.88,
+    opacity: 0.9,
   },
 
   // CARD HEADER
@@ -2477,141 +3184,275 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   cardHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    flexWrap: 'wrap',
+    gap: 8,
   },
-  typeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 4,
-  },
-  typeBadgeText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
-  tokenPill: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  tokenPillText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#475569',
-  },
-  collectionModeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#D1FAE5',
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 3,
-  },
-  collectionModeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#065F46',
-  },
-  collectionModeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDF4',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#DCFCE7',
-    marginBottom: 10,
-    gap: 5,
-  },
-  collectionModeRowText: {
-    flex: 1,
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#15803D',
-  },
-  statusPill: {
+  serviceBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 9,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 8,
+    borderWidth: 1,
     gap: 5,
   },
-  statusPillConfirmed: {
-    backgroundColor: '#ECFDF5',
+  serviceBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
-  statusPillRescheduled: {
-    backgroundColor: colors.lightTeal,
+  tokenPill: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 7,
   },
-  statusPillCancelled: {
-    backgroundColor: '#FEF2F2',
+  tokenPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 6,
   },
   statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
-  statusPillText: {
-    fontSize: 11,
-    fontWeight: '800',
-  },
-
-  // DOCTOR INFO ROW
-  doctorInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  doctorAvatar: {
-    width: 58,
-    height: 58,
-    borderRadius: 14,
-    backgroundColor: '#E2E8F0',
-  },
-  doctorDetailsWrap: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  doctorName: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: '#1E293B',
-  },
-  doctorSpecialty: {
+  statusText: {
     fontSize: 11.5,
     fontWeight: '700',
-    color: colors.primary,
-    marginTop: 1,
-    lineHeight: 16,
   },
-  doctorQual: {
-    fontSize: 10.5,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  clinicLocationRow: {
+
+  // CARD BODY (PROVIDER & PRICE ROW)
+  cardBodyRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: 14,
+    marginBottom: 12,
+  },
+  avatarImg: {
+    width: 62,
+    height: 62,
+    borderRadius: 14,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  infoCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  providerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  providerName: {
+    fontSize: 15.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  providerSpec: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#0D9488',
+    marginTop: 1.5,
+  },
+  providerLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     marginTop: 3,
   },
-  clinicLocationText: {
-    flex: 1,
+  providerLocationText: {
+    fontSize: 11.5,
+    color: '#64748B',
+  },
+  cardLivePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 6,
+    borderWidth: 1,
+    gap: 5,
+    marginTop: 5,
+  },
+  cardLivePillText: {
     fontSize: 11,
+    fontWeight: '700',
+  },
+
+  // PRICE COLUMN
+  priceCol: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    minWidth: 85,
+  },
+  priceLabel: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+  },
+  priceValue: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginTop: 1,
+  },
+  priceValueCancelled: {
+    textDecorationLine: 'line-through',
+    color: '#94A3B8',
+  },
+  pricePaymentTag: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#059669',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 3,
+  },
+
+  // SCHEDULE & PATIENT STRIP
+  scheduleStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#EDF2F7',
+    marginBottom: 12,
+    gap: 12,
+  },
+  scheduleStripItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  scheduleStripDivider: {
+    width: 1,
+    height: 18,
+    backgroundColor: '#CBD5E1',
+  },
+  scheduleStripText: {
+    fontSize: 11.5,
     color: '#475569',
+  },
+  scheduleStripVal: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  docAttachBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    gap: 3,
+    marginLeft: 'auto',
+  },
+  docAttachBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#0F766E',
+  },
+
+  // CARD ACTIONS BAR
+  cardActionsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  cardActionsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+    flex: 1,
+  },
+  btnPrimaryAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    gap: 6,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  btnPrimaryActionText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  livePulseDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#34D399',
+  },
+  btnSecondaryAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    gap: 5,
+  },
+  btnSecondaryActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  btnCancelAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    gap: 4,
+  },
+  btnCancelActionText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#DC2626',
   },
 
   // CLEAN LAB BADGE
@@ -2839,173 +3680,6 @@ const styles = StyleSheet.create({
   },
   modalAddBtnTextDisabled: {
     color: '#059669',
-  },
-
-  // SCHEDULE HIGHLIGHT BOX
-  scheduleBox: {
-    flexDirection: 'row',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    marginBottom: 10,
-  },
-  scheduleBoxItem: {
-    alignItems: 'center',
-    flex: 1,
-    paddingHorizontal: 2,
-  },
-  scheduleLabel: {
-    fontSize: 9.5,
-    color: '#64748B',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    marginTop: 2,
-  },
-  scheduleValue: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: '#1E293B',
-    marginTop: 1,
-    textAlign: 'center',
-    lineHeight: 15,
-  },
-  scheduleDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: '#CBD5E1',
-  },
-
-  // PATIENT ROW
-  patientRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 6,
-    marginBottom: 12,
-  },
-  patientText: {
-    flex: 1,
-    fontSize: 11,
-    color: '#475569',
-    lineHeight: 16,
-  },
-
-  headerRightPlaceholder: {
-    width: 38,
-  },
-
-  // CARD ACTIONS ROW
-  cardActionsContainer: {
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingTop: 10,
-    gap: 8,
-  },
-  actionPillsRow: {
-    flexDirection: 'row',
-    gap: 6,
-    alignItems: 'center',
-  },
-  actionPillBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
-    paddingVertical: 7,
-    paddingHorizontal: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 4,
-  },
-  actionPillBtnCancel: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FEF2F2',
-    paddingVertical: 7,
-    paddingHorizontal: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#FEE2E2',
-    gap: 4,
-  },
-  actionPillTextBlue: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0284C7',
-  },
-  actionPillTextPrimary: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  actionPillTextRed: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#DC2626',
-  },
-  fullDetailsBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.lightTeal,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 8,
-    height: 38,
-    gap: 6,
-  },
-  fullDetailsBtnText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  rebookBtnFilled: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 8,
-    height: 38,
-    gap: 4,
-  },
-  rebookBtnFilledText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  viewSummaryBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 8,
-    height: 38,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 4,
-  },
-  viewSummaryBtnText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#64748B',
   },
 
   // EMPTY CONTAINER
@@ -3611,6 +4285,393 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13.5,
     fontWeight: '800',
+  },
+
+  // DESKTOP PAGE SCROLL & BREADCRUMBS
+  desktopPageScroll: {
+    maxWidth: 1280,
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 60,
+  },
+  webBreadcrumbsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    gap: 8,
+    marginBottom: 6,
+  },
+  webBreadcrumbLink: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  webBreadcrumbSlash: {
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  webBreadcrumbCurrent: {
+    fontSize: 13,
+    color: '#0D9488',
+    fontWeight: '700',
+  },
+
+  // HERO BANNER (DESKTOP)
+  heroBannerDesktop: {
+    backgroundColor: '#1E3A8A',
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 24,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  heroContent: {},
+  heroTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginBottom: 10,
+  },
+  heroTagText: {
+    color: '#FFFFFF',
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  heroTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  heroTitle: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: -0.3,
+  },
+  heroSubtitle: {
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 13,
+    marginTop: 6,
+    lineHeight: 19,
+    maxWidth: 720,
+  },
+  heroSyncBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 6,
+  },
+  heroSyncBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+
+  // HERO STATS ROW
+  heroStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 18,
+    gap: 8,
+  },
+  heroStatItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  heroStatItemActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+  },
+  heroStatNum: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  heroStatLabel: {
+    color: 'rgba(255, 255, 255, 0.75)',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  heroStatDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+  },
+
+  // MAIN LAYOUT (DESKTOP)
+  mainLayoutWrapDesktop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 24,
+    width: '100%',
+  },
+
+  // LEFT COLUMN: FILTER SIDEBAR (DESKTOP)
+  desktopFilterSidebarCol: {
+    width: 290,
+    flexShrink: 0,
+  },
+  filterSidebarCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    ...Platform.select({
+      web: {
+        position: 'sticky',
+        top: 20,
+      },
+    }),
+  },
+  filterSidebarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    marginBottom: 12,
+  },
+  filterSidebarHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  filterIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#F0FDFA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterSidebarTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  filterResetBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+  },
+  filterResetBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  filterSection: {
+    marginBottom: 14,
+  },
+  filterSectionLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+    paddingHorizontal: 4,
+  },
+  filterItemsList: {
+    gap: 4,
+  },
+  filterItemBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  filterItemBtnActive: {
+    backgroundColor: '#F0FDFA',
+    borderColor: '#99F6E4',
+  },
+  filterItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    minWidth: 0,
+  },
+  filterItemIconBox: {
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterItemText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  filterItemTextActive: {
+    fontWeight: '800',
+    color: '#0F766E',
+  },
+  filterCountBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+  },
+  filterCountBadgeActive: {
+    backgroundColor: '#0D9488',
+  },
+  filterCountBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  filterCountBadgeTextActive: {
+    color: '#FFFFFF',
+  },
+  filterSidebarDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 10,
+  },
+  quickCareRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  quickCareBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 3,
+  },
+  quickCareBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  supportBox: {
+    backgroundColor: '#F0FDFA',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    marginBottom: 10,
+  },
+  supportBoxTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0F766E',
+  },
+  supportBoxSub: {
+    fontSize: 11,
+    color: '#475569',
+    lineHeight: 15,
+    marginBottom: 8,
+  },
+  supportCallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0D9488',
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  supportCallBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  secureBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    justifyContent: 'center',
+    paddingTop: 4,
+  },
+  secureBadgeText: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+
+  // RIGHT COLUMN: MAIN APPOINTMENTS CONTENT (DESKTOP)
+  desktopMainCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  tabSummaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    marginBottom: 14,
+  },
+  tabSummaryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  tabSummaryTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  activeFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#CCFBF1',
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 6,
+    gap: 5,
+  },
+  activeFilterChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0F766E',
+  },
+  tabSummaryCount: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  cardsListWrap: {
+    gap: 14,
   },
 });
 

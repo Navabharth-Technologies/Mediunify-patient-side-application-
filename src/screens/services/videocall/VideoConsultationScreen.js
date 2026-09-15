@@ -13,10 +13,14 @@ import {
   StatusBar,
   useWindowDimensions,
   Platform,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { videoDoctors, videoSpecialties } from '../../../data/videoDoctors';
+import inPersonDoctors, { doctorSpecialties as inPersonSpecialties } from '../../../data/doctors';
 import colors from '../../../theme/colors';
+import WebFooter from '../../../components/web/WebFooter';
+import DoctorBookingModal from '../../../components/booking/DoctorBookingModal';
 
 const LANGUAGES_LIST = ['All', 'English', 'Kannada', 'Hindi', 'Telugu', 'Malayalam'];
 
@@ -25,6 +29,7 @@ const VideoConsultationScreen = ({ navigation, route }) => {
   const isDesktopWeb = Platform.OS === 'web' && width >= 992;
   const initialSearch = route?.params?.query || route?.params?.search || '';
   const [search, setSearch] = useState(initialSearch);
+  const [consultationMode, setConsultationMode] = useState(route?.params?.mode || 'online'); // 'online' | 'physical'
 
   useEffect(() => {
     if (route?.params?.query !== undefined) {
@@ -47,6 +52,9 @@ const VideoConsultationScreen = ({ navigation, route }) => {
   // Selected Doctor for Profile Quick View Modal
   const [profileDoctor, setProfileDoctor] = useState(null);
 
+  // Selected Doctor for Video Booking Modal
+  const [selectedDoctorForBooking, setSelectedDoctorForBooking] = useState(null);
+
   // Active filters count
   const activeFiltersCount = useMemo(() => {
     let count = 0;
@@ -68,6 +76,9 @@ const VideoConsultationScreen = ({ navigation, route }) => {
     setSortBy('earliest');
   };
 
+  // Active Specialties for Video Consultation
+  const activeSpecialties = videoSpecialties;
+
   // Filtered & Sorted Doctors
   const filteredDoctors = useMemo(() => {
     let result = videoDoctors.filter((doc) => {
@@ -75,8 +86,8 @@ const VideoConsultationScreen = ({ navigation, route }) => {
       const matchesSearch =
         doc.name.toLowerCase().includes(search.toLowerCase()) ||
         doc.specialty.toLowerCase().includes(search.toLowerCase()) ||
-        doc.languages.some((l) => l.toLowerCase().includes(search.toLowerCase())) ||
-        doc.about.toLowerCase().includes(search.toLowerCase());
+        (doc.languages && doc.languages.some((l) => l.toLowerCase().includes(search.toLowerCase()))) ||
+        (doc.about && doc.about.toLowerCase().includes(search.toLowerCase()));
 
       if (!matchesSearch) return false;
 
@@ -86,7 +97,7 @@ const VideoConsultationScreen = ({ navigation, route }) => {
       }
 
       // 3. Language
-      if (selectedLanguage !== 'All' && !doc.languages.includes(selectedLanguage)) {
+      if (selectedLanguage !== 'All' && doc.languages && !doc.languages.includes(selectedLanguage)) {
         return false;
       }
 
@@ -133,16 +144,20 @@ const VideoConsultationScreen = ({ navigation, route }) => {
   const renderDoctor = ({ item }) => {
     return (
       <View style={styles.card}>
-        {/* CARD HEADER: BADGE & ONLINE STATUS */}
+        {/* CARD HEADER: BADGE & APPOINTMENT STATUS */}
         <View style={styles.cardHeader}>
           <View style={styles.onlineBadge}>
             <View style={styles.onlineDot} />
             <Text style={styles.onlineText}>
-              {item.availableToday ? 'Accepting Video Consultations' : 'Available Tomorrow'}
+              {item.availableToday
+                ? '💻 Accepting Instant Video Calls'
+                : '💻 Next Video Slot Tomorrow'}
             </Text>
           </View>
           <View style={styles.discountBadge}>
-            <Text style={styles.discountBadgeText}>{item.discount}</Text>
+            <Text style={styles.discountBadgeText}>
+              {item.discount || 'Verified Specialist'}
+            </Text>
           </View>
         </View>
 
@@ -175,18 +190,20 @@ const VideoConsultationScreen = ({ navigation, route }) => {
               <View style={styles.ratingChip}>
                 <Ionicons name="star" size={12} color="#FFA000" />
                 <Text style={styles.ratingChipText}>{item.rating}</Text>
-                <Text style={styles.reviewsCountText}>({item.videoConsultCount}+ Calls)</Text>
+                <Text style={styles.reviewsCountText}>
+                  ({item.videoConsultCount ? `${item.videoConsultCount}+ Calls` : `${item.reviewCount || 200} Reviews`})
+                </Text>
               </View>
             </View>
           </View>
         </TouchableOpacity>
 
-        {/* LANGUAGES SPOKEN */}
+        {/* DETAILS ROW: LANGUAGES SPOKEN */}
         <View style={styles.languagesRow}>
           <Ionicons name="chatbubble-ellipses-outline" size={13} color={colors.secondary} />
           <Text style={styles.languagesLabel}>Speaks:</Text>
           <Text style={styles.languagesText} numberOfLines={1}>
-            {item.languages.join(', ')}
+            {item.languages ? item.languages.join(', ') : 'English, Kannada, Hindi'}
           </Text>
         </View>
 
@@ -194,16 +211,19 @@ const VideoConsultationScreen = ({ navigation, route }) => {
         <View style={styles.slotAndFeeRow}>
           <View style={styles.slotBox}>
             <Ionicons name="videocam" size={13} color={colors.primary} />
-            <Text style={styles.slotText}>{item.nextSlot}</Text>
+            <Text style={styles.slotText}>{item.nextSlot || 'Today, 15 Mins'}</Text>
           </View>
 
           <View style={styles.feeBox}>
-            <Text style={styles.mrpText}>₹{item.mrpFee}</Text>
+            {item.mrpFee && <Text style={styles.mrpText}>₹{item.mrpFee}</Text>}
             <Text style={styles.feeAmount}>₹{item.fee}</Text>
+            <Text style={{ fontSize: 11, color: '#64748B', marginLeft: 4 }}>
+              Online Video Call
+            </Text>
           </View>
         </View>
 
-        {/* DUAL ACTION BUTTONS: VIEW BIO & BOOK VIDEO CONSULTATION */}
+        {/* DUAL ACTION BUTTONS: DOCTOR BIO & BOOK VIDEO SLOT */}
         <View style={styles.cardActionsRow}>
           <TouchableOpacity
             style={styles.bioButton}
@@ -217,11 +237,7 @@ const VideoConsultationScreen = ({ navigation, route }) => {
           <TouchableOpacity
             style={styles.bookVideoButton}
             activeOpacity={0.88}
-            onPress={() =>
-              navigation.navigate('VideoBooking', {
-                doctor: item,
-              })
-            }
+            onPress={() => setSelectedDoctorForBooking(item)}
           >
             <Ionicons name="videocam" size={16} color="#FFFFFF" />
             <Text style={styles.bookVideoButtonText}>Book Video Slot</Text>
@@ -232,262 +248,371 @@ const VideoConsultationScreen = ({ navigation, route }) => {
     );
   };
 
+  // DESKTOP LEFT FILTER SIDEBAR
+  const renderDesktopSidebar = () => (
+    <View style={styles.desktopSidebarCard}>
+      {/* 1. Header Row */}
+      <View style={styles.sidebarHeader}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Ionicons name="options" size={18} color="#1E3A8A" />
+          <Text style={styles.sidebarTitle}>Filters</Text>
+          {activeFiltersCount > 0 && (
+            <View style={styles.sidebarBadge}>
+              <Text style={styles.sidebarBadgeText}>{activeFiltersCount}</Text>
+            </View>
+          )}
+        </View>
+        <TouchableOpacity onPress={resetFilters} activeOpacity={0.7}>
+          <Text style={styles.sidebarResetLink}>Reset All</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* 2. Availability Today Toggle */}
+      <View style={styles.sidebarSection}>
+        <TouchableOpacity
+          style={styles.sidebarToggleCard}
+          onPress={() => setOnlyAvailableToday(!onlyAvailableToday)}
+          activeOpacity={0.8}
+        >
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={[styles.sidebarDot, onlyAvailableToday && { backgroundColor: '#10B981' }]} />
+              <Text style={styles.sidebarToggleTitle}>Available Today</Text>
+            </View>
+            <Text style={styles.sidebarToggleSub}>Instant 15-min HD video calls</Text>
+          </View>
+          <View style={[styles.miniSwitch, onlyAvailableToday && styles.miniSwitchActive]}>
+            <View style={[styles.miniKnob, onlyAvailableToday && styles.miniKnobActive]} />
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {/* 3. Doctor Specialization */}
+      <View style={styles.sidebarSection}>
+        <Text style={styles.sidebarSectionTitle}>Specialization</Text>
+        <View style={styles.sidebarSpecialtyList}>
+          {videoSpecialties.slice(0, 8).map((spec) => {
+            const isSelected = selectedSpecialty === spec.id;
+            return (
+              <TouchableOpacity
+                key={spec.id}
+                style={[styles.sidebarSpecialtyRow, isSelected && styles.sidebarSpecialtyRowActive]}
+                onPress={() => setSelectedSpecialty(spec.id)}
+                activeOpacity={0.75}
+              >
+                <Ionicons
+                  name={spec.icon}
+                  size={14}
+                  color={isSelected ? '#00B894' : '#64748B'}
+                  style={{ width: 18 }}
+                />
+                <Text
+                  style={[styles.sidebarSpecialtyText, isSelected && styles.sidebarSpecialtyTextActive]}
+                  numberOfLines={1}
+                >
+                  {spec.name}
+                </Text>
+                {isSelected && (
+                  <Ionicons name="checkmark-circle" size={14} color="#00B894" style={{ marginLeft: 'auto' }} />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* 4. Consultation Fee */}
+      <View style={styles.sidebarSection}>
+        <Text style={styles.sidebarSectionTitle}>Consultation Fee</Text>
+        <View style={styles.sidebarOptionsCol}>
+          {[
+            { label: 'All Fees', value: 'all' },
+            { label: 'Under ₹500', value: '500' },
+            { label: 'Under ₹700', value: '700' },
+          ].map((opt) => {
+            const isSelected = maxFee === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={styles.sidebarRadioRow}
+                onPress={() => setMaxFee(opt.value)}
+                activeOpacity={0.75}
+              >
+                <Ionicons
+                  name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                  size={16}
+                  color={isSelected ? '#00B894' : '#94A3B8'}
+                />
+                <Text style={[styles.sidebarOptionText, isSelected && styles.sidebarOptionTextActive]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* 5. Doctor Experience */}
+      <View style={styles.sidebarSection}>
+        <Text style={styles.sidebarSectionTitle}>Experience</Text>
+        <View style={styles.sidebarOptionsCol}>
+          {[
+            { label: 'Any Experience', value: 'all' },
+            { label: '5+ Years', value: '5' },
+            { label: '10+ Years', value: '10' },
+            { label: '15+ Years', value: '15' },
+          ].map((opt) => {
+            const isSelected = minExperience === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={styles.sidebarRadioRow}
+                onPress={() => setMinExperience(opt.value)}
+                activeOpacity={0.75}
+              >
+                <Ionicons
+                  name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                  size={16}
+                  color={isSelected ? '#00B894' : '#94A3B8'}
+                />
+                <Text style={[styles.sidebarOptionText, isSelected && styles.sidebarOptionTextActive]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* 6. Language Spoken */}
+      <View style={styles.sidebarSection}>
+        <Text style={styles.sidebarSectionTitle}>Language Spoken</Text>
+        <View style={styles.sidebarLanguageWrap}>
+          {LANGUAGES_LIST.map((lang) => {
+            const isSelected = selectedLanguage === lang;
+            return (
+              <TouchableOpacity
+                key={lang}
+                style={[styles.sidebarLangPill, isSelected && styles.sidebarLangPillActive]}
+                onPress={() => setSelectedLanguage(lang)}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.sidebarLangPillText, isSelected && styles.sidebarLangPillTextActive]}>
+                  {lang}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* 7. Sort By */}
+      <View style={[styles.sidebarSection, { borderBottomWidth: 0, marginBottom: 0, paddingBottom: 0 }]}>
+        <Text style={styles.sidebarSectionTitle}>Sort Doctors</Text>
+        <View style={styles.sidebarOptionsCol}>
+          {[
+            { label: 'Earliest Slot', value: 'earliest' },
+            { label: 'Highest Rated (★)', value: 'rating' },
+            { label: 'Most Experienced', value: 'experience' },
+            { label: 'Fee: Low to High', value: 'fee' },
+          ].map((opt) => {
+            const isSelected = sortBy === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={styles.sidebarRadioRow}
+                onPress={() => setSortBy(opt.value)}
+                activeOpacity={0.75}
+              >
+                <Ionicons
+                  name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                  size={16}
+                  color={isSelected ? '#00B894' : '#94A3B8'}
+                />
+                <Text style={[styles.sidebarOptionText, isSelected && styles.sidebarOptionTextActive]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* ==================================================
-          HEADER (Mobile Only)
-      ================================================== */}
-      {!isDesktopWeb && (
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="arrow-back" size={22} color={colors.secondary} />
-          </TouchableOpacity>
-
-          <View style={styles.headerCenter}>
-            <View style={styles.headerTitleRow}>
-              <Text style={styles.headerTitle}>Video Consultation</Text>
-              <View style={styles.liveDot} />
-            </View>
-            <Text style={styles.headerSubtitle}>Consult Top Certified Doctors Online</Text>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.filterHeaderBtn, activeFiltersCount > 0 && styles.filterHeaderBtnActive]}
-            activeOpacity={0.8}
-            onPress={() => setFilterModalVisible(true)}
-          >
-            <Ionicons
-              name="options-outline"
-              size={20}
-              color={activeFiltersCount > 0 ? '#FFFFFF' : colors.secondary}
-            />
-            {activeFiltersCount > 0 && (
-              <View style={styles.filterBadgeCount}>
-                <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* ==================================================
-          HERO PROMO BANNER
-      ================================================== */}
-      <View style={styles.heroBanner}>
-        <View style={styles.heroContent}>
-          <View style={styles.heroTag}>
-            <Ionicons name="sparkles" size={12} color="#FFFFFF" />
-            <Text style={styles.heroTagText}>MEDIUNIFY TELEHEALTH</Text>
-          </View>
-          <Text style={styles.heroTitle}>Connect with Specialist in 15 Mins</Text>
-          <Text style={styles.heroDesc}>
-            100% Private HD Video Call • Verified e-Prescription • Free Follow-up for 3 Days
-          </Text>
-        </View>
-      </View>
-
-      {/* ==================================================
-          SEARCH BAR & FILTER CHIP (Mobile Only)
-      ================================================== */}
-      {!isDesktopWeb && (
-        <View style={styles.searchBarContainer}>
-          <View style={styles.searchBox}>
-            <Ionicons name="search-outline" size={19} color={colors.textSecondary} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search doctor, specialty, language..."
-              placeholderTextColor="#94A3B8"
-              value={search}
-              onChangeText={setSearch}
-            />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => setSearch('')}>
-                <Ionicons name="close-circle" size={18} color="#94A3B8" />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <TouchableOpacity
-            style={[styles.filterTriggerPill, activeFiltersCount > 0 && styles.filterTriggerPillActive]}
-            onPress={() => setFilterModalVisible(true)}
-          >
-            <Ionicons
-              name="filter"
-              size={14}
-              color={activeFiltersCount > 0 ? '#FFFFFF' : colors.secondary}
-            />
-            <Text
-              style={[
-                styles.filterTriggerPillText,
-                activeFiltersCount > 0 && styles.filterTriggerPillTextActive,
-              ]}
-            >
-              {activeFiltersCount > 0 ? `${activeFiltersCount} Filters` : 'Filters'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* ==================================================
-          SPECIALTY SELECTOR PILLS
-      ================================================== */}
-      <View style={styles.specialtyContainer}>
-        {Platform.OS === 'web' ? (
-          <View style={styles.specialtiesWrap}>
-            {isDesktopWeb && (
-              <TouchableOpacity
-                style={[styles.filterTriggerPill, activeFiltersCount > 0 && styles.filterTriggerPillActive, { marginRight: 8, height: 38, alignSelf: 'center' }]}
-                onPress={() => setFilterModalVisible(true)}
-              >
-                <Ionicons
-                  name="filter"
-                  size={14}
-                  color={activeFiltersCount > 0 ? '#FFFFFF' : colors.secondary}
-                />
-                <Text
-                  style={[
-                    styles.filterTriggerPillText,
-                    activeFiltersCount > 0 && styles.filterTriggerPillTextActive,
-                  ]}
-                >
-                  {activeFiltersCount > 0 ? `${activeFiltersCount} Filters` : 'Filters'}
-                </Text>
-              </TouchableOpacity>
-            )}
-            {videoSpecialties.map((spec) => {
-              const isSelected = selectedSpecialty === spec.id;
-              return (
-                <TouchableOpacity
-                  key={spec.id}
-                  style={[
-                    styles.specialtyPill,
-                    isSelected && styles.specialtyPillActive,
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={() => setSelectedSpecialty(spec.id)}
-                >
-                  <Ionicons
-                    name={spec.icon}
-                    size={15}
-                    color={isSelected ? '#FFFFFF' : colors.primary}
-                  />
-                  <Text
-                    style={[
-                      styles.specialtyPillText,
-                      isSelected && styles.specialtyPillTextActive,
-                    ]}
-                  >
-                    {spec.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.specialtiesScroll}
-          >
-            {isDesktopWeb && (
-              <TouchableOpacity
-                style={[styles.filterTriggerPill, activeFiltersCount > 0 && styles.filterTriggerPillActive, { marginRight: 8, height: 38, alignSelf: 'center' }]}
-                onPress={() => setFilterModalVisible(true)}
-              >
-                <Ionicons
-                  name="filter"
-                  size={14}
-                  color={activeFiltersCount > 0 ? '#FFFFFF' : colors.secondary}
-                />
-                <Text
-                  style={[
-                    styles.filterTriggerPillText,
-                    activeFiltersCount > 0 && styles.filterTriggerPillTextActive,
-                  ]}
-                >
-                  {activeFiltersCount > 0 ? `${activeFiltersCount} Filters` : 'Filters'}
-                </Text>
-              </TouchableOpacity>
-            )}
-            {videoSpecialties.map((spec) => {
-              const isSelected = selectedSpecialty === spec.id;
-              return (
-                <TouchableOpacity
-                  key={spec.id}
-                  style={[
-                    styles.specialtyPill,
-                    isSelected && styles.specialtyPillActive,
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={() => setSelectedSpecialty(spec.id)}
-                >
-                  <Ionicons
-                    name={spec.icon}
-                    size={15}
-                    color={isSelected ? '#FFFFFF' : colors.primary}
-                  />
-                  <Text
-                    style={[
-                      styles.specialtyPillText,
-                      isSelected && styles.specialtyPillTextActive,
-                    ]}
-                  >
-                    {spec.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
-      </View>
-
-      {/* ==================================================
-          RESULTS COUNT & SORT BAR
-      ================================================== */}
-      <View style={styles.resultsHeaderRow}>
-        <Text style={styles.resultsCountText}>
-          {filteredDoctors.length} {filteredDoctors.length === 1 ? 'Doctor' : 'Doctors'} Available for Video Call
-        </Text>
-        <Text style={styles.sortedByText}>
-          Sorted: {sortBy === 'earliest' ? 'Earliest Slot' : sortBy === 'rating' ? 'Highest Rated' : sortBy === 'experience' ? 'Most Experienced' : 'Lowest Fee'}
-        </Text>
-      </View>
-
-      {/* ==================================================
-          DOCTORS LIST
-      ================================================== */}
-      <FlatList
-        data={filteredDoctors}
-        keyExtractor={(item) => item.id}
-        renderItem={renderDoctor}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="videocam-off-outline" size={54} color="#CBD5E1" />
-            <Text style={styles.emptyTitle}>No Online Doctors Found</Text>
-            <Text style={styles.emptySubtitle}>
-              Try changing the specialty or reset your language and experience filters.
-            </Text>
+      >
+        {/* ==================================================
+            HEADER (Mobile Only)
+        ================================================== */}
+        {!isDesktopWeb && (
+          <View style={styles.header}>
             <TouchableOpacity
-              style={styles.resetFilterBtn}
-              onPress={() => {
-                setSearch('');
-                setSelectedSpecialty('all');
-                resetFilters();
-              }}
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.8}
             >
-              <Text style={styles.resetFilterBtnText}>Reset All Filters</Text>
+              <Ionicons name="arrow-back" size={22} color={colors.secondary} />
+            </TouchableOpacity>
+
+            <View style={styles.headerCenter}>
+              <View style={styles.headerTitleRow}>
+                <Text style={styles.headerTitle}>
+                  Doctor Video Consultations
+                </Text>
+                <View style={[styles.liveDot, { backgroundColor: '#00B894' }]} />
+              </View>
+              <Text style={styles.headerSubtitle}>
+                Consult Top Certified Doctors Online • 15 Mins Response
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.filterHeaderBtn, activeFiltersCount > 0 && styles.filterHeaderBtnActive]}
+              activeOpacity={0.8}
+              onPress={() => setFilterModalVisible(true)}
+            >
+              <Ionicons
+                name="options-outline"
+                size={20}
+                color={activeFiltersCount > 0 ? '#FFFFFF' : colors.secondary}
+              />
+              {activeFiltersCount > 0 && (
+                <View style={styles.filterBadgeCount}>
+                  <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
-        }
-      />
+        )}
+
+        {/* ==================================================
+            HERO PROMO BANNER
+        ================================================== */}
+        <View style={styles.heroBanner}>
+          <View style={styles.heroContent}>
+            <View style={styles.heroTag}>
+              <Ionicons name="sparkles" size={12} color="#FFFFFF" />
+              <Text style={styles.heroTagText}>
+                MEDIUNIFY TELEHEALTH
+              </Text>
+            </View>
+            <Text style={styles.heroTitle}>
+              Consult Specialist Doctors Online
+            </Text>
+            <Text style={styles.heroDesc}>
+              100% Private HD Video Call • Verified e-Prescription • Free Follow-up for 3 Days
+            </Text>
+          </View>
+        </View>
+
+        {/* ==================================================
+            SEARCH BAR & FILTER CHIP (Mobile Only)
+        ================================================== */}
+        {!isDesktopWeb && (
+          <View style={styles.searchBarContainer}>
+            <View style={styles.searchBox}>
+              <Ionicons name="search-outline" size={19} color={colors.textSecondary} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search doctor, specialty, language..."
+                placeholderTextColor="#94A3B8"
+                value={search}
+                onChangeText={setSearch}
+              />
+              {search.length > 0 && (
+                <TouchableOpacity onPress={() => setSearch('')}>
+                  <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={[styles.filterTriggerPill, activeFiltersCount > 0 && styles.filterTriggerPillActive]}
+              onPress={() => setFilterModalVisible(true)}
+            >
+              <Ionicons
+                name="filter"
+                size={14}
+                color={activeFiltersCount > 0 ? '#FFFFFF' : colors.secondary}
+              />
+              <Text
+                style={[
+                  styles.filterTriggerPillText,
+                  activeFiltersCount > 0 && styles.filterTriggerPillTextActive,
+                ]}
+              >
+                {activeFiltersCount > 0 ? `${activeFiltersCount} Filters` : 'Filters'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ==================================================
+            MAIN CONTENT AREA: DESKTOP 2-COLUMN (VISIBLE FILTER SIDEBAR + DOCTORS LIST)
+        ================================================== */}
+        <View style={[styles.mainLayoutWrap, isDesktopWeb && styles.mainLayoutWrapDesktop]}>
+          {/* Left Filter Sidebar - Visible on Desktop! */}
+          {isDesktopWeb && (
+            <View style={styles.desktopSidebarCol}>
+              {renderDesktopSidebar()}
+            </View>
+          )}
+
+          {/* Right Content Column: Results count & Doctors Cards */}
+          <View style={[styles.doctorsColWrap, isDesktopWeb && styles.doctorsColWrapDesktop]}>
+            <View style={styles.resultsHeaderRow}>
+              <Text style={styles.resultsCountText}>
+                {filteredDoctors.length} {filteredDoctors.length === 1 ? 'Doctor' : 'Doctors'} Available for Video Consultation
+              </Text>
+              <Text style={styles.sortedByText}>
+                Sorted: {sortBy === 'earliest' ? 'Earliest Slot' : sortBy === 'rating' ? 'Highest Rated' : sortBy === 'experience' ? 'Most Experienced' : 'Lowest Fee'}
+              </Text>
+            </View>
+
+            {filteredDoctors.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons
+                  name="videocam-off-outline"
+                  size={54}
+                  color="#CBD5E1"
+                />
+                <Text style={styles.emptyTitle}>
+                  No Online Doctors Found
+                </Text>
+                <Text style={styles.emptySubtitle}>
+                  Try changing the specialty or reset your language and experience filters.
+                </Text>
+                <TouchableOpacity
+                  style={styles.resetFilterBtn}
+                  onPress={() => {
+                    setSearch('');
+                    setSelectedSpecialty('all');
+                    resetFilters();
+                  }}
+                >
+                  <Text style={styles.resetFilterBtnText}>Reset All Filters</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.doctorsCardsList}>
+                {filteredDoctors.map((doc) => (
+                  <View key={`video-${doc.id}`}>
+                    {renderDoctor({ item: doc })}
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        </View>
+        {isDesktopWeb && <WebFooter navigation={navigation} />}
+      </ScrollView>
 
       {/* ==================================================
           DOCTOR BIO / QUICK PROFILE MODAL
@@ -567,7 +692,7 @@ const VideoConsultationScreen = ({ navigation, route }) => {
                   onPress={() => {
                     const doc = profileDoctor;
                     setProfileDoctor(null);
-                    navigation.navigate('VideoBooking', { doctor: doc });
+                    setSelectedDoctorForBooking(doc);
                   }}
                 >
                   <Ionicons name="videocam" size={18} color="#FFFFFF" />
@@ -763,6 +888,17 @@ const VideoConsultationScreen = ({ navigation, route }) => {
           </View>
         </View>
       </Modal>
+
+      {/* ==================================================
+          VIDEO CONSULTATION BOOKING MODAL (MATCHING POPUP DESIGN)
+      ================================================== */}
+      <DoctorBookingModal
+        visible={!!selectedDoctorForBooking}
+        onClose={() => setSelectedDoctorForBooking(null)}
+        doctor={selectedDoctorForBooking}
+        consultationType="Video"
+        navigation={navigation}
+      />
     </SafeAreaView>
   );
 };
@@ -775,6 +911,13 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 60,
+  },
+  doctorsCardsList: {
+    width: '100%',
   },
 
   // HEADER
@@ -860,7 +1003,10 @@ const styles = StyleSheet.create({
     marginTop: 10,
     backgroundColor: colors.secondary,
     borderRadius: 16,
-    padding: 14,
+    padding: 16,
+    maxWidth: 1320,
+    width: '100%',
+    alignSelf: 'center',
   },
   heroContent: {},
   heroTag: {
@@ -947,6 +1093,9 @@ const styles = StyleSheet.create({
   // SPECIALTIES SCROLL
   specialtyContainer: {
     paddingVertical: 6,
+    maxWidth: 1320,
+    width: '100%',
+    alignSelf: 'center',
   },
   specialtiesScroll: {
     paddingHorizontal: 16,
@@ -988,27 +1137,232 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 0,
     paddingVertical: 4,
-    marginBottom: 6,
+    marginBottom: 10,
   },
   resultsCountText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.secondary,
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
   },
   sortedByText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+
+  // MAIN 2-COLUMN LAYOUT
+  mainLayoutWrap: {
+    width: '100%',
+  },
+  mainLayoutWrapDesktop: {
+    flexDirection: 'row',
+    maxWidth: 1320,
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+    gap: 24,
+    alignItems: 'flex-start',
+    marginTop: 8,
+  },
+  desktopSidebarCol: {
+    width: 280,
+    ...Platform.select({
+      web: {
+        position: 'sticky',
+        top: 20,
+      },
+    }),
+  },
+  doctorsColWrap: {
+    width: '100%',
+  },
+  doctorsColWrapDesktop: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  // DESKTOP SIDEBAR CARD
+  desktopSidebarCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  sidebarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    marginBottom: 14,
+  },
+  sidebarTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  sidebarBadge: {
+    backgroundColor: '#00B894',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  sidebarBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  sidebarResetLink: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  sidebarSection: {
+    marginBottom: 16,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
+  },
+  sidebarSectionTitle: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginBottom: 10,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  sidebarToggleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F0FDFA',
+    padding: 11,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+  },
+  sidebarDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#94A3B8',
+  },
+  sidebarToggleTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  sidebarToggleSub: {
     fontSize: 11,
-    color: colors.textSecondary,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  miniSwitch: {
+    width: 38,
+    height: 22,
+    borderRadius: 12,
+    backgroundColor: '#E2E8F0',
+    padding: 2,
+    justifyContent: 'center',
+  },
+  miniSwitchActive: {
+    backgroundColor: '#00B894',
+  },
+  miniKnob: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.5,
+  },
+  miniKnobActive: {
+    alignSelf: 'flex-end',
+  },
+  sidebarSpecialtyList: {
+    gap: 4,
+  },
+  sidebarSpecialtyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  sidebarSpecialtyRowActive: {
+    backgroundColor: '#F0FDFA',
+  },
+  sidebarSpecialtyText: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '500',
+    marginLeft: 4,
+  },
+  sidebarSpecialtyTextActive: {
+    color: '#00B894',
+    fontWeight: '800',
+  },
+  sidebarOptionsCol: {
+    gap: 8,
+  },
+  sidebarRadioRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    paddingVertical: 3,
+  },
+  sidebarOptionText: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '500',
+  },
+  sidebarOptionTextActive: {
+    color: '#1E3A8A',
+    fontWeight: '700',
+  },
+  sidebarLanguageWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  sidebarLangPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  sidebarLangPillActive: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
+  },
+  sidebarLangPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  sidebarLangPillTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 
   // LIST & CARD
   list: {
     paddingHorizontal: 16,
     paddingBottom: 40,
-    maxWidth: 1200,
     width: '100%',
-    alignSelf: 'center',
   },
   card: {
     backgroundColor: '#FFFFFF',
@@ -1540,6 +1894,87 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: colors.primary,
+  },
+
+  // Mode Switcher Styles
+  modeSelectorWrap: {
+    paddingHorizontal: 16,
+    marginVertical: 14,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  modeSelectorBox: {
+    flexDirection: 'row',
+    gap: 12,
+    backgroundColor: '#F8FAFC',
+    padding: 6,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+  },
+  modeSelectorTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  modeSelectorTabActive: {
+    backgroundColor: '#1E3A8A',
+    borderColor: '#1E3A8A',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  modeSelectorTabActiveOnline: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  modeTextCol: {
+    flex: 1,
+  },
+  modeMainTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  modeMainTitleActive: {
+    color: '#FFFFFF',
+  },
+  modeSubTitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  modeSubTitleActive: {
+    color: 'rgba(255, 255, 255, 0.85)',
+  },
+  quickAltConsultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  quickAltConsultText: {
+    fontSize: 12,
+    color: '#059669',
+    fontWeight: '500',
   },
 });
 

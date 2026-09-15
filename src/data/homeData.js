@@ -25,6 +25,7 @@ export const consultationServices = [
     iconColor: colors.accent,
     borderColor: '#A5F3FC',
     route: 'VideoConsultation',
+    params: { mode: 'online' },
   },
 ];
 
@@ -142,16 +143,6 @@ export const quickServices = [
 
 export const moreServices = [
   {
-    id: '1',
-    title: 'Nearby Hospitals',
-    subtitle: 'Find NABH accredited hospitals near you',
-    icon: 'business-outline',
-    route: 'HospitalList',
-    color: colors.lightTeal,
-    iconColor: colors.primary,
-  },
-
-  {
     id: '2',
     title: 'Radiology Labs & 3T MRI',
     subtitle: 'Book 3T MRI, 128-Slice CT & Ultrasounds',
@@ -174,7 +165,7 @@ export const moreServices = [
   {
     id: '4',
     title: 'Health Insurance & Mediclaim',
-    subtitle: '₹25 Lakh cover • 100% cashless at top hospitals',
+    subtitle: 'Upcoming • 100% Cashless Mediclaim & Tax Benefits',
     icon: 'shield-checkmark-outline',
     route: 'HealthInsurance',
     color: colors.lightTeal,
@@ -199,5 +190,35 @@ export const moreServices = [
     route: 'HealthMonitor',
     color: colors.lightGreen,
     iconColor: colors.success,
+  },
+
+  {
+    id: '7',
+    title: 'Ayurveda & Wellness',
+    subtitle: 'Authentic Nadi Pariksha, Panchakarma & Herbal Formulations',
+    icon: 'leaf-outline',
+    route: 'AyurvedaWellness',
+    color: '#ECFDF5',
+    iconColor: '#059669',
+  },
+
+  {
+    id: '8',
+    title: 'Fertility & IVF Care',
+    subtitle: 'Advanced IVF, IUI, 0% EMI & Confidential Specialist Guidance',
+    icon: 'heart-outline',
+    route: 'FertilityIvf',
+    color: '#FDF2F8',
+    iconColor: '#DB2777',
+  },
+
+  {
+    id: '9',
+    title: 'Medical Equipment Rental',
+    subtitle: 'Hospital Beds, Oxygen Concentrators & Wheelchairs at Home',
+    icon: 'fitness-outline',
+    route: 'EquipmentRental',
+    color: '#FAF5FF',
+    iconColor: '#7C3AED',
   },
 ];

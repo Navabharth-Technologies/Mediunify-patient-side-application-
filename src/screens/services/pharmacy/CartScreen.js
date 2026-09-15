@@ -21,6 +21,7 @@ import { requestLocationPermissionWebSafe, getCurrentPositionWebSafe, reverseGeo
 
 import colors from '../../../theme/colors';
 import { useCart } from '../../../context/CartContext';
+import CartScreenWeb from './CartScreen.web';
 
 const PROMO_CHIPS = ['MEDI20', 'HEALTH50', 'FIRSTFREE'];
 
@@ -59,7 +60,12 @@ const LAB_SAMPLE_SLOTS = [
   'Tomorrow, 04:30 PM - 06:00 PM',
 ];
 
-const CartScreen = ({ navigation, route }) => {
+const CartScreen = (props) => {
+  if (Platform.OS === 'web') {
+    return <CartScreenWeb {...props} />;
+  }
+
+  const { navigation, route } = props;
   const {
     pharmacyCart,
     labCart,
@@ -1138,23 +1144,16 @@ const CartScreen = ({ navigation, route }) => {
                   </View>
                 </View>
 
-                {/* PLACE ORDER BUTTON */}
+                {/* PROCEED TO CHECKOUT BUTTON */}
                 <TouchableOpacity
                   style={styles.checkoutButton}
-                  onPress={handlePlacePharmacyOrder}
-                  disabled={isBooking}
+                  onPress={() => navigation.navigate('Checkout')}
                   activeOpacity={0.88}
                 >
-                  {isBooking ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Text style={styles.checkoutButtonText}>
-                        Place Pharmacy Order • ₹{pharmacyFinalTotal}
-                      </Text>
-                      <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-                    </>
-                  )}
+                  <Text style={styles.checkoutButtonText}>
+                    Proceed to Pharmacy Checkout • ₹{pharmacyFinalTotal}
+                  </Text>
+                  <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
                 </TouchableOpacity>
               </>
             )}

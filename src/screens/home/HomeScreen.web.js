@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,141 @@ import { useCart } from '../../context/CartContext';
 import doctors, { doctorSpecialties } from '../../data/doctors';
 import { labPackages } from '../../data/homeData';
 import WebFooter from '../../components/web/WebFooter';
+
+const HERO_PROMO_ADS = [
+  {
+    id: 'promo-1',
+    pillText: 'HEALTH CHECK',
+    pillBg: '#FFE11B',
+    pillColor: '#0F172A',
+    tagText: 'NABL Certified',
+    tagIcon: 'shield-checkmark',
+    title: 'Full Body Health Checkup',
+    priceText: 'From ₹999*',
+    priceColor: '#0071DC',
+    subTitle: 'Includes 68 Vital Parameters • Free Home Sample Pickup',
+    badgeSale: 'Digital Reports in 12h',
+    bgColor: '#FDF7E7',
+    image: 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=400',
+    route: 'LabTests',
+  },
+  {
+    id: 'promo-2',
+    pillText: '60-MIN EXPRESS',
+    pillBg: '#EA580C',
+    pillColor: '#FFFFFF',
+    tagText: '100% Genuine',
+    tagIcon: 'checkmark-circle',
+    title: 'Doorstep Medicines',
+    priceText: 'Flat 20% OFF',
+    priceColor: '#EA580C',
+    subTitle: 'Genuine Branded Drugs, Jan Aushadhi & Wellness',
+    badgeSale: 'Order with Prescription',
+    bgColor: '#FFF7ED',
+    image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400',
+    route: 'Pharmacy',
+  },
+  {
+    id: 'promo-3',
+    pillText: 'VERIFIED DOCTORS',
+    pillBg: '#2563EB',
+    pillColor: '#FFFFFF',
+    tagText: 'Instant HD Call',
+    tagIcon: 'videocam',
+    title: 'Instant Video Consult',
+    priceText: 'From ₹299*',
+    priceColor: '#38BDF8',
+    titleColor: '#FFFFFF',
+    subColor: '#94A3B8',
+    subTitle: 'Cardiologists, Physicians, Pediatricians & Gynecologists',
+    badgeSale: 'Zero Waiting Time',
+    badgeSaleBg: '#1E293B',
+    badgeSaleColor: '#38BDF8',
+    bgColor: '#0B0F19',
+    image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400',
+    route: 'VideoConsultation',
+  },
+  {
+    id: 'promo-4',
+    pillText: 'EQUIPMENT RENTAL',
+    pillBg: '#7C3AED',
+    pillColor: '#FFFFFF',
+    tagText: 'BioMedical Tested',
+    tagIcon: 'construct',
+    title: 'Medical Equipment Rental',
+    priceText: 'From ₹149/day',
+    priceColor: '#7C3AED',
+    subTitle: 'Oxygen Concentrators, ICU Beds, CPAP & Wheelchairs',
+    badgeSale: 'Doorstep Setup in 4 Hrs',
+    bgColor: '#FAF5FF',
+    image: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=400',
+    route: 'EquipmentRental',
+  },
+  {
+    id: 'promo-5',
+    pillText: 'AYUSH CERTIFIED',
+    pillBg: '#059669',
+    pillColor: '#FFFFFF',
+    tagText: 'Authentic Vaidya',
+    tagIcon: 'leaf',
+    title: 'Ayurveda & Panchakarma',
+    priceText: 'From ₹400',
+    priceColor: '#059669',
+    subTitle: 'Nadi Pariksha, Stress Relief, Joint Pain & Detox Therapies',
+    badgeSale: 'Natural Holistic Healing',
+    bgColor: '#F0FDF4',
+    image: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=400',
+    route: 'AyurvedaWellness',
+  },
+  {
+    id: 'promo-6',
+    pillText: 'IVF & FERTILITY',
+    pillBg: '#DB2777',
+    pillColor: '#FFFFFF',
+    tagText: '100% Confidential',
+    tagIcon: 'shield-checkmark',
+    title: 'Fertility & IVF Guidance',
+    priceText: '0% EMI Plans',
+    priceColor: '#DB2777',
+    subTitle: '73% Clinical Success • Dedicated Reproductive Counselors',
+    badgeSale: 'Discreet Pre-Conception Care',
+    bgColor: '#FDF2F8',
+    image: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=400',
+    route: 'FertilityIvf',
+  },
+  {
+    id: 'promo-7',
+    pillText: '3T MRI & SCANS',
+    pillBg: '#6366F1',
+    pillColor: '#FFFFFF',
+    tagText: 'NABL Accredited',
+    tagIcon: 'radio',
+    title: 'Radiology & 3T MRI Scans',
+    priceText: 'Up to 40% OFF',
+    priceColor: '#6366F1',
+    subTitle: 'Ultra High-Definition Imaging, CT, Ultrasound & X-Ray',
+    badgeSale: 'Same Day Digital Reports',
+    bgColor: '#EEF2FF',
+    image: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=400',
+    route: 'RadiologyLabs',
+  },
+  {
+    id: 'promo-8',
+    pillText: 'CASHLESS HEALTH',
+    pillBg: '#059669',
+    pillColor: '#FFFFFF',
+    tagText: 'Instant Approval',
+    tagIcon: 'card',
+    title: 'Cashless Health Insurance',
+    priceText: 'Zero Deposit',
+    priceColor: '#059669',
+    subTitle: 'Pre-Approved Hospitalization & Instant E-Card Generation',
+    badgeSale: '100% Hassle-Free Claims',
+    bgColor: '#ECFDF5',
+    image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400',
+    route: 'HealthInsurance',
+  },
+];
 
 const FEATURED_MEDICINES = [
   {
@@ -141,6 +276,63 @@ const HomeScreenWeb = ({ navigation }) => {
   const [userName, setUserName] = useState('Hemanth');
   const [walletBalance, setWalletBalance] = useState(1250);
 
+  // Auto-moving ads carousel state & ref
+  const adScrollRef = useRef(null);
+  const [activeAdIndex, setActiveAdIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+
+  const isDesktop = width >= 960;
+  const isTablet = width >= 640 && width < 960;
+  const visibleCardsCount = isDesktop ? 3 : isTablet ? 2 : 1;
+  const containerMaxWidth = 1320;
+  const availableWidth = Math.min(width, containerMaxWidth) - 48;
+  const cardWidth = isDesktop
+    ? (availableWidth - 32) / 3
+    : isTablet
+    ? (availableWidth - 16) / 2
+    : availableWidth;
+
+  const maxIndex = Math.max(0, HERO_PROMO_ADS.length - visibleCardsCount);
+
+  // Auto-slide every 3.5s (pauses when user hovers)
+  useEffect(() => {
+    if (isHovered) return;
+    const interval = setInterval(() => {
+      setActiveAdIndex((prev) => {
+        const next = prev >= maxIndex ? 0 : prev + 1;
+        if (adScrollRef.current) {
+          try {
+            adScrollRef.current.scrollTo({
+              x: next * (cardWidth + 16),
+              animated: true,
+            });
+          } catch (e) {}
+        }
+        return next;
+      });
+    }, 3500);
+
+    return () => clearInterval(interval);
+  }, [isHovered, cardWidth, maxIndex]);
+
+  const handleNextAd = () => {
+    const next = activeAdIndex >= maxIndex ? 0 : activeAdIndex + 1;
+    setActiveAdIndex(next);
+    adScrollRef.current?.scrollTo({ x: next * (cardWidth + 16), animated: true });
+  };
+
+  const handlePrevAd = () => {
+    const prev = activeAdIndex <= 0 ? maxIndex : activeAdIndex - 1;
+    setActiveAdIndex(prev);
+    adScrollRef.current?.scrollTo({ x: prev * (cardWidth + 16), animated: true });
+  };
+
+  const handleGoToAd = (idx) => {
+    const clamped = Math.min(idx, maxIndex);
+    setActiveAdIndex(clamped);
+    adScrollRef.current?.scrollTo({ x: clamped * (cardWidth + 16), animated: true });
+  };
+
   useEffect(() => {
     const loadUserData = async () => {
       try {
@@ -203,121 +395,122 @@ const HomeScreenWeb = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
       >
         {/* ============================================================
-            1. FLIPKART MULTI-BANNER PROMO HERO CAROUSEL
+            1. FLIPKART MULTI-BANNER PROMO HERO CAROUSEL (AUTO-MOVING)
         ============================================================ */}
-        <View style={styles.heroCarouselWrap}>
-          <View style={styles.heroCarouselInner}>
-            {/* Banner 1: Full Body Checkup (Flipkart POCO style card) */}
-            <TouchableOpacity
-              style={[styles.bannerCard, { backgroundColor: '#FDF7E7' }]}
-              onPress={() => navigation?.navigate('LabTests')}
-              activeOpacity={0.92}
-            >
-              <View style={styles.bannerBadgeRow}>
-                <View style={styles.brandPillYellow}>
-                  <Text style={styles.brandPillYellowText}>HEALTH CHECK</Text>
+        <View
+          style={styles.heroCarouselWrap}
+          // @ts-ignore
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
+          {/* Navigation Arrows (Desktop / Tablet) */}
+          {isDesktop && (
+            <>
+              <TouchableOpacity
+                style={styles.carouselArrowLeft}
+                onPress={handlePrevAd}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="chevron-back" size={20} color="#0F172A" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.carouselArrowRight}
+                onPress={handleNextAd}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="chevron-forward" size={20} color="#0F172A" />
+              </TouchableOpacity>
+            </>
+          )}
+
+          <ScrollView
+            ref={adScrollRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            pagingEnabled={!isDesktop}
+            contentContainerStyle={styles.heroCarouselScrollTrack}
+            onMomentumScrollEnd={(e) => {
+              const cardStep = cardWidth + 16;
+              const idx = Math.round(e.nativeEvent.contentOffset.x / cardStep);
+              if (idx >= 0 && idx <= maxIndex) {
+                setActiveAdIndex(idx);
+              }
+            }}
+          >
+            {HERO_PROMO_ADS.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[
+                  styles.bannerCard,
+                  {
+                    width: cardWidth,
+                    backgroundColor: item.bgColor,
+                  },
+                ]}
+                onPress={() => navigation?.navigate(item.route)}
+                activeOpacity={0.92}
+              >
+                <View style={styles.bannerBadgeRow}>
+                  <View style={[styles.brandPillYellow, { backgroundColor: item.pillBg }]}>
+                    <Text style={[styles.brandPillYellowText, { color: item.pillColor }]}>{item.pillText}</Text>
+                  </View>
+                  {item.tagText ? (
+                    <View style={styles.brandTagFlipkart}>
+                      <Ionicons name={item.tagIcon || 'shield-checkmark'} size={11} color="#0071DC" />
+                      <Text style={styles.brandTagFlipkartText}>{item.tagText}</Text>
+                    </View>
+                  ) : null}
                 </View>
-                <View style={styles.brandTagFlipkart}>
-                  <Ionicons name="shield-checkmark" size={11} color="#0071DC" />
-                  <Text style={styles.brandTagFlipkartText}>NABL Certified</Text>
-                </View>
-              </View>
 
-              <Text style={styles.bannerMainTitle}>
-                Full Body Health Checkup{'\n'}
-                <Text style={styles.bannerPriceText}>From ₹999*</Text>
-              </Text>
-              <Text style={styles.bannerSubTitle}>
-                Includes 68 Vital Parameters • Free Home Pickup
-              </Text>
-
-              <View style={styles.bannerBottomRow}>
-                <Text style={styles.bannerBadgeSale}>Digital Reports in 12h</Text>
-                <Text style={styles.bannerAdNotice}>AD</Text>
-              </View>
-
-              <Image
-                source={{ uri: 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=400' }}
-                style={styles.bannerRightImage}
-                resizeMode="cover"
-              />
-            </TouchableOpacity>
-
-            {/* Banner 2: Express Pharmacy (Flipkart Zebronics style card) */}
-            <TouchableOpacity
-              style={[styles.bannerCard, { backgroundColor: '#F3F4F6' }]}
-              onPress={() => navigation?.navigate('Pharmacy')}
-              activeOpacity={0.92}
-            >
-              <View style={styles.bannerBadgeRow}>
-                <View style={[styles.brandPillYellow, { backgroundColor: '#EA580C' }]}>
-                  <Text style={[styles.brandPillYellowText, { color: '#FFFFFF' }]}>60-MIN EXPRESS</Text>
-                </View>
-              </View>
-
-              <Text style={styles.bannerMainTitle}>
-                Doorstep Medicines{'\n'}
-                <Text style={[styles.bannerPriceText, { color: '#EA580C' }]}>Flat 20% OFF</Text>
-              </Text>
-              <Text style={styles.bannerSubTitle}>
-                100% Genuine Branded Drugs & Jan Aushadhi
-              </Text>
-
-              <View style={styles.bannerBottomRow}>
-                <Text style={styles.bannerBadgeSale}>Order with Prescription</Text>
-                <Text style={styles.bannerAdNotice}>AD</Text>
-              </View>
-
-              <Image
-                source={{ uri: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400' }}
-                style={styles.bannerRightImage}
-                resizeMode="cover"
-              />
-            </TouchableOpacity>
-
-            {/* Banner 3: Specialist Consult (Flipkart Intel Gamer Days style card) */}
-            <TouchableOpacity
-              style={[styles.bannerCard, { backgroundColor: '#0B0F19' }]}
-              onPress={() => navigation?.navigate('VideoConsultation')}
-              activeOpacity={0.92}
-            >
-              <View style={styles.bannerBadgeRow}>
-                <View style={[styles.brandPillYellow, { backgroundColor: '#2563EB' }]}>
-                  <Text style={[styles.brandPillYellowText, { color: '#FFFFFF' }]}>VERIFIED DOCTORS</Text>
-                </View>
-              </View>
-
-              <Text style={[styles.bannerMainTitle, { color: '#FFFFFF' }]}>
-                Instant Video Consult{'\n'}
-                <Text style={[styles.bannerPriceText, { color: '#38BDF8' }]}>From ₹299*</Text>
-              </Text>
-              <Text style={[styles.bannerSubTitle, { color: '#94A3B8' }]}>
-                Cardiologists, Physicians, Pediatricians & Gynecologists
-              </Text>
-
-              <View style={styles.bannerBottomRow}>
-                <Text style={[styles.bannerBadgeSale, { backgroundColor: '#1E293B', color: '#38BDF8' }]}>
-                  Zero Waiting Time
+                <Text style={[styles.bannerMainTitle, item.titleColor ? { color: item.titleColor } : null]}>
+                  {item.title}{'\n'}
+                  <Text style={[styles.bannerPriceText, item.priceColor ? { color: item.priceColor } : null]}>
+                    {item.priceText}
+                  </Text>
                 </Text>
-                <Text style={[styles.bannerAdNotice, { color: '#64748B' }]}>AD</Text>
-              </View>
+                <Text style={[styles.bannerSubTitle, item.subColor ? { color: item.subColor } : null]}>
+                  {item.subTitle}
+                </Text>
 
-              <Image
-                source={{ uri: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400' }}
-                style={styles.bannerRightImage}
-                resizeMode="cover"
-              />
-            </TouchableOpacity>
-          </View>
+                <View style={styles.bannerBottomRow}>
+                  <Text
+                    style={[
+                      styles.bannerBadgeSale,
+                      item.badgeSaleBg ? { backgroundColor: item.badgeSaleBg } : null,
+                      item.badgeSaleColor ? { color: item.badgeSaleColor } : null,
+                    ]}
+                  >
+                    {item.badgeSale}
+                  </Text>
+                  <Text style={[styles.bannerAdNotice, item.titleColor ? { color: '#64748B' } : null]}>AD</Text>
+                </View>
 
-          {/* Flipkart Pagination Dots */}
+                <Image
+                  source={{ uri: item.image }}
+                  style={styles.bannerRightImage}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Flipkart Animated Pagination Dots */}
           <View style={styles.dotsRow}>
-            <View style={[styles.dot, styles.dotActive]} />
-            <View style={styles.dot} />
-            <View style={styles.dot} />
-            <View style={styles.dot} />
-            <View style={styles.dot} />
-            <View style={styles.dot} />
+            {Array.from({ length: maxIndex + 1 }).map((_, i) => (
+              <TouchableOpacity
+                key={i}
+                onPress={() => handleGoToAd(i)}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.dot,
+                    activeAdIndex === i && styles.dotActive,
+                  ]}
+                />
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
@@ -449,6 +642,121 @@ const HomeScreenWeb = ({ navigation }) => {
                 <View style={[styles.featuredCtaBtn, { backgroundColor: '#059669' }]}>
                   <Text style={styles.featuredCtaBtnText}>Explore Plans</Text>
                   <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ============================================================
+            1.9 NEW SPECIALIZED CARE: AYURVEDA, FERTILITY & EQUIPMENT
+        ============================================================ */}
+        <View style={styles.newServicesWrap}>
+          <View style={styles.newServicesHeaderLine}>
+            <View>
+              <View style={styles.newServicesBadgeRow}>
+                <View style={styles.newBadgePill}>
+                  <Ionicons name="sparkles" size={12} color="#D97706" />
+                  <Text style={styles.newBadgePillText}>NEW HEALTHCARE HUBS</Text>
+                </View>
+              </View>
+              <Text style={styles.newServicesSectionTitle}>Specialized Wellness & Care Services</Text>
+              <Text style={styles.newServicesSectionSub}>
+                Holistic Ayurvedic treatments, compassionate IVF reproductive medicine & doorstep medical equipment rentals
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.newServicesGrid}>
+            {/* Card 1: Ayurveda & Wellness */}
+            <TouchableOpacity
+              style={[styles.newServiceCard, { borderColor: '#A7F3D0', backgroundColor: '#F0FDF4' }]}
+              onPress={() => navigation?.navigate('AyurvedaWellness')}
+              activeOpacity={0.9}
+            >
+              <View style={styles.newCardHeader}>
+                <View style={[styles.newCardPill, { backgroundColor: '#DCFCE7' }]}>
+                  <Ionicons name="leaf" size={13} color="#059669" />
+                  <Text style={[styles.newCardPillText, { color: '#065F46' }]}>AYUSH CERTIFIED</Text>
+                </View>
+                <Text style={styles.newCardBadgeTag}>Panchakarma</Text>
+              </View>
+
+              <Text style={styles.newCardTitle}>Ayurveda & Wellness</Text>
+              <Text style={styles.newCardDesc}>
+                Authentic pulse diagnosis (Nadi Pariksha), traditional Shirodhara & Abhyanga massages, and classical herbal rasayanas.
+              </Text>
+
+              <View style={styles.newCardFooter}>
+                <View>
+                  <Text style={styles.newCardPriceLabel}>Starting from</Text>
+                  <Text style={[styles.newCardPriceVal, { color: '#059669' }]}>₹400</Text>
+                </View>
+                <View style={[styles.newCardCtaBtn, { backgroundColor: '#059669' }]}>
+                  <Text style={styles.newCardCtaBtnText}>Explore Ayurveda</Text>
+                  <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
+                </View>
+              </View>
+            </TouchableOpacity>
+
+            {/* Card 2: Fertility & IVF */}
+            <TouchableOpacity
+              style={[styles.newServiceCard, { borderColor: '#FBCFE8', backgroundColor: '#FDF2F8' }]}
+              onPress={() => navigation?.navigate('FertilityIvf')}
+              activeOpacity={0.9}
+            >
+              <View style={styles.newCardHeader}>
+                <View style={[styles.newCardPill, { backgroundColor: '#FCE7F3' }]}>
+                  <Ionicons name="heart" size={13} color="#DB2777" />
+                  <Text style={[styles.newCardPillText, { color: '#9D174D' }]}>UP TO 73% SUCCESS</Text>
+                </View>
+                <Text style={[styles.newCardBadgeTag, { color: '#BE185D' }]}>0% EMI Available</Text>
+              </View>
+
+              <Text style={styles.newCardTitle}>Fertility & IVF Care</Text>
+              <Text style={styles.newCardDesc}>
+                Comprehensive reproductive medicine, advanced blastocyst culture, ICSI, egg freezing & 100% confidential doctor guidance.
+              </Text>
+
+              <View style={styles.newCardFooter}>
+                <View>
+                  <Text style={styles.newCardPriceLabel}>0% EMI from</Text>
+                  <Text style={[styles.newCardPriceVal, { color: '#BE185D' }]}>₹2,416<Text style={{ fontSize: 11, color: '#64748B', fontWeight: '600' }}>/mo</Text></Text>
+                </View>
+                <View style={[styles.newCardCtaBtn, { backgroundColor: '#DB2777' }]}>
+                  <Text style={styles.newCardCtaBtnText}>Explore Fertility</Text>
+                  <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
+                </View>
+              </View>
+            </TouchableOpacity>
+
+            {/* Card 3: Medical Equipment Rental */}
+            <TouchableOpacity
+              style={[styles.newServiceCard, { borderColor: '#DDD6FE', backgroundColor: '#FAF5FF' }]}
+              onPress={() => navigation?.navigate('EquipmentRental')}
+              activeOpacity={0.9}
+            >
+              <View style={styles.newCardHeader}>
+                <View style={[styles.newCardPill, { backgroundColor: '#EDE9FE' }]}>
+                  <Ionicons name="fitness" size={13} color="#7C3AED" />
+                  <Text style={[styles.newCardPillText, { color: '#5B21B6' }]}>2-4 HR DOORSTEP</Text>
+                </View>
+                <Text style={[styles.newCardBadgeTag, { color: '#6D28D9' }]}>Free Demo</Text>
+              </View>
+
+              <Text style={styles.newCardTitle}>Medical Equipment Rental</Text>
+              <Text style={styles.newCardDesc}>
+                Electric ICU beds, 10L medical oxygen concentrators, BiPAP & smart wheelchairs delivered and installed at home.
+              </Text>
+
+              <View style={styles.newCardFooter}>
+                <View>
+                  <Text style={styles.newCardPriceLabel}>Rentals from</Text>
+                  <Text style={[styles.newCardPriceVal, { color: '#6D28D9' }]}>₹80<Text style={{ fontSize: 11, color: '#64748B', fontWeight: '600' }}>/day</Text></Text>
+                </View>
+                <View style={[styles.newCardCtaBtn, { backgroundColor: '#7C3AED' }]}>
+                  <Text style={styles.newCardCtaBtnText}>Rent Equipment</Text>
+                  <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
                 </View>
               </View>
             </TouchableOpacity>
@@ -767,6 +1075,51 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    position: 'relative',
+  },
+  heroCarouselScrollTrack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    paddingHorizontal: 4,
+  },
+  carouselArrowLeft: {
+    position: 'absolute',
+    left: 8,
+    top: '42%',
+    zIndex: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  carouselArrowRight: {
+    position: 'absolute',
+    right: 8,
+    top: '42%',
+    zIndex: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   heroCarouselInner: {
     maxWidth: 1320,
@@ -776,7 +1129,6 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   bannerCard: {
-    flex: 1,
     minHeight: 210,
     borderRadius: 14,
     padding: 20,
@@ -875,18 +1227,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     marginTop: 14,
   },
   dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#CBD5E1',
   },
   dotActive: {
-    width: 16,
-    backgroundColor: '#00B894',
+    width: 24,
+    backgroundColor: '#0071DC',
     borderRadius: 4,
   },
 
@@ -1792,6 +2144,138 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#065F46',
+  },
+
+  // 1.9 NEW SPECIALIZED CARE SECTION
+  newServicesWrap: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 28,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  newServicesHeaderLine: {
+    maxWidth: 1320,
+    width: '100%',
+    alignSelf: 'center',
+    marginBottom: 18,
+  },
+  newServicesBadgeRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
+  },
+  newBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  newBadgePillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#92400E',
+    letterSpacing: 0.5,
+  },
+  newServicesSectionTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  newServicesSectionSub: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 4,
+  },
+  newServicesGrid: {
+    maxWidth: 1320,
+    width: '100%',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    gap: 16,
+    flexWrap: 'wrap',
+  },
+  newServiceCard: {
+    flex: 1,
+    minWidth: 300,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    padding: 20,
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  newCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  newCardPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  newCardPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  newCardBadgeTag: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  newCardTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+  },
+  newCardDesc: {
+    fontSize: 12.5,
+    color: '#475569',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  newCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.06)',
+  },
+  newCardPriceLabel: {
+    fontSize: 10.5,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  newCardPriceVal: {
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  newCardCtaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  newCardCtaBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });
 

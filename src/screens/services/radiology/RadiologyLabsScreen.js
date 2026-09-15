@@ -16,8 +16,14 @@ import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import { radiologyLabs, radiologyCategories } from '../../../data/radiologyLabsData';
 import { useCart } from '../../../context/CartContext';
+import ImagingScreenWeb from './ImagingScreen.web';
 
-const RadiologyLabsScreen = ({ navigation, route }) => {
+const RadiologyLabsScreen = (props) => {
+  if (Platform.OS === 'web') {
+    return <ImagingScreenWeb {...props} />;
+  }
+
+  const { navigation, route } = props;
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
 

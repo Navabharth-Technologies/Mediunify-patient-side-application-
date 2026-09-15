@@ -1,4 +1,4 @@
-﻿import React, { useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 
 import {
   View,
@@ -25,10 +25,15 @@ try {
 }
 
 import { Ionicons } from '@expo/vector-icons';
+import { Platform } from 'react-native';
+import ImagingScreenWeb from './ImagingScreen.web';
 
+const ImagingScreen = (props) => {
+  if (Platform.OS === 'web') {
+    return <ImagingScreenWeb {...props} />;
+  }
 
-const ImagingScreen = ({ navigation }) => {
-
+  const { navigation } = props;
   const cameraRef = useRef(null);
 
   const [cameraPermission, requestCameraPermission] =

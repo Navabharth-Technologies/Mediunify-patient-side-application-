@@ -1,1447 +1,1109 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
-  FlatList,
+  ScrollView,
   TouchableOpacity,
   TextInput,
-  ScrollView,
   StatusBar,
   Linking,
   Platform,
-  Alert,
   Modal,
-  ActivityIndicator,
+  Image,
   useWindowDimensions,
 } from 'react-native';
-import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
-import * as Location from 'expo-location';
-import { requestLocationPermissionWebSafe, getCurrentPositionWebSafe, reverseGeocodeWebSafe } from '../../../utils/locationHelper';
-import colors from '../../../theme/colors';
-import {
-  surgeryHospitals,
-  surgerySpecialties,
-} from '../../../data/surgeryHospitalsData';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { showAlert } from '../../../utils/alert';
+import WebFooter from '../../../components/web/WebFooter';
 
-export const POPULAR_LOCALITIES = [
-  { id: '1', name: 'Kuvempunagar', city: 'Mysore', full: 'Kuvempunagar, Mysore', latitude: 12.2858, longitude: 76.6341 },
-  { id: '2', name: 'Jayalakshmipuram', city: 'Mysore', full: 'Jayalakshmipuram, Mysore', latitude: 12.3180, longitude: 76.6260 },
-  { id: '3', name: 'Saraswathipuram', city: 'Mysore', full: 'Saraswathipuram, Mysore', latitude: 12.3020, longitude: 76.6350 },
-  { id: '4', name: 'Vijayanagar 2nd Stage', city: 'Mysore', full: 'Vijayanagar, Mysore', latitude: 12.3350, longitude: 76.6120 },
-  { id: '5', name: 'Gokulam 3rd Stage', city: 'Mysore', full: 'Gokulam, Mysore', latitude: 12.3290, longitude: 76.6280 },
-  { id: '6', name: 'V.V. Mohalla', city: 'Mysore', full: 'V.V. Mohalla, Mysore', latitude: 12.3210, longitude: 76.6390 },
-  { id: '7', name: 'Bannimantap', city: 'Mysore', full: 'Bannimantap, Mysore', latitude: 12.3380, longitude: 76.6520 },
-  { id: '8', name: 'Nazarbad', city: 'Mysore', full: 'Nazarbad, Mysore', latitude: 12.3080, longitude: 76.6650 },
-  { id: '9', name: 'Hebbal 1st Stage', city: 'Mysore', full: 'Hebbal, Mysore', latitude: 12.3610, longitude: 76.6150 },
-  { id: '10', name: 'Mysore Central / Agrahara', city: 'Mysore', full: 'Agrahara, Mysore', latitude: 12.2965, longitude: 76.6540 },
-  { id: '11', name: 'Devanur / Ring Road', city: 'Mysore', full: 'Devanur, Mysore', latitude: 12.3210, longitude: 76.6780 },
+const SURGERY_LIST = [
+  'General Surgery Consultation',
+  'Cataract Surgery',
+  'Gallbladder Stone Removal (Laparoscopic)',
+  'Hernia Repair (Mesh / Laparoscopic)',
+  'Knee Replacement (Robotic / Total)',
+  'Kidney Stone Removal (Laser RIRS/PCNL)',
+  'Appendectomy (Laser / Laparoscopic)',
+  'Piles, Fissure & Fistula (Laser)',
+  'Lasik Eye Laser Surgery',
+  'ACL & Meniscus Reconstruction',
+  'Gynecological Laparoscopic Care',
+  'Bariatric & Weight Loss Surgery',
+  'ENT & Sinus (FESS) Surgery',
 ];
 
-const calculateDistanceKm = (lat1, lon1, lat2, lon2) => {
-  if (!lat1 || !lon1 || !lat2 || !lon2) return 1.0;
-  const R = 6371; // km
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return parseFloat((R * c).toFixed(1));
-};
+const CITY_LIST = [
+  'Bangalore',
+  'Mysore',
+  'Hyderabad',
+  'Chennai',
+  'Mumbai',
+  'Delhi NCR',
+  'Pune',
+  'Kolkata',
+  'Ahmedabad',
+  'Mangalore',
+];
 
-const HospitalCareScreen = ({ navigation, route }) => {
+const HospitalCareScreen = ({ navigation }) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 992;
-  const [search, setSearch] = useState(route?.params?.query || route?.params?.search || '');
+  const isTablet = width >= 600 && width < 992;
+
+  // Form State
+  const [selectedSurgery, setSelectedSurgery] = useState('');
+  const [selectedCity, setSelectedCity] = useState('Bangalore');
+  const [name, setName] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [bookingSuccess, setBookingSuccess] = useState(false);
+
+  // Dropdown Modals
+  const [surgeryModalVisible, setSurgeryModalVisible] = useState(false);
+  const [cityModalVisible, setCityModalVisible] = useState(false);
 
   useEffect(() => {
-    if (route?.params?.query !== undefined) {
-      setSearch(route.params.query);
-    } else if (route?.params?.search !== undefined) {
-      setSearch(route.params.search);
+    const loadStoredUser = async () => {
+      try {
+        const storedName = await AsyncStorage.getItem('userName');
+        const storedPhone = await AsyncStorage.getItem('userPhone');
+        if (storedName) setName(storedName);
+        if (storedPhone) setMobileNumber(storedPhone);
+      } catch (e) {}
+    };
+    loadStoredUser();
+  }, []);
+
+  const handleBookAppointment = async () => {
+    if (!name.trim()) {
+      showAlert('Name Required', 'Please enter your full name.');
+      return;
     }
-  }, [route?.params?.query, route?.params?.search]);
+    if (!mobileNumber.trim() || mobileNumber.trim().length < 10) {
+      showAlert('Valid Mobile Required', 'Please enter a valid 10-digit mobile number to receive your callback.');
+      return;
+    }
 
-  const [selectedSpecialty, setSelectedSpecialty] = useState('all');
-  const [selectedFilter, setSelectedFilter] = useState('All');
-
-  // Location State
-  const initialLocality = route?.params?.locality || 'Kuvempunagar, Mysore';
-  const [userLocality, setUserLocality] = useState(initialLocality);
-  const [userCoords, setUserCoords] = useState({ latitude: 12.2858, longitude: 76.6341 });
-  const [loadingGps, setLoadingGps] = useState(false);
-  const [locationModalVisible, setLocationModalVisible] = useState(false);
-  const [locationSearchQuery, setLocationSearchQuery] = useState('');
-  const [customLocalityInput, setCustomLocalityInput] = useState('');
-  const [locationToast, setLocationToast] = useState(null);
-
-  const filterTabs = [
-    'All',
-    'NABH Accredited',
-    'Cashless TPA / Insurance',
-    'Minimally Invasive Daycare',
-    'Open 24x7',
-  ];
-
-  // Detect Live GPS Location
-  const detectLocation = async () => {
+    setLoading(true);
     try {
-      setLoadingGps(true);
-      const perm = await requestLocationPermissionWebSafe();
-      if (!perm.granted && perm.status !== 'granted') {
-        setLoadingGps(false);
-        showAlert(
-          'Location Permission Required',
-          'Please enable device location permission or pick an area from the list below.'
-        );
-        return;
-      }
-      const position = await getCurrentPositionWebSafe({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
-      const newCoords = {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
+      const consultationLead = {
+        surgery: selectedSurgery || 'General Surgery Consultation',
+        city: selectedCity,
+        name: name.trim(),
+        mobileNumber: mobileNumber.trim(),
+        timestamp: new Date().toISOString(),
       };
-      setUserCoords(newCoords);
-
-      const reverse = await reverseGeocodeWebSafe(newCoords);
-      let detectedName = 'Current Location';
-      if (reverse && reverse.length > 0) {
-        const item = reverse[0];
-        detectedName = item.formattedAddress || `${item.district || item.subregion || item.name || 'Current Area'}, ${item.city || 'Mysore'}`;
-      }
-      setUserLocality(detectedName);
-      setLocationModalVisible(false);
-      showToast(`Location set to: ${detectedName}`);
+      await AsyncStorage.setItem('@unnathi_surgery_lead', JSON.stringify(consultationLead));
+      setLoading(false);
+      setBookingSuccess(true);
+      showAlert(
+        'Consultation Booked! 🩺',
+        `Thank you ${name.trim()}! Your request for ${selectedSurgery || 'Surgery Consultation'} in ${selectedCity} has been received. Our dedicated Care Coordinator will call ${mobileNumber.trim()} within 15 minutes.`,
+        [{ text: 'OK', style: 'default' }]
+      );
     } catch (e) {
-      console.log('GPS detection error:', e);
-      showAlert('GPS Notice', 'Could not detect live position. You can select any neighborhood from the list.');
-    } finally {
-      setLoadingGps(false);
+      setLoading(false);
+      showAlert('Booking Received', 'Thank you! Our surgery specialist will call you shortly.');
     }
   };
 
-  const showToast = (msg) => {
-    setLocationToast(msg);
-    setTimeout(() => {
-      setLocationToast(null);
-    }, 2500);
-  };
-
-  // Filtered Localities for Location Picker
-  const filteredLocalities = useMemo(() => {
-    if (!locationSearchQuery.trim()) return POPULAR_LOCALITIES;
-    return POPULAR_LOCALITIES.filter((loc) =>
-      loc.full.toLowerCase().includes(locationSearchQuery.toLowerCase()) ||
-      loc.name.toLowerCase().includes(locationSearchQuery.toLowerCase())
-    );
-  }, [locationSearchQuery]);
-
-  // Handle Select Location from list
-  const handleSelectLocality = (loc) => {
-    setUserLocality(loc.full);
-    setUserCoords({ latitude: loc.latitude, longitude: loc.longitude });
-    setLocationModalVisible(false);
-    setLocationSearchQuery('');
-    showToast(`Hospitals sorted near ${loc.name}!`);
-  };
-
-  // Handle custom typed location
-  const handleCustomLocalitySubmit = () => {
-    if (!customLocalityInput.trim()) return;
-    setUserLocality(`${customLocalityInput.trim()}, Mysore`);
-    setUserCoords({ latitude: 12.3050, longitude: 76.6450 });
-    setLocationModalVisible(false);
-    setCustomLocalityInput('');
-    showToast(`Hospitals sorted near ${customLocalityInput.trim()}!`);
-  };
-
-  // Filter and Sort Hospitals (Nearby First)
-  const filteredHospitals = useMemo(() => {
-    const list = surgeryHospitals.map((hosp) => {
-      const dist = calculateDistanceKm(
-        userCoords.latitude,
-        userCoords.longitude,
-        hosp.latitude,
-        hosp.longitude
-      );
-      return {
-        ...hosp,
-        calculatedDistanceKm: dist,
-        dynamicDistanceStr: `${dist} km away`,
-      };
-    });
-
-    const filtered = list.filter((hosp) => {
-      // 1. Search Query
-      const query = search.toLowerCase();
-      const matchesSearch =
-        hosp.name.toLowerCase().includes(query) ||
-        hosp.area.toLowerCase().includes(query) ||
-        hosp.tagline.toLowerCase().includes(query) ||
-        hosp.availableSurgeries.some(
-          (s) =>
-            s.name.toLowerCase().includes(query) ||
-            s.categoryLabel.toLowerCase().includes(query) ||
-            s.technique.toLowerCase().includes(query)
-        );
-
-      if (!matchesSearch) return false;
-
-      // 2. Specialty Filter
-      if (selectedSpecialty !== 'all') {
-        const hasSpecialty = hosp.availableSurgeries.some(
-          (s) => s.specialty === selectedSpecialty
-        );
-        if (!hasSpecialty) return false;
-      }
-
-      // 3. Quick Tabs
-      if (selectedFilter === 'NABH Accredited') {
-        return hosp.accreditation.includes('NABH');
-      }
-      if (selectedFilter === 'Cashless TPA / Insurance') {
-        return hosp.cashlessInsurance && hosp.cashlessInsurance.length > 0;
-      }
-      if (selectedFilter === 'Minimally Invasive Daycare') {
-        return hosp.availableSurgeries.some(
-          (s) =>
-            s.stayRequired.toLowerCase().includes('daycare') ||
-            s.stayRequired.toLowerCase().includes('1 day')
-        );
-      }
-      if (selectedFilter === 'Open 24x7') {
-        return hosp.openHours.toLowerCase().includes('24x7');
-      }
-
-      return true;
-    });
-
-    // Sort: Nearby location first (ascending distance)
-    return filtered.sort((a, b) => a.calculatedDistanceKm - b.calculatedDistanceKm);
-  }, [search, selectedSpecialty, selectedFilter, userCoords]);
-
-  const openHospitalGps = (hosp) => {
-    const lat = hosp.latitude;
-    const lng = hosp.longitude;
-    const label = encodeURIComponent(`${hosp.name}, ${hosp.address}`);
-    const url = Platform.select({
-      ios: `maps:0,0?q=${label}@${lat},${lng}`,
-      android: `geo:0,0?q=${lat},${lng}(${label})`,
-      default: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=${label}`,
-    });
-    Linking.openURL(url).catch(() => {
-      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
+  const handleCall = () => {
+    Linking.openURL('tel:+918045685554').catch(() => {
+      showAlert('Helpline', 'Please dial +91-8045685554 to reach our Surgery Desk.');
     });
   };
 
-  const renderHospitalCard = ({ item: hosp, index }) => {
-    const matchingSurgeries =
-      selectedSpecialty === 'all'
-        ? hosp.availableSurgeries
-        : hosp.availableSurgeries.filter((s) => s.specialty === selectedSpecialty);
-
-    const isNearest = index === 0;
-
-    return (
-      <View style={[styles.card, isNearest && styles.nearestCardHighlight]}>
-        {/* TOP ACCREDITATION & DISTANCE ROW */}
-        <View style={styles.cardHeader}>
-          <View style={styles.accreditBadge}>
-            <Ionicons name="shield-checkmark" size={13} color={colors.primary} />
-            <Text style={styles.accreditBadgeText}>{hosp.accreditation}</Text>
-          </View>
-
-          <View style={[styles.distanceBadge, isNearest && styles.nearestDistanceBadge]}>
-            <Ionicons
-              name="navigate"
-              size={12}
-              color={isNearest ? '#FFFFFF' : colors.secondary}
-            />
-            <Text
-              style={[
-                styles.distanceBadgeText,
-                isNearest && { color: '#FFFFFF', fontWeight: '800' },
-              ]}
-            >
-              {isNearest ? `📍 NEAREST (${hosp.dynamicDistanceStr})` : hosp.dynamicDistanceStr}
-            </Text>
-          </View>
-        </View>
-
-        {/* HOSPITAL TITLE & LOCATION */}
-        <TouchableOpacity
-          style={styles.hospitalInfoRow}
-          activeOpacity={0.88}
-          onPress={() =>
-            navigation.navigate('HospitalSurgeryDetails', {
-              hospitalId: hosp.id,
-              initialSpecialty: selectedSpecialty,
-            })
-          }
-        >
-          <View style={styles.hospitalIconBox}>
-            <Ionicons name="business" size={26} color={colors.primary} />
-          </View>
-
-          <View style={styles.hospitalTextCol}>
-            <Text style={styles.hospitalName} numberOfLines={1}>
-              {hosp.name}
-            </Text>
-            <Text style={styles.hospitalTagline} numberOfLines={1}>
-              {hosp.tagline}
-            </Text>
-            <View style={styles.areaRow}>
-              <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
-              <Text style={styles.areaText} numberOfLines={1}>
-                {hosp.area}
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-
-        {/* METRICS ROW (ICU, OT, RATING) */}
-        <View style={styles.metricsRow}>
-          <View style={styles.metricItem}>
-            <Ionicons name="star" size={13} color="#FFA000" />
-            <Text style={styles.metricBold}>{hosp.rating}</Text>
-            <Text style={styles.metricSub}>({hosp.reviewCount})</Text>
-          </View>
-          <View style={styles.metricDivider} />
-          <View style={styles.metricItem}>
-            <Ionicons name="bed-outline" size={14} color={colors.secondary} />
-            <Text style={styles.metricSub}>{hosp.icuBeds}</Text>
-          </View>
-          <View style={styles.metricDivider} />
-          <View style={styles.metricItem}>
-            <Ionicons name="medkit-outline" size={14} color={colors.primary} />
-            <Text style={styles.metricSub}>{hosp.otCount}</Text>
-          </View>
-        </View>
-
-        {/* CASHLESS INSURANCE TPA SUPPORT PILL */}
-        <View style={styles.cashlessBox}>
-          <Ionicons name="checkmark-circle" size={14} color="#059669" />
-          <Text style={styles.cashlessText} numberOfLines={1}>
-            Cashless TPA: Star Health, HDFC ERGO, Medi Assist & 15+ more
-          </Text>
-        </View>
-
-        {/* SURGERIES PREVIEW TAGS */}
-        <View style={styles.surgeriesPreviewSection}>
-          <Text style={styles.surgeriesPreviewTitle}>
-            Key Surgeries Performed ({matchingSurgeries.length} Procedures):
-          </Text>
-          <View style={styles.surgeryChipsWrap}>
-            {matchingSurgeries.slice(0, 3).map((surg) => (
-              <View key={surg.id} style={styles.surgeryChip}>
-                <Ionicons name="medical" size={11} color={colors.primary} />
-                <Text style={styles.surgeryChipText} numberOfLines={1}>
-                  {surg.name.split('(')[0]}
-                </Text>
-              </View>
-            ))}
-            {matchingSurgeries.length > 3 && (
-              <View style={[styles.surgeryChip, { backgroundColor: '#F1F5F9' }]}>
-                <Text style={[styles.surgeryChipText, { color: colors.secondary }]}>
-                  +{matchingSurgeries.length - 3} More
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* DUAL ACTION BUTTONS */}
-        <View style={styles.cardActionsRow}>
-          <TouchableOpacity
-            style={styles.directionsBtn}
-            activeOpacity={0.8}
-            onPress={() => openHospitalGps(hosp)}
-          >
-            <Ionicons name="navigate" size={15} color={colors.secondary} />
-            <Text style={styles.directionsBtnText}>Directions</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.viewSurgeriesBtn}
-            activeOpacity={0.88}
-            onPress={() =>
-              navigation.navigate('HospitalSurgeryDetails', {
-                hospitalId: hosp.id,
-                initialSpecialty: selectedSpecialty,
-              })
-            }
-          >
-            <Text style={styles.viewSurgeriesBtnText}>View Surgeries</Text>
-            <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
+  const handleWhatsApp = () => {
+    const text = encodeURIComponent('Hi, I would like to consult with a surgery specialist on MediUnify.');
+    Linking.openURL(`https://wa.me/917353101441?text=${text}`).catch(() => {
+      showAlert('WhatsApp', 'Please message +91-7353101441 on WhatsApp.');
+    });
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* ==================================================
-          HEADER (MOBILE ONLY)
-      ================================================== */}
-      {!isDesktopWeb && (
-        <View style={styles.header}>
+      {/* MOBILE TOP HEADER */}
+      {Platform.OS !== 'web' || width < 768 ? (
+        <View style={styles.mobileHeader}>
           <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              if (navigation?.canGoBack && navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation?.navigate('Home');
+              }
+            }}
             activeOpacity={0.8}
+            style={styles.backBtn}
           >
-            <Ionicons name="arrow-back" size={22} color={colors.secondary} />
+            <Ionicons name="arrow-back" size={24} color="#1E3A8A" />
           </TouchableOpacity>
-
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Surgeries & Hospital Care</Text>
-            <Text style={styles.headerSubtitle}>
-              Nearest Surgical Hospitals & Custom Price Estimates
-            </Text>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.mobileHeaderTitle}>Hospital & Surgery</Text>
+            <Text style={styles.mobileHeaderSub}>India's Fastest Growing Surgery Network</Text>
           </View>
+        </View>
+      ) : (
+        /* DESKTOP BREADCRUMB */
+        <View style={styles.desktopBreadcrumbWrap}>
+          <View style={styles.desktopBreadcrumbInner}>
+            <TouchableOpacity onPress={() => navigation?.navigate('Home')} activeOpacity={0.7}>
+              <Text style={styles.breadcrumbLink}>Home</Text>
+            </TouchableOpacity>
+            <Ionicons name="chevron-forward" size={14} color="#94A3B8" />
+            <Text style={styles.breadcrumbCurrent}>Services</Text>
+            <Ionicons name="chevron-forward" size={14} color="#94A3B8" />
+            <Text style={styles.breadcrumbActive}>Hospital & Surgery Care</Text>
 
-          <TouchableOpacity
-            style={styles.quoteHistoryBtn}
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate('TransactionHistory')}
-          >
-            <Ionicons name="receipt-outline" size={20} color={colors.secondary} />
-          </TouchableOpacity>
+            <View style={{ flex: 1 }} />
+
+            <View style={styles.verifiedBadge}>
+              <Ionicons name="shield-checkmark" size={14} color="#00B894" />
+              <Text style={styles.verifiedBadgeText}>100% Verified Surgery Network</Text>
+            </View>
+          </View>
         </View>
       )}
 
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.mainBody, isDesktopWeb && styles.desktopContainer]}>
+          <View style={[styles.layoutRow, isDesktopWeb && styles.layoutRowDesktop]}>
+            {/* ============================================================
+                LEFT COLUMN: HERO BANNER + WHY ASSURED SECTION
+            ============================================================ */}
+            <View style={[styles.leftColumn, isDesktopWeb && styles.leftColumnDesktop]}>
+              {/* 1. HERO NETWORK BANNER CARD */}
+              <View style={styles.heroCard}>
+                <Text style={styles.heroTitle}>India’s fastest growing surgery network</Text>
+                <Text style={styles.heroSubtitle}>
+                  Trusted across India for safe, guided surgery care.
+                </Text>
 
+                {/* Doctor Visual with Surrounding 4 Badges */}
+                <View style={styles.doctorVisualSection}>
+                  {/* Central Circular Backdrop & Doctor Image */}
+                  <View style={styles.doctorCircleBackdrop}>
+                    <Image
+                      source={{
+                        uri: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=600&auto=format&fit=crop&q=80',
+                      }}
+                      style={styles.doctorImage}
+                      resizeMode="cover"
+                    />
+                  </View>
 
-      {/* ==================================================
-          LOCATION SELECTOR BANNER BAR (MOBILE ONLY)
-      ================================================== */}
-      {!isDesktopWeb && (
+                  {/* 4 Floating Badges Around Doctor */}
+                  {/* Top Left: 2,00,000+ Surgeries */}
+                  <View style={[styles.floatingBadge, styles.badgeTopLeft]}>
+                    <View style={styles.badgeIconWrap}>
+                      <Ionicons name="person" size={16} color="#1E3A8A" />
+                    </View>
+                    <View>
+                      <Text style={styles.badgeBoldText}>2,00,000+</Text>
+                      <Text style={styles.badgeSubText}>Surgeries</Text>
+                    </View>
+                  </View>
+
+                  {/* Top Right: 10,000+ Surgeons */}
+                  <View style={[styles.floatingBadge, styles.badgeTopRight]}>
+                    <View style={styles.badgeIconWrap}>
+                      <Ionicons name="medkit" size={16} color="#1E3A8A" />
+                    </View>
+                    <View>
+                      <Text style={styles.badgeBoldText}>10,000+</Text>
+                      <Text style={styles.badgeSubText}>Surgeons</Text>
+                    </View>
+                  </View>
+
+                  {/* Bottom Left: 25+ Cities */}
+                  <View style={[styles.floatingBadge, styles.badgeBottomLeft]}>
+                    <View style={styles.badgeIconWrap}>
+                      <Ionicons name="business" size={16} color="#1E3A8A" />
+                    </View>
+                    <View>
+                      <Text style={styles.badgeBoldText}>25+</Text>
+                      <Text style={styles.badgeSubText}>Cities</Text>
+                    </View>
+                  </View>
+
+                  {/* Bottom Right: 1,000+ Hospitals */}
+                  <View style={[styles.floatingBadge, styles.badgeBottomRight]}>
+                    <View style={styles.badgeIconWrap}>
+                      <Ionicons name="fitness" size={16} color="#1E3A8A" />
+                    </View>
+                    <View>
+                      <Text style={styles.badgeBoldText}>1,000+</Text>
+                      <Text style={styles.badgeSubText}>Hospitals</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {/* 2. WHY PRACTO ASSURED / WHY MEDIUNIFY ASSURED CARD */}
+              <View style={styles.assuredCard}>
+                <Text style={styles.assuredSectionHeader}>Why Practo Assured?</Text>
+
+                {/* Sub-header 1: Practo Assured Benefits */}
+                <Text style={styles.assuredSubHeader}>Practo Assured Benefits</Text>
+
+                {/* Grid of 3 Benefits */}
+                <View style={styles.benefitsGrid}>
+                  {/* Card 1: 4+/5 Hospital Excellence */}
+                  <View style={styles.benefitItemCard}>
+                    <View style={styles.benefitTopRow}>
+                      <Ionicons name="star" size={20} color="#1E3A8A" />
+                      <Text style={styles.benefitScoreText}>4+/5</Text>
+                    </View>
+                    <Text style={styles.benefitItemTitle}>Hospital Excellence Rating</Text>
+                    <Text style={styles.benefitItemDesc}>
+                      First score of its kind in India, evaluating a hospital's infrastructure, equipment, and facilities through an auditing process.
+                    </Text>
+                  </View>
+
+                  {/* Card 2: 1,000+ Assured Hospitals */}
+                  <View style={styles.benefitItemCard}>
+                    <View style={styles.benefitTopRow}>
+                      <Ionicons name="business-outline" size={20} color="#1E3A8A" />
+                      <Text style={styles.benefitScoreText}>1,000+</Text>
+                    </View>
+                    <Text style={styles.benefitItemTitle}>Assured Hospitals</Text>
+                    <Text style={styles.benefitItemDesc}>
+                      Carefully Vetted & Quality-Verified Facilities Across Multiple Cities
+                    </Text>
+                  </View>
+
+                  {/* Card 3: 15+ Years of Expertise */}
+                  <View style={styles.benefitItemCard}>
+                    <View style={styles.benefitTopRow}>
+                      <Ionicons name="shield-checkmark-outline" size={20} color="#1E3A8A" />
+                      <Text style={styles.benefitScoreText}>15+</Text>
+                    </View>
+                    <Text style={styles.benefitItemTitle}>Years of Expertise</Text>
+                    <Text style={styles.benefitItemDesc}>
+                      Proven Expertise & Safe Outcomes
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Sub-header 2: Practo's Assured Network */}
+                <Text style={[styles.assuredSubHeader, { marginTop: 24 }]}>Practo's Assured Network</Text>
+
+                {/* 3 Column Stat Strip */}
+                <View style={styles.networkStatsStrip}>
+                  <View style={styles.networkStatCol}>
+                    <Text style={styles.networkStatNum}>1 Crore+</Text>
+                    <Text style={styles.networkStatLabel}>Patients</Text>
+                  </View>
+                  <View style={styles.networkStatDivider} />
+                  <View style={styles.networkStatCol}>
+                    <Text style={styles.networkStatNum}>10,000+</Text>
+                    <Text style={styles.networkStatLabel}>Surgeons</Text>
+                  </View>
+                  <View style={styles.networkStatDivider} />
+                  <View style={styles.networkStatCol}>
+                    <Text style={styles.networkStatNum}>25+</Text>
+                    <Text style={styles.networkStatLabel}>Cities</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* ============================================================
+                RIGHT COLUMN: CONSULTATION BOOKING FORM & DIRECT CONTACTS
+            ============================================================ */}
+            <View style={[styles.rightColumn, isDesktopWeb && styles.rightColumnDesktop]}>
+              {/* BOOKING CARD */}
+              <View style={styles.formCard}>
+                <Text style={styles.formTitle}>Book your consultation today</Text>
+                <Text style={styles.formSubtitle}>Get a Call Back Within 15 Minutes</Text>
+
+                <View style={styles.formBody}>
+                  {/* Field 1: Surgery Selector */}
+                  <TouchableOpacity
+                    style={styles.dropdownField}
+                    onPress={() => setSurgeryModalVisible(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownFieldText,
+                        !selectedSurgery && styles.placeholderText,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {selectedSurgery || 'Surgery'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={18} color="#64748B" />
+                  </TouchableOpacity>
+
+                  {/* Field 2: City Selector */}
+                  <TouchableOpacity
+                    style={styles.dropdownField}
+                    onPress={() => setCityModalVisible(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.dropdownFieldText} numberOfLines={1}>
+                      {selectedCity || 'Bangalore'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={18} color="#64748B" />
+                  </TouchableOpacity>
+
+                  {/* Field 3: Name */}
+                  <View style={styles.inputField}>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="Name"
+                      placeholderTextColor="#94A3B8"
+                      value={name}
+                      onChangeText={setName}
+                    />
+                  </View>
+
+                  {/* Field 4: Mobile Number */}
+                  <View style={styles.inputField}>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="Mobile Number"
+                      placeholderTextColor="#94A3B8"
+                      value={mobileNumber}
+                      onChangeText={setMobileNumber}
+                      keyboardType="phone-pad"
+                      maxLength={15}
+                    />
+                  </View>
+
+                  {/* Submit Button */}
+                  <TouchableOpacity
+                    style={styles.submitBtn}
+                    onPress={handleBookAppointment}
+                    activeOpacity={0.9}
+                    disabled={loading}
+                  >
+                    <Text style={styles.submitBtnText}>
+                      {loading ? 'Submitting...' : 'Book Appointment'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* T&C Disclaimer */}
+                  <Text style={styles.termsText}>
+                    By submitting the form, you agree to Practo's <Text style={styles.termsLink}>T&C</Text>
+                  </Text>
+                </View>
+              </View>
+
+              {/* OR DIVIDER */}
+              <View style={styles.orDividerContainer}>
+                <View style={styles.orDividerLine} />
+                <Text style={styles.orText}>OR</Text>
+                <View style={styles.orDividerLine} />
+              </View>
+
+              {/* DIRECT CONTACT CARD */}
+              <View style={styles.contactCard}>
+                {/* Contact Row 1: Reach Out to Us (Phone) */}
+                <TouchableOpacity
+                  style={styles.contactRow}
+                  onPress={handleCall}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.contactLeft}>
+                    <View style={styles.phoneIconWrap}>
+                      <Ionicons name="call" size={16} color="#FFFFFF" />
+                    </View>
+                    <Text style={styles.contactLabel}>Reach Out to Us</Text>
+                  </View>
+                  <Text style={styles.contactNumber}>+91-8045685554</Text>
+                </TouchableOpacity>
+
+                <View style={styles.contactDivider} />
+
+                {/* Contact Row 2: Chat with Us (WhatsApp) */}
+                <TouchableOpacity
+                  style={styles.contactRow}
+                  onPress={handleWhatsApp}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.contactLeft}>
+                    <View style={styles.whatsappIconWrap}>
+                      <Ionicons name="logo-whatsapp" size={18} color="#FFFFFF" />
+                    </View>
+                    <Text style={styles.contactLabel}>Chat with Us</Text>
+                  </View>
+                  <Text style={styles.contactNumber}>+91-7353101441</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* WEB FOOTER */}
+        {Platform.OS === 'web' && <WebFooter navigation={navigation} />}
+      </ScrollView>
+
+      {/* ============================================================
+          SURGERY SELECTION MODAL
+      ============================================================ */}
+      <Modal
+        visible={surgeryModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSurgeryModalVisible(false)}
+      >
         <TouchableOpacity
-          style={styles.locationBannerBar}
-          activeOpacity={0.88}
-          onPress={() => setLocationModalVisible(true)}
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setSurgeryModalVisible(false)}
         >
-          <View style={styles.locationBannerIconBox}>
-            <Ionicons name="location" size={16} color={colors.primary} />
-          </View>
-
-          <View style={styles.locationBannerTextCol}>
-            <Text style={styles.locationBannerLabel}>SHOWING HOSPITALS NEARBY</Text>
-            <Text style={styles.locationBannerArea} numberOfLines={1}>
-              {userLocality}
-            </Text>
-          </View>
-
-          <View style={styles.changeLocBtn}>
-            <Text style={styles.changeLocBtnText}>Change</Text>
-            <Ionicons name="chevron-down" size={14} color={colors.primary} />
+          <View style={styles.modalContentCard} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Surgery Procedure</Text>
+              <TouchableOpacity onPress={() => setSurgeryModalVisible(false)}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={true}>
+              {SURGERY_LIST.map((item, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    styles.modalListItem,
+                    selectedSurgery === item && styles.modalListItemSelected,
+                  ]}
+                  onPress={() => {
+                    setSelectedSurgery(item);
+                    setSurgeryModalVisible(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.modalListItemText,
+                      selectedSurgery === item && styles.modalListItemTextSelected,
+                    ]}
+                  >
+                    {item}
+                  </Text>
+                  {selectedSurgery === item && (
+                    <Ionicons name="checkmark-circle" size={18} color="#1E3A8A" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         </TouchableOpacity>
-      )}
+      </Modal>
 
-      {/* TOAST NOTIFICATION */}
-      {locationToast && (
-        <View style={styles.toastBanner}>
-          <Ionicons name="checkmark-circle" size={16} color="#059669" />
-          <Text style={styles.toastText}>{locationToast}</Text>
-        </View>
-      )}
-
-      {/* ==================================================
-          SEARCH BAR (MOBILE ONLY)
-      ================================================== */}
-      {!isDesktopWeb && (
-        <View style={styles.searchBarContainer}>
-          <View style={styles.searchBox}>
-            <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search surgery, procedure, hospital, or area..."
-              placeholderTextColor="#94A3B8"
-              value={search}
-              onChangeText={setSearch}
-            />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => setSearch('')}>
-                <Ionicons name="close-circle" size={17} color="#94A3B8" />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      )}
-
-      {/* ==================================================
-          SURGERY SPECIALTY PILLS SCROLL
-      ================================================== */}
-      <View style={styles.specialtiesScrollWrap}>
-        {Platform.OS === 'web' ? (
-          <View style={styles.specialtiesWrap}>
-            {surgerySpecialties.map((spec) => {
-              const isSelected = selectedSpecialty === spec.id;
-              return (
-                <TouchableOpacity
-                  key={spec.id}
-                  style={[
-                    styles.specialtyPill,
-                    isSelected && styles.specialtyPillActive,
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={() => setSelectedSpecialty(spec.id)}
-                >
-                  <Ionicons
-                    name={spec.icon}
-                    size={14}
-                    color={isSelected ? '#FFFFFF' : colors.primary}
-                  />
-                  <Text
-                    style={[
-                      styles.specialtyPillText,
-                      isSelected && styles.specialtyPillTextActive,
-                    ]}
-                  >
-                    {spec.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.specialtiesScroll}
-          >
-            {surgerySpecialties.map((spec) => {
-              const isSelected = selectedSpecialty === spec.id;
-              return (
-                <TouchableOpacity
-                  key={spec.id}
-                  style={[
-                    styles.specialtyPill,
-                    isSelected && styles.specialtyPillActive,
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={() => setSelectedSpecialty(spec.id)}
-                >
-                  <Ionicons
-                    name={spec.icon}
-                    size={14}
-                    color={isSelected ? '#FFFFFF' : colors.primary}
-                  />
-                  <Text
-                    style={[
-                      styles.specialtyPillText,
-                      isSelected && styles.specialtyPillTextActive,
-                    ]}
-                  >
-                    {spec.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
-      </View>
-
-      {/* ==================================================
-          QUICK FILTER TABS
-      ================================================== */}
-      <View style={styles.filterTabsWrap}>
-        {Platform.OS === 'web' ? (
-          <View style={styles.filterTabsWrapRow}>
-            {filterTabs.map((tab) => {
-              const isTabActive = selectedFilter === tab;
-              return (
-                <TouchableOpacity
-                  key={tab}
-                  style={[styles.filterTab, isTabActive && styles.filterTabActive]}
-                  activeOpacity={0.8}
-                  onPress={() => setSelectedFilter(tab)}
-                >
-                  <Text
-                    style={[
-                      styles.filterTabText,
-                      isTabActive && styles.filterTabTextActive,
-                    ]}
-                  >
-                    {tab}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterTabsScroll}
-          >
-            {filterTabs.map((tab) => {
-              const isTabActive = selectedFilter === tab;
-              return (
-                <TouchableOpacity
-                  key={tab}
-                  style={[styles.filterTab, isTabActive && styles.filterTabActive]}
-                  activeOpacity={0.8}
-                  onPress={() => setSelectedFilter(tab)}
-                >
-                  <Text
-                    style={[
-                      styles.filterTabText,
-                      isTabActive && styles.filterTabTextActive,
-                    ]}
-                  >
-                    {tab}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
-      </View>
-
-      {/* ==================================================
-          RESULT COUNT & SORT INDICATOR
-      ================================================== */}
-      <View style={styles.resultsHeaderRow}>
-        <View style={styles.sortIndicatorBadge}>
-          <Ionicons name="swap-vertical" size={12} color={colors.secondary} />
-          <Text style={styles.resultsCountText}>
-            {filteredHospitals.length} Hospitals • Sorted Nearest First
-          </Text>
-        </View>
-        <Text style={styles.cashlessSubtext}>✓ Cashless TPA Supported</Text>
-      </View>
-
-      {/* ==================================================
-          HOSPITAL LIST (SORTED NEARBY FIRST)
-      ================================================== */}
-      <FlatList
-        data={filteredHospitals}
-        keyExtractor={(item) => item.id}
-        renderItem={renderHospitalCard}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="business-outline" size={54} color="#CBD5E1" />
-            <Text style={styles.emptyTitle}>No Surgical Hospitals Found</Text>
-            <Text style={styles.emptySubtitle}>
-              Try searching with another procedure name or reset filters.
-            </Text>
-            <TouchableOpacity
-              style={styles.resetBtn}
-              onPress={() => {
-                setSearch('');
-                setSelectedSpecialty('all');
-                setSelectedFilter('All');
-              }}
-            >
-              <Text style={styles.resetBtnText}>Reset All Filters</Text>
-            </TouchableOpacity>
-          </View>
-        }
-      />
-
-      {/* ==================================================
-          LOCATION SELECTION MODAL
-      ================================================== */}
+      {/* ============================================================
+          CITY SELECTION MODAL
+      ============================================================ */}
       <Modal
-        visible={locationModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setLocationModalVisible(false)}
+        visible={cityModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setCityModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.locationModalCard}>
-            {/* MODAL HEADER */}
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setCityModalVisible(false)}
+        >
+          <View style={styles.modalContentCard} onStartShouldSetResponder={() => true}>
             <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>Choose Location</Text>
-                <Text style={styles.modalSub}>
-                  Sort surgical hospitals nearest to your area
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.closeModalBtn}
-                onPress={() => setLocationModalVisible(false)}
-              >
-                <Ionicons name="close" size={22} color={colors.secondary} />
+              <Text style={styles.modalTitle}>Select City</Text>
+              <TouchableOpacity onPress={() => setCityModalVisible(false)}>
+                <Ionicons name="close" size={22} color="#64748B" />
               </TouchableOpacity>
             </View>
-
-            {/* LIVE GPS BUTTON */}
-            <TouchableOpacity
-              style={styles.gpsButton}
-              activeOpacity={0.88}
-              onPress={detectLocation}
-              disabled={loadingGps}
-            >
-              <View style={styles.gpsIconBox}>
-                {loadingGps ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <Ionicons name="locate" size={20} color={colors.primary} />
-                )}
-              </View>
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={styles.gpsButtonTitle}>
-                  {loadingGps ? 'Detecting Precise Location...' : 'Use My Current Live GPS'}
-                </Text>
-                <Text style={styles.gpsButtonSub}>
-                  Auto-detect GPS coordinates and find nearest hospitals
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* SEARCH AREA INPUT */}
-            <View style={styles.modalSearchBox}>
-              <Ionicons name="search-outline" size={17} color="#94A3B8" />
-              <TextInput
-                style={styles.modalSearchInput}
-                placeholder="Search neighborhood or street name..."
-                placeholderTextColor="#94A3B8"
-                value={locationSearchQuery}
-                onChangeText={setLocationSearchQuery}
-              />
-            </View>
-
-            {/* POPULAR AREAS LIST */}
-            <Text style={styles.popularAreasTitle}>Popular Areas in Mysore:</Text>
-            <ScrollView
-              style={{ maxHeight: 220 }}
-              keyboardShouldPersistTaps="always"
-              showsVerticalScrollIndicator={false}
-            >
-              {filteredLocalities.map((loc) => {
-                const isCurrent = userLocality.toLowerCase().includes(loc.name.toLowerCase());
-                return (
-                  <TouchableOpacity
-                    key={loc.id}
-                    style={[styles.localityRow, isCurrent && styles.localityRowActive]}
-                    activeOpacity={0.8}
-                    onPress={() => handleSelectLocality(loc)}
+            <ScrollView style={{ maxHeight: 340 }} showsVerticalScrollIndicator={true}>
+              {CITY_LIST.map((city, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    styles.modalListItem,
+                    selectedCity === city && styles.modalListItemSelected,
+                  ]}
+                  onPress={() => {
+                    setSelectedCity(city);
+                    setCityModalVisible(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.modalListItemText,
+                      selectedCity === city && styles.modalListItemTextSelected,
+                    ]}
                   >
-                    <Ionicons
-                      name="location-outline"
-                      size={16}
-                      color={isCurrent ? colors.primary : '#64748B'}
-                    />
-                    <Text
-                      style={[styles.localityText, isCurrent && styles.localityTextActive]}
-                    >
-                      {loc.full}
-                    </Text>
-                    {isCurrent && (
-                      <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
+                    {city}
+                  </Text>
+                  {selectedCity === city && (
+                    <Ionicons name="checkmark-circle" size={18} color="#1E3A8A" />
+                  )}
+                </TouchableOpacity>
+              ))}
             </ScrollView>
-
-            {/* CUSTOM LOCALITY ENTRY */}
-            <View style={styles.customAreaBox}>
-              <TextInput
-                style={styles.customAreaInput}
-                placeholder="Or type custom locality (e.g. Siddartha Layout)"
-                placeholderTextColor="#94A3B8"
-                value={customLocalityInput}
-                onChangeText={setCustomLocalityInput}
-              />
-              <TouchableOpacity
-                style={styles.customAreaSubmitBtn}
-                onPress={handleCustomLocalitySubmit}
-              >
-                <Text style={styles.customAreaSubmitText}>Apply</Text>
-              </TouchableOpacity>
-            </View>
           </View>
-        </View>
+        </TouchableOpacity>
       </Modal>
     </SafeAreaView>
   );
 };
 
-// ==================================================
-// STYLES
-// ==================================================
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F4F7FC',
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    backgroundColor: '#F4F7FC',
+  },
+  mainBody: {
+    width: '100%',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 40,
+  },
+  desktopContainer: {
+    maxWidth: 1240,
+    alignSelf: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 24,
   },
 
-  // HEADER
-  header: {
+  // MOBILE HEADER
+  mobileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
     backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerCenter: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  headerTitle: {
+  mobileHeaderTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: colors.secondary,
+    color: '#0F172A',
   },
-  headerSubtitle: {
-    fontSize: 11,
-    color: colors.textSecondary,
+  mobileHeaderSub: {
+    fontSize: 12,
+    color: '#64748B',
     marginTop: 1,
   },
-  quoteHistoryBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
 
-  // LOCATION BANNER BAR
-  locationBannerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  // DESKTOP BREADCRUMB
+  desktopBreadcrumbWrap: {
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: colors.lightTeal,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 2,
-    elevation: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
   },
-  locationBannerIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: colors.lightTeal,
-    justifyContent: 'center',
+  desktopBreadcrumbInner: {
+    maxWidth: 1240,
+    alignSelf: 'center',
+    width: '100%',
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  locationBannerTextCol: {
-    flex: 1,
-    marginLeft: 10,
-  },
-  locationBannerLabel: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 0.5,
-  },
-  locationBannerArea: {
+  breadcrumbLink: {
     fontSize: 13,
-    fontWeight: '800',
-    color: colors.secondary,
-    marginTop: 1,
+    color: '#64748B',
+    fontWeight: '600',
   },
-  changeLocBtn: {
+  breadcrumbCurrent: {
+    fontSize: 13,
+    color: '#64748B',
+  },
+  breadcrumbActive: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E3A8A',
+  },
+  verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.lightTeal,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    gap: 3,
-  },
-  changeLocBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-
-  // TOAST BANNER
-  toastBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    gap: 6,
     backgroundColor: '#ECFDF5',
-    marginHorizontal: 16,
-    marginTop: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#A7F3D0',
-    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  toastText: {
-    fontSize: 11,
+  verifiedBadgeText: {
+    fontSize: 12,
     fontWeight: '700',
-    color: '#065F46',
+    color: '#00B894',
   },
 
-  // SEARCH
-  searchBarContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 4,
+  // LAYOUT
+  layoutRow: {
+    flexDirection: 'column',
+    gap: 24,
   },
-  searchBox: {
+  layoutRowDesktop: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: 24,
+  },
+  leftColumn: {
+    width: '100%',
+    gap: 24,
+  },
+  leftColumnDesktop: {
+    flex: 1.35,
+  },
+  rightColumn: {
+    width: '100%',
+    gap: 16,
+  },
+  rightColumnDesktop: {
+    flex: 0.9,
+    maxWidth: 420,
+    position: Platform.OS === 'web' ? 'sticky' : 'relative',
+    top: Platform.OS === 'web' ? 20 : 0,
+  },
+
+  // 1. HERO NETWORK BANNER CARD
+  heroCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 42,
+    borderRadius: 16,
+    padding: 28,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+    alignItems: 'center',
   },
-  searchInput: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 13,
-    color: colors.text,
+  heroTitle: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#0F172A',
+    textAlign: 'center',
+    marginBottom: 6,
+    letterSpacing: -0.3,
+  },
+  heroSubtitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E3A8A',
+    textAlign: 'center',
+    marginBottom: 28,
   },
 
-  // SPECIALTY PILLS
-  specialtiesScrollWrap: {
-    paddingVertical: 6,
+  // Doctor Graphic with surrounding badges
+  doctorVisualSection: {
+    width: '100%',
+    maxWidth: 480,
+    height: 320,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
-  specialtiesScroll: {
-    paddingHorizontal: 16,
-    gap: 8,
+  doctorCircleBackdrop: {
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    backgroundColor: '#1E3A8A',
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: '#3B82F6',
   },
-  specialtiesWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    rowGap: 8,
+  doctorImage: {
+    width: 210,
+    height: 230,
+    marginTop: 10,
   },
-  specialtyPill: {
+
+  // 4 Badges
+  floatingBadge: {
+    position: 'absolute',
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: '#BFDBFE',
+    borderRadius: 24,
     paddingHorizontal: 12,
     paddingVertical: 7,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginRight: 8,
-    gap: 5,
-  },
-  specialtyPillActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  specialtyPillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  specialtyPillTextActive: {
-    color: '#FFFFFF',
-  },
-
-  // FILTER TABS
-  filterTabsWrap: {
-    paddingBottom: 6,
-  },
-  filterTabsScroll: {
-    paddingHorizontal: 16,
     gap: 8,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
+    zIndex: 10,
   },
-  filterTabsWrapRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    rowGap: 8,
-  },
-  filterTab: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginRight: 8,
-  },
-  filterTabActive: {
-    backgroundColor: colors.secondary,
-    borderColor: colors.secondary,
-  },
-  filterTabText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  filterTabTextActive: {
-    color: '#FFFFFF',
-  },
-
-  // RESULTS
-  resultsHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  badgeIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    marginBottom: 6,
   },
-  sortIndicatorBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  resultsCountText: {
-    fontSize: 11.5,
+  badgeBoldText: {
+    fontSize: 13,
     fontWeight: '800',
-    color: colors.secondary,
+    color: '#1E3A8A',
+    lineHeight: 16,
   },
-  cashlessSubtext: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#059669',
+  badgeSubText: {
+    fontSize: 11,
+    color: '#64748B',
+    lineHeight: 13,
   },
 
-  // LIST & CARD
-  list: {
-    paddingHorizontal: 16,
-    paddingBottom: 40,
+  badgeTopLeft: {
+    top: 20,
+    left: 10,
   },
-  card: {
+  badgeTopRight: {
+    top: 20,
+    right: 10,
+  },
+  badgeBottomLeft: {
+    bottom: 25,
+    left: 15,
+  },
+  badgeBottomRight: {
+    bottom: 25,
+    right: 15,
+  },
+
+  // 2. WHY PRACTO ASSURED SECTION
+  assuredCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 14,
-    marginBottom: 14,
+    borderRadius: 16,
+    padding: 26,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
     elevation: 2,
   },
-  nearestCardHighlight: {
-    borderColor: colors.primary,
-    borderWidth: 1.5,
+  assuredSectionHeader: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 16,
   },
-
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  accreditBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.lightTeal,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 4,
-  },
-  accreditBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  distanceBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 3,
-  },
-  nearestDistanceBadge: {
-    backgroundColor: colors.primary,
-  },
-  distanceBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.secondary,
-  },
-
-  hospitalInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  hospitalIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: colors.lightTeal,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  hospitalTextCol: {
-    flex: 1,
-  },
-  hospitalName: {
+  assuredSubHeader: {
     fontSize: 15,
     fontWeight: '800',
-    color: colors.secondary,
+    color: '#0F172A',
+    marginBottom: 14,
   },
-  hospitalTagline: {
-    fontSize: 11,
-    color: colors.primary,
-    fontWeight: '600',
-    marginTop: 1,
-  },
-  areaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
-    gap: 3,
-  },
-  areaText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-
-  metricsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    paddingVertical: 8,
-    marginBottom: 10,
-  },
-  metricItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metricBold: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  metricSub: {
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-  metricDivider: {
-    width: 1,
-    height: 16,
-    backgroundColor: '#E2E8F0',
-  },
-
-  cashlessBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    marginBottom: 10,
-    gap: 5,
-  },
-  cashlessText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#059669',
-  },
-
-  surgeriesPreviewSection: {
-    marginBottom: 12,
-  },
-  surgeriesPreviewTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.secondary,
-    marginBottom: 6,
-  },
-  surgeryChipsWrap: {
+  benefitsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: 12,
   },
-  surgeryChip: {
+  benefitItemCard: {
+    flex: 1,
+    minWidth: Platform.OS === 'web' ? 180 : '100%',
+    backgroundColor: '#F0F8FF',
+    borderWidth: 1,
+    borderColor: '#DCEEFF',
+    borderRadius: 12,
+    padding: 16,
+  },
+  benefitTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.lightAqua,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    gap: 4,
+    gap: 6,
+    marginBottom: 8,
   },
-  surgeryChipText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.secondary,
+  benefitScoreText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#1E3A8A',
+  },
+  benefitItemTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+    lineHeight: 18,
+  },
+  benefitItemDesc: {
+    fontSize: 11,
+    color: '#475569',
+    lineHeight: 16,
   },
 
-  cardActionsRow: {
+  // Network 3-Column Strip
+  networkStatsStrip: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 8,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  directionsBtn: {
-    height: 36,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#EFF6FF',
-    borderRadius: 8,
-    gap: 4,
-  },
-  directionsBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.secondary,
-  },
-  viewSurgeriesBtn: {
-    height: 36,
+    backgroundColor: '#F0F8FF',
+    borderWidth: 1,
+    borderColor: '#DCEEFF',
+    borderRadius: 12,
+    paddingVertical: 18,
     paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  networkStatCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  networkStatNum: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#1E3A8A',
+    marginBottom: 2,
+  },
+  networkStatLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  networkStatDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: '#CBD5E1',
+  },
+
+  // RIGHT COLUMN: FORM CARD
+  formCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  formTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  formSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    marginBottom: 20,
+  },
+  formBody: {
+    gap: 14,
+  },
+  dropdownField: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
     borderRadius: 8,
-    gap: 5,
+    paddingHorizontal: 14,
+    height: 46,
   },
-  viewSurgeriesBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
+  dropdownFieldText: {
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '500',
+    flex: 1,
+  },
+  placeholderText: {
+    color: '#94A3B8',
+  },
+  inputField: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    height: 46,
+    justifyContent: 'center',
+  },
+  textInput: {
+    fontSize: 14,
+    color: '#0F172A',
+    height: '100%',
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+  },
+  submitBtn: {
+    backgroundColor: '#1E293B',
+    height: 48,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  submitBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
     color: '#FFFFFF',
   },
-
-  // EMPTY
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.secondary,
-    marginTop: 12,
-  },
-  emptySubtitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
+  termsText: {
+    fontSize: 11,
+    color: '#94A3B8',
     textAlign: 'center',
     marginTop: 4,
   },
-  resetBtn: {
-    marginTop: 14,
-    backgroundColor: colors.secondary,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 10,
-  },
-  resetBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+  termsLink: {
+    color: '#2563EB',
+    fontWeight: '600',
   },
 
-  // LOCATION MODAL
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'flex-end',
+  // OR DIVIDER
+  orDividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 4,
   },
-  locationModalCard: {
+  orDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E2E8F0',
+  },
+  orText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontWeight: '700',
+    paddingHorizontal: 12,
+  },
+
+  // DIRECT CONTACT CARD
+  contactCard: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+    gap: 12,
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  contactLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  phoneIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#1E3A8A',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  whatsappIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#22C55E',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  contactLabel: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  contactNumber: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E3A8A',
+  },
+  contactDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+  },
+
+  // MODALS
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
-    paddingBottom: 30,
-    maxHeight: '85%',
+  },
+  modalContentCard: {
+    width: '100%',
+    maxWidth: 440,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
   },
   modalHeader: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 14,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: colors.secondary,
-  },
-  modalSub: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  closeModalBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  gpsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.lightTeal,
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    marginBottom: 12,
-  },
-  gpsIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  gpsButtonTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  gpsButtonSub: {
-    fontSize: 10,
-    color: '#065F46',
-    marginTop: 1,
-  },
-
-  modalSearchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    height: 38,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 12,
-  },
-  modalSearchInput: {
-    flex: 1,
-    marginLeft: 6,
-    fontSize: 12,
-    color: colors.text,
-  },
-
-  popularAreasTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.secondary,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
     marginBottom: 8,
   },
-  localityRow: {
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  modalListItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    marginBottom: 4,
-    gap: 8,
-  },
-  localityRowActive: {
-    backgroundColor: colors.lightTeal,
-  },
-  localityText: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.text,
-  },
-  localityTextActive: {
-    fontWeight: '800',
-    color: colors.primary,
-  },
-
-  customAreaBox: {
-    flexDirection: 'row',
-    marginTop: 12,
-    gap: 8,
-  },
-  customAreaInput: {
-    flex: 1,
-    height: 40,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    fontSize: 12,
-    color: colors.text,
-  },
-  customAreaSubmitBtn: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  customAreaSubmitText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 12,
-  },
-  webBreadcrumbWrap: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
+    justifyContent: 'space-between',
     paddingVertical: 12,
-    borderRadius: 10,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
-  webBreadcrumbRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  modalListItemSelected: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 8,
   },
-  webBreadcrumbLink: {
-    fontSize: 13,
-    color: colors.primary,
-    fontWeight: '600',
+  modalListItemText: {
+    fontSize: 14,
+    color: '#334155',
   },
-  webBreadcrumbCurrent: {
-    fontSize: 13,
-    color: colors.secondary,
-    fontWeight: '700',
-  },
-  webBreadcrumbQuery: {
-    fontSize: 13,
-    color: colors.primary,
-    fontWeight: '700',
+  modalListItemTextSelected: {
+    color: '#1E3A8A',
+    fontWeight: '800',
   },
 });
 

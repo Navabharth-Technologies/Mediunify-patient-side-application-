@@ -15,8 +15,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import labTests, { labCategories } from '../../../data/labTests';
 import colors from '../../../theme/colors';
+import LabTestsScreenWeb from './LabTestsScreen.web';
 
-const LabTestsScreen = ({ navigation, route }) => {
+const LabTestsScreen = (props) => {
+  if (Platform.OS === 'web') {
+    return <LabTestsScreenWeb {...props} />;
+  }
+
+  const { navigation, route } = props;
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
 
@@ -284,113 +290,39 @@ const LabTestsScreen = ({ navigation, route }) => {
             onPress={() => navigation.goBack()}
             activeOpacity={0.8}
           >
-            <Ionicons name="arrow-back" size={22} color={colors.secondary} />
+            <Ionicons name="arrow-back" size={22} color="#1E3A8A" />
           </TouchableOpacity>
 
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Diagnostic Lab Tests</Text>
-            <View style={styles.locationRow}>
-              <Ionicons name="location" size={12} color={colors.primary} />
-              <Text style={styles.locationText} numberOfLines={1}>
-                Near Kuvempunagar, Mysore
-              </Text>
-            </View>
+            <Text style={styles.headerTitle}>Lab Tests</Text>
+            <Text style={styles.headerSub}>Accurate. Affordable. At your convenience.</Text>
           </View>
 
-          {selectedTestIds.length > 0 && (
-            <TouchableOpacity
-              style={styles.cartBadgeBtn}
-              onPress={handleProceedWithSelected}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="flask" size={18} color="#FFFFFF" />
+          <TouchableOpacity
+            style={styles.cartBadgeBtn}
+            onPress={handleProceedWithSelected}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="cart-outline" size={20} color="#1E3A8A" />
+            {selectedTestIds.length > 0 && (
               <View style={styles.cartBadgeCount}>
                 <Text style={styles.cartBadgeCountText}>{selectedTestIds.length}</Text>
               </View>
-            </TouchableOpacity>
-          )}
+            )}
+          </TouchableOpacity>
         </View>
       )}
 
-
-
       {/* ==================================================
-          COLLECTION MODE QUICK FILTER TABS
-      ================================================== */}
-      <View style={styles.collectionTabsContainer}>
-        {Platform.OS === 'web' ? (
-          <View style={styles.collectionTabsWrap}>
-            {[
-              { id: 'all', label: 'All Tests & Packages' },
-              { id: 'home', label: '🏠 Home Collection Available' },
-              { id: 'hospital', label: '🏥 Lab / Hospital Visit Only' },
-              { id: 'packages', label: '⭐ Full Health Packages' },
-            ].map((tab) => {
-              const isTabActive = collectionFilter === tab.id;
-              return (
-                <TouchableOpacity
-                  key={tab.id}
-                  style={[styles.collectionTabPill, isTabActive && styles.collectionTabPillActive]}
-                  activeOpacity={0.8}
-                  onPress={() => setCollectionFilter(tab.id)}
-                >
-                  <Text
-                    style={[
-                      styles.collectionTabText,
-                      isTabActive && styles.collectionTabTextActive,
-                    ]}
-                  >
-                    {tab.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.collectionTabsScroll}
-          >
-            {[
-              { id: 'all', label: 'All Tests & Packages' },
-              { id: 'home', label: '🏠 Home Collection Available' },
-              { id: 'hospital', label: '🏥 Lab / Hospital Visit Only' },
-              { id: 'packages', label: '⭐ Full Health Packages' },
-            ].map((tab) => {
-              const isTabActive = collectionFilter === tab.id;
-              return (
-                <TouchableOpacity
-                  key={tab.id}
-                  style={[styles.collectionTabPill, isTabActive && styles.collectionTabPillActive]}
-                  activeOpacity={0.8}
-                  onPress={() => setCollectionFilter(tab.id)}
-                >
-                  <Text
-                    style={[
-                      styles.collectionTabText,
-                      isTabActive && styles.collectionTabTextActive,
-                    ]}
-                  >
-                    {tab.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
-      </View>
-
-      {/* ==================================================
-          SEARCH INPUT (MOBILE ONLY)
+          SEARCH INPUT
       ================================================== */}
       {!isDesktopWeb && (
         <View style={styles.searchBarContainer}>
           <View style={styles.searchBox}>
-            <Ionicons name="search-outline" size={19} color={colors.textSecondary} />
+            <Ionicons name="search-outline" size={19} color="#64748B" />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search test name, CBC, Thyroid, Sugar, LFT..."
+              placeholder="Search tests, packages, parameters..."
               placeholderTextColor="#94A3B8"
               value={search}
               onChangeText={setSearch}
@@ -405,70 +337,87 @@ const LabTestsScreen = ({ navigation, route }) => {
       )}
 
       {/* ==================================================
-          CATEGORY PILLS
+          FILTER CHIP STRIP (FROM MOCKUP)
       ================================================== */}
       <View style={styles.categoriesContainer}>
-        {Platform.OS === 'web' ? (
-          <View style={styles.categoriesWrap}>
-            {labCategories.map((cat) => {
-              const isCatActive = selectedCategory === cat.id;
-              return (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={[styles.catPill, isCatActive && styles.catPillActive]}
-                  activeOpacity={0.8}
-                  onPress={() => setSelectedCategory(cat.id)}
-                >
-                  <Ionicons
-                    name={cat.icon}
-                    size={14}
-                    color={isCatActive ? '#FFFFFF' : colors.primary}
-                  />
-                  <Text style={[styles.catPillText, isCatActive && styles.catPillTextActive]}>
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoriesScroll}
-          >
-            {labCategories.map((cat) => {
-              const isCatActive = selectedCategory === cat.id;
-              return (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={[styles.catPill, isCatActive && styles.catPillActive]}
-                  activeOpacity={0.8}
-                  onPress={() => setSelectedCategory(cat.id)}
-                >
-                  <Ionicons
-                    name={cat.icon}
-                    size={14}
-                    color={isCatActive ? '#FFFFFF' : colors.primary}
-                  />
-                  <Text style={[styles.catPillText, isCatActive && styles.catPillTextActive]}>
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoriesScroll}
+        >
+          {[
+            { id: 'all', name: 'Popular', icon: 'sparkles' },
+            { id: 'packages', name: 'Full Body', icon: 'fitness-outline' },
+            { id: 'diabetes', name: 'Diabetes', icon: 'pulse-outline' },
+            { id: 'thyroid', name: 'Thyroid', icon: 'water-outline' },
+            { id: 'vitamins', name: 'Vitamin', icon: 'sunny-outline' },
+            { id: 'blood', name: 'Blood', icon: 'medkit-outline' },
+          ].map((cat) => {
+            const isCatActive = selectedCategory === cat.id;
+            return (
+              <TouchableOpacity
+                key={cat.id}
+                style={[styles.catPill, isCatActive && styles.catPillActive]}
+                activeOpacity={0.8}
+                onPress={() => setSelectedCategory(cat.id)}
+              >
+                <Ionicons
+                  name={cat.icon}
+                  size={14}
+                  color={isCatActive ? '#FFFFFF' : '#0D9488'}
+                />
+                <Text style={[styles.catPillText, isCatActive && styles.catPillTextActive]}>
+                  {cat.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {/* ==================================================
-          HOME COLLECTION PROMO INFO BAR
+          HERO PROMO CARD: BOOK A TEST AT HOME (FROM MOCKUP)
       ================================================== */}
-      <View style={styles.homePromoBar}>
-        <Ionicons name="bicycle-outline" size={16} color={colors.primary} />
-        <Text style={styles.homePromoText}>
-          <Text style={{ fontWeight: '800' }}>Free Home Sample Collection</Text> • Certified Lab Boy visits doorstep with sterile single-use vacuum kit
-        </Text>
+      <View style={styles.homeHeroCard}>
+        <View style={styles.homeHeroLeft}>
+          <Text style={styles.homeHeroTitle}>Book a Test at Home</Text>
+          <View style={styles.homeHeroBullets}>
+            <View style={styles.heroBulletRow}>
+              <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+              <Text style={styles.heroBulletText}>100% Safe & Hygienic</Text>
+            </View>
+            <View style={styles.heroBulletRow}>
+              <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+              <Text style={styles.heroBulletText}>Free Sample Collection</Text>
+            </View>
+            <View style={styles.heroBulletRow}>
+              <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+              <Text style={styles.heroBulletText}>Digital Reports in 24 hrs</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.homeHeroCta}
+            activeOpacity={0.85}
+            onPress={() => setCollectionFilter(collectionFilter === 'home' ? 'all' : 'home')}
+          >
+            <Text style={styles.homeHeroCtaText}>
+              {collectionFilter === 'home' ? 'Showing Home Tests ✓' : 'Book Home Visit →'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.homeHeroRight}>
+          <View style={styles.heroFlaskCircle}>
+            <Ionicons name="flask" size={38} color="#00B894" />
+          </View>
+        </View>
+      </View>
+
+      {/* ==================================================
+          POPULAR HEALTH PACKAGES SECTION (FROM MOCKUP)
+      ================================================== */}
+      <View style={styles.packagesSectionHeader}>
+        <Text style={styles.packagesSectionTitle}>Popular Health Packages</Text>
+        <Text style={styles.packagesSectionSub}>Comprehensive full-body preventive checks</Text>
       </View>
 
       {/* ==================================================
@@ -599,7 +548,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: colors.primary,
+    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -608,7 +557,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -4,
     right: -4,
-    backgroundColor: colors.coral,
+    backgroundColor: '#EF4444',
     borderRadius: 9,
     minWidth: 18,
     height: 18,
@@ -622,6 +571,92 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '800',
+  },
+
+  // HERO HOME PROMO CARD (MOCKUP)
+  homeHeroCard: {
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 14,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  homeHeroLeft: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  homeHeroTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  homeHeroBullets: {
+    gap: 4,
+    marginBottom: 12,
+  },
+  heroBulletRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroBulletText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  homeHeroCta: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#00B894',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  homeHeroCtaText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  homeHeroRight: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroFlaskCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#CCFBF1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#99F6E4',
+  },
+
+  // PACKAGES SECTION HEADER
+  packagesSectionHeader: {
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  packagesSectionTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  packagesSectionSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
   },
 
   // COLLECTION TABS

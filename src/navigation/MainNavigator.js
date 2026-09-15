@@ -85,6 +85,9 @@ import SurgeryQuoteRequestScreen from '../screens/services/hospitals/SurgeryQuot
 import HealthInsuranceScreen from '../screens/services/insurance/HealthInsuranceScreen';
 import NurseBookingScreen from '../screens/services/nurse/NurseBookingScreen';
 import EmergencyScreen from '../screens/services/emergency/EmergencyScreen';
+import AyurvedaWellnessScreen from '../screens/services/ayurveda/AyurvedaWellnessScreen';
+import FertilityIvfScreen from '../screens/services/fertility/FertilityIvfScreen';
+import EquipmentRentalScreen from '../screens/services/equipment/EquipmentRentalScreen';
 
 
 // ==================================================
@@ -199,191 +202,130 @@ const BottomNavigation = ({
       style={styles.bottomNavigation}
     >
 
-      {/* ==================================================
-          HOME
-      ================================================== */}
-
+      {/* 1. HOME */}
       <TouchableOpacity
         style={styles.bottomItem}
         activeOpacity={0.7}
         onPress={() => goTo('Home')}
       >
-
         <View
           style={[
             styles.bottomIcon,
-            currentRoute === 'Home' &&
-              styles.activeBottomIcon,
+            currentRoute === 'Home' && styles.activeBottomIcon,
           ]}
         >
-
           <Ionicons
-            name={
-              currentRoute === 'Home'
-                ? 'home'
-                : 'home-outline'
-            }
+            name={currentRoute === 'Home' ? 'home' : 'home-outline'}
             size={22}
-            color={
-              currentRoute === 'Home'
-                ? colors.white
-                : colors.secondary
-            }
+            color={currentRoute === 'Home' ? colors.white : '#64748B'}
           />
-
         </View>
-
         <Text
           style={[
             styles.bottomText,
-            currentRoute === 'Home' &&
-              styles.activeBottomText,
+            currentRoute === 'Home' && styles.activeBottomText,
           ]}
         >
           Home
         </Text>
-
       </TouchableOpacity>
 
-
-      {/* ==================================================
-          APPOINTMENTS
-      ================================================== */}
-
+      {/* 2. BOOKINGS */}
       <TouchableOpacity
         style={styles.bottomItem}
         activeOpacity={0.7}
         onPress={() => goTo('Bookings')}
       >
-
         <View
           style={[
             styles.bottomIcon,
-            currentRoute === 'Bookings' &&
-              styles.activeBottomIcon,
+            currentRoute === 'Bookings' && styles.activeBottomIcon,
           ]}
         >
-
           <Ionicons
-            name={
-              currentRoute === 'Bookings'
-                ? 'calendar'
-                : 'calendar-outline'
-            }
+            name={currentRoute === 'Bookings' ? 'calendar' : 'calendar-outline'}
             size={22}
-            color={
-              currentRoute === 'Bookings'
-                ? colors.white
-                : colors.secondary
-            }
+            color={currentRoute === 'Bookings' ? colors.white : '#64748B'}
           />
-
         </View>
-
         <Text
           style={[
             styles.bottomText,
-            currentRoute === 'Bookings' &&
-              styles.activeBottomText,
+            currentRoute === 'Bookings' && styles.activeBottomText,
           ]}
         >
-          Appointments
+          Bookings
         </Text>
-
       </TouchableOpacity>
 
+      {/* 3. CENTER AI ASSISTANT BUTTON */}
+      <TouchableOpacity
+        style={styles.centerAiTabBtn}
+        activeOpacity={0.85}
+        onPress={() => goTo('Chatbot')}
+      >
+        <View style={[styles.centerAiCircle, currentRoute === 'Chatbot' && styles.centerAiCircleActive]}>
+          <Ionicons name="chatbubble-ellipses" size={24} color="#FFFFFF" />
+        </View>
+        <Text style={[styles.bottomText, currentRoute === 'Chatbot' && styles.activeBottomText, { marginTop: 2 }]}>
+          AI
+        </Text>
+      </TouchableOpacity>
 
-      {/* ==================================================
-          HEALTH RECORDS
-      ================================================== */}
-
+      {/* 4. MY HEALTH */}
       <TouchableOpacity
         style={styles.bottomItem}
         activeOpacity={0.7}
         onPress={() => goTo('HealthRecords')}
       >
-
         <View
           style={[
             styles.bottomIcon,
-            currentRoute === 'HealthRecords' &&
-              styles.activeBottomIcon,
+            currentRoute === 'HealthRecords' && styles.activeBottomIcon,
           ]}
         >
-
           <Ionicons
-            name={
-              currentRoute === 'HealthRecords'
-                ? 'document-text'
-                : 'document-text-outline'
-            }
+            name={currentRoute === 'HealthRecords' ? 'document-text' : 'document-text-outline'}
             size={22}
-            color={
-              currentRoute === 'HealthRecords'
-                ? colors.white
-                : colors.secondary
-            }
+            color={currentRoute === 'HealthRecords' ? colors.white : '#64748B'}
           />
-
         </View>
-
         <Text
           style={[
             styles.bottomText,
-            currentRoute === 'HealthRecords' &&
-              styles.activeBottomText,
+            currentRoute === 'HealthRecords' && styles.activeBottomText,
           ]}
         >
-          Health Records
+          My Health
         </Text>
-
       </TouchableOpacity>
 
-
-      {/* ==================================================
-          ACCOUNT
-      ================================================== */}
-
+      {/* 5. ACCOUNT */}
       <TouchableOpacity
         style={styles.bottomItem}
         activeOpacity={0.7}
         onPress={() => goTo('Profile')}
       >
-
         <View
           style={[
             styles.bottomIcon,
-            currentRoute === 'Profile' &&
-              styles.activeBottomIcon,
+            currentRoute === 'Profile' && styles.activeBottomIcon,
           ]}
         >
-
           <Ionicons
-            name={
-              currentRoute === 'Profile'
-                ? 'person'
-                : 'person-outline'
-            }
+            name={currentRoute === 'Profile' ? 'person' : 'person-outline'}
             size={22}
-            color={
-              currentRoute === 'Profile'
-                ? colors.white
-                : colors.secondary
-            }
+            color={currentRoute === 'Profile' ? colors.white : '#64748B'}
           />
-
         </View>
-
         <Text
           style={[
             styles.bottomText,
-            currentRoute === 'Profile' &&
-              styles.activeBottomText,
+            currentRoute === 'Profile' && styles.activeBottomText,
           ]}
         >
           Account
         </Text>
-
       </TouchableOpacity>
 
     </View>
@@ -470,7 +412,37 @@ const MainNavigator = ({
       <View
         style={[
           styles.stackWrapper,
-          isDesktopWeb && currentRoute !== 'Home' && styles.desktopStackWrapper,
+          isDesktopWeb &&
+          ![
+            'Home',
+            'LabTests',
+            'Imaging',
+            'RadiologyLabs',
+            'Pharmacy',
+            'AyurvedaWellness',
+            'FertilityIvf',
+            'EquipmentRental',
+            'DoctorList',
+            'DoctorDetails',
+            'DoctorBooking',
+            'VideoConsultation',
+            'VideoBooking',
+            'HospitalCare',
+            'HospitalList',
+            'SurgeryQuoteRequest',
+            'HealthInsurance',
+            'NurseBooking',
+            'Emergency',
+            'RadiologistList',
+            'RadiologistBooking',
+            'LabBooking',
+            'RadiologyBooking',
+            'Cart',
+            'Checkout',
+            'Payment',
+            'Bookings',
+          ].includes(currentRoute) &&
+          styles.desktopStackWrapper,
         ]}
       >
         <Stack.Navigator
@@ -585,6 +557,21 @@ const MainNavigator = ({
         <Stack.Screen
           name="NurseBooking"
           component={NurseBookingScreen}
+        />
+
+        <Stack.Screen
+          name="AyurvedaWellness"
+          component={AyurvedaWellnessScreen}
+        />
+
+        <Stack.Screen
+          name="FertilityIvf"
+          component={FertilityIvfScreen}
+        />
+
+        <Stack.Screen
+          name="EquipmentRental"
+          component={EquipmentRentalScreen}
         />
 
 
@@ -875,7 +862,7 @@ const styles = StyleSheet.create({
     flex: 1,
 
     backgroundColor:
-      '#F1F2F4',
+      '#F8FAFC',
   },
 
   stackWrapper: {
@@ -1035,6 +1022,32 @@ const styles = StyleSheet.create({
 
     fontWeight: '900',
 
+  },
+
+  centerAiTabBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -22,
+    zIndex: 1001,
+  },
+  centerAiCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#0F766E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3.5,
+    borderColor: '#FFFFFF',
+    shadowColor: '#0F766E',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  centerAiCircleActive: {
+    backgroundColor: '#00B894',
+    shadowColor: '#00B894',
   },
 
 });

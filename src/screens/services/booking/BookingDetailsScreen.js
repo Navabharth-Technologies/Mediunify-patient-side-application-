@@ -12,6 +12,7 @@ import {
   Modal,
   TextInput,
   Image,
+  useWindowDimensions,
 } from 'react-native';
 import { showAlert } from '../../../utils/alert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -19,6 +20,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import { syncActiveUser } from '../../../services/dataSyncService';
+import WebFooter from '../../../components/web/WebFooter';
 
 const generateBookingDates = () => {
   const dates = [];
@@ -45,6 +47,8 @@ const RESCHEDULE_SLOTS = {
 };
 
 const BookingDetailsScreen = ({ navigation, route }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   const appointment = route?.params?.appointment;
 
   const [currentStatus, setCurrentStatus] = useState(appointment?.status || 'Confirmed');
@@ -133,6 +137,20 @@ const BookingDetailsScreen = ({ navigation, route }) => {
     appointment.assignedNurse !== undefined ||
     (typeof appointment.serviceName === 'string' && appointment.serviceName.includes('Staff')));
 
+  const isEquipment =
+    appointment.type?.includes('Equipment') ||
+    appointment.serviceType === 'equipment';
+
+  const isAyurveda =
+    appointment.type?.includes('Ayurved') ||
+    appointment.type?.includes('Panchakarma') ||
+    appointment.serviceType === 'ayurveda';
+
+  const isFertility =
+    appointment.type?.includes('Fertility') ||
+    appointment.type?.includes('IVF') ||
+    appointment.serviceType === 'fertility';
+
   const testsList =
     Array.isArray(appointment.tests) && appointment.tests.length > 0
       ? appointment.tests
@@ -154,6 +172,12 @@ const BookingDetailsScreen = ({ navigation, route }) => {
       ? 'Unnathi Diagnostic & Imaging Center'
       : isNurse
       ? 'Unnathi Professional Home Healthcare Services'
+      : isEquipment
+      ? 'MediUnify BioMedical Equipment Hub'
+      : isAyurveda
+      ? 'Sanjeevani Ayurvedic Wellness Centre'
+      : isFertility
+      ? 'Nova IVF & Fertility Care Centre'
       : 'Unnathi Multispeciality Clinic');
   const clinicAddress =
     labInfo.address ||
@@ -164,8 +188,29 @@ const BookingDetailsScreen = ({ navigation, route }) => {
       ? 'No. 112, Kalidasa Road, Jayalakshmipuram, Mysore - 570012'
       : isNurse
       ? (appointment.address || 'Doorstep Home Visit, Mysore')
+      : isEquipment
+      ? (appointment.patient?.address || 'Doorstep Delivery & BioMedical Installation, Mysore')
+      : isAyurveda
+      ? 'No. 45, 3rd Main, Saraswathipuram, Mysore - 570009'
+      : isFertility
+      ? 'No. 88, 5th Main, Gokulam 3rd Stage, Mysore - 570002'
       : 'No. 24, 5th Cross, Near Vishwamanava Double Road, Kuvempunagar, Mysore - 570023');
-  const clinicArea = labInfo.area || doctor.clinicArea || (isVideo ? 'Virtual Care Hub' : isRadiology ? 'Jayalakshmipuram, Mysore' : isNurse ? 'Mysore Home Care' : 'Kuvempunagar, Mysore');
+  const clinicArea =
+    labInfo.area ||
+    doctor.clinicArea ||
+    (isVideo
+      ? 'Virtual Care Hub'
+      : isRadiology
+      ? 'Jayalakshmipuram, Mysore'
+      : isNurse
+      ? 'Mysore Home Care'
+      : isEquipment
+      ? 'Mysore Home Care'
+      : isAyurveda
+      ? 'Saraswathipuram, Mysore'
+      : isFertility
+      ? 'Gokulam, Mysore'
+      : 'Kuvempunagar, Mysore');
   const clinicPhone = labInfo.phone || doctor.phone || '+91 821 251 4400';
   const distance = doctor.distance || (isVideo ? 'Instant Online' : isRadiology ? '1.4 km away' : '0.8 km away');
   const latitude = doctor.latitude || 12.2858;
@@ -289,6 +334,36 @@ const BookingDetailsScreen = ({ navigation, route }) => {
                   n.id === appointment.id ? { ...n, status: 'Cancelled' } : n
                 );
                 await AsyncStorage.setItem('@unnathi_nurse_bookings', JSON.stringify(updatedNurse));
+              }
+
+              // 6. Update ayurveda bookings if applicable
+              const ayuJson = await AsyncStorage.getItem('@unnathi_ayurveda_bookings');
+              if (ayuJson) {
+                const storedAyu = JSON.parse(ayuJson);
+                const updatedAyu = storedAyu.map((a) =>
+                  a.id === appointment.id ? { ...a, status: 'Cancelled' } : a
+                );
+                await AsyncStorage.setItem('@unnathi_ayurveda_bookings', JSON.stringify(updatedAyu));
+              }
+
+              // 7. Update fertility bookings if applicable
+              const fertJson = await AsyncStorage.getItem('@unnathi_fertility_bookings');
+              if (fertJson) {
+                const storedFert = JSON.parse(fertJson);
+                const updatedFert = storedFert.map((f) =>
+                  f.id === appointment.id ? { ...f, status: 'Cancelled' } : f
+                );
+                await AsyncStorage.setItem('@unnathi_fertility_bookings', JSON.stringify(updatedFert));
+              }
+
+              // 8. Update equipment orders if applicable
+              const equipJson = await AsyncStorage.getItem('@unnathi_equipment_orders');
+              if (equipJson) {
+                const storedEquip = JSON.parse(equipJson);
+                const updatedEquip = storedEquip.map((e) =>
+                  e.id === appointment.id ? { ...e, status: 'Cancelled' } : e
+                );
+                await AsyncStorage.setItem('@unnathi_equipment_orders', JSON.stringify(updatedEquip));
               }
 
               // Trigger background server sync
@@ -560,6 +635,21 @@ const BookingDetailsScreen = ({ navigation, route }) => {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* DESKTOP BREADCRUMBS */}
+        {isDesktopWeb && (
+          <View style={styles.breadcrumbsRow}>
+            <TouchableOpacity onPress={() => navigation.navigate('Home')}>
+              <Text style={styles.breadcrumbLink}>Home</Text>
+            </TouchableOpacity>
+            <Text style={styles.breadcrumbSlash}>/</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Bookings')}>
+              <Text style={styles.breadcrumbLink}>My Bookings</Text>
+            </TouchableOpacity>
+            <Text style={styles.breadcrumbSlash}>/</Text>
+            <Text style={styles.breadcrumbCurrent}>Booking #{appointment.tokenNumber || appointment.id}</Text>
+          </View>
+        )}
+
         {/* STATUS BADGE (CONFIRMED VS RESCHEDULED VS CANCELLED) */}
         {isCancelled ? (
           <View style={styles.cancelledCard}>
@@ -1306,6 +1396,12 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         >
           <Text style={styles.homeButtonText}>Back to Home</Text>
         </TouchableOpacity>
+
+        {isDesktopWeb && (
+          <View style={{ width: '100%', marginTop: 30, marginHorizontal: -16 }}>
+            <WebFooter />
+          </View>
+        )}
       </ScrollView>
 
       {/* ==================================================
@@ -1629,9 +1725,29 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 40,
-    maxWidth: 900,
+    maxWidth: 1100,
     width: '100%',
     alignSelf: 'center',
+  },
+  breadcrumbsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 6,
+  },
+  breadcrumbLink: {
+    fontSize: 12,
+    color: '#00B894',
+    fontWeight: '600',
+  },
+  breadcrumbSlash: {
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  breadcrumbCurrent: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
   },
   successCard: {
     flexDirection: 'row',
@@ -1727,8 +1843,8 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 14,
     borderWidth: 1.5,
-    borderColor: '#BAE6FD',
-    shadowColor: '#0284C7',
+    borderColor: colors.lightTeal,
+    shadowColor: colors.teal,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 10,
@@ -1743,14 +1859,14 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#0284C7',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   directionHeaderLabel: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#0284C7',
+    color: colors.primary,
     letterSpacing: 0.5,
   },
   clinicName: {
@@ -1803,7 +1919,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0284C7',
+    backgroundColor: colors.primary,
     paddingVertical: 12,
     borderRadius: 12,
     gap: 6,
@@ -1936,7 +2052,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0284C7',
+    backgroundColor: colors.primary,
     paddingVertical: 14,
     borderRadius: 14,
     gap: 8,

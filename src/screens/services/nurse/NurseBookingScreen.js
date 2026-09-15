@@ -23,6 +23,7 @@ import { requestLocationPermissionWebSafe, getCurrentPositionWebSafe, reverseGeo
 import colors from '../../../theme/colors';
 import { certifiedNurses } from '../../../data/nurseCareData';
 import { pushAppointment } from '../../../services/dataSyncService';
+import WebFooter from '../../../components/web/WebFooter';
 
 // ==========================================
 // DATA & DEFINITIONS
@@ -171,7 +172,7 @@ const isSameDay = (d1, d2) => {
 
 const NurseBookingScreen = ({ navigation }) => {
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 992;
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
 
   // 3-Step Wizard: 1: Service & Package | 2: Dates & Time | 3: Review & Pay
   const [currentStep, setCurrentStep] = useState(1);
@@ -610,6 +611,77 @@ const NurseBookingScreen = ({ navigation }) => {
   // ==========================================
   const renderStep1 = () => (
     <View style={styles.stepWrap}>
+      {/* QUALITY NURSING CARE HERO CARD (MOCKUP) */}
+      <View style={styles.nurseHeroCard}>
+        <View style={styles.nurseHeroLeft}>
+          <View style={styles.confidentialBadgePill}>
+            <Ionicons name="shield-checkmark" size={11} color="#0D9488" />
+            <Text style={styles.confidentialBadgePillText}>100% VERIFIED GNM/B.SC NURSES</Text>
+          </View>
+          <Text style={styles.nurseHeroTitle}>Quality Nursing Care at Your Home</Text>
+          <View style={styles.nurseHeroBullets}>
+            <View style={styles.nurseBulletRow}>
+              <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+              <Text style={styles.nurseBulletText}>Verified & Background-Checked</Text>
+            </View>
+            <View style={styles.nurseBulletRow}>
+              <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+              <Text style={styles.nurseBulletText}>12hr & 24hr Dedicated Shifts</Text>
+            </View>
+            <View style={styles.nurseBulletRow}>
+              <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+              <Text style={styles.nurseBulletText}>Starting from ₹599 / visit</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.nurseHeroCta}
+            activeOpacity={0.88}
+            onPress={() => setSelectedShiftId('shift-12-day')}
+          >
+            <Text style={styles.nurseHeroCtaText}>Book a Nurse Visit →</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.nurseHeroRight}>
+          <View style={styles.nurseIconCircle}>
+            <Ionicons name="medical" size={36} color="#00B894" />
+          </View>
+        </View>
+      </View>
+
+      {/* 7 NURSING SERVICES GRID (MOCKUP) */}
+      <View style={styles.servicesGridCard}>
+        <Text style={styles.servicesGridTitle}>Our Nursing Services</Text>
+        <Text style={styles.servicesGridSub}>Choose a procedure or clinical requirement</Text>
+        <View style={styles.servicesGridList}>
+          {[
+            { id: 'inj', name: 'Injection / IV', icon: 'medkit-outline', bg: '#E0F2FE', color: '#0284C7', shift: 'visit-2hr' },
+            { id: 'wound', name: 'Wound Dressing', icon: 'fitness-outline', bg: '#FEF3C7', color: '#D97706', shift: 'visit-2hr' },
+            { id: 'postop', name: 'Post-Op Care', icon: 'pulse-outline', bg: '#FCE7F3', color: '#DB2777', shift: 'shift-12-day' },
+            { id: 'cath', name: 'Catheter Care', icon: 'water-outline', bg: '#EDE9FE', color: '#7C3AED', shift: 'visit-2hr' },
+            { id: 'vitals', name: 'Vitals & Chart', icon: 'heart-outline', bg: '#FEE2E2', color: '#EF4444', shift: 'shift-12-day' },
+            { id: 'bed', name: 'Bedridden Care', icon: 'bed-outline', bg: '#CCFBF1', color: '#0D9488', shift: 'shift-24-round' },
+            { id: 'elder', name: 'Elderly Support', icon: 'people-outline', bg: '#FEF9C3', color: '#CA8A04', shift: 'shift-12-day' },
+          ].map((srv) => {
+            const isSelected = selectedShiftId === srv.shift;
+            return (
+              <TouchableOpacity
+                key={srv.id}
+                style={[styles.serviceItem, isSelected && styles.serviceItemActive]}
+                activeOpacity={0.8}
+                onPress={() => setSelectedShiftId(srv.shift)}
+              >
+                <View style={[styles.serviceIconWrap, { backgroundColor: srv.bg }]}>
+                  <Ionicons name={srv.icon} size={20} color={srv.color} />
+                </View>
+                <Text style={styles.serviceItemName} numberOfLines={1}>
+                  {srv.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
       {/* 1. Choose Staff Service */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
@@ -1203,6 +1275,14 @@ const NurseBookingScreen = ({ navigation }) => {
             <Text style={styles.invoiceTotalVal}>{priceCalculation.totalFormatted}</Text>
           </View>
         </View>
+
+        {/* UNIFIED PRIVACY & CLINICAL ASSURANCE BOX */}
+        <View style={styles.privacyAssuranceBoxUnified}>
+          <Ionicons name="shield-checkmark" size={17} color="#059669" />
+          <Text style={styles.privacyAssuranceTextUnified}>
+            100% verified & background-checked GNM/B.Sc nurses. Hospital-grade clinical protocols, bedside vital chart monitoring, and guaranteed free replacement within 2 hours if required.
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -1211,42 +1291,66 @@ const NurseBookingScreen = ({ navigation }) => {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* TOP HEADER WITH SMART STEP BACK */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => {
-            if (currentStep > 1) {
-              setCurrentStep(currentStep - 1);
-            } else {
-              navigation.goBack();
-            }
-          }}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="arrow-back" size={20} color={colors.secondary} />
-        </TouchableOpacity>
+      {/* HEADER (MOBILE ONLY) */}
+      {!isDesktopWeb && (
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => {
+              if (currentStep > 1) {
+                setCurrentStep(currentStep - 1);
+              } else {
+                navigation.goBack();
+              }
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-back" size={20} color={colors.secondary} />
+          </TouchableOpacity>
 
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerStepBadge}>
-            {currentStep === 1
-              ? 'STEP 1 OF 3 • SERVICE & PACKAGES'
-              : currentStep === 2
-              ? 'STEP 2 OF 3 • DATES & TIME'
-              : 'STEP 3 OF 3 • REVIEW & PAY'}
-          </Text>
-          <Text style={styles.headerTitle}>Home Care & Nursing Staff</Text>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerStepBadge}>
+              {currentStep === 1
+                ? 'STEP 1 OF 3 • SERVICE & PACKAGES'
+                : currentStep === 2
+                ? 'STEP 2 OF 3 • DATES & TIME'
+                : 'STEP 3 OF 3 • REVIEW & PAY'}
+            </Text>
+            <Text style={styles.headerTitle}>Home Nursing</Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.helplineBtn}
+            activeOpacity={0.85}
+            onPress={() => Linking.openURL('tel:+918212568888')}
+          >
+            <Ionicons name="call" size={13} color="#FFFFFF" />
+            <Text style={styles.helplineBtnText}>24x7</Text>
+          </TouchableOpacity>
         </View>
+      )}
 
-        <TouchableOpacity
-          style={styles.helplineBtn}
-          activeOpacity={0.85}
-          onPress={() => Linking.openURL('tel:+918212568888')}
-        >
-          <Ionicons name="call" size={13} color="#FFFFFF" />
-          <Text style={styles.helplineBtnText}>24x7</Text>
-        </TouchableOpacity>
-      </View>
+      {/* DESKTOP BREADCRUMB */}
+      {isDesktopWeb && (
+        <View style={styles.desktopBreadcrumbWrap}>
+          <View style={styles.desktopBreadcrumbInner}>
+            <TouchableOpacity onPress={() => navigation.navigate('Home')} activeOpacity={0.7}>
+              <Text style={styles.breadcrumbLink}>Home</Text>
+            </TouchableOpacity>
+            <Ionicons name="chevron-forward" size={14} color="#94A3B8" />
+            <Text style={styles.breadcrumbCurrent}>Services</Text>
+            <Ionicons name="chevron-forward" size={14} color="#94A3B8" />
+            <Text style={styles.breadcrumbActive}>24/7 Verified Home Nursing & Care</Text>
+
+            <View style={{ flex: 1 }} />
+
+            <View style={styles.nurseVerifiedBadge}>
+              <Ionicons name="shield-checkmark" size={14} color="#059669" />
+              <Text style={styles.nurseVerifiedBadgeText}>INC / KNC Certified Nurses</Text>
+            </View>
+          </View>
+        </View>
+      )}
 
       {/* 3-STEP PROGRESS STRIP */}
       <View style={styles.stepStrip}>
@@ -1301,6 +1405,7 @@ const NurseBookingScreen = ({ navigation }) => {
         {currentStep === 2 && renderStep2()}
         {currentStep === 3 && renderStep3()}
         <View style={{ height: 110 }} />
+        {isDesktopWeb && <WebFooter navigation={navigation} />}
       </ScrollView>
 
       {/* STICKY BOTTOM ACTION BAR (Clean & Un-confusing) */}
@@ -1433,6 +1538,54 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
 
+  // DESKTOP BREADCRUMB
+  desktopBreadcrumbWrap: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  desktopBreadcrumbInner: {
+    maxWidth: 1320,
+    width: '100%',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  breadcrumbLink: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E3A8A',
+  },
+  breadcrumbCurrent: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  breadcrumbActive: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  nurseVerifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  nurseVerifiedBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#059669',
+  },
+
   // HEADER
   header: {
     flexDirection: 'row',
@@ -1481,6 +1634,123 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 10.5,
     fontWeight: '800',
+  },
+
+  // HERO HOME NURSING CARD (MOCKUP)
+  nurseHeroCard: {
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    borderRadius: 16,
+    marginBottom: 14,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  nurseHeroLeft: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  nurseHeroTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  nurseHeroBullets: {
+    gap: 4,
+    marginBottom: 12,
+  },
+  nurseBulletRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  nurseBulletText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  nurseHeroCta: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#00B894',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  nurseHeroCtaText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  nurseHeroRight: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  nurseIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#CCFBF1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#99F6E4',
+  },
+
+  // 7 NURSING SERVICES GRID
+  servicesGridCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  servicesGridTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  servicesGridSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+    marginBottom: 14,
+  },
+  servicesGridList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 12,
+  },
+  serviceItem: {
+    width: '23%',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  serviceItemActive: {
+    transform: [{ scale: 1.05 }],
+  },
+  serviceIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  serviceItemName: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#334155',
+    textAlign: 'center',
   },
 
   // STEP STRIP
@@ -1543,7 +1813,7 @@ const styles = StyleSheet.create({
   scrollContainer: {
     paddingHorizontal: 16,
     paddingTop: 12,
-    maxWidth: 900,
+    maxWidth: 1320,
     width: '100%',
     alignSelf: 'center',
   },
@@ -2274,7 +2544,7 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
   },
   bottomBarInner: {
-    maxWidth: 900,
+    maxWidth: 1320,
     width: '100%',
     alignSelf: 'center',
     flexDirection: 'row',
@@ -2387,6 +2657,43 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+
+  // UNIFIED REFERENCE DESIGN STYLES
+  confidentialBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+  },
+  confidentialBadgePillText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#0D9488',
+    letterSpacing: 0.5,
+  },
+  privacyAssuranceBoxUnified: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: '#ECFDF5',
+    padding: 12,
+    borderRadius: 12,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  privacyAssuranceTextUnified: {
+    fontSize: 11,
+    color: '#065F46',
+    flex: 1,
+    lineHeight: 16,
   },
 });
 

@@ -1,21 +1,49 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   useWindowDimensions,
+  TextInput,
   Image,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../theme/colors';
 
+const OUR_SERVICES = [
+  { label: 'Lab Tests', route: 'LabTests' },
+  { label: 'Radiology', route: 'Imaging' },
+  { label: 'Consultation', route: 'VideoConsultation' },
+  { label: 'Pharmacy', route: 'Pharmacy' },
+  { label: 'Hospital & Surgery', route: 'HospitalCare' },
+  { label: 'Health Insurance', route: 'HealthInsurance' },
+  { label: 'Ayurveda & Wellness', route: 'AyurvedaWellness' },
+  { label: 'Fertility & IVF Care', route: 'FertilityIvf' },
+  { label: 'Equipment Rental', route: 'EquipmentRental' },
+  { label: 'Emergency', route: 'Emergency' },
+];
+
+const SUPPORT_LINKS = [
+  { label: 'Help Center', route: 'HelpSupport' },
+  { label: 'FAQs', route: 'HelpSupport' },
+  { label: 'Contact Us', route: 'HelpSupport' },
+  { label: 'For Providers', route: 'HelpSupport' },
+  { label: 'For Corporates', route: 'HelpSupport' },
+  { label: 'Terms of Service', route: 'HelpSupport' },
+  { label: 'Privacy Policy', route: 'HelpSupport' },
+  { label: 'Refund Policy', route: 'HelpSupport' },
+];
+
 const WebFooter = ({ navigation }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
+  const [emailInput, setEmailInput] = useState('');
+  const [subscribed, setSubscribed] = useState(false);
 
   if (!isDesktop) {
-    return null; // Footer shown on desktop / tablet web views
+    return null;
   }
 
   const handleNavigate = (route) => {
@@ -24,115 +52,169 @@ const WebFooter = ({ navigation }) => {
     }
   };
 
-  return (
-    <View style={styles.footerContainer}>
-      <View style={styles.footerInner}>
-        {/* Column 1: Brand & Emergency Hotline */}
-        <View style={styles.footerColMain}>
-          <View style={styles.brandRow}>
-            <Image
-              source={require('../../../assets/logo.png')}
-              style={styles.footerLogoImage}
-              resizeMode="contain"
-            />
-            <Text style={styles.brandTitle}>
-              MEDI<Text style={{ color: '#00B894' }}>UNIFY</Text>
-            </Text>
-          </View>
-          <Text style={styles.brandDescription}>
-            Integrated multi-specialty healthcare platform providing hospital consultations, accredited diagnostic pathology, advanced radiology scanning, and prompt doorstep pharmacy delivery across Karnataka.
-          </Text>
+  const handleSubscribe = () => {
+    if (emailInput.trim().includes('@')) {
+      setSubscribed(true);
+      setEmailInput('');
+      setTimeout(() => setSubscribed(false), 4000);
+    }
+  };
 
-          <View style={styles.emergencyCard}>
-            <Ionicons name="call" size={16} color="#EF4444" />
-            <View>
-              <Text style={styles.emergencyLabel}>24/7 Medical Emergency Response</Text>
-              <Text style={styles.emergencyPhone}>1800-425-0099 / 108</Text>
+  const scrollToTop = () => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  return (
+    <View style={styles.footerWrapper}>
+      <View style={styles.footerContainer}>
+        {/* ============================================================
+            MAIN 5-COLUMN ROW
+        ============================================================ */}
+        <View style={styles.colsRow}>
+          {/* Column 1: MediUnify Brand Info & Socials */}
+          <View style={[styles.footerCol, { flex: 1.4 }]}>
+            <View style={styles.brandRow}>
+              <Image
+                source={require('../../../assets/logo.png')}
+                style={styles.logoImg}
+                resizeMode="contain"
+              />
+              <View>
+                <View style={styles.brandTitleRow}>
+                  <Text style={styles.brandTitle}>Medi</Text>
+                  <Text style={styles.brandTitleAccent}>Unify</Text>
+                </View>
+                <Text style={styles.brandTagline}>
+                  All your healthcare. One intelligent platform.
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.brandDesc}>
+              MediUnify brings together lab tests, consultation, pharmacy, hospital care, insurance and more — to make quality healthcare simple, accessible and intelligent for everyone.
+            </Text>
+
+            {/* Social Icons */}
+            <View style={styles.socialRow}>
+              <TouchableOpacity style={[styles.socialIconBtn, { backgroundColor: '#0077B5' }]}>
+                <Ionicons name="logo-linkedin" size={15} color="#FFFFFF" />
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.socialIconBtn, { backgroundColor: '#E4405F' }]}>
+                <Ionicons name="logo-instagram" size={15} color="#FFFFFF" />
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.socialIconBtn, { backgroundColor: '#1877F2' }]}>
+                <Ionicons name="logo-facebook" size={15} color="#FFFFFF" />
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.socialIconBtn, { backgroundColor: '#FF0000' }]}>
+                <Ionicons name="logo-youtube" size={15} color="#FFFFFF" />
+              </TouchableOpacity>
             </View>
           </View>
+
+          {/* Column 2: Our Services */}
+          <View style={styles.footerCol}>
+            <Text style={styles.colHeading}>Our Services</Text>
+            {OUR_SERVICES.map((item, i) => (
+              <TouchableOpacity
+                key={i}
+                style={styles.footerLinkItem}
+                onPress={() => handleNavigate(item.route)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.footerLinkText}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Column 3: Support */}
+          <View style={styles.footerCol}>
+            <Text style={styles.colHeading}>Support</Text>
+            {SUPPORT_LINKS.map((item, i) => (
+              <TouchableOpacity
+                key={i}
+                style={styles.footerLinkItem}
+                onPress={() => handleNavigate(item.route)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.footerLinkText}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Column 4: Download App */}
+          <View style={styles.footerCol}>
+            <Text style={styles.colHeading}>Download App</Text>
+            <TouchableOpacity style={styles.storeBadge} activeOpacity={0.85}>
+              <Ionicons name="logo-google-playstore" size={20} color="#FFFFFF" />
+              <View>
+                <Text style={styles.storeBadgeSmall}>GET IT ON</Text>
+                <Text style={styles.storeBadgeLarge}>Google Play</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.storeBadge, { marginTop: 10 }]} activeOpacity={0.85}>
+              <Ionicons name="logo-apple" size={22} color="#FFFFFF" />
+              <View>
+                <Text style={styles.storeBadgeSmall}>Download on the</Text>
+                <Text style={styles.storeBadgeLarge}>App Store</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Column 5: Subscribe to our newsletter */}
+          <View style={[styles.footerCol, { flex: 1.2 }]}>
+            <Text style={styles.colHeading}>Subscribe to our newsletter</Text>
+            <Text style={styles.newsletterSub}>
+              Get health tips, offers and updates.
+            </Text>
+
+            <View style={styles.subscribeInputRow}>
+              <TextInput
+                style={styles.newsletterInput}
+                placeholder="Enter your email"
+                placeholderTextColor="#94A3B8"
+                value={emailInput}
+                onChangeText={setEmailInput}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                style={styles.subscribeBtn}
+                onPress={handleSubscribe}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="arrow-forward" size={17} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+            {subscribed && (
+              <Text style={styles.subscribedSuccess}>
+                ✓ Thank you for subscribing!
+              </Text>
+            )}
+          </View>
         </View>
 
-        {/* Column 2: Clinical Specialties */}
-        <View style={styles.footerCol}>
-          <Text style={styles.colTitle}>Specialties</Text>
-          <TouchableOpacity style={styles.footerLink} onPress={() => handleNavigate('DoctorList')}>
-            <Text style={styles.footerLinkText}>General Physician</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.footerLink} onPress={() => handleNavigate('DoctorList')}>
-            <Text style={styles.footerLinkText}>Cardiology & Heart</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.footerLink} onPress={() => handleNavigate('DoctorList')}>
-            <Text style={styles.footerLinkText}>Dermatology & Skin</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.footerLink} onPress={() => handleNavigate('DoctorList')}>
-            <Text style={styles.footerLinkText}>Pediatrics & Child Care</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.footerLink} onPress={() => handleNavigate('DoctorList')}>
-            <Text style={styles.footerLinkText}>Orthopedics & Joints</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.footerLink} onPress={() => handleNavigate('VideoBooking')}>
-            <Text style={styles.footerLinkText}>Telehealth Video Call</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Column 3: Diagnostics & Pharmacy */}
-        <View style={styles.footerCol}>
-          <Text style={styles.colTitle}>Diagnostics & Meds</Text>
-          <TouchableOpacity style={styles.footerLink} onPress={() => handleNavigate('LabTests')}>
-            <Text style={styles.footerLinkText}>Full Body Health Checks</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.footerLink} onPress={() => handleNavigate('LabTests')}>
-            <Text style={styles.footerLinkText}>Home Blood Sample Pickup</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.footerLink} onPress={() => handleNavigate('Imaging')}>
-            <Text style={styles.footerLinkText}>MRI 3T & CT Scan</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.footerLink} onPress={() => handleNavigate('Imaging')}>
-            <Text style={styles.footerLinkText}>Ultrasound & Digital X-Ray</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.footerLink} onPress={() => handleNavigate('Pharmacy')}>
-            <Text style={styles.footerLinkText}>Express Pharmacy 60-Mins</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.footerLink} onPress={() => handleNavigate('NurseBooking')}>
-            <Text style={styles.footerLinkText}>Home Nursing Attendants</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Column 4: Quality & Trust Badges */}
-        <View style={styles.footerCol}>
-          <Text style={styles.colTitle}>Accredited Quality</Text>
-          <View style={styles.trustItem}>
-            <Ionicons name="ribbon-outline" size={16} color="#10B981" />
-            <Text style={styles.trustItemText}>NABH Accredited Clinic Network</Text>
-          </View>
-          <View style={styles.trustItem}>
-            <Ionicons name="checkmark-done-circle-outline" size={16} color="#38BDF8" />
-            <Text style={styles.trustItemText}>NABL Certified Diagnostic Labs</Text>
-          </View>
-          <View style={styles.trustItem}>
-            <Ionicons name="lock-closed-outline" size={16} color="#F59E0B" />
-            <Text style={styles.trustItemText}>100% Genuine Pharmacy Products</Text>
-          </View>
-          <View style={styles.trustItem}>
-            <Ionicons name="shield-outline" size={16} color="#8B5CF6" />
-            <Text style={styles.trustItemText}>ISO 27001 Encrypted Health Data</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Bottom Copyright Bar */}
-      <View style={styles.copyrightBar}>
-        <View style={styles.copyrightInner}>
+        {/* ============================================================
+            BOTTOM STRIP: COPYRIGHT & SCROLL TO TOP
+        ============================================================ */}
+        <View style={styles.bottomStrip}>
           <Text style={styles.copyrightText}>
-            © {new Date().getFullYear()} Mediunify Healthcare Platform. All rights reserved. Registered Medical Telehealth Provider.
+            © 2025 MediUnify. All rights reserved.
           </Text>
-          <View style={styles.legalLinks}>
-            <Text style={styles.legalText}>Privacy Policy</Text>
-            <Text style={styles.dot}>•</Text>
-            <Text style={styles.legalText}>Terms of Service</Text>
-            <Text style={styles.dot}>•</Text>
-            <Text style={styles.legalText}>Patient Bill of Rights</Text>
-          </View>
+
+          <Text style={styles.madeWithText}>
+            Made with <Text style={{ color: '#EF4444' }}>❤️</Text> for a healthier tomorrow.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.scrollTopBtn}
+            onPress={scrollToTop}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-up" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -140,134 +222,187 @@ const WebFooter = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  footerContainer: {
-    backgroundColor: '#0F172A',
+  footerWrapper: {
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#1E293B',
-    marginTop: 40,
-  },
-  footerInner: {
-    maxWidth: 1320,
+    borderTopColor: '#E2E8F0',
     width: '100%',
+    paddingTop: 54,
+    paddingBottom: 30,
+  },
+  footerContainer: {
+    width: '100%',
+    maxWidth: 1360,
     alignSelf: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
+    paddingHorizontal: 28,
+  },
+  colsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: 32,
     justifyContent: 'space-between',
-    gap: 30,
+    marginBottom: 44,
   },
-  footerColMain: {
-    flex: 1.4,
-    minWidth: 280,
+  footerCol: {
+    flex: 1,
+    minWidth: 160,
   },
+
+  // Brand Info
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     marginBottom: 14,
   },
-  footerLogoImage: {
-    width: 38,
-    height: 38,
-    borderRadius: 8,
+  logoImg: {
+    width: 34,
+    height: 34,
+  },
+  brandTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
   },
   brandTitle: {
-    fontSize: 17,
+    fontSize: 20,
     fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: -0.3,
+    color: '#1E3A8A',
   },
-  brandDescription: {
-    fontSize: 12,
-    color: '#94A3B8',
+  brandTitleAccent: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#00B894',
+  },
+  brandTagline: {
+    fontSize: 9.5,
+    color: '#64748B',
+    fontWeight: '500',
+    marginTop: -1,
+  },
+  brandDesc: {
+    fontSize: 12.5,
     lineHeight: 19,
-    marginBottom: 20,
+    color: '#64748B',
+    marginBottom: 18,
+    maxWidth: 320,
   },
-  emergencyCard: {
+  socialRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#1E293B',
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#334155',
   },
-  emergencyLabel: {
-    fontSize: 11,
-    color: '#94A3B8',
-    fontWeight: '600',
+  socialIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  emergencyPhone: {
-    fontSize: 13,
+
+  // Headings & Links
+  colHeading: {
+    fontSize: 14,
     fontWeight: '800',
-    color: '#F87171',
+    color: '#1E3A8A',
+    marginBottom: 16,
   },
-  footerCol: {
-    flex: 1,
-    minWidth: 180,
+  footerLinkItem: {
+    paddingVertical: 5.5,
   },
-  colTitle: {
+  footerLinkText: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+
+  // Download Badges
+  storeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E3A8A',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    gap: 10,
+    maxWidth: 170,
+  },
+  storeBadgeSmall: {
+    fontSize: 9,
+    color: '#E2E8F0',
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  storeBadgeLarge: {
     fontSize: 13,
     fontWeight: '800',
     color: '#FFFFFF',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+  },
+
+  // Newsletter
+  newsletterSub: {
+    fontSize: 12.5,
+    color: '#64748B',
     marginBottom: 14,
   },
-  footerLink: {
-    paddingVertical: 6,
-  },
-  footerLinkText: {
-    fontSize: 12,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
-  trustItem: {
+  subscribeInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 6,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingLeft: 12,
+    paddingRight: 4,
+    paddingVertical: 4,
+    height: 44,
   },
-  trustItemText: {
+  newsletterInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#1E3A8A',
+    outlineStyle: 'none',
+  },
+  subscribeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    backgroundColor: '#00B894',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subscribedSuccess: {
     fontSize: 12,
-    color: '#CBD5E1',
-    fontWeight: '500',
+    color: '#00B894',
+    fontWeight: '700',
+    marginTop: 8,
   },
-  copyrightBar: {
+
+  // Bottom Strip
+  bottomStrip: {
     borderTopWidth: 1,
-    borderTopColor: '#1E293B',
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    backgroundColor: '#0A0F1D',
-  },
-  copyrightInner: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
+    borderTopColor: '#E2E8F0',
+    paddingTop: 24,
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
   },
   copyrightText: {
-    fontSize: 11,
+    fontSize: 12.5,
     color: '#64748B',
   },
-  legalLinks: {
-    flexDirection: 'row',
+  madeWithText: {
+    fontSize: 12.5,
+    color: '#64748B',
+  },
+  scrollTopBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: '#1E3A8A',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
-  },
-  legalText: {
-    fontSize: 11,
-    color: '#94A3B8',
-  },
-  dot: {
-    color: '#475569',
-    fontSize: 10,
   },
 });
 

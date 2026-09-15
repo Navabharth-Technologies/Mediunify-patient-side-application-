@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   Image,
   Alert,
   StatusBar,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { showAlert } from '../../../utils/alert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import colors from '../../../theme/colors';
 import { getLabById } from '../../../data/radiologyLabsData';
+import WebFooter from '../../../components/web/WebFooter';
 
 // Generate next 14 days for appointment scheduling
 const generateDates = () => {
@@ -58,6 +61,8 @@ const TIME_SLOTS = {
 };
 
 const RadiologyBookingScreen = ({ route, navigation }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   const { lab, test, selectedTests = [] } = route.params || {};
 
   const activeLab = lab || getLabById('lab-unnathi-main');
@@ -286,10 +291,29 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        {/* DESKTOP BREADCRUMBS */}
+        {isDesktopWeb && (
+          <View style={styles.breadcrumbsRow}>
+            <TouchableOpacity onPress={() => navigation.navigate('Home')}>
+              <Text style={styles.breadcrumbLink}>Home</Text>
+            </TouchableOpacity>
+            <Text style={styles.breadcrumbSlash}>/</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Imaging')}>
+              <Text style={styles.breadcrumbLink}>Radiology & Scans</Text>
+            </TouchableOpacity>
+            <Text style={styles.breadcrumbSlash}>/</Text>
+            <Text style={styles.breadcrumbCurrent}>Diagnostic Booking</Text>
+          </View>
+        )}
+
         {/* ==================================================
             SELECTED LAB & TESTS SUMMARY
         ================================================== */}
         <View style={styles.summaryCard}>
+          <View style={styles.confidentialBadgePill}>
+            <Ionicons name="shield-checkmark" size={11} color="#0D9488" />
+            <Text style={styles.confidentialBadgePillText}>100% ACCREDITED 3T SCANNING CENTER</Text>
+          </View>
           <View style={styles.summaryLabHeader}>
             <View style={styles.summaryLabIcon}>
               <Ionicons name="business" size={20} color={colors.primary} />
@@ -716,6 +740,22 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
             <Text style={styles.billTotalAmount}>₹{totalOfferPrice}</Text>
           </View>
         </View>
+
+        {/* UNIFIED PRIVACY & ACCREDITATION ASSURANCE BOX */}
+        <View style={styles.privacyAssuranceBoxUnified}>
+          <Ionicons name="shield-checkmark" size={17} color="#059669" />
+          <Text style={styles.privacyAssuranceTextUnified}>
+            Precision high-tesla 3T MRI & low-dose multi-slice CT scanning. Prioritized scan slot with zero center waiting time, verified by senior MD radiologist report.
+          </Text>
+        </View>
+
+        {isDesktopWeb && (
+          <View style={{ width: '100%', marginTop: 20, marginHorizontal: -16 }}>
+            <WebFooter />
+          </View>
+        )}
+
+        <View style={{ height: 100 }} />
       </ScrollView>
 
       {/* ==================================================
@@ -801,8 +841,28 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 110,
     width: '100%',
-    maxWidth: 900,
+    maxWidth: 1100,
     alignSelf: 'center',
+  },
+  breadcrumbsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 6,
+  },
+  breadcrumbLink: {
+    fontSize: 12,
+    color: '#00B894',
+    fontWeight: '600',
+  },
+  breadcrumbSlash: {
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  breadcrumbCurrent: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
   },
 
   // SUMMARY CARD
@@ -1231,7 +1291,7 @@ const styles = StyleSheet.create({
   },
   bottomBarInner: {
     width: '100%',
-    maxWidth: 900,
+    maxWidth: 1100,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
@@ -1262,6 +1322,43 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
+  },
+
+  // UNIFIED REFERENCE DESIGN STYLES
+  confidentialBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+  },
+  confidentialBadgePillText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#0D9488',
+    letterSpacing: 0.5,
+  },
+  privacyAssuranceBoxUnified: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: '#ECFDF5',
+    padding: 12,
+    borderRadius: 12,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  privacyAssuranceTextUnified: {
+    fontSize: 11,
+    color: '#065F46',
+    flex: 1,
+    lineHeight: 16,
   },
 });
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,18 @@ import {
   Linking,
   Platform,
   StatusBar,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
+import WebFooter from '../../../components/web/WebFooter';
+import DoctorBookingModal from '../../../components/booking/DoctorBookingModal';
 
 const DoctorDetailsScreen = ({ route, navigation }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   const doctor = route?.params?.doctor;
+  const [bookingModalVisible, setBookingModalVisible] = useState(false);
 
   if (!doctor) {
     return (
@@ -88,6 +94,21 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
+        {/* DESKTOP BREADCRUMBS */}
+        {isDesktopWeb && (
+          <View style={styles.breadcrumbsRow}>
+            <TouchableOpacity onPress={() => navigation.navigate('Home')}>
+              <Text style={styles.breadcrumbLink}>Home</Text>
+            </TouchableOpacity>
+            <Text style={styles.breadcrumbSlash}>/</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('DoctorList')}>
+              <Text style={styles.breadcrumbLink}>Find Doctors</Text>
+            </TouchableOpacity>
+            <Text style={styles.breadcrumbSlash}>/</Text>
+            <Text style={styles.breadcrumbCurrent}>{doctor.name}</Text>
+          </View>
+        )}
+
         {/* DOCTOR PROFILE CARD */}
         <View style={styles.profileCard}>
           <Image
@@ -212,6 +233,12 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
             </View>
           </View>
         )}
+
+        {isDesktopWeb && (
+          <View style={{ marginTop: 40, marginHorizontal: -16 }}>
+            <WebFooter />
+          </View>
+        )}
       </ScrollView>
 
       {/* STICKY BOTTOM ACTION BAR */}
@@ -225,17 +252,22 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
           <TouchableOpacity
             style={styles.bookMainButton}
             activeOpacity={0.88}
-            onPress={() =>
-              navigation.navigate('DoctorBooking', {
-                doctor: doctor,
-              })
-            }
+            onPress={() => setBookingModalVisible(true)}
           >
-            <Text style={styles.bookMainButtonText}>Book Appointment</Text>
+            <Text style={styles.bookMainButtonText}>Book In-Person Visit</Text>
             <Ionicons name="calendar" size={18} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* IN-CLINIC DOCTOR BOOKING MODAL */}
+      <DoctorBookingModal
+        visible={bookingModalVisible}
+        onClose={() => setBookingModalVisible(false)}
+        doctor={doctor}
+        consultationType="In-Person"
+        navigation={navigation}
+      />
     </SafeAreaView>
   );
 };
@@ -273,9 +305,29 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 110,
-    maxWidth: 900,
+    maxWidth: 1100,
     width: '100%',
     alignSelf: 'center',
+  },
+  breadcrumbsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 6,
+  },
+  breadcrumbLink: {
+    fontSize: 12,
+    color: '#00B894',
+    fontWeight: '600',
+  },
+  breadcrumbSlash: {
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  breadcrumbCurrent: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
   },
 
   // PROFILE CARD
@@ -533,7 +585,7 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
   },
   bottomBarInner: {
-    maxWidth: 900,
+    maxWidth: 1100,
     width: '100%',
     alignSelf: 'center',
     flexDirection: 'row',

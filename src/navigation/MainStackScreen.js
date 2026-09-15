@@ -43,6 +43,9 @@ import SurgeryQuoteRequestScreen from '../screens/services/hospitals/SurgeryQuot
 import HealthInsuranceScreen from '../screens/services/insurance/HealthInsuranceScreen';
 import NurseBookingScreen from '../screens/services/nurse/NurseBookingScreen';
 import EmergencyScreen from '../screens/services/emergency/EmergencyScreen';
+import AyurvedaWellnessScreen from '../screens/services/ayurveda/AyurvedaWellnessScreen';
+import FertilityIvfScreen from '../screens/services/fertility/FertilityIvfScreen';
+import EquipmentRentalScreen from '../screens/services/equipment/EquipmentRentalScreen';
 
 import RadiologyLabsScreen from '../screens/services/radiology/RadiologyLabsScreen';
 import RadiologyLabDetailsScreen from '../screens/services/radiology/RadiologyLabDetailsScreen';
@@ -395,6 +398,21 @@ const MainStackScreen = () => {
         <Stack.Screen
           name="NurseBooking"
           component={NurseBookingScreen}
+        />
+
+        <Stack.Screen
+          name="AyurvedaWellness"
+          component={AyurvedaWellnessScreen}
+        />
+
+        <Stack.Screen
+          name="FertilityIvf"
+          component={FertilityIvfScreen}
+        />
+
+        <Stack.Screen
+          name="EquipmentRental"
+          component={EquipmentRentalScreen}
         />
 
         <Stack.Screen

@@ -11,15 +11,19 @@ import {
   Linking,
   Platform,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
+import WebFooter from '../../../components/web/WebFooter';
 import {
   getSurgeryHospitalById,
   surgerySpecialties,
 } from '../../../data/surgeryHospitalsData';
 
 const HospitalSurgeryDetailsScreen = ({ route, navigation }) => {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   const { hospitalId, initialSpecialty } = route.params || {};
   const hospital = getSurgeryHospitalById(hospitalId);
 
@@ -109,6 +113,21 @@ const HospitalSurgeryDetailsScreen = ({ route, navigation }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        {/* DESKTOP BREADCRUMBS */}
+        {isDesktopWeb && (
+          <View style={styles.breadcrumbsRow}>
+            <TouchableOpacity onPress={() => navigation.navigate('Home')}>
+              <Text style={styles.breadcrumbLink}>Home</Text>
+            </TouchableOpacity>
+            <Text style={styles.breadcrumbSlash}>/</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('HospitalCare')}>
+              <Text style={styles.breadcrumbLink}>Hospitals & Surgeries</Text>
+            </TouchableOpacity>
+            <Text style={styles.breadcrumbSlash}>/</Text>
+            <Text style={styles.breadcrumbCurrent}>{hospital.name}</Text>
+          </View>
+        )}
+
         {/* ==================================================
             HOSPITAL HERO PROFILE CARD
         ================================================== */}
@@ -384,6 +403,12 @@ const HospitalSurgeryDetailsScreen = ({ route, navigation }) => {
             );
           })}
         </View>
+
+        {isDesktopWeb && (
+          <View style={{ width: '100%', marginTop: 40, marginHorizontal: -16 }}>
+            <WebFooter />
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -397,6 +422,35 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  scrollContent: {
+    paddingBottom: 40,
+    maxWidth: 1320,
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+  },
+  breadcrumbsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    marginBottom: 4,
+    gap: 6,
+  },
+  breadcrumbLink: {
+    fontSize: 12,
+    color: '#00B894',
+    fontWeight: '600',
+  },
+  breadcrumbSlash: {
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  breadcrumbCurrent: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
   },
 
   // HEADER
