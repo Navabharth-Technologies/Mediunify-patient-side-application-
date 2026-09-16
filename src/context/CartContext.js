@@ -1,6 +1,15 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import pharmacyStores from '../data/pharmacyStores';
+
+const DEFAULT_PHARMACY_STORE = {
+  id: 'store-apollo-kuvempu',
+  name: 'Apollo Pharmacy - Kuvempunagar',
+  locality: 'Kuvempunagar',
+  address: '#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023',
+  deliveryTime: '15-25 mins',
+  phone: '+91 821 2548901',
+  partnerTier: 'Platinum Partner',
+};
 
 const CartContext = createContext();
 
@@ -67,7 +76,7 @@ export const CartProvider = ({ children }) => {
 
   const [orders, setOrders] = useState(DEFAULT_ORDERS);
   const [appliedCoupon, setAppliedCoupon] = useState(null);
-  const [selectedPharmacyStore, setSelectedPharmacyStoreState] = useState(pharmacyStores[0]);
+  const [selectedPharmacyStore, setSelectedPharmacyStoreState] = useState(DEFAULT_PHARMACY_STORE);
   const [selectedAddress, setSelectedAddress] = useState({
     name: 'User',
     phone: '9876543210',
@@ -665,7 +674,7 @@ export const CartProvider = ({ children }) => {
         selectedPharmacyStore,
         setSelectedPharmacyStore,
         setPharmacyStore: setSelectedPharmacyStore,
-        pharmacyStores,
+        pharmacyStores: [],
 
         // Address & Orders
         selectedAddress,

@@ -13,6 +13,7 @@ import {
   Linking,
   ActivityIndicator,
   Platform,
+  Image,
   useWindowDimensions,
 } from 'react-native';
 import { showAlert } from '../../../utils/alert';
@@ -21,7 +22,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { requestLocationPermissionWebSafe, getCurrentPositionWebSafe, reverseGeocodeWebSafe } from '../../../utils/locationHelper';
 import colors from '../../../theme/colors';
-import { certifiedNurses } from '../../../data/nurseCareData';
+import { certifiedNurses, nursingPurposes } from '../../../data/nurseCareData';
 import { pushAppointment } from '../../../services/dataSyncService';
 import WebFooter from '../../../components/web/WebFooter';
 
@@ -124,6 +125,16 @@ const STAFF_PACKAGES = [
   },
 ];
 
+// 3. Clinical Purposes / Conditions
+const CLINICAL_PURPOSES = [
+  { id: 'all', label: 'All Nursing Needs', icon: 'shield-checkmark', color: '#0D9488', bg: '#F0FDFA' },
+  { id: 'postop', label: 'Post-Surgery Recovery', icon: 'medkit', color: '#2563EB', bg: '#EFF6FF', recommendedShift: 'shift-12-day' },
+  { id: 'elderly', label: 'Elderly & Bedridden Care', icon: 'heart', color: '#DB2777', bg: '#FFF1F2', recommendedShift: 'shift-24-round' },
+  { id: 'wound', label: 'Wound Dressing & Injections', icon: 'bandage', color: '#D97706', bg: '#FFFBEB', recommendedShift: 'visit-2hr' },
+  { id: 'night', label: 'Overnight Vital Monitoring', icon: 'moon', color: '#7C3AED', bg: '#FAF5FF', recommendedShift: 'shift-12-night' },
+  { id: 'icu', label: 'ICU at Home & Tracheostomy', icon: 'pulse', color: '#E11D48', bg: '#FFE4E6', recommendedShift: 'shift-24-round' },
+];
+
 const TIME_PRESETS = [
   { label: '08:00 AM (Morning)', hour: '08', minute: '00', period: 'AM' },
   { label: '09:30 AM (Standard)', hour: '09', minute: '30', period: 'AM' },
@@ -179,6 +190,7 @@ const NurseBookingScreen = ({ navigation }) => {
 
   // Step 1: Selected Service & Duration
   const [selectedShiftId, setSelectedShiftId] = useState('shift-12-day');
+  const [selectedPurposeId, setSelectedPurposeId] = useState('all');
   const [daysCount, setDaysCount] = useState(2); // Default to 2 days to immediately highlight the deal!
 
   // Step 2: Calendar Starting & End Date
@@ -205,7 +217,7 @@ const NurseBookingScreen = ({ navigation }) => {
   // Step 2: Patient & Address
   const [familyList, setFamilyList] = useState([]);
   const [selectedFamilyId, setSelectedFamilyId] = useState('self');
-  const [patientName, setPatientName] = useState('Ramesh Kumar');
+  const [patientName, setPatientName] = useState('Hemanth');
   const [patientRelation, setPatientRelation] = useState('Self');
   const [patientPhone, setPatientPhone] = useState('9876543210');
   const [patientAddress, setPatientAddress] = useState('House #142, 5th Cross, Kuvempunagar, Mysore');
@@ -227,42 +239,106 @@ const NurseBookingScreen = ({ navigation }) => {
   const loadSavedData = async () => {
     try {
       const storedPrimary = await AsyncStorage.getItem('@unnathi_primary_user');
+      const storedUser = await AsyncStorage.getItem('user');
       const storedName = await AsyncStorage.getItem('userName');
-      let primaryName = 'Ramesh Kumar';
+      const storedPhone = await AsyncStorage.getItem('userPhone');
+      let primaryName = 'Hemanth';
       let primaryPhone = '9876543210';
 
       if (storedPrimary) {
         try {
           const p = JSON.parse(storedPrimary);
-          if (p?.name) primaryName = p.name;
+          if (p?.name && p.name.trim()) primaryName = p.name.trim();
           if (p?.phone) primaryPhone = p.phone;
         } catch (e) {}
-      } else if (storedName) {
-        primaryName = storedName;
+      }
+      if (!storedPrimary && storedUser) {
+        try {
+          const u = JSON.parse(storedUser);
+          if (u?.name && u.name.trim()) primaryName = u.name.trim();
+          if (u?.phone) primaryPhone = u.phone;
+        } catch (e) {}
+      }
+      if (storedName && storedName.trim()) {
+        primaryName = storedName.trim();
+      }
+      if (storedPhone && storedPhone.trim()) {
+        primaryPhone = storedPhone.trim();
       }
 
+      const cleanFirst = primaryName.split(' ')[0];
       setPatientName(primaryName);
       setPatientPhone(primaryPhone);
 
-      const famStr = await AsyncStorage.getItem('@unnathi_family_members');
-      let loadedFamily = [];
-      if (famStr) {
+      // Account-specific family members isolation (Strictly True Family Members Only)
+      const storedEmail = await AsyncStorage.getItem('userEmail');
+      const userKey = (storedEmail || primaryPhone || primaryName).toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const userFamKey = `@unnathi_family_members_${userKey}`;
+      const savedUserFam = await AsyncStorage.getItem(userFamKey);
+      let rawFamily = null;
+
+      if (savedUserFam) {
         try {
-          const parsedFam = JSON.parse(famStr);
-          if (Array.isArray(parsedFam) && parsedFam.length > 0) {
-            loadedFamily = parsedFam.map((m) => ({
-              id: m.id,
-              name: m.displayName || m.name,
-              relation: m.relation || 'Family',
-            }));
+          const parsed = JSON.parse(savedUserFam);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            rawFamily = parsed;
           }
         } catch (e) {}
       }
 
-      if (loadedFamily.length === 0) {
-        loadedFamily = [{ id: 'self', name: primaryName, relation: 'Self' }];
+      if (!rawFamily) {
+        const famStr = await AsyncStorage.getItem('@unnathi_family_members');
+        if (famStr) {
+          try {
+            const parsedFam = JSON.parse(famStr);
+            if (Array.isArray(parsedFam) && parsedFam.length > 0) {
+              rawFamily = parsedFam;
+            }
+          } catch (e) {}
+        }
       }
-      setFamilyList(loadedFamily);
+
+      // Strictly construct ONLY the logged-in user (Self) and authentic family members (exclude 'Other')
+      const trueFamily = [];
+      trueFamily.push({
+        id: 'self',
+        name: primaryName,
+        displayName: `${cleanFirst} (Self)`,
+        relation: 'Self',
+        phone: primaryPhone,
+        isPrimary: true,
+      });
+
+      if (Array.isArray(rawFamily)) {
+        rawFamily.forEach((m) => {
+          // Strictly exclude 'self', 'isPrimary', or relation 'Other' (only show actual family members)
+          if (
+            m &&
+            m.id !== 'self' &&
+            !m.isPrimary &&
+            m.relation !== 'Self' &&
+            m.relation !== 'Other' &&
+            m.name
+          ) {
+            const cleanName = m.name.replace(/\s*\([^)]*\)/g, '').trim();
+            if (
+              cleanName &&
+              !trueFamily.some((p) => p.name.toLowerCase() === cleanName.toLowerCase())
+            ) {
+              trueFamily.push({
+                id: m.id || `fam-${trueFamily.length}`,
+                name: cleanName,
+                displayName: m.displayName || `${cleanName} (${m.relation || 'Family'})`,
+                relation: m.relation || 'Family',
+                phone: m.phone || primaryPhone,
+              });
+            }
+          }
+        });
+      }
+
+      setFamilyList(trueFamily);
+      setSelectedFamilyId('self');
 
       const wb = await AsyncStorage.getItem('@unnathi_wallet_balance');
       if (wb !== null) setWalletBalance(Number(wb));
@@ -607,124 +683,196 @@ const NurseBookingScreen = ({ navigation }) => {
   };
 
   // ==========================================
-  // STEP 1: SERVICE & PACKAGES
+  // STEP 1: SERVICE & PACKAGES (REDESIGNED)
   // ==========================================
   const renderStep1 = () => (
     <View style={styles.stepWrap}>
-      {/* QUALITY NURSING CARE HERO CARD (MOCKUP) */}
-      <View style={styles.nurseHeroCard}>
-        <View style={styles.nurseHeroLeft}>
-          <View style={styles.confidentialBadgePill}>
-            <Ionicons name="shield-checkmark" size={11} color="#0D9488" />
-            <Text style={styles.confidentialBadgePillText}>100% VERIFIED GNM/B.SC NURSES</Text>
+      {/* 1. CLINICAL TRUST HERO BANNER */}
+      <View style={styles.nurseHeroCardRedesigned}>
+        <View style={styles.nurseHeroTopTagRow}>
+          <View style={styles.nurseAccreditedBadge}>
+            <Ionicons name="shield-checkmark" size={12} color="#0D9488" />
+            <Text style={styles.nurseAccreditedBadgeText}>INC & KNC REGISTERED NURSES</Text>
           </View>
-          <Text style={styles.nurseHeroTitle}>Quality Nursing Care at Your Home</Text>
-          <View style={styles.nurseHeroBullets}>
-            <View style={styles.nurseBulletRow}>
-              <Ionicons name="checkmark-circle" size={14} color="#00B894" />
-              <Text style={styles.nurseBulletText}>Verified & Background-Checked</Text>
-            </View>
-            <View style={styles.nurseBulletRow}>
-              <Ionicons name="checkmark-circle" size={14} color="#00B894" />
-              <Text style={styles.nurseBulletText}>12hr & 24hr Dedicated Shifts</Text>
-            </View>
-            <View style={styles.nurseBulletRow}>
-              <Ionicons name="checkmark-circle" size={14} color="#00B894" />
-              <Text style={styles.nurseBulletText}>Starting from ₹599 / visit</Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            style={styles.nurseHeroCta}
-            activeOpacity={0.88}
-            onPress={() => setSelectedShiftId('shift-12-day')}
-          >
-            <Text style={styles.nurseHeroCtaText}>Book a Nurse Visit →</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.nurseHeroRight}>
-          <View style={styles.nurseIconCircle}>
-            <Ionicons name="medical" size={36} color="#00B894" />
+          <View style={styles.liveDutyBadge}>
+            <View style={styles.liveDutyPulseDot} />
+            <Text style={styles.liveDutyBadgeText}>14 ON DUTY IN MYSORE</Text>
           </View>
         </View>
+
+        <Text style={styles.nurseHeroHeading}>
+          Hospital-Grade Nursing Care in Your Home
+        </Text>
+        <Text style={styles.nurseHeroSubheading}>
+          Licensed GNM & B.Sc nurses providing 12hr/24hr bedside care, post-surgical recovery, IV administration, and vitals monitoring in Mysore.
+        </Text>
+
+        {/* 3 Clinical Pillars */}
+        <View style={styles.nursePillarsRow}>
+          <View style={styles.nursePillarItem}>
+            <View style={styles.nursePillarIconBox}>
+              <Ionicons name="checkmark-done" size={14} color="#059669" />
+            </View>
+            <Text style={styles.nursePillarText}>100% Police Verified</Text>
+          </View>
+          <View style={styles.nursePillarItem}>
+            <View style={styles.nursePillarIconBox}>
+              <Ionicons name="pulse" size={14} color="#2563EB" />
+            </View>
+            <Text style={styles.nursePillarText}>Hospital Vitals Chart</Text>
+          </View>
+          <View style={styles.nursePillarItem}>
+            <View style={styles.nursePillarIconBox}>
+              <Ionicons name="sync" size={14} color="#7C3AED" />
+            </View>
+            <Text style={styles.nursePillarText}>2-Hr Free Replacement</Text>
+          </View>
+        </View>
+
+        {/* Quick Call Action */}
+        <TouchableOpacity
+          style={styles.nurseHeroCallBanner}
+          onPress={() => Linking.openURL('tel:+918212568888')}
+          activeOpacity={0.88}
+        >
+          <View style={styles.nurseHeroCallLeft}>
+            <View style={styles.nurseHeroCallIconBox}>
+              <Ionicons name="headset" size={16} color="#FFFFFF" />
+            </View>
+            <View>
+              <Text style={styles.nurseHeroCallTitle}>Need help selecting a nurse?</Text>
+              <Text style={styles.nurseHeroCallSub}>Talk to our Clinical Nursing Supervisor (Free Consult)</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color="#0D9488" />
+        </TouchableOpacity>
       </View>
 
-      {/* 7 NURSING SERVICES GRID (MOCKUP) */}
-      <View style={styles.servicesGridCard}>
-        <Text style={styles.servicesGridTitle}>Our Nursing Services</Text>
-        <Text style={styles.servicesGridSub}>Choose a procedure or clinical requirement</Text>
-        <View style={styles.servicesGridList}>
-          {[
-            { id: 'inj', name: 'Injection / IV', icon: 'medkit-outline', bg: '#E0F2FE', color: '#0284C7', shift: 'visit-2hr' },
-            { id: 'wound', name: 'Wound Dressing', icon: 'fitness-outline', bg: '#FEF3C7', color: '#D97706', shift: 'visit-2hr' },
-            { id: 'postop', name: 'Post-Op Care', icon: 'pulse-outline', bg: '#FCE7F3', color: '#DB2777', shift: 'shift-12-day' },
-            { id: 'cath', name: 'Catheter Care', icon: 'water-outline', bg: '#EDE9FE', color: '#7C3AED', shift: 'visit-2hr' },
-            { id: 'vitals', name: 'Vitals & Chart', icon: 'heart-outline', bg: '#FEE2E2', color: '#EF4444', shift: 'shift-12-day' },
-            { id: 'bed', name: 'Bedridden Care', icon: 'bed-outline', bg: '#CCFBF1', color: '#0D9488', shift: 'shift-24-round' },
-            { id: 'elder', name: 'Elderly Support', icon: 'people-outline', bg: '#FEF9C3', color: '#CA8A04', shift: 'shift-12-day' },
-          ].map((srv) => {
-            const isSelected = selectedShiftId === srv.shift;
+      {/* 2. CLINICAL NEED / PURPOSE SELECTOR */}
+      <View style={styles.sectionCard}>
+        <View style={styles.sectionHeaderRow}>
+          <View style={[styles.sectionIconBox, { backgroundColor: '#EFF6FF' }]}>
+            <Ionicons name="medkit" size={16} color="#2563EB" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle}>1. What is the Patient's Primary Need?</Text>
+            <Text style={styles.sectionSub}>Select clinical condition to highlight recommended shift</Text>
+          </View>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.purposesScroll}
+        >
+          {CLINICAL_PURPOSES.map((purpose) => {
+            const isSelected = selectedPurposeId === purpose.id;
             return (
               <TouchableOpacity
-                key={srv.id}
-                style={[styles.serviceItem, isSelected && styles.serviceItemActive]}
+                key={purpose.id}
+                style={[
+                  styles.purposeChip,
+                  isSelected && styles.purposeChipActive,
+                ]}
+                onPress={() => {
+                  setSelectedPurposeId(purpose.id);
+                  if (purpose.recommendedShift) {
+                    setSelectedShiftId(purpose.recommendedShift);
+                  }
+                }}
                 activeOpacity={0.8}
-                onPress={() => setSelectedShiftId(srv.shift)}
               >
-                <View style={[styles.serviceIconWrap, { backgroundColor: srv.bg }]}>
-                  <Ionicons name={srv.icon} size={20} color={srv.color} />
+                <View style={[styles.purposeIconWrap, { backgroundColor: isSelected ? '#0D9488' : purpose.bg }]}>
+                  <Ionicons
+                    name={purpose.icon}
+                    size={14}
+                    color={isSelected ? '#FFFFFF' : purpose.color}
+                  />
                 </View>
-                <Text style={styles.serviceItemName} numberOfLines={1}>
-                  {srv.name}
+                <Text
+                  style={[
+                    styles.purposeChipText,
+                    isSelected && styles.purposeChipTextActive,
+                  ]}
+                >
+                  {purpose.label}
                 </Text>
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
       </View>
 
-      {/* 1. Choose Staff Service */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={styles.cardHeaderIcon}>
-            <Ionicons name="medical" size={16} color={colors.primary} />
+      {/* 3. CHOOSE NURSE DUTY SHIFT */}
+      <View style={styles.sectionCard}>
+        <View style={styles.sectionHeaderRow}>
+          <View style={[styles.sectionIconBox, { backgroundColor: '#F0FDF4' }]}>
+            <Ionicons name="time" size={16} color="#059669" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>1. Choose Nurse / Staff Service</Text>
-            <Text style={styles.cardSub}>Select the duty timing you need for your home</Text>
+            <Text style={styles.sectionTitle}>2. Choose Nurse Shift & Timing</Text>
+            <Text style={styles.sectionSub}>Select required duty hours for your home</Text>
           </View>
         </View>
 
-        <View style={styles.shiftsGrid}>
+        <View style={styles.modernShiftsGrid}>
           {STAFF_SHIFTS.map((shift) => {
             const isSelected = selectedShiftId === shift.id;
             return (
               <TouchableOpacity
                 key={shift.id}
-                style={[styles.shiftItem, isSelected && styles.shiftItemActive]}
+                style={[
+                  styles.modernShiftCard,
+                  isSelected && styles.modernShiftCardActive,
+                ]}
                 onPress={() => setSelectedShiftId(shift.id)}
                 activeOpacity={0.88}
               >
-                <View style={styles.shiftTop}>
-                  <View style={[styles.shiftBadge, isSelected && styles.shiftBadgeActive]}>
-                    <Ionicons name={shift.icon} size={12} color={isSelected ? '#FFF' : colors.primary} />
-                    <Text style={[styles.shiftBadgeText, isSelected && styles.shiftBadgeTextActive]}>
+                <View style={styles.modernShiftTop}>
+                  <View style={[styles.modernShiftBadge, isSelected && styles.modernShiftBadgeActive]}>
+                    <Ionicons
+                      name={shift.icon}
+                      size={12}
+                      color={isSelected ? '#FFFFFF' : colors.primary}
+                    />
+                    <Text
+                      style={[
+                        styles.modernShiftBadgeText,
+                        isSelected && styles.modernShiftBadgeTextActive,
+                      ]}
+                    >
                       {shift.badge}
                     </Text>
                   </View>
-                  <View style={[styles.radio, isSelected && styles.radioActive]}>
-                    {isSelected && <View style={styles.radioDot} />}
+
+                  <View style={[styles.radioCircle, isSelected && styles.radioCircleActive]}>
+                    {isSelected && <View style={styles.radioDotInner} />}
                   </View>
                 </View>
 
-                <Text style={[styles.shiftName, isSelected && styles.shiftNameActive]}>
+                <Text
+                  style={[
+                    styles.modernShiftName,
+                    isSelected && styles.modernShiftNameActive,
+                  ]}
+                >
                   {shift.label}
                 </Text>
-                <Text style={styles.shiftTimingText}>{shift.timing}</Text>
-                <Text style={styles.shiftDescText} numberOfLines={2}>{shift.desc}</Text>
 
-                <View style={styles.shiftBottomPriceRow}>
-                  <Text style={styles.shiftRateText}>₹{shift.dailyRate.toLocaleString('en-IN')}</Text>
-                  <Text style={styles.shiftRateSub}>/ day</Text>
+                <View style={styles.modernShiftTimingRow}>
+                  <Ionicons name="alarm-outline" size={13} color="#64748B" />
+                  <Text style={styles.modernShiftTimingText}>{shift.timing}</Text>
+                </View>
+
+                <Text style={styles.modernShiftDesc} numberOfLines={2}>
+                  {shift.desc}
+                </Text>
+
+                <View style={styles.modernShiftPriceRow}>
+                  <Text style={styles.modernShiftRateText}>
+                    ₹{shift.dailyRate.toLocaleString('en-IN')}
+                  </Text>
+                  <Text style={styles.modernShiftRateSub}>/ day</Text>
                 </View>
               </TouchableOpacity>
             );
@@ -732,32 +880,33 @@ const NurseBookingScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {/* 2. Choose Multi-Day Package (Our Packages) */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={[styles.cardHeaderIcon, { backgroundColor: '#FEF3C7' }]}>
+      {/* 4. PACKAGE DEALS & DURATION */}
+      <View style={styles.sectionCard}>
+        <View style={styles.sectionHeaderRow}>
+          <View style={[styles.sectionIconBox, { backgroundColor: '#FFFBEB' }]}>
             <Ionicons name="gift" size={16} color="#D97706" />
           </View>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={styles.cardTitle}>2. How Many Days? (Package Deals)</Text>
-              <View style={styles.hotPill}>
-                <Text style={styles.hotPillText}>DISCOUNT DEALS</Text>
+              <Text style={styles.sectionTitle}>3. Care Duration & Deals</Text>
+              <View style={styles.hotPillBadge}>
+                <Text style={styles.hotPillBadgeText}>SAVE UP TO 40%</Text>
               </View>
             </View>
-            <Text style={styles.cardSub}>Take staff for 2 or more days and get special package savings!</Text>
+            <Text style={styles.sectionSub}>Book 2 or more days to unlock instant package savings</Text>
           </View>
         </View>
 
         {/* 2-Day Deal Callout Banner */}
-        <View style={styles.calloutBanner}>
+        <View style={styles.dealCalloutBanner}>
           <Ionicons name="sparkles" size={16} color="#E11D48" />
-          <Text style={styles.calloutBannerText}>
-            <Text style={{ fontWeight: '900' }}>Special 2-Day Deal:</Text> Book staff for 2 days and save 10% instantly!
+          <Text style={styles.dealCalloutBannerText}>
+            <Text style={{ fontWeight: '900' }}>Special Deal:</Text> Book for 2 days and save 10% instantly!
           </Text>
         </View>
 
-        <View style={styles.packagesList}>
+        {/* Package Duration Cards */}
+        <View style={styles.packageCardsList}>
           {STAFF_PACKAGES.map((pkg) => {
             const isSelected = daysCount === pkg.days;
             const pkgGross = selectedShift.dailyRate * pkg.days;
@@ -767,36 +916,51 @@ const NurseBookingScreen = ({ navigation }) => {
             return (
               <TouchableOpacity
                 key={pkg.days}
-                style={[styles.packageRow, isSelected && styles.packageRowActive]}
+                style={[
+                  styles.packageCardItem,
+                  isSelected && styles.packageCardItemActive,
+                ]}
                 onPress={() => applyDaysCount(pkg.days)}
                 activeOpacity={0.88}
               >
-                <View style={[styles.radio, isSelected && styles.radioActive, { marginRight: 10 }]}>
-                  {isSelected && <View style={styles.radioDot} />}
+                <View style={[styles.radioCircle, isSelected && styles.radioCircleActive, { marginRight: 10 }]}>
+                  {isSelected && <View style={styles.radioDotInner} />}
                 </View>
 
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={[styles.packageTitle, isSelected && styles.packageTitleActive]}>
+                    <Text
+                      style={[
+                        styles.packageCardTitle,
+                        isSelected && styles.packageCardTitleActive,
+                      ]}
+                    >
                       {pkg.title}
                     </Text>
                     {pkg.tag && (
-                      <View style={[styles.tagPill, pkg.isHot && { backgroundColor: '#FFE4E6' }]}>
-                        <Text style={[styles.tagPillText, pkg.isHot && { color: '#E11D48' }]}>
+                      <View style={[styles.packageDiscountTag, pkg.isHot && { backgroundColor: '#FFE4E6' }]}>
+                        <Text style={[styles.packageDiscountTagText, pkg.isHot && { color: '#E11D48' }]}>
                           {pkg.tag}
                         </Text>
                       </View>
                     )}
                   </View>
-                  <Text style={styles.packageSub}>{pkg.subtitle}</Text>
+                  <Text style={styles.packageCardSubtitle}>{pkg.subtitle}</Text>
                 </View>
 
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={[styles.packagePrice, isSelected && styles.packagePriceActive]}>
+                  <Text
+                    style={[
+                      styles.packageCardPrice,
+                      isSelected && styles.packageCardPriceActive,
+                    ]}
+                  >
                     ₹{pkgNet.toLocaleString('en-IN')}
                   </Text>
                   {pkg.discountPercent > 0 && (
-                    <Text style={styles.packageSaveBadge}>Save ₹{pkgDisc.toLocaleString('en-IN')}</Text>
+                    <Text style={styles.packageSaveAmountBadge}>
+                      Save ₹{pkgDisc.toLocaleString('en-IN')}
+                    </Text>
                   )}
                 </View>
               </TouchableOpacity>
@@ -805,27 +969,113 @@ const NurseBookingScreen = ({ navigation }) => {
         </View>
 
         {/* Custom Days Stepper */}
-        <View style={styles.customDaysBox}>
-          <Text style={styles.customDaysLabel}>Or set custom days:</Text>
-          <View style={styles.stepperWrap}>
+        <View style={styles.stepperContainer}>
+          <View>
+            <Text style={styles.stepperPromptTitle}>Custom Days:</Text>
+            <Text style={styles.stepperPromptSub}>Set exact duration needed</Text>
+          </View>
+          <View style={styles.stepperRow}>
             <TouchableOpacity
-              style={styles.stepperBtn}
+              style={styles.stepperActionBtn}
               onPress={() => applyDaysCount(daysCount - 1)}
               activeOpacity={0.8}
             >
-              <Ionicons name="remove" size={16} color={colors.secondary} />
+              <Ionicons name="remove" size={16} color="#0F172A" />
             </TouchableOpacity>
-            <View style={styles.stepperValBox}>
-              <Text style={styles.stepperValText}>{daysCount} {daysCount === 1 ? 'Day' : 'Days'}</Text>
+            <View style={styles.stepperNumberDisplay}>
+              <Text style={styles.stepperNumberText}>
+                {daysCount} {daysCount === 1 ? 'Day' : 'Days'}
+              </Text>
             </View>
             <TouchableOpacity
-              style={styles.stepperBtn}
+              style={styles.stepperActionBtn}
               onPress={() => applyDaysCount(daysCount + 1)}
               activeOpacity={0.8}
             >
-              <Ionicons name="add" size={16} color={colors.secondary} />
+              <Ionicons name="add" size={16} color="#0F172A" />
             </TouchableOpacity>
           </View>
+        </View>
+      </View>
+
+      {/* 5. VERIFIED NURSES SPOTLIGHT CAROUSEL */}
+      <View style={styles.sectionCard}>
+        <View style={styles.sectionHeaderRow}>
+          <View style={[styles.sectionIconBox, { backgroundColor: '#FAF5FF' }]}>
+            <Ionicons name="people" size={16} color="#7C3AED" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.sectionTitle}>Featured Certified Nurses</Text>
+              <View style={[styles.hotPillBadge, { backgroundColor: '#F0FDF4' }]}>
+                <Text style={[styles.hotPillBadgeText, { color: '#059669' }]}>MYSORE ON-DUTY</Text>
+              </View>
+            </View>
+            <Text style={styles.sectionSub}>All staff verified with police check and Karnataka Nursing Council</Text>
+          </View>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.nursesCarouselScroll}
+        >
+          {certifiedNurses.map((nurse, index) => {
+            const avatarUrl = index === 0
+              ? 'https://images.unsplash.com/photo-1594824813576-92f70b79873a?auto=format&fit=crop&q=80&w=250'
+              : index === 1
+              ? 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=250'
+              : 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=250';
+
+            return (
+              <View key={nurse.id} style={styles.nurseProfileCard}>
+                <View style={styles.nurseProfileHeader}>
+                  <Image source={{ uri: avatarUrl }} style={styles.nurseAvatarImg} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Text style={styles.nurseProfileName} numberOfLines={1}>
+                        {nurse.name}
+                      </Text>
+                      <Ionicons name="checkmark-circle" size={14} color="#0D9488" />
+                    </View>
+                    <Text style={styles.nurseProfileDegree} numberOfLines={1}>
+                      {nurse.qualification}
+                    </Text>
+                    <View style={styles.nurseRatingRow}>
+                      <Ionicons name="star" size={12} color="#F59E0B" />
+                      <Text style={styles.nurseRatingText}>{nurse.rating}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.nurseProfileDivider} />
+
+                <View style={styles.nurseMetaLine}>
+                  <Ionicons name="briefcase-outline" size={12} color="#64748B" />
+                  <Text style={styles.nurseMetaText}>{nurse.experience}</Text>
+                </View>
+                <View style={styles.nurseMetaLine}>
+                  <Ionicons name="medkit-outline" size={12} color="#0D9488" />
+                  <Text style={styles.nurseMetaText} numberOfLines={1}>{nurse.specialties}</Text>
+                </View>
+                <View style={styles.nurseMetaLine}>
+                  <Ionicons name="chatbubbles-outline" size={12} color="#64748B" />
+                  <Text style={styles.nurseMetaText}>{nurse.languages}</Text>
+                </View>
+              </View>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {/* 6. CLINICAL SAFETY GUARANTEE */}
+      <View style={styles.clinicalAssuranceCard}>
+        <Ionicons name="shield-checkmark" size={24} color="#059669" />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.clinicalAssuranceTitle}>Unnathi Clinical Guarantee</Text>
+          <Text style={styles.clinicalAssuranceBody}>
+            Hospital-grade sterile PPE kits, daily vital charting, medication verification, and guaranteed free nurse replacement within 2 hours if required.
+          </Text>
         </View>
       </View>
     </View>
@@ -1024,8 +1274,8 @@ const NurseBookingScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Quick Family Member Chips */}
-        <Text style={styles.fieldLabel}>Who is this booking for?</Text>
+        {/* Quick Family Member Chips (Strictly Family Members Only) */}
+        <Text style={styles.fieldLabel}>Who is this booking for? (Family Members):</Text>
         <View style={styles.familyRow}>
           {familyList.map((m) => {
             const isSelected = selectedFamilyId === m.id;
@@ -1037,16 +1287,30 @@ const NurseBookingScreen = ({ navigation }) => {
                   setSelectedFamilyId(m.id);
                   setPatientName(m.name);
                   setPatientRelation(m.relation);
+                  if (m.phone) setPatientPhone(m.phone);
                 }}
                 activeOpacity={0.8}
               >
-                <Ionicons name="person" size={12} color={isSelected ? '#FFF' : colors.primary} />
+                <Ionicons
+                  name="person"
+                  size={12}
+                  color={isSelected ? '#FFFFFF' : colors.primary}
+                />
                 <Text style={[styles.familyChipText, isSelected && styles.familyChipTextActive]}>
-                  {m.name}
+                  {m.displayName || (m.relation === 'Self' ? `${m.name} (Self)` : `${m.name} (${m.relation})`)}
                 </Text>
               </TouchableOpacity>
             );
           })}
+
+          <TouchableOpacity
+            style={styles.addFamilyChip}
+            onPress={() => navigation?.navigate('FamilyProfiles')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="add-circle-outline" size={13} color={colors.primary} />
+            <Text style={styles.addFamilyChipText}>+ Add Member</Text>
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.fieldLabel}>Patient Full Name:</Text>
@@ -1586,228 +1850,122 @@ const styles = StyleSheet.create({
     color: '#059669',
   },
 
-  // HEADER
+  // HEADER (ELEVATED MOBILE HEADER)
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: colors.white,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: '#F1F5F9',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
   backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: colors.lightSlate,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   headerCenter: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 12,
     marginRight: 8,
   },
   headerStepBadge: {
-    fontSize: 9,
+    fontSize: 9.5,
     fontWeight: '800',
-    color: colors.primary,
+    color: '#0D9488',
     letterSpacing: 0.5,
   },
   headerTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '900',
-    color: colors.secondary,
+    color: '#0F172A',
   },
   helplineBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.secondary,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 14,
-    gap: 3,
+    backgroundColor: '#0F766E',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 4,
   },
   helplineBtnText: {
     color: '#FFFFFF',
-    fontSize: 10.5,
-    fontWeight: '800',
-  },
-
-  // HERO HOME NURSING CARD (MOCKUP)
-  nurseHeroCard: {
-    backgroundColor: '#F0FDFA',
-    borderWidth: 1,
-    borderColor: '#CCFBF1',
-    borderRadius: 16,
-    marginBottom: 14,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#0D9488',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  nurseHeroLeft: {
-    flex: 1,
-    paddingRight: 10,
-  },
-  nurseHeroTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#0F172A',
-    marginBottom: 8,
-  },
-  nurseHeroBullets: {
-    gap: 4,
-    marginBottom: 12,
-  },
-  nurseBulletRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  nurseBulletText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
-  },
-  nurseHeroCta: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#00B894',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 10,
-  },
-  nurseHeroCtaText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  nurseHeroRight: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  nurseIconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#CCFBF1',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#99F6E4',
-  },
-
-  // 7 NURSING SERVICES GRID
-  servicesGridCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  servicesGridTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  servicesGridSub: {
     fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
-    marginBottom: 14,
-  },
-  servicesGridList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: 12,
-  },
-  serviceItem: {
-    width: '23%',
-    alignItems: 'center',
-    paddingVertical: 6,
-  },
-  serviceItemActive: {
-    transform: [{ scale: 1.05 }],
-  },
-  serviceIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  serviceItemName: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#334155',
-    textAlign: 'center',
+    fontWeight: '800',
   },
 
-  // STEP STRIP
+  // 3-STEP PROGRESS STRIP (ELEVATED)
   stepStrip: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 11,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: '#E2E8F0',
   },
   stepStripItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
   },
   stepStripCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.lightSlate,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
     justifyContent: 'center',
     alignItems: 'center',
   },
   stepStripCircleActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#0D9488',
+    borderColor: '#0D9488',
   },
   stepStripCirclePassed: {
-    backgroundColor: colors.secondary,
+    backgroundColor: '#0F172A',
+    borderColor: '#0F172A',
   },
   stepStripNum: {
     fontSize: 10,
     fontWeight: '800',
-    color: colors.textSecondary,
+    color: '#64748B',
   },
   stepStripNumActive: {
     color: '#FFFFFF',
   },
   stepStripLabel: {
     fontSize: 11,
-    fontWeight: '700',
-    color: colors.textSecondary,
+    fontWeight: '600',
+    color: '#64748B',
   },
   stepStripLabelActive: {
-    color: colors.secondary,
-    fontWeight: '900',
+    color: '#0D9488',
+    fontWeight: '800',
   },
   stepStripLine: {
     flex: 1,
     height: 2,
-    backgroundColor: colors.border,
+    backgroundColor: '#E2E8F0',
     marginHorizontal: 4,
   },
   stepStripLineActive: {
-    backgroundColor: colors.secondary,
+    backgroundColor: '#0D9488',
   },
 
   scrollContainer: {
@@ -1822,7 +1980,547 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  // CARDS
+  // 1. CLINICAL TRUST HERO BANNER (REDESIGNED)
+  nurseHeroCardRedesigned: {
+    backgroundColor: '#F0FDFA',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#99F6E4',
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 3,
+    marginBottom: 4,
+  },
+  nurseHeroTopTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  nurseAccreditedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#CCFBF1',
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 12,
+  },
+  nurseAccreditedBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#0F766E',
+    letterSpacing: 0.4,
+  },
+  liveDutyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  liveDutyPulseDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#10B981',
+  },
+  liveDutyBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: '#047857',
+    letterSpacing: 0.4,
+  },
+  nurseHeroHeading: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#0F172A',
+    lineHeight: 23,
+    marginBottom: 6,
+  },
+  nurseHeroSubheading: {
+    fontSize: 12,
+    color: '#475569',
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  nursePillarsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 14,
+  },
+  nursePillarItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 2,
+  },
+  nursePillarIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  nursePillarText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#1E293B',
+    textAlign: 'center',
+    lineHeight: 13,
+  },
+  nurseHeroCallBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0F766E',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  nurseHeroCallLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  nurseHeroCallIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  nurseHeroCallTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  nurseHeroCallSub: {
+    fontSize: 10.5,
+    color: '#CCFBF1',
+    marginTop: 1,
+  },
+
+  // COMMON SECTION CARD STYLES
+  sectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 14,
+  },
+  sectionIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sectionTitle: {
+    fontSize: 14.5,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  sectionSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+
+  // 2. CLINICAL NEED CHIPS
+  purposesScroll: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  purposeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+  },
+  purposeChipActive: {
+    backgroundColor: '#F0FDFA',
+    borderColor: '#0D9488',
+  },
+  purposeIconWrap: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  purposeChipText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  purposeChipTextActive: {
+    color: '#0F766E',
+    fontWeight: '800',
+  },
+
+  // 3. MODERN SHIFT CARDS
+  modernShiftsGrid: {
+    gap: 10,
+  },
+  modernShiftCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    padding: 14,
+  },
+  modernShiftCardActive: {
+    borderColor: '#0D9488',
+    backgroundColor: '#F0FDFA',
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  modernShiftTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  modernShiftBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  modernShiftBadgeActive: {
+    backgroundColor: '#0D9488',
+  },
+  modernShiftBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#475569',
+  },
+  modernShiftBadgeTextActive: {
+    color: '#FFFFFF',
+  },
+  radioCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioCircleActive: {
+    borderColor: '#0D9488',
+  },
+  radioDotInner: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#0D9488',
+  },
+  modernShiftName: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  modernShiftNameActive: {
+    color: '#0F766E',
+  },
+  modernShiftTimingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 5,
+  },
+  modernShiftTimingText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  modernShiftDesc: {
+    fontSize: 11,
+    color: '#64748B',
+    lineHeight: 16,
+    marginBottom: 8,
+  },
+  modernShiftPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'flex-end',
+    gap: 2,
+  },
+  modernShiftRateText: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  modernShiftRateSub: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+
+  // 4. PACKAGE DEALS & STEPPER
+  hotPillBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  hotPillBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#B45309',
+  },
+  dealCalloutBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF1F2',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginBottom: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#FECDD3',
+  },
+  dealCalloutBannerText: {
+    fontSize: 11.5,
+    color: '#9F1239',
+    flex: 1,
+    lineHeight: 16,
+  },
+  packageCardsList: {
+    gap: 8,
+  },
+  packageCardItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    padding: 12,
+  },
+  packageCardItemActive: {
+    borderColor: '#0D9488',
+    backgroundColor: '#F0FDFA',
+  },
+  packageCardTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  packageCardTitleActive: {
+    color: '#0F766E',
+  },
+  packageDiscountTag: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  packageDiscountTagText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  packageCardSubtitle: {
+    fontSize: 10.5,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  packageCardPrice: {
+    fontSize: 14.5,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  packageCardPriceActive: {
+    color: '#0F766E',
+  },
+  packageSaveAmountBadge: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#15803D',
+    marginTop: 1,
+  },
+  stepperContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  stepperPromptTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  stepperPromptSub: {
+    fontSize: 10,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  stepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    overflow: 'hidden',
+  },
+  stepperActionBtn: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+  },
+  stepperNumberDisplay: {
+    paddingHorizontal: 12,
+    minWidth: 70,
+    alignItems: 'center',
+  },
+  stepperNumberText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+
+  // 5. VERIFIED NURSES SPOTLIGHT CAROUSEL
+  nursesCarouselScroll: {
+    gap: 12,
+    paddingVertical: 4,
+  },
+  nurseProfileCard: {
+    width: 250,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+  },
+  nurseProfileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  nurseAvatarImg: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 1.5,
+    borderColor: '#0D9488',
+  },
+  nurseProfileName: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  nurseProfileDegree: {
+    fontSize: 10.5,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  nurseRatingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 2,
+  },
+  nurseRatingText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  nurseProfileDivider: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 8,
+  },
+  nurseMetaLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 3,
+  },
+  nurseMetaText: {
+    fontSize: 10.5,
+    color: '#475569',
+    flex: 1,
+  },
+
+  // 6. CLINICAL SAFETY GUARANTEE
+  clinicalAssuranceCard: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    marginBottom: 4,
+  },
+  clinicalAssuranceTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#065F46',
+    marginBottom: 2,
+  },
+  clinicalAssuranceBody: {
+    fontSize: 11,
+    color: '#047857',
+    lineHeight: 16,
+  },
+
+  // SHARED CARDS & RADIO (FOR STEPS 2 & 3)
   card: {
     backgroundColor: colors.cardBg,
     borderRadius: 16,
@@ -1854,48 +2552,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 1,
   },
-
-  // STEP 1: SHIFTS
-  shiftsGrid: {
-    gap: 8,
-  },
-  shiftItem: {
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    padding: 12,
-  },
-  shiftItemActive: {
-    borderColor: colors.primary,
-    backgroundColor: '#F0FDF4',
-  },
-  shiftTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  shiftBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.lightTeal,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 4,
-    gap: 4,
-  },
-  shiftBadgeActive: {
-    backgroundColor: colors.primary,
-  },
-  shiftBadgeText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: colors.primary,
-  },
-  shiftBadgeTextActive: {
-    color: '#FFFFFF',
-  },
   radio: {
     width: 18,
     height: 18,
@@ -1913,162 +2569,6 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: colors.primary,
-  },
-  shiftName: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.secondary,
-  },
-  shiftNameActive: {
-    color: colors.primary,
-  },
-  shiftTimingText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  shiftDescText: {
-    fontSize: 10,
-    color: colors.textMuted,
-    marginTop: 3,
-  },
-  shiftBottomPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginTop: 8,
-    justifyContent: 'flex-end',
-  },
-  shiftRateText: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: colors.secondary,
-  },
-  shiftRateSub: {
-    fontSize: 10,
-    color: colors.textMuted,
-    marginLeft: 2,
-  },
-
-  // PACKAGES
-  hotPill: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  hotPillText: {
-    fontSize: 8.5,
-    fontWeight: '900',
-    color: '#D97706',
-  },
-  calloutBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF1F2',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginBottom: 10,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: '#FECDD3',
-  },
-  calloutBannerText: {
-    fontSize: 11,
-    color: '#9F1239',
-    flex: 1,
-  },
-  packagesList: {
-    gap: 7,
-  },
-  packageRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.white,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    padding: 10,
-  },
-  packageRowActive: {
-    borderColor: colors.primary,
-    backgroundColor: '#F0FDF4',
-  },
-  packageTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.secondary,
-  },
-  packageTitleActive: {
-    color: colors.primary,
-  },
-  packageSub: {
-    fontSize: 10,
-    color: colors.textSecondary,
-    marginTop: 1,
-  },
-  packagePrice: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: colors.secondary,
-  },
-  packagePriceActive: {
-    color: colors.primary,
-  },
-  packageSaveBadge: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#15803D',
-  },
-  tagPill: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 3,
-  },
-  tagPillText: {
-    fontSize: 8.5,
-    fontWeight: '900',
-    color: '#15803D',
-  },
-  customDaysBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.background,
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 10,
-  },
-  customDaysLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  stepperWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.white,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-  },
-  stepperBtn: {
-    width: 28,
-    height: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.lightSlate,
-  },
-  stepperValBox: {
-    paddingHorizontal: 10,
-  },
-  stepperValText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.secondary,
   },
 
   // STEP 2: DATES & CALENDAR
@@ -2379,6 +2879,23 @@ const styles = StyleSheet.create({
   },
   familyChipTextActive: {
     color: '#FFFFFF',
+  },
+  addFamilyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    borderStyle: 'dashed',
+    gap: 4,
+  },
+  addFamilyChipText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: colors.primary,
   },
   gpsButton: {
     flexDirection: 'row',

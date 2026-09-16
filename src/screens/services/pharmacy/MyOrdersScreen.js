@@ -193,7 +193,7 @@ const MyOrdersScreen = ({ navigation }) => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'Delivered':
-        return '#00B894';
+        return '#FF5252';
       case 'Out for Delivery':
         return '#0284C7';
       case 'Confirmed':
@@ -322,8 +322,8 @@ const MyOrdersScreen = ({ navigation }) => {
                         </Text>
                       </View>
                       <View style={styles.returnMetaChip}>
-                        <Ionicons name="wallet" size={13} color="#059669" />
-                        <Text style={[styles.returnMetaChipText, { color: '#059669' }]}>
+                        <Ionicons name="wallet" size={13} color="#FF5252" />
+                        <Text style={[styles.returnMetaChipText, { color: '#FF5252' }]}>
                           Refund ₹{order.total}
                         </Text>
                       </View>
@@ -1152,7 +1152,7 @@ const styles = StyleSheet.create({
   },
   pickupNoticeTime: {
     fontSize: 11,
-    color: '#059669',
+    color: '#FF5252',
     fontWeight: '700',
     marginTop: 3,
   },
@@ -1297,7 +1297,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#00B894',
+    backgroundColor: '#FF5252',
     alignItems: 'center',
     justifyContent: 'center',
   },

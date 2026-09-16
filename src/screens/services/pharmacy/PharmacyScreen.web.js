@@ -15,8 +15,7 @@ import {
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import { useCart } from '../../../context/CartContext';
-import pharmacyProducts from '../../../data/pharmacyProducts';
-import pharmacyStores, { POPULAR_LOCALITIES } from '../../../data/pharmacyStores';
+import pharmacyProducts, { POPULAR_LOCALITIES } from '../../../data/pharmacyProducts';
 import WebFooter from '../../../components/web/WebFooter';
 
 // ==================================================
@@ -51,14 +50,14 @@ const PHARMACY_HERO_SLIDES = [
   {
     id: 'pharma-slide-2',
     pillText: 'RX VERIFICATION',
-    pillBg: '#CCFBF1',
-    pillColor: '#0D9488',
+    pillBg: '#FECDD3',
+    pillColor: '#FF5252',
     certText: 'Verified Pharmacists',
     certIcon: 'shield-checkmark',
     title: 'Upload Doctor Prescription for Instant Order',
     priceText: 'Zero Extra Fee',
     priceSub: 'Free Dosage Review',
-    priceColor: '#00A389',
+    priceColor: '#FF5252',
     subTitle: 'Just upload your prescription. Our licensed registered pharmacist will verify and confirm your order within minutes.',
     bullets: [
       'Automatic prescription reading & digital medicine mapping',
@@ -66,9 +65,9 @@ const PHARMACY_HERO_SLIDES = [
       'Easy refills for monthly chronic diabetes & BP medications',
     ],
     ctaText: 'Upload Prescription Now',
-    ctaBg: '#00A389',
-    bgColor: '#F0FDF4',
-    borderColor: '#CCFBF1',
+    ctaBg: '#FF5252',
+    bgColor: '#FFF5F5',
+    borderColor: '#FECDD3',
     image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=900',
     trustBadge: 'Licensed & Registered Pharmacists',
     actionType: 'upload',
@@ -124,8 +123,8 @@ export const BROWSE_HEALTH_CONDITIONS = [
     titleSecondary: 'WELLNESS',
     badge: '100% DISCREET',
     tagline: 'Safe, Vigor & Stamina',
-    bg: '#6DBFA0',
-    accentColor: '#0D9488',
+    bg: '#FF8080',
+    accentColor: '#FF5252',
     image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&auto=format&fit=crop&q=80',
     filterKeywords: ['wellness', 'condom', 'test', 'fertility', 'care', 'stamina', 'energy', 'supplement', 'vigor', 'multivitamin'],
     categoryFilter: 'Sexual Wellness',
@@ -177,8 +176,8 @@ export const BROWSE_CATEGORIES = [
     titleSecondary: 'WELLNESS',
     badge: 'POWER & IMMUNITY',
     tagline: 'Proteins, BCAA & Energy',
-    bg: '#5EB895',
-    accentColor: '#059669',
+    bg: '#FF8080',
+    accentColor: '#FF5252',
     image: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=80',
     categoryFilter: 'Vitamins & Minerals',
   },
@@ -217,11 +216,11 @@ const ACTION_CARDS = [
     ctaText: 'UPLOAD PRESCRIPTION',
     iconName: 'document-text-outline',
     iconType: 'ionicons',
-    bgColor: '#EDFAF5',
-    borderColor: '#BBF7D0',
-    iconBg: '#DCFCE7',
-    iconColor: '#059669',
-    ctaColor: '#059669',
+    bgColor: '#FFF0F0',
+    borderColor: '#FFBDBD',
+    iconBg: '#FFE4E6',
+    iconColor: '#FF5252',
+    ctaColor: '#FF5252',
     actionType: 'upload',
   },
   {
@@ -314,8 +313,8 @@ const HEALTH_CONDITIONS = [
     name: 'Liver Care',
     iconName: 'pill',
     iconType: 'mci',
-    color: '#059669',
-    bg: '#DCFCE7',
+    color: '#FF5252',
+    bg: '#FFE4E6',
     filterKeywords: ['liv.52', 'liver', 'himalaya', 'detox', 'herbal', 'appetite'],
   },
   {
@@ -323,7 +322,7 @@ const HEALTH_CONDITIONS = [
     name: 'Oral Care',
     iconName: 'tooth-outline',
     iconType: 'mci',
-    color: '#00C2CB',
+    color: '#FF5252',
     bg: '#E0F7FA',
     filterKeywords: ['tooth', 'oral', 'cleanser', 'mouth', 'dental', 'paste', 'gum', 'sensodyne'],
   },
@@ -341,7 +340,7 @@ const HEALTH_CONDITIONS = [
     name: 'Cold & Immunity',
     iconName: 'shield-check-outline',
     iconType: 'mci',
-    color: '#00B894',
+    color: '#FF5252',
     bg: '#E6FAF5',
     filterKeywords: ['vitamin c', 'zinc', 'immunity', 'antiseptic', 'dettol', 'sanitizer', 'fever'],
   },
@@ -665,7 +664,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
             activeOpacity={0.8}
           >
             <View style={styles.headerLocalityIconWrap}>
-              <Ionicons name="location" size={14} color="#059669" />
+              <Ionicons name="location" size={14} color="#FF5252" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.headerDeliverTo}>Deliver to</Text>
@@ -740,9 +739,9 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                     <Ionicons
                       name={activeSlide.certIcon || 'shield-checkmark'}
                       size={12}
-                      color={activeSlide.priceColor || '#00B894'}
+                      color={activeSlide.priceColor || '#FF5252'}
                     />
-                    <Text style={[styles.brandTagFlipkartText, { color: activeSlide.priceColor || '#00B894' }]}>
+                    <Text style={[styles.brandTagFlipkartText, { color: activeSlide.priceColor || '#FF5252' }]}>
                       {activeSlide.certText}
                     </Text>
                   </View>
@@ -770,7 +769,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                 <View style={styles.fullWidthBulletsCol}>
                   {activeSlide.bullets.map((b, bIdx) => (
                     <View key={bIdx} style={styles.fullWidthBulletItem}>
-                      <Ionicons name="checkmark-circle" size={15} color={activeSlide.priceColor || '#00B894'} />
+                      <Ionicons name="checkmark-circle" size={15} color={activeSlide.priceColor || '#FF5252'} />
                       <Text style={styles.fullWidthBulletText} numberOfLines={1}>
                         {b}
                       </Text>
@@ -809,7 +808,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                 />
                 {activeSlide.trustBadge && (
                   <View style={styles.floatingTrustBadge}>
-                    <Ionicons name="shield-checkmark" size={13} color="#00B894" />
+                    <Ionicons name="shield-checkmark" size={13} color="#FF5252" />
                     <Text style={styles.floatingTrustBadgeText}>{activeSlide.trustBadge}</Text>
                   </View>
                 )}
@@ -846,7 +845,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
           <View style={styles.searchSectionInner}>
             <View style={styles.searchBarBox}>
               <View style={styles.searchIconBox}>
-                <Ionicons name="search" size={20} color="#00B894" />
+                <Ionicons name="search" size={20} color="#FF5252" />
               </View>
               <TextInput
                 style={styles.searchInput}
@@ -883,7 +882,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
             <View style={styles.browseHeaderBadgeRow}>
               <Text style={styles.browseMainHeading}>Browse medicines & health products</Text>
               <View style={styles.browseHeaderPill}>
-                <Ionicons name="sparkles" size={13} color="#00B894" />
+                <Ionicons name="sparkles" size={13} color="#FF5252" />
                 <Text style={styles.browseHeaderPillText}>100% Genuine & Verified</Text>
               </View>
             </View>
@@ -1072,8 +1071,8 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
         <View style={styles.guaranteeSectionWrap}>
           <View style={styles.guaranteeCard}>
             <View style={styles.guaranteeItem}>
-              <View style={[styles.guaranteeIconCircle, { backgroundColor: '#ECFDF5' }]}>
-                <Ionicons name="shield-checkmark" size={20} color="#059669" />
+              <View style={[styles.guaranteeIconCircle, { backgroundColor: '#FFF0F0' }]}>
+                <Ionicons name="shield-checkmark" size={20} color="#FF5252" />
               </View>
               <View>
                 <Text style={styles.guaranteeTitle}>100% Genuine Medicines</Text>
@@ -1138,7 +1137,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                 activeOpacity={0.8}
               >
                 <Text style={styles.viewStoreBtnText}>View All Products</Text>
-                <Ionicons name="arrow-forward" size={14} color="#00B894" />
+                <Ionicons name="arrow-forward" size={14} color="#FF5252" />
               </TouchableOpacity>
             )}
           </View>
@@ -1233,7 +1232,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                             onPress={() => decreaseQuantity(prod.id, 'pharmacy')}
                             activeOpacity={0.7}
                           >
-                            <Ionicons name="remove" size={14} color="#00B894" />
+                            <Ionicons name="remove" size={14} color="#FF5252" />
                           </TouchableOpacity>
                           <Text style={styles.stepperQuantity}>{quantity}</Text>
                           <TouchableOpacity
@@ -1241,7 +1240,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                             onPress={() => increaseQuantity(prod.id, 'pharmacy')}
                             activeOpacity={0.7}
                           >
-                            <Ionicons name="add" size={14} color="#00B894" />
+                            <Ionicons name="add" size={14} color="#FF5252" />
                           </TouchableOpacity>
                         </View>
                       ) : (
@@ -1348,7 +1347,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
 
               <View style={styles.modalBody}>
                 <View style={styles.uploadDropzone}>
-                  <Ionicons name="cloud-upload" size={48} color="#00B894" />
+                  <Ionicons name="cloud-upload" size={48} color="#FF5252" />
                   <Text style={styles.dropzoneTitle}>
                     {selectedFile ? `Selected: ${selectedFile}` : 'Drag & Drop prescription image or PDF here'}
                   </Text>
@@ -1413,7 +1412,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                       <Ionicons
                         name="location"
                         size={18}
-                        color={isActive ? '#00B894' : '#64748B'}
+                        color={isActive ? '#FF5252' : '#64748B'}
                         style={{ marginRight: 12 }}
                       />
                       <View style={{ flex: 1 }}>
@@ -1422,7 +1421,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                         </Text>
                         <Text style={styles.localitySub}>Pincode: {loc.pincode} • Express Delivery Available</Text>
                       </View>
-                      {isActive && <Ionicons name="checkmark-circle" size={18} color="#00B894" />}
+                      {isActive && <Ionicons name="checkmark-circle" size={18} color="#FF5252" />}
                     </TouchableOpacity>
                   );
                 })}
@@ -1510,7 +1509,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#FFF0F0',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1695,7 +1694,7 @@ const styles = StyleSheet.create({
   brandTagFlipkartText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#00B894',
+    color: '#FF5252',
   },
   adNoticePill: {
     backgroundColor: 'rgba(0, 0, 0, 0.06)',
@@ -1813,7 +1812,7 @@ const styles = StyleSheet.create({
   },
   dotActive: {
     width: 24,
-    backgroundColor: '#00A389',
+    backgroundColor: '#FF5252',
     borderRadius: 4,
   },
 
@@ -1877,20 +1876,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#FFF0F0',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#FFBDBD',
   },
   searchUploadChipText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#059669',
+    color: '#FF5252',
   },
   searchSubmitBtn: {
-    backgroundColor: '#00B894',
+    backgroundColor: '#FF5252',
     paddingHorizontal: 18,
     paddingVertical: 8,
     borderRadius: 8,
@@ -1958,9 +1957,9 @@ const styles = StyleSheet.create({
     cursor: 'pointer',
   },
   pageNumberChipActive: {
-    backgroundColor: '#00B894',
-    borderColor: '#00B894',
-    shadowColor: '#00B894',
+    backgroundColor: '#FF5252',
+    borderColor: '#FF5252',
+    shadowColor: '#FF5252',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
@@ -2015,9 +2014,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#FFF0F0',
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#FFBDBD',
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 20,
@@ -2025,7 +2024,7 @@ const styles = StyleSheet.create({
   browseHeaderPillText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#059669',
+    color: '#FF5252',
   },
   browseSubSection: {
     marginBottom: 26,
@@ -2133,9 +2132,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 0.5,
     lineHeight: 23,
-    textShadowColor: 'rgba(0, 0, 0, 0.15)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    textShadow: '0px 1px 2px rgba(0, 0, 0, 0.15)',
   },
   bannerTitleSecondary: {
     fontSize: 10.5,
@@ -2359,9 +2356,9 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
   },
   conditionCardSelected: {
-    borderColor: '#00B894',
+    borderColor: '#FF5252',
     borderWidth: 1.5,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#FFF5F5',
   },
   conditionIconBox: {
     width: 44,
@@ -2379,7 +2376,7 @@ const styles = StyleSheet.create({
     color: '#1E3A8A',
   },
   conditionNameSelected: {
-    color: '#00B894',
+    color: '#FF5252',
   },
   conditionActionText: {
     fontSize: 11,
@@ -2479,7 +2476,7 @@ const styles = StyleSheet.create({
   viewStoreBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#00B894',
+    color: '#FF5252',
   },
   pharmacyCardsGrid: {
     maxWidth: 1320,
@@ -2559,7 +2556,7 @@ const styles = StyleSheet.create({
   pharmacyCat: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#00B894',
+    color: '#FF5252',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -2620,7 +2617,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#00B894',
+    backgroundColor: '#FF5252',
     paddingVertical: 9,
     borderRadius: 8,
     height: 38,
@@ -2635,9 +2632,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1.5,
-    borderColor: '#00B894',
+    borderColor: '#FF5252',
     borderRadius: 8,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#FFF5F5',
     height: 38,
     paddingHorizontal: 8,
   },
@@ -2650,7 +2647,7 @@ const styles = StyleSheet.create({
   stepperQuantity: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#00B894',
+    color: '#FF5252',
   },
   emptyProductsState: {
     paddingVertical: 60,
@@ -2670,7 +2667,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   resetCatalogBtn: {
-    backgroundColor: '#00B894',
+    backgroundColor: '#FF5252',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
@@ -2690,10 +2687,10 @@ const styles = StyleSheet.create({
     maxWidth: 1320,
     width: '100%',
     alignSelf: 'center',
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#FFF5F5',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: '#FFBDBD',
     padding: 24,
     flexDirection: 'row',
     alignItems: 'center',
@@ -2712,7 +2709,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#DCFCE7',
+    backgroundColor: '#FFE4E6',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2729,13 +2726,13 @@ const styles = StyleSheet.create({
   walletHomeTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#065F46',
+    color: '#B91C1C',
   },
   walletStatusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#DCFCE7',
+    backgroundColor: '#FFE4E6',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
@@ -2744,16 +2741,16 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#10B981',
+    backgroundColor: '#FF5252',
   },
   walletStatusText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#047857',
+    color: '#B91C1C',
   },
   walletHomeSub: {
     fontSize: 13,
-    color: '#065F46',
+    color: '#B91C1C',
     lineHeight: 19,
   },
   walletHomeRight: {
@@ -2763,7 +2760,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#059669',
+    backgroundColor: '#FF5252',
     paddingHorizontal: 22,
     paddingVertical: 12,
     borderRadius: 10,
@@ -2837,10 +2834,10 @@ const styles = StyleSheet.create({
   },
   uploadDropzone: {
     borderWidth: 2,
-    borderColor: '#A7F3D0',
+    borderColor: '#FFBDBD',
     borderStyle: 'dashed',
     borderRadius: 16,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#FFF5F5',
     padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2860,7 +2857,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   dropzoneBrowseBtn: {
-    backgroundColor: '#00B894',
+    backgroundColor: '#FF5252',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -2905,7 +2902,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   modalConfirmBtn: {
-    backgroundColor: '#00B894',
+    backgroundColor: '#FF5252',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
@@ -2928,8 +2925,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   localitySelectItemActive: {
-    borderColor: '#00B894',
-    backgroundColor: '#F0FDF4',
+    borderColor: '#FF5252',
+    backgroundColor: '#FFF5F5',
   },
   localityName: {
     fontSize: 14,
@@ -2937,7 +2934,7 @@ const styles = StyleSheet.create({
     color: '#1E293B',
   },
   localityNameActive: {
-    color: '#00B894',
+    color: '#FF5252',
     fontWeight: '700',
   },
   localitySub: {
@@ -3046,7 +3043,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   floatingCartPriceBold: {
-    color: '#34D399',
+    color: '#FF5252',
     fontWeight: '800',
     fontSize: 13,
   },
@@ -3054,7 +3051,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#00B894',
+    backgroundColor: '#FF5252',
     paddingHorizontal: 20,
     paddingVertical: 11,
     borderRadius: 25,
@@ -3090,7 +3087,7 @@ const styles = StyleSheet.create({
     zIndex: 950,
   },
   floatingCartFabActive: {
-    backgroundColor: '#00B894',
+    backgroundColor: '#FF5252',
   },
   fabCountBadge: {
     position: 'absolute',

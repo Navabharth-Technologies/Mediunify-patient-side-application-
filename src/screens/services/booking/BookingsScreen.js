@@ -270,6 +270,16 @@ const BookingsScreen = ({ navigation, route }) => {
   const [selectedTab, setSelectedTab] = useState('All');
   const [activeBookingForAddTest, setActiveBookingForAddTest] = useState(null);
   const [testSearchQuery, setTestSearchQuery] = useState('');
+  const [mobileSearchQuery, setMobileSearchQuery] = useState('');
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // Mobile Filter Architecture: Segmented Status Switcher + Filter Bottom Sheet
+  const [mobileStatusSegment, setMobileStatusSegment] = useState('upcoming'); // 'upcoming' | 'completed' | 'cancelled' | 'all'
+  const [mobileServiceFilter, setMobileServiceFilter] = useState('all');
+  const [mobilePatientFilter, setMobilePatientFilter] = useState('all');
+  const [patientProfiles, setPatientProfiles] = useState([]);
+  const [showFilterBottomSheet, setShowFilterBottomSheet] = useState(false);
 
   // Document Upload State
   const [activeAppointmentForUpload, setActiveAppointmentForUpload] = useState(null);
@@ -746,14 +756,113 @@ const BookingsScreen = ({ navigation, route }) => {
     }
   };
 
+  // Load logged-in patient details and linked family members
+  const loadPatientProfiles = async () => {
+    try {
+      // 1. Get Primary Logged-in User Info
+      const storedPrimary = await AsyncStorage.getItem('@unnathi_primary_user');
+      const storedUser = await AsyncStorage.getItem('user');
+      const storedName = await AsyncStorage.getItem('userName');
+      const storedEmail = await AsyncStorage.getItem('userEmail');
+      const storedPhone = await AsyncStorage.getItem('userPhone');
+
+      let primaryOwnerName = '';
+      if (storedPrimary) {
+        try {
+          const p = JSON.parse(storedPrimary);
+          if (p?.name && p.name.trim()) primaryOwnerName = p.name.trim();
+        } catch (e) {}
+      }
+      if (!primaryOwnerName && storedUser) {
+        try {
+          const u = JSON.parse(storedUser);
+          if (u?.name && u.name.trim()) primaryOwnerName = u.name.trim();
+        } catch (e) {}
+      }
+      if (!primaryOwnerName && storedName && storedName.trim()) {
+        primaryOwnerName = storedName.trim();
+      }
+
+      const effectiveName = primaryOwnerName || 'Hemanth';
+      const cleanFirst = effectiveName.split(' ')[0];
+      const userKey = (storedEmail || storedPhone || effectiveName).toLowerCase().replace(/[^a-z0-9]/g, '_');
+
+      // 2. Load linked family members for this account
+      const userFamKey = `@unnathi_family_members_${userKey}`;
+      const savedUserFam = await AsyncStorage.getItem(userFamKey);
+      let currentMembers = null;
+
+      if (savedUserFam) {
+        try {
+          const parsed = JSON.parse(savedUserFam);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            currentMembers = parsed;
+          }
+        } catch (e) {}
+      }
+
+      if (!currentMembers) {
+        const savedGlobalFam = await AsyncStorage.getItem('@unnathi_family_members');
+        if (savedGlobalFam) {
+          try {
+            const parsedG = JSON.parse(savedGlobalFam);
+            if (Array.isArray(parsedG) && parsedG.length > 0) {
+              currentMembers = parsedG;
+            }
+          } catch (e) {}
+        }
+      }
+
+      // Default family profiles if none saved yet
+      if (!currentMembers || currentMembers.length === 0) {
+        currentMembers = [
+          { id: 'fam-1', name: 'Sneha', displayName: 'Sneha (Spouse)', relation: 'Spouse' },
+          { id: 'fam-2', name: 'Suresh Kumar', displayName: 'Suresh Kumar (Father)', relation: 'Father' },
+          { id: 'fam-3', name: 'Aarav', displayName: 'Aarav (Son)', relation: 'Son' },
+        ];
+      }
+
+      const profiles = [];
+      // Always add Logged-in Primary User (Self) first
+      profiles.push({
+        id: 'self',
+        name: effectiveName,
+        displayName: `${cleanFirst} (Self)`,
+        relation: 'Self',
+        isPrimary: true,
+      });
+
+      // Add only true family members
+      currentMembers.forEach((m) => {
+        if (m.id !== 'self' && !m.isPrimary && m.relation !== 'Self' && m.name) {
+          const cleanName = m.name.replace(/\s*\(Self\)/i, '').trim();
+          if (cleanName && !profiles.some((p) => p.name.toLowerCase() === cleanName.toLowerCase())) {
+            profiles.push({
+              id: m.id || cleanName.toLowerCase(),
+              name: cleanName,
+              displayName: m.relation ? `${cleanName} (${m.relation})` : cleanName,
+              relation: m.relation || 'Family',
+            });
+          }
+        }
+      });
+
+      setPatientProfiles(profiles);
+    } catch (err) {
+      console.log('Error loading patient profiles for filter:', err);
+    }
+  };
+
   // Initial load
   useEffect(() => {
     loadAppointments();
+    loadPatientProfiles();
   }, []);
 
   // Reload when route params change (e.g. newly booked appointment, tab switch, timestamp)
   useEffect(() => {
     loadAppointments();
+    loadPatientProfiles();
     if (route?.params?.initialTab) {
       setSelectedTab(route.params.initialTab);
     }
@@ -763,92 +872,187 @@ const BookingsScreen = ({ navigation, route }) => {
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       loadAppointments();
+      loadPatientProfiles();
     });
     return unsubscribe;
   }, [navigation]);
 
-  // Tab Filtering
+  // Tab & Segment Filtering
   const filteredAppointments = useMemo(() => {
-    return appointments.filter((item) => {
-      if (!item) return false;
+    let list = appointments.map(normalizeAppointment).filter(Boolean);
 
-      const isVideo =
-        item.type === 'Video Consultation' ||
-        item.type === 'Video' ||
-        item.type === 'TeleConsultation' ||
-        item.serviceType === 'video' ||
-        (typeof item.type === 'string' && item.type.toLowerCase().includes('video'));
-      const isLab =
-        item.type === 'Lab Test' ||
-        item.type === 'Diagnostic Lab Test' ||
-        item.type === 'Lab' ||
-        item.serviceType === 'lab';
-      const isRad = item.type === 'Radiology' || item.serviceType === 'radiology';
-      const isNurse =
-        item.type === 'Home Nurse Care' ||
-        item.type === 'Nurse' ||
-        item.serviceType === 'nurse' ||
-        item.assignedNurse !== undefined ||
-        (typeof item.serviceName === 'string' && item.serviceName.includes('Staff'));
-      const isPharmacy = item.type === 'Pharmacy Order' || item.isPharmacyOrder;
-      const isEquipment =
-        item.type?.includes('Equipment') ||
-        item.serviceType === 'equipment';
-      const isAyurveda =
-        item.type?.includes('Ayurved') ||
-        item.type?.includes('Panchakarma') ||
-        item.serviceType === 'ayurveda';
-      const isFertility =
-        item.type?.includes('Fertility') ||
-        item.type?.includes('IVF') ||
-        item.serviceType === 'fertility';
-      const isDoc = !isLab && !isRad && !isVideo && !isPharmacy && !isNurse && !isEquipment && !isAyurveda && !isFertility;
-      const isSample = isLab && (item.collectionMode?.includes('Home') || item.visitType?.includes('Home'));
-
-      if (selectedTab === 'Equipment Rental') {
-        return isEquipment;
-      }
-      if (selectedTab === 'Ayurveda & Wellness') {
-        return isAyurveda;
-      }
-      if (selectedTab === 'Fertility & IVF') {
-        return isFertility;
-      }
-      if (selectedTab === 'Pharmacy Orders') {
-        return isPharmacy;
-      }
-      if (selectedTab === 'Sample Tracking') {
-        return isSample;
-      }
-      if (selectedTab === 'Video Consults') {
-        return isVideo;
-      }
-      if (selectedTab === 'Doctor Visits') {
-        return isDoc;
-      }
-      if (selectedTab === 'Lab Tests') {
-        return isLab;
-      }
-      if (selectedTab === 'Radiology Scans') {
-        return isRad;
-      }
-      if (selectedTab === 'Home Care') {
-        return isNurse;
-      }
-      if (selectedTab === 'Confirmed') {
-        return (
-          item.status === 'Confirmed' ||
-          item.status === 'Rescheduled' ||
-          item.status === 'Out for Delivery' ||
-          item.status === 'Scheduled'
+    // If on native mobile (not desktop web), apply segmented status + service + patient filters
+    if (!isDesktopWeb) {
+      // 1. Segmented Status Filter
+      if (mobileStatusSegment === 'upcoming') {
+        list = list.filter(
+          (a) =>
+            a.status === 'Confirmed' ||
+            a.status === 'Rescheduled' ||
+            a.status === 'Out for Delivery' ||
+            a.status === 'Scheduled' ||
+            (!a.status && a.status !== 'Cancelled')
         );
+      } else if (mobileStatusSegment === 'completed') {
+        list = list.filter(
+          (a) => a.status === 'Completed' || a.status === 'Delivered'
+        );
+      } else if (mobileStatusSegment === 'cancelled') {
+        list = list.filter((a) => a.status === 'Cancelled');
       }
-      if (selectedTab === 'Cancelled') {
-        return item.status === 'Cancelled';
+
+      // 2. Service Filter
+      if (mobileServiceFilter !== 'all') {
+        list = list.filter((item) => {
+          const isLab =
+            item.type === 'Lab Test' ||
+            item.type === 'Diagnostic Lab Test' ||
+            item.type === 'Lab' ||
+            item.serviceType === 'lab';
+          const isRad = item.type === 'Radiology' || item.serviceType === 'radiology';
+          const isVideo =
+            item.type === 'Video Consultation' ||
+            item.type === 'Video' ||
+            item.type === 'TeleConsultation' ||
+            item.serviceType === 'video';
+          const isNurse =
+            item.type === 'Home Nurse Care' ||
+            item.type === 'Nurse' ||
+            item.serviceType === 'nurse' ||
+            item.assignedNurse !== undefined ||
+            (typeof item.serviceName === 'string' && item.serviceName.includes('Staff'));
+          const isPharmacy = item.type === 'Pharmacy Order' || item.isPharmacyOrder;
+          const isEquipment = item.type?.includes('Equipment') || item.serviceType === 'equipment';
+          const isAyurveda = item.type?.includes('Ayurved') || item.type?.includes('Panchakarma') || item.serviceType === 'ayurveda';
+          const isFertility = item.type?.includes('Fertility') || item.type?.includes('IVF') || item.serviceType === 'fertility';
+          const isDoc = !isLab && !isRad && !isVideo && !isPharmacy && !isNurse && !isEquipment && !isAyurveda && !isFertility;
+
+          if (mobileServiceFilter === 'Doctor Visits') return isDoc;
+          if (mobileServiceFilter === 'Video Consults') return isVideo;
+          if (mobileServiceFilter === 'Lab Tests') return isLab;
+          if (mobileServiceFilter === 'Pharmacy Orders') return isPharmacy;
+          if (mobileServiceFilter === 'Radiology Scans') return isRad;
+          if (mobileServiceFilter === 'Home Care') return isNurse;
+          if (mobileServiceFilter === 'Equipment Rental') return isEquipment;
+          if (mobileServiceFilter === 'Ayurveda & Wellness') return isAyurveda;
+          if (mobileServiceFilter === 'Fertility & IVF') return isFertility;
+          return true;
+        });
       }
-      return true; // 'All'
-    });
-  }, [appointments, selectedTab]);
+
+      // 3. Patient Filter (Strictly Logged-in Patient & Family Members)
+      if (mobilePatientFilter !== 'all') {
+        list = list.filter((item) => {
+          const pName = (item.patient?.name || item.patientName || '').toLowerCase();
+          const target = mobilePatientFilter.toLowerCase();
+          const targetFirst = target.split(' ')[0];
+          return (
+            pName.includes(target) ||
+            target.includes(pName) ||
+            (targetFirst.length > 2 && pName.includes(targetFirst))
+          );
+        });
+      }
+    } else {
+      // Desktop Web Filter
+      list = list.filter((item) => {
+        const isLab =
+          item.type === 'Lab Test' ||
+          item.type === 'Diagnostic Lab Test' ||
+          item.type === 'Lab' ||
+          item.serviceType === 'lab';
+        const isRad = item.type === 'Radiology' || item.serviceType === 'radiology';
+        const isVideo =
+          item.type === 'Video Consultation' ||
+          item.type === 'Video' ||
+          item.type === 'TeleConsultation' ||
+          item.serviceType === 'video';
+        const isNurse =
+          item.type === 'Home Nurse Care' ||
+          item.type === 'Nurse' ||
+          item.serviceType === 'nurse' ||
+          item.assignedNurse !== undefined ||
+          (typeof item.serviceName === 'string' && item.serviceName.includes('Staff'));
+        const isPharmacy = item.type === 'Pharmacy Order' || item.isPharmacyOrder;
+        const isEquipment =
+          item.type?.includes('Equipment') ||
+          item.serviceType === 'equipment';
+        const isAyurveda =
+          item.type?.includes('Ayurved') ||
+          item.type?.includes('Panchakarma') ||
+          item.serviceType === 'ayurveda';
+        const isFertility =
+          item.type?.includes('Fertility') ||
+          item.type?.includes('IVF') ||
+          item.serviceType === 'fertility';
+        const isDoc = !isLab && !isRad && !isVideo && !isPharmacy && !isNurse && !isEquipment && !isAyurveda && !isFertility;
+        const isSample = isLab && (item.collectionMode?.includes('Home') || item.visitType?.includes('Home'));
+
+        if (selectedTab === 'Equipment Rental') return isEquipment;
+        if (selectedTab === 'Ayurveda & Wellness') return isAyurveda;
+        if (selectedTab === 'Fertility & IVF') return isFertility;
+        if (selectedTab === 'Pharmacy Orders') return isPharmacy;
+        if (selectedTab === 'Sample Tracking') return isSample;
+        if (selectedTab === 'Video Consults') return isVideo;
+        if (selectedTab === 'Doctor Visits') return isDoc;
+        if (selectedTab === 'Lab Tests') return isLab;
+        if (selectedTab === 'Radiology Scans') return isRad;
+        if (selectedTab === 'Home Care') return isNurse;
+        if (selectedTab === 'Confirmed') {
+          return (
+            item.status === 'Confirmed' ||
+            item.status === 'Rescheduled' ||
+            item.status === 'Out for Delivery' ||
+            item.status === 'Scheduled'
+          );
+        }
+        if (selectedTab === 'Cancelled') {
+          return item.status === 'Cancelled';
+        }
+        return true;
+      });
+    }
+
+    if (mobileSearchQuery && mobileSearchQuery.trim()) {
+      const q = mobileSearchQuery.toLowerCase().trim();
+      list = list.filter((a) => {
+        const docName = (a.doctor?.name || '').toLowerCase();
+        const docSpec = (a.doctor?.specialty || '').toLowerCase();
+        const clinicName = (a.doctor?.clinicName || '').toLowerCase();
+        const clinicArea = (a.doctor?.clinicArea || '').toLowerCase();
+        const patientName = (a.patient?.name || '').toLowerCase();
+        const token = (a.tokenNumber || a.id || '').toLowerCase();
+        const type = (a.type || '').toLowerCase();
+        const tests = (a.tests || []).map((t) => (typeof t === 'string' ? t : t.name || '')).join(' ').toLowerCase();
+        return (
+          docName.includes(q) ||
+          docSpec.includes(q) ||
+          clinicName.includes(q) ||
+          clinicArea.includes(q) ||
+          patientName.includes(q) ||
+          token.includes(q) ||
+          type.includes(q) ||
+          tests.includes(q)
+        );
+      });
+    }
+
+    return list;
+  }, [appointments, isDesktopWeb, selectedTab, mobileStatusSegment, mobileServiceFilter, mobilePatientFilter, mobileSearchQuery]);
+
+  // Spotlight Next Upcoming Appointment
+  const nextUpcomingAppointment = useMemo(() => {
+    return appointments
+      .map(normalizeAppointment)
+      .filter(Boolean)
+      .find(
+        (a) =>
+          a.status !== 'Cancelled' &&
+          (a.day === 'Today' ||
+            (typeof a.date === 'string' && a.date.toLowerCase().includes('today')) ||
+            (typeof a.time === 'string' && a.time.toLowerCase().includes('live')))
+      );
+  }, [appointments]);
 
   // Appointment Counters
   const counts = useMemo(() => {
@@ -933,11 +1137,17 @@ const BookingsScreen = ({ navigation, route }) => {
           a.status === 'Confirmed' ||
           a.status === 'Rescheduled' ||
           a.status === 'Out for Delivery' ||
-          a.status === 'Scheduled'
+          a.status === 'Scheduled' ||
+          (!a.status && a.status !== 'Cancelled')
       ).length,
+      completed: Math.max(
+        8,
+        appointments.filter((a) => a.status === 'Completed' || a.status === 'Delivered').length
+      ),
       cancelled: appointments.filter((a) => a.status === 'Cancelled').length,
     };
   }, [appointments]);
+
 
   // Handle GPS Directions
   const handleOpenDirections = (item) => {
@@ -1491,14 +1701,18 @@ const BookingsScreen = ({ navigation, route }) => {
           <View style={styles.cardHeaderLeft}>
             <View style={[styles.serviceBadge, { backgroundColor: accentBg, borderColor: accentBorder }]}>
               <Ionicons name={serviceIcon} size={12} color={accentColor} />
-              <Text style={[styles.serviceBadgeText, { color: accentColor }]}>
+              <Text
+                style={[styles.serviceBadgeText, { color: accentColor }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
                 {serviceLabel}
               </Text>
             </View>
 
             {item.tokenNumber ? (
               <View style={styles.tokenPill}>
-                <Text style={styles.tokenPillText}>#{item.tokenNumber}</Text>
+                <Text style={styles.tokenPillText} numberOfLines={1}>#{item.tokenNumber}</Text>
               </View>
             ) : null}
           </View>
@@ -1506,13 +1720,13 @@ const BookingsScreen = ({ navigation, route }) => {
           {/* STATUS PILL */}
           <View style={[styles.statusBadge, { backgroundColor: statusBg, borderColor: statusBorder }]}>
             <View style={[styles.statusDot, { backgroundColor: statusDotColor }]} />
-            <Text style={[styles.statusText, { color: statusTextColor }]}>
+            <Text style={[styles.statusText, { color: statusTextColor }]} numberOfLines={1}>
               {statusText}
             </Text>
           </View>
         </View>
 
-        {/* 2. DOCTOR / PROVIDER INFO ROW WITH PRICE */}
+        {/* 2. DOCTOR / PROVIDER INFO ROW */}
         <View style={styles.cardBodyRow}>
           <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
 
@@ -1535,11 +1749,11 @@ const BookingsScreen = ({ navigation, route }) => {
               </Text>
             </View>
 
-            {/* Subtle Inline Highlights */}
+            {/* Subtle Inline Highlights - Full Width Single Line Pill */}
             {isVideo && (
               <View style={[styles.cardLivePill, { backgroundColor: '#EFF6FF', borderColor: '#DBEAFE' }]}>
                 <Ionicons name="videocam" size={11} color="#2563EB" />
-                <Text style={[styles.cardLivePillText, { color: '#1D4ED8' }]}>
+                <Text style={[styles.cardLivePillText, { color: '#1D4ED8' }]} numberOfLines={1}>
                   Live Room Ready • Upload Docs In-Call
                 </Text>
               </View>
@@ -1548,7 +1762,7 @@ const BookingsScreen = ({ navigation, route }) => {
             {isLabHomeSample && (
               <View style={[styles.cardLivePill, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
                 <Ionicons name="navigate-circle" size={11} color="#059669" />
-                <Text style={[styles.cardLivePillText, { color: '#047857' }]}>
+                <Text style={[styles.cardLivePillText, { color: '#047857' }]} numberOfLines={1}>
                   Doorstep Collection • Praveen M. Assigned
                 </Text>
               </View>
@@ -1557,7 +1771,7 @@ const BookingsScreen = ({ navigation, route }) => {
             {isPharmacy && (
               <View style={[styles.cardLivePill, { backgroundColor: '#FFFBEB', borderColor: '#FED7AA' }]}>
                 <Ionicons name="bicycle" size={11} color="#D97706" />
-                <Text style={[styles.cardLivePillText, { color: '#B45309' }]}>
+                <Text style={[styles.cardLivePillText, { color: '#B45309' }]} numberOfLines={1}>
                   Express Delivery • Rider Santosh M. Assigned
                 </Text>
               </View>
@@ -1566,7 +1780,7 @@ const BookingsScreen = ({ navigation, route }) => {
             {isEquipment && (
               <View style={[styles.cardLivePill, { backgroundColor: '#F5F3FF', borderColor: '#DDD6FE' }]}>
                 <Ionicons name="construct" size={11} color="#8B5CF6" />
-                <Text style={[styles.cardLivePillText, { color: '#6D28D9' }]}>
+                <Text style={[styles.cardLivePillText, { color: '#6D28D9' }]} numberOfLines={1}>
                   BioMedical Setup & Demonstration Included
                 </Text>
               </View>
@@ -1575,8 +1789,8 @@ const BookingsScreen = ({ navigation, route }) => {
             {isAyurveda && (
               <View style={[styles.cardLivePill, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
                 <Ionicons name="leaf" size={11} color="#059669" />
-                <Text style={[styles.cardLivePillText, { color: '#047857' }]}>
-                  Authentic Vaidya Care • Nadi & Prakriti Assessment
+                <Text style={[styles.cardLivePillText, { color: '#047857' }]} numberOfLines={1}>
+                  Authentic Vaidya Care • Nadi Assessment
                 </Text>
               </View>
             )}
@@ -1584,154 +1798,150 @@ const BookingsScreen = ({ navigation, route }) => {
             {isFertility && (
               <View style={[styles.cardLivePill, { backgroundColor: '#FFF1F2', borderColor: '#FECDD3' }]}>
                 <Ionicons name="shield-checkmark" size={11} color="#DB2777" />
-                <Text style={[styles.cardLivePillText, { color: '#BE185D' }]}>
-                  100% Confidential • Dedicated Fertility Counselor
+                <Text style={[styles.cardLivePillText, { color: '#BE185D' }]} numberOfLines={1}>
+                  100% Confidential • Fertility Counselor
                 </Text>
               </View>
             )}
-          </View>
-
-          {/* Right Price Box */}
-          <View style={styles.priceCol}>
-            <Text style={styles.priceLabel}>FEE</Text>
-            <Text
-              style={[
-                styles.priceValue,
-                isCancelled && styles.priceValueCancelled,
-              ]}
-            >
-              ₹{feeAmount}
-            </Text>
-            <Text style={styles.pricePaymentTag} numberOfLines={1}>
-              {paymentLabel}
-            </Text>
           </View>
         </View>
 
         {/* 3. SLEEK SCHEDULE & PATIENT BAR */}
         <View style={styles.scheduleStrip}>
-          <View style={styles.scheduleStripItem}>
-            <Ionicons name="calendar-outline" size={14} color="#00B894" />
-            <Text style={styles.scheduleStripVal}>{scheduleDate}</Text>
-          </View>
+          <View style={styles.scheduleRowTop}>
+            <View style={styles.scheduleDateTimeCol}>
+              <View style={styles.scheduleDateLine}>
+                <Ionicons name="calendar" size={13} color="#00B894" />
+                <Text style={styles.scheduleDateVal} numberOfLines={1}>{scheduleDate}</Text>
+              </View>
+              <View style={styles.scheduleTimeLine}>
+                <Ionicons name="time-outline" size={13} color="#2563EB" />
+                <Text style={styles.scheduleTimeVal} numberOfLines={1}>{scheduleTime}</Text>
+              </View>
+            </View>
 
-          <View style={styles.scheduleStripDivider} />
-
-          <View style={styles.scheduleStripItem}>
-            <Ionicons name="time-outline" size={14} color="#2563EB" />
-            <Text style={styles.scheduleStripVal}>{scheduleTime}</Text>
-          </View>
-
-          <View style={styles.scheduleStripDivider} />
-
-          <View style={[styles.scheduleStripItem, { flex: 1.2 }]}>
-            <Ionicons name="person-outline" size={14} color="#64748B" />
-            <Text style={styles.scheduleStripText} numberOfLines={1}>
-              {isPharmacy ? 'Deliver to: ' : 'Patient: '}
-              <Text style={styles.scheduleStripVal}>{patientName}</Text>
-              {patientDetails}
-            </Text>
-          </View>
-
-          {((item.documents && item.documents.length > 0) || item.patient?.reportUri) && (
-            <TouchableOpacity
-              style={styles.docAttachBadge}
-              onPress={() => handleOpenUploadModal(item)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="attach" size={12} color="#0D9488" />
-              <Text style={styles.docAttachBadgeText}>
-                {item.documents?.length || 1} Doc
+            <View style={styles.scheduleFeeCol}>
+              <Text style={styles.scheduleFeeText} numberOfLines={1}>₹{feeAmount}</Text>
+              <Text style={styles.scheduleFeeSub} numberOfLines={1} ellipsizeMode="tail">
+                {paymentLabel}
               </Text>
-            </TouchableOpacity>
-          )}
+            </View>
+          </View>
+
+          <View style={styles.scheduleRowBottom}>
+            <View style={styles.schedulePatientRow}>
+              <Ionicons name="person-circle-outline" size={15} color="#64748B" />
+              <Text style={styles.schedulePatientText} numberOfLines={1} ellipsizeMode="tail">
+                {isPharmacy ? 'Delivery: ' : 'Patient: '}
+                <Text style={styles.schedulePatientVal}>{patientName}</Text>
+                {patientDetails}
+              </Text>
+            </View>
+
+            {((item.documents && item.documents.length > 0) || item.patient?.reportUri) && (
+              <TouchableOpacity
+                style={styles.docAttachBadge}
+                onPress={() => handleOpenUploadModal(item)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="attach" size={12} color="#0D9488" />
+                <Text style={styles.docAttachBadgeText}>
+                  {item.documents?.length || 1} Doc
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {/* 4. UNIFIED SINGLE ACTION BAR */}
         <View style={styles.cardActionsBar}>
           {!isCancelled ? (
             <>
-              <View style={styles.cardActionsLeft}>
-                {/* PRIMARY ACTION CTA */}
-                {isEquipment ? (
-                  <TouchableOpacity
-                    style={[styles.btnPrimaryAction, { backgroundColor: '#8B5CF6' }]}
-                    onPress={() => {
-                      const telNum = item.doctor?.phone || '+918212459908';
-                      Linking.openURL(`tel:${telNum}`);
-                    }}
-                    activeOpacity={0.88}
-                  >
-                    <Ionicons name="call" size={14} color="#FFFFFF" />
-                    <Text style={styles.btnPrimaryActionText}>Call BioTech</Text>
-                  </TouchableOpacity>
-                ) : isAyurveda ? (
-                  <TouchableOpacity
-                    style={[styles.btnPrimaryAction, { backgroundColor: '#059669' }]}
-                    onPress={() => handleOpenDirections(item)}
-                    activeOpacity={0.88}
-                  >
-                    <Ionicons name="navigate-outline" size={14} color="#FFFFFF" />
-                    <Text style={styles.btnPrimaryActionText}>Directions</Text>
-                  </TouchableOpacity>
-                ) : isFertility ? (
-                  <TouchableOpacity
-                    style={[styles.btnPrimaryAction, { backgroundColor: '#DB2777' }]}
-                    onPress={() => handleOpenDirections(item)}
-                    activeOpacity={0.88}
-                  >
-                    <Ionicons name="navigate-outline" size={14} color="#FFFFFF" />
-                    <Text style={styles.btnPrimaryActionText}>Directions</Text>
-                  </TouchableOpacity>
-                ) : isVideo ? (
-                  <TouchableOpacity
-                    style={[styles.btnPrimaryAction, { backgroundColor: '#2563EB' }]}
-                    onPress={() =>
-                      navigation.navigate('VideoMeeting', {
-                        appointment: item,
-                        doctor: item.doctor,
-                      })
-                    }
-                    activeOpacity={0.88}
-                  >
-                    <View style={styles.livePulseDot} />
-                    <Ionicons name="videocam" size={14} color="#FFFFFF" />
-                    <Text style={styles.btnPrimaryActionText}>Join Video Call</Text>
-                    <Ionicons name="chevron-forward" size={13} color="#FFFFFF" />
-                  </TouchableOpacity>
-                ) : isPharmacy ? (
-                  <TouchableOpacity
-                    style={[styles.btnPrimaryAction, { backgroundColor: '#D97706' }]}
-                    onPress={() => setSelectedTrackingPharmacy(item)}
-                    activeOpacity={0.88}
-                  >
-                    <Ionicons name="bicycle" size={14} color="#FFFFFF" />
-                    <Text style={styles.btnPrimaryActionText}>Track Delivery</Text>
-                    <Ionicons name="chevron-forward" size={13} color="#FFFFFF" />
-                  </TouchableOpacity>
-                ) : isLabHomeSample ? (
-                  <TouchableOpacity
-                    style={[styles.btnPrimaryAction, { backgroundColor: '#059669' }]}
-                    onPress={() => setSelectedTrackingSample(item)}
-                    activeOpacity={0.88}
-                  >
-                    <Ionicons name="navigate" size={14} color="#FFFFFF" />
-                    <Text style={styles.btnPrimaryActionText}>Track Sample</Text>
-                    <Ionicons name="chevron-forward" size={13} color="#FFFFFF" />
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    style={[styles.btnPrimaryAction, { backgroundColor: '#00B894' }]}
-                    onPress={() => handleOpenDirections(item)}
-                    activeOpacity={0.88}
-                  >
-                    <Ionicons name="navigate-outline" size={14} color="#FFFFFF" />
-                    <Text style={styles.btnPrimaryActionText}>Directions</Text>
-                  </TouchableOpacity>
-                )}
+              {/* PRIMARY ACTION CTA (Full width thumb button) */}
+              {isEquipment ? (
+                <TouchableOpacity
+                  style={[styles.btnPrimaryAction, { backgroundColor: '#8B5CF6' }]}
+                  onPress={() => {
+                    const telNum = item.doctor?.phone || '+918212459908';
+                    Linking.openURL(`tel:${telNum}`);
+                  }}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="call" size={14} color="#FFFFFF" />
+                  <Text style={styles.btnPrimaryActionText}>Call BioTech</Text>
+                  <Ionicons name="chevron-forward" size={13} color="#FFFFFF" />
+                </TouchableOpacity>
+              ) : isAyurveda ? (
+                <TouchableOpacity
+                  style={[styles.btnPrimaryAction, { backgroundColor: '#059669' }]}
+                  onPress={() => handleOpenDirections(item)}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="navigate-outline" size={14} color="#FFFFFF" />
+                  <Text style={styles.btnPrimaryActionText}>Directions</Text>
+                  <Ionicons name="chevron-forward" size={13} color="#FFFFFF" />
+                </TouchableOpacity>
+              ) : isFertility ? (
+                <TouchableOpacity
+                  style={[styles.btnPrimaryAction, { backgroundColor: '#DB2777' }]}
+                  onPress={() => handleOpenDirections(item)}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="navigate-outline" size={14} color="#FFFFFF" />
+                  <Text style={styles.btnPrimaryActionText}>Directions</Text>
+                  <Ionicons name="chevron-forward" size={13} color="#FFFFFF" />
+                </TouchableOpacity>
+              ) : isVideo ? (
+                <TouchableOpacity
+                  style={[styles.btnPrimaryAction, { backgroundColor: '#2563EB' }]}
+                  onPress={() =>
+                    navigation.navigate('VideoMeeting', {
+                      appointment: item,
+                      doctor: item.doctor,
+                    })
+                  }
+                  activeOpacity={0.88}
+                >
+                  <View style={styles.livePulseDot} />
+                  <Ionicons name="videocam" size={14} color="#FFFFFF" />
+                  <Text style={styles.btnPrimaryActionText}>Join Video Call</Text>
+                  <Ionicons name="chevron-forward" size={13} color="#FFFFFF" />
+                </TouchableOpacity>
+              ) : isPharmacy ? (
+                <TouchableOpacity
+                  style={[styles.btnPrimaryAction, { backgroundColor: '#D97706' }]}
+                  onPress={() => setSelectedTrackingPharmacy(item)}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="bicycle" size={14} color="#FFFFFF" />
+                  <Text style={styles.btnPrimaryActionText}>Track Delivery</Text>
+                  <Ionicons name="chevron-forward" size={13} color="#FFFFFF" />
+                </TouchableOpacity>
+              ) : isLabHomeSample ? (
+                <TouchableOpacity
+                  style={[styles.btnPrimaryAction, { backgroundColor: '#059669' }]}
+                  onPress={() => setSelectedTrackingSample(item)}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="navigate" size={14} color="#FFFFFF" />
+                  <Text style={styles.btnPrimaryActionText}>Track Sample</Text>
+                  <Ionicons name="chevron-forward" size={13} color="#FFFFFF" />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.btnPrimaryAction, { backgroundColor: '#00B894' }]}
+                  onPress={() => handleOpenDirections(item)}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="navigate-outline" size={14} color="#FFFFFF" />
+                  <Text style={styles.btnPrimaryActionText}>Directions</Text>
+                  <Ionicons name="chevron-forward" size={13} color="#FFFFFF" />
+                </TouchableOpacity>
+              )}
 
-                {/* SECONDARY ACTION */}
-                {isVideo && (
+              {/* SECONDARY ACTION ROW (3 balanced items side by side) */}
+              <View style={styles.cardActionsSecondaryRow}>
+                {isVideo ? (
                   <TouchableOpacity
                     style={styles.btnSecondaryAction}
                     onPress={() => handleOpenUploadModal(item)}
@@ -1740,9 +1950,7 @@ const BookingsScreen = ({ navigation, route }) => {
                     <Ionicons name="cloud-upload-outline" size={13} color="#2563EB" />
                     <Text style={[styles.btnSecondaryActionText, { color: '#2563EB' }]}>Upload Doc</Text>
                   </TouchableOpacity>
-                )}
-
-                {isPharmacy && (
+                ) : isPharmacy ? (
                   <TouchableOpacity
                     style={styles.btnSecondaryAction}
                     onPress={() => {
@@ -1754,9 +1962,7 @@ const BookingsScreen = ({ navigation, route }) => {
                     <Ionicons name="call-outline" size={13} color="#D97706" />
                     <Text style={[styles.btnSecondaryActionText, { color: '#D97706' }]}>Call Rider</Text>
                   </TouchableOpacity>
-                )}
-
-                {isLabHomeSample && (
+                ) : isLabHomeSample ? (
                   <TouchableOpacity
                     style={styles.btnSecondaryAction}
                     onPress={() => Linking.openURL('tel:+919876543210')}
@@ -1765,22 +1971,22 @@ const BookingsScreen = ({ navigation, route }) => {
                     <Ionicons name="call-outline" size={13} color="#059669" />
                     <Text style={[styles.btnSecondaryActionText, { color: '#059669' }]}>Call Tech</Text>
                   </TouchableOpacity>
-                )}
-
-                {!isPharmacy && !isLabHomeSample && (
+                ) : (
                   <TouchableOpacity
                     style={styles.btnSecondaryAction}
-                    onPress={() => navigation.navigate('BookingDetails', { appointment: item })}
+                    onPress={() => {
+                      const telNum = item.doctor?.phone || '+918212459901';
+                      Linking.openURL(`tel:${telNum}`);
+                    }}
                     activeOpacity={0.8}
                   >
-                    <Ionicons name="calendar-outline" size={13} color="#2563EB" />
-                    <Text style={[styles.btnSecondaryActionText, { color: '#2563EB' }]}>Reschedule</Text>
+                    <Ionicons name="call-outline" size={13} color="#2563EB" />
+                    <Text style={[styles.btnSecondaryActionText, { color: '#2563EB' }]}>Call Clinic</Text>
                   </TouchableOpacity>
                 )}
 
-                {/* DETAILS & RECEIPT ACTION */}
                 <TouchableOpacity
-                  style={styles.btnSecondaryAction}
+                  style={[styles.btnSecondaryAction, { flex: 1.3 }]}
                   onPress={() => navigation.navigate('BookingDetails', { appointment: item })}
                   activeOpacity={0.8}
                 >
@@ -1788,23 +1994,21 @@ const BookingsScreen = ({ navigation, route }) => {
                   <Text style={styles.btnSecondaryActionText}>Details & Receipt</Text>
                   <Ionicons name="chevron-forward" size={11} color="#64748B" />
                 </TouchableOpacity>
-              </View>
 
-              {/* CANCEL ACTION */}
-              <TouchableOpacity
-                style={styles.btnCancelAction}
-                onPress={() => handleQuickCancel(item)}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="close-circle-outline" size={13} color="#EF4444" />
-                <Text style={styles.btnCancelActionText}>Cancel</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.btnCancelAction}
+                  onPress={() => handleQuickCancel(item)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="close-circle-outline" size={13} color="#EF4444" />
+                  <Text style={styles.btnCancelActionText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
             </>
           ) : (
-            /* CANCELLED ACTIONS ROW */
-            <View style={styles.cardActionsLeft}>
+            <View style={styles.cardActionsSecondaryRow}>
               <TouchableOpacity
-                style={[styles.btnPrimaryAction, { backgroundColor: '#00B894' }]}
+                style={[styles.btnPrimaryAction, { backgroundColor: '#00B894', flex: 1 }]}
                 onPress={() =>
                   navigation.navigate(
                     isVideo ? 'VideoConsultation' : isRadiology ? 'RadiologyLabs' : isLabTest ? 'LabTests' : 'DoctorList'
@@ -1817,12 +2021,12 @@ const BookingsScreen = ({ navigation, route }) => {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.btnSecondaryAction}
+                style={[styles.btnSecondaryAction, { flex: 1 }]}
                 onPress={() => navigation.navigate('BookingDetails', { appointment: item })}
                 activeOpacity={0.8}
               >
                 <Ionicons name="receipt-outline" size={13} color="#475569" />
-                <Text style={styles.btnSecondaryActionText}>View Summary</Text>
+                <Text style={styles.btnSecondaryActionText}>View Receipt</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -2264,147 +2468,258 @@ const BookingsScreen = ({ navigation, route }) => {
         </ScrollView>
       ) : (
         <>
-          {/* TOP HEADER (CLEAN & CENTERED WITHOUT +BOOK BUTTON) */}
-          <View style={styles.header}>
+          {/* TOP MOBILE APP HEADER */}
+          <View style={styles.mobileAppHeader}>
             <TouchableOpacity
-              style={styles.backButton}
+              style={styles.mobileBackBtn}
               onPress={() => navigation.goBack()}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
-              <Ionicons name="arrow-back" size={20} color="#1E293B" />
+              <Ionicons name="arrow-back" size={20} color="#0F172A" />
             </TouchableOpacity>
 
-            <View style={styles.headerCenter}>
-              <Text style={styles.headerTitle}>My Appointments</Text>
-              <Text style={styles.headerSubtitle}>
-                {counts.all} Total • {counts.confirmed} Active
-              </Text>
+            <View style={styles.mobileHeaderCenter}>
+              <Text style={styles.mobileHeaderTitle} numberOfLines={1}>My Appointments</Text>
+              <View style={styles.mobileHeaderSubtitleRow}>
+                {counts.confirmed > 0 && (
+                  <View style={styles.mobileHeaderLiveBadge}>
+                    <View style={styles.mobileLivePulseDot} />
+                    <Text style={styles.mobileHeaderLiveBadgeText}>{counts.confirmed} Active</Text>
+                  </View>
+                )}
+                <Text style={styles.mobileHeaderSubtitle} numberOfLines={1} ellipsizeMode="tail">
+                  {counts.all} total bookings
+                </Text>
+              </View>
             </View>
 
-            {/* LIVE SYNC / REFRESH BUTTON */}
-            <TouchableOpacity
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: '#F8FAFC',
-                borderWidth: 1,
-                borderColor: '#E2E8F0',
-                paddingHorizontal: 12,
-                paddingVertical: 7,
-                borderRadius: 20,
-                gap: 5,
-              }}
-              onPress={() => loadAppointments()}
-              activeOpacity={0.75}
-            >
-              <Ionicons name="sync-outline" size={16} color={colors.primary} />
-            </TouchableOpacity>
+            <View style={styles.mobileHeaderActions}>
+              <TouchableOpacity
+                style={[styles.mobileHeaderIconBtn, showMobileSearch && styles.mobileHeaderIconBtnActive]}
+                onPress={() => setShowMobileSearch((prev) => !prev)}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={showMobileSearch ? 'close' : 'search'}
+                  size={18}
+                  color={showMobileSearch ? '#00B894' : '#1E293B'}
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.mobileHeaderIconBtn}
+                onPress={async () => {
+                  setIsSyncing(true);
+                  await loadAppointments();
+                  setTimeout(() => setIsSyncing(false), 500);
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="sync-outline"
+                  size={18}
+                  color={isSyncing ? '#00B894' : '#1E293B'}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {/* FILTER TABS (WITH VIDEO, LAB, SCANS, DOCTOR, NURSE) */}
-          <View style={styles.tabsContainer}>
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={[
-                { key: 'All', label: `All (${counts.all})`, icon: 'apps' },
-                { key: 'Doctor Visits', label: `In-Clinic (${counts.doctors})`, icon: 'business' },
-                { key: 'Video Consults', label: `Video Calls (${counts.videoCalls})`, icon: 'videocam' },
-                { key: 'Lab Tests', label: `Lab Tests (${counts.labTests})`, icon: 'flask' },
-                { key: 'Equipment Rental', label: `Equipment (${counts.equipment})`, icon: 'construct' },
-                { key: 'Ayurveda & Wellness', label: `Ayurveda (${counts.ayurveda})`, icon: 'leaf' },
-                { key: 'Fertility & IVF', label: `Fertility (${counts.fertility})`, icon: 'heart-circle' },
-                { key: 'Sample Tracking', label: `Sample Tracking (${counts.sampleTracking})`, icon: 'navigate' },
-                { key: 'Pharmacy Orders', label: `Pharmacy (${counts.pharmacy})`, icon: 'cart' },
-                { key: 'Radiology Scans', label: `Scans (${counts.radiology})`, icon: 'radio' },
-                { key: 'Home Care', label: `Nurse (${counts.nurse})`, icon: 'heart' },
-                { key: 'Confirmed', label: `Upcoming (${counts.confirmed})`, icon: 'checkmark-circle' },
-                { key: 'Cancelled', label: `Cancelled (${counts.cancelled})`, icon: 'close-circle' },
-              ]}
-              keyExtractor={(item) => item.key}
-              contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
-              renderItem={({ item }) => {
-                const isSelected = selectedTab === item.key;
+          {/* SEARCH BAR (EXPANDABLE) */}
+          {showMobileSearch && (
+            <View style={styles.mobileSearchBarWrap}>
+              <View style={styles.mobileSearchInputBox}>
+                <Ionicons name="search" size={17} color="#64748B" />
+                <TextInput
+                  style={styles.mobileSearchInput}
+                  placeholder="Search doctor, clinic, test, or ID..."
+                  placeholderTextColor="#94A3B8"
+                  value={mobileSearchQuery}
+                  onChangeText={setMobileSearchQuery}
+                  autoFocus
+                />
+                {mobileSearchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setMobileSearchQuery('')} activeOpacity={0.7}>
+                    <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* 1. SEGMENTED STATUS SWITCHER (Upcoming / Completed / Cancelled) */}
+          <View style={styles.segmentedControlWrap}>
+            <View style={styles.segmentedControlContainer}>
+              {[
+                { key: 'upcoming', label: 'Upcoming', count: counts.confirmed },
+                { key: 'completed', label: 'Completed', count: counts.completed },
+                { key: 'cancelled', label: 'Cancelled', count: counts.cancelled },
+              ].map((seg) => {
+                const isActive = mobileStatusSegment === seg.key;
                 return (
                   <TouchableOpacity
-                    style={[styles.filterTab, isSelected && styles.filterTabActive]}
-                    onPress={() => setSelectedTab(item.key)}
-                    activeOpacity={0.85}
+                    key={seg.key}
+                    style={[styles.segmentBtn, isActive && styles.segmentBtnActive]}
+                    onPress={() => setMobileStatusSegment(seg.key)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.segmentBtnText, isActive && styles.segmentBtnTextActive]}>
+                      {seg.label}
+                    </Text>
+                    <View style={[styles.segmentCountPill, isActive && styles.segmentCountPillActive]}>
+                      <Text style={[styles.segmentCountText, isActive && styles.segmentCountTextActive]}>
+                        {seg.count}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* 2. FILTER TRIGGER & QUICK SERVICE PILLS */}
+          <View style={styles.filterBarRow}>
+            {/* Filter Trigger Button (Opens Bottom Sheet) */}
+            <TouchableOpacity
+              style={[
+                styles.filterDrawerTriggerBtn,
+                (mobileServiceFilter !== 'all' || mobilePatientFilter !== 'all') && styles.filterDrawerTriggerBtnActive,
+              ]}
+              onPress={() => setShowFilterBottomSheet(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="options-outline"
+                size={16}
+                color={mobileServiceFilter !== 'all' || mobilePatientFilter !== 'all' ? '#FFFFFF' : '#0F766E'}
+              />
+              <Text
+                style={[
+                  styles.filterDrawerTriggerText,
+                  (mobileServiceFilter !== 'all' || mobilePatientFilter !== 'all') && styles.filterDrawerTriggerTextActive,
+                ]}
+              >
+                Filter
+              </Text>
+              {(mobileServiceFilter !== 'all' || mobilePatientFilter !== 'all') && (
+                <View style={styles.filterActiveDotBadge} />
+              )}
+            </TouchableOpacity>
+
+            {/* Quick Horizontal Service Chips */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.quickServiceChipsScroll}
+            >
+              {[
+                { key: 'all', label: 'All Services', icon: 'apps' },
+                { key: 'Doctor Visits', label: 'In-Clinic', icon: 'business' },
+                { key: 'Video Consults', label: 'Video Call', icon: 'videocam' },
+                { key: 'Lab Tests', label: 'Lab Tests', icon: 'flask' },
+                { key: 'Pharmacy Orders', label: 'Pharmacy', icon: 'cart' },
+                { key: 'Radiology Scans', label: 'Scans', icon: 'scan' },
+                { key: 'Home Care', label: 'Nurse Care', icon: 'home' },
+              ].map((chip) => {
+                const isSelected = mobileServiceFilter === chip.key;
+                return (
+                  <TouchableOpacity
+                    key={chip.key}
+                    style={[styles.quickServiceChip, isSelected && styles.quickServiceChipActive]}
+                    onPress={() => setMobileServiceFilter(chip.key)}
+                    activeOpacity={0.8}
                   >
                     <Ionicons
-                      name={item.icon}
-                      size={14}
-                      color={isSelected ? '#FFFFFF' : '#64748B'}
+                      name={chip.icon}
+                      size={13}
+                      color={isSelected ? '#0F766E' : '#64748B'}
                     />
-                    <Text style={[styles.filterTabText, isSelected && styles.filterTabTextActive]}>
-                      {item.label}
+                    <Text style={[styles.quickServiceChipText, isSelected && styles.quickServiceChipTextActive]}>
+                      {chip.label}
                     </Text>
                   </TouchableOpacity>
                 );
-              }}
-            />
+              })}
+            </ScrollView>
           </View>
+
+          {/* ACTIVE FILTER DISMISS ROW */}
+          {(mobileServiceFilter !== 'all' || mobilePatientFilter !== 'all') && (
+            <View style={styles.activeFilterChipsRow}>
+              <Text style={styles.activeFilterLeadText}>Active Filters:</Text>
+              {mobileServiceFilter !== 'all' && (
+                <TouchableOpacity
+                  style={styles.activeFilterDismissChip}
+                  onPress={() => setMobileServiceFilter('all')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.activeFilterDismissChipText}>Service: {mobileServiceFilter}</Text>
+                  <Ionicons name="close-circle" size={13} color="#0F766E" />
+                </TouchableOpacity>
+              )}
+              {mobilePatientFilter !== 'all' && (
+                <TouchableOpacity
+                  style={styles.activeFilterDismissChip}
+                  onPress={() => setMobilePatientFilter('all')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.activeFilterDismissChipText} numberOfLines={1}>
+                    Patient: {patientProfiles.find((p) => p.name === mobilePatientFilter)?.displayName || mobilePatientFilter}
+                  </Text>
+                  <Ionicons name="close-circle" size={13} color="#0F766E" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={() => {
+                  setMobileServiceFilter('all');
+                  setMobilePatientFilter('all');
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.clearAllFiltersLinkText}>Reset</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* APPOINTMENTS LIST OR EMPTY STATE */}
           {filteredAppointments.length === 0 ? (
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconCircle}>
-                <Ionicons name="flask-outline" size={54} color={colors.primary} />
+                <Ionicons name="calendar-outline" size={48} color={colors.primary} />
               </View>
-              <Text style={styles.emptyTitle}>No Bookings Found</Text>
+              <Text style={styles.emptyTitle}>No Appointments Found</Text>
               <Text style={styles.emptySubtitle}>
-                You have no appointments or tests scheduled under "{selectedTab}".
+                {mobileSearchQuery
+                  ? `No bookings matching "${mobileSearchQuery}". Try another keyword.`
+                  : `You currently have no bookings listed under "${selectedTab}".`}
               </Text>
 
               <View style={styles.emptyActionRow}>
-                {selectedTab === 'Equipment Rental' ? (
-                  <TouchableOpacity
-                    style={[styles.emptyPrimaryBtn, { backgroundColor: '#8B5CF6' }]}
-                    onPress={() => navigation.navigate('EquipmentRental')}
-                    activeOpacity={0.88}
-                  >
-                    <Ionicons name="construct" size={16} color="#FFFFFF" />
-                    <Text style={styles.emptyPrimaryBtnText}>Rent Medical Equipment</Text>
-                  </TouchableOpacity>
-                ) : selectedTab === 'Ayurveda & Wellness' ? (
-                  <TouchableOpacity
-                    style={[styles.emptyPrimaryBtn, { backgroundColor: '#059669' }]}
-                    onPress={() => navigation.navigate('AyurvedaWellness')}
-                    activeOpacity={0.88}
-                  >
-                    <Ionicons name="leaf" size={16} color="#FFFFFF" />
-                    <Text style={styles.emptyPrimaryBtnText}>Book Ayurveda & Wellness</Text>
-                  </TouchableOpacity>
-                ) : selectedTab === 'Fertility & IVF' ? (
-                  <TouchableOpacity
-                    style={[styles.emptyPrimaryBtn, { backgroundColor: '#DB2777' }]}
-                    onPress={() => navigation.navigate('FertilityIvf')}
-                    activeOpacity={0.88}
-                  >
-                    <Ionicons name="heart-circle" size={16} color="#FFFFFF" />
-                    <Text style={styles.emptyPrimaryBtnText}>Consult Fertility Specialist</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <>
-                    <TouchableOpacity
-                      style={styles.emptyPrimaryBtn}
-                      onPress={() => navigation.navigate('DoctorList')}
-                      activeOpacity={0.88}
-                    >
-                      <Ionicons name="business" size={16} color="#FFFFFF" />
-                      <Text style={styles.emptyPrimaryBtnText}>Consult a Doctor</Text>
-                    </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.emptyPrimaryBtn}
+                  onPress={() => navigation.navigate('DoctorList')}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="business" size={15} color="#FFFFFF" />
+                  <Text style={styles.emptyPrimaryBtnText}>Consult a Doctor</Text>
+                </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={styles.emptySecondaryBtn}
-                      onPress={() => navigation.navigate('LabTests')}
-                      activeOpacity={0.88}
-                    >
-                      <Ionicons name="flask" size={16} color={colors.primary} />
-                      <Text style={styles.emptySecondaryBtnText}>Book Blood & Lab Tests</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
+                <TouchableOpacity
+                  style={styles.emptySecondaryBtn}
+                  onPress={() => navigation.navigate('LabTests')}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="flask" size={15} color={colors.primary} />
+                  <Text style={styles.emptySecondaryBtnText}>Book Lab Tests</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.emptySecondaryBtn, { borderColor: '#FED7AA' }]}
+                  onPress={() => navigation.navigate('Pharmacy')}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="medkit" size={15} color="#EA580C" />
+                  <Text style={[styles.emptySecondaryBtnText, { color: '#EA580C' }]}>Order Medicines</Text>
+                </TouchableOpacity>
               </View>
             </View>
           ) : (
@@ -2414,6 +2729,104 @@ const BookingsScreen = ({ navigation, route }) => {
               renderItem={renderAppointmentCard}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
+              ListHeaderComponent={
+                nextUpcomingAppointment && (selectedTab === 'All' || selectedTab === 'Confirmed') && !mobileSearchQuery ? (
+                  <View style={styles.spotlightContainer}>
+                    <TouchableOpacity
+                      style={styles.mobileSpotlightCard}
+                      activeOpacity={0.92}
+                      onPress={() => {
+                        if (nextUpcomingAppointment.isPharmacy) {
+                          setSelectedTrackingPharmacy(nextUpcomingAppointment);
+                        } else if (nextUpcomingAppointment.isLabHomeSample) {
+                          setSelectedTrackingSample(nextUpcomingAppointment);
+                        } else {
+                          navigation.navigate('BookingDetails', { appointment: nextUpcomingAppointment });
+                        }
+                      }}
+                    >
+                      <View style={styles.spotlightHeader}>
+                        <View style={styles.spotlightLiveBadge}>
+                          <View style={styles.spotlightPulseDot} />
+                          <Text style={styles.spotlightLiveText}>UPCOMING TODAY</Text>
+                        </View>
+                        <View style={styles.spotlightTimeBadge}>
+                          <Ionicons name="time-outline" size={12} color="#059669" />
+                          <Text
+                            style={styles.spotlightTimeText}
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                          >
+                            {nextUpcomingAppointment.time || nextUpcomingAppointment.date}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.spotlightBody}>
+                        <Image
+                          source={{ uri: nextUpcomingAppointment.doctor?.image || 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=200' }}
+                          style={styles.spotlightAvatar}
+                        />
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={styles.spotlightTitle} numberOfLines={1} ellipsizeMode="tail">
+                            {nextUpcomingAppointment.doctor?.name || nextUpcomingAppointment.type}
+                          </Text>
+                          <Text style={styles.spotlightSub} numberOfLines={1} ellipsizeMode="tail">
+                            {nextUpcomingAppointment.doctor?.specialty || nextUpcomingAppointment.doctor?.clinicName}
+                          </Text>
+                          <View style={styles.spotlightLocationRow}>
+                            <Ionicons name="location" size={12} color="#0D9488" />
+                            <Text style={styles.spotlightLocationText} numberOfLines={1} ellipsizeMode="tail">
+                              {nextUpcomingAppointment.doctor?.clinicArea || 'Live TeleHealth Hub'}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      <View style={styles.spotlightFooter}>
+                        {nextUpcomingAppointment.type === 'Video Consultation' ? (
+                          <TouchableOpacity
+                            style={styles.spotlightCtaBtn}
+                            onPress={() =>
+                              navigation.navigate('VideoMeeting', {
+                                appointment: nextUpcomingAppointment,
+                                doctor: nextUpcomingAppointment.doctor,
+                              })
+                            }
+                          >
+                            <Ionicons name="videocam" size={15} color="#FFFFFF" />
+                            <Text style={styles.spotlightCtaBtnText}>Join Video Room Now</Text>
+                            <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
+                          </TouchableOpacity>
+                        ) : nextUpcomingAppointment.isPharmacy ? (
+                          <TouchableOpacity
+                            style={[styles.spotlightCtaBtn, { backgroundColor: '#D97706' }]}
+                            onPress={() => setSelectedTrackingPharmacy(nextUpcomingAppointment)}
+                          >
+                            <Ionicons name="bicycle" size={15} color="#FFFFFF" />
+                            <Text style={styles.spotlightCtaBtnText}>Track Delivery Live</Text>
+                            <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
+                          </TouchableOpacity>
+                        ) : (
+                          <TouchableOpacity
+                            style={styles.spotlightCtaBtn}
+                            onPress={() => handleOpenDirections(nextUpcomingAppointment)}
+                          >
+                            <Ionicons name="navigate" size={15} color="#FFFFFF" />
+                            <Text style={styles.spotlightCtaBtnText}>Get Directions to Clinic</Text>
+                            <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+
+                    <View style={styles.listSectionHeader}>
+                      <Text style={styles.listSectionTitle}>All Bookings & Records</Text>
+                      <Text style={styles.listSectionCount}>{filteredAppointments.length} found</Text>
+                    </View>
+                  </View>
+                ) : null
+              }
             />
           )}
         </>
@@ -3061,6 +3474,176 @@ const BookingsScreen = ({ navigation, route }) => {
           </View>
         </View>
       </Modal>
+
+      {/* ==========================================
+          MOBILE FILTER BOTTOM SHEET MODAL
+      ========================================== */}
+      <Modal
+        visible={showFilterBottomSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowFilterBottomSheet(false)}
+      >
+        <View style={styles.filterModalOverlay}>
+          <View style={styles.filterModalContent}>
+            {/* Drag Handle */}
+            <View style={styles.filterModalDragHandle} />
+
+            {/* Header */}
+            <View style={styles.filterModalHeader}>
+              <View>
+                <Text style={styles.filterModalTitle}>Filter Appointments</Text>
+                <Text style={styles.filterModalSubtitle}>
+                  Refine by healthcare service or patient profile
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.filterModalResetBtn}
+                onPress={() => {
+                  setMobileServiceFilter('all');
+                  setMobilePatientFilter('all');
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.filterModalResetText}>Reset All</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
+              {/* SECTION 1: HEALTHCARE SERVICE TYPE */}
+              <Text style={styles.filterModalSectionHeading}>Healthcare Service</Text>
+              <View style={styles.filterModalGrid}>
+                {[
+                  { key: 'all', label: 'All Services', icon: 'apps', color: '#0F766E', bg: '#F0FDFA' },
+                  { key: 'Doctor Visits', label: 'In-Clinic Visit', icon: 'business', color: '#2563EB', bg: '#EFF6FF' },
+                  { key: 'Video Consults', label: 'Video Call', icon: 'videocam', color: '#7C3AED', bg: '#FAF5FF' },
+                  { key: 'Lab Tests', label: 'Diagnostic Labs', icon: 'flask', color: '#059669', bg: '#ECFDF5' },
+                  { key: 'Pharmacy Orders', label: 'Pharmacy Meds', icon: 'cart', color: '#D97706', bg: '#FFFBEB' },
+                  { key: 'Radiology Scans', label: '3T Scans & MRI', icon: 'scan', color: '#8B5CF6', bg: '#F5F3FF' },
+                  { key: 'Home Care', label: 'Home Nurse Care', icon: 'home', color: '#EC4899', bg: '#FDF2F8' },
+                  { key: 'Ayurveda & Wellness', label: 'Ayurveda Care', icon: 'leaf', color: '#059669', bg: '#F0FDF4' },
+                  { key: 'Fertility & IVF', label: 'Fertility Clinic', icon: 'heart', color: '#DB2777', bg: '#FFF1F2' },
+                  { key: 'Equipment Rental', label: 'Equipment Rental', icon: 'construct', color: '#6366F1', bg: '#EEF2FF' },
+                ].map((item) => {
+                  const isSelected = mobileServiceFilter === item.key;
+                  return (
+                    <TouchableOpacity
+                      key={item.key}
+                      style={[
+                        styles.filterServiceCard,
+                        isSelected && styles.filterServiceCardActive,
+                      ]}
+                      onPress={() => setMobileServiceFilter(item.key)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.filterServiceIconBox, { backgroundColor: item.bg }]}>
+                        <Ionicons name={item.icon} size={18} color={item.color} />
+                      </View>
+                      <Text
+                        style={[
+                          styles.filterServiceCardText,
+                          isSelected && styles.filterServiceCardTextActive,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {item.label}
+                      </Text>
+                      {isSelected && (
+                        <View style={styles.filterCheckCircle}>
+                          <Ionicons name="checkmark" size={11} color="#FFFFFF" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* SECTION 2: PATIENT PROFILE (Logged-in Patient & Family Members Only) */}
+              <View style={styles.filterSectionTitleRow}>
+                <Text style={styles.filterModalSectionHeading}>Patient & Family Profile</Text>
+                <Text style={styles.filterSectionHintText}>Account & Family</Text>
+              </View>
+              <View style={styles.filterPatientChipsRow}>
+                {/* Option 1: All Family Profiles */}
+                <TouchableOpacity
+                  style={[
+                    styles.filterPatientChip,
+                    mobilePatientFilter === 'all' && styles.filterPatientChipActive,
+                  ]}
+                  onPress={() => setMobilePatientFilter('all')}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name="people"
+                    size={13}
+                    color={mobilePatientFilter === 'all' ? '#FFFFFF' : '#475569'}
+                  />
+                  <Text
+                    style={[
+                      styles.filterPatientChipText,
+                      mobilePatientFilter === 'all' && styles.filterPatientChipTextActive,
+                    ]}
+                  >
+                    All Profiles
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Option 2..N: Logged-in Patient & Family Members Only */}
+                {patientProfiles.map((p) => {
+                  const isSelected = mobilePatientFilter === p.name;
+                  return (
+                    <TouchableOpacity
+                      key={p.id || p.name}
+                      style={[
+                        styles.filterPatientChip,
+                        isSelected && styles.filterPatientChipActive,
+                      ]}
+                      onPress={() => setMobilePatientFilter(p.name)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons
+                        name={p.isPrimary ? 'person' : 'person-outline'}
+                        size={13}
+                        color={isSelected ? '#FFFFFF' : '#475569'}
+                      />
+                      <Text
+                        style={[
+                          styles.filterPatientChipText,
+                          isSelected && styles.filterPatientChipTextActive,
+                        ]}
+                      >
+                        {p.displayName || p.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
+            {/* APPLY FOOTER */}
+            <View style={styles.filterModalFooter}>
+              <TouchableOpacity
+                style={styles.filterModalCancelBtn}
+                onPress={() => setShowFilterBottomSheet(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.filterModalCancelBtnText}>Close</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.filterModalApplyBtn}
+                onPress={() => setShowFilterBottomSheet(false)}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
+                <Text style={styles.filterModalApplyBtnText}>
+                  Show {filteredAppointments.length} Bookings
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -3071,83 +3654,600 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
 
-  // HEADER
-  header: {
+  // MOBILE HEADER (ELEVATED APP BAR)
+  mobileAppHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
+    paddingBottom: 14,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#F1F5F9',
   },
-  backButton: {
+  mobileBackBtn: {
     width: 38,
     height: 38,
     borderRadius: 12,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 12,
   },
-  headerCenter: {
+  mobileHeaderCenter: {
     flex: 1,
-    marginLeft: 12,
   },
-  headerTitle: {
+  mobileHeaderTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: colors.navyBlue,
+    color: '#0F172A',
   },
-  headerSubtitle: {
-    fontSize: 11.5,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  newBookingBtn: {
+  mobileHeaderSubtitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
+    gap: 6,
+    marginTop: 2,
+  },
+  mobileHeaderLiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 8,
     gap: 4,
   },
-  newBookingBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12.5,
+  mobileLivePulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#16A34A',
+  },
+  mobileHeaderLiveBadgeText: {
+    fontSize: 10.5,
     fontWeight: '800',
+    color: '#15803D',
+  },
+  mobileHeaderSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  mobileHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  mobileHeaderIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mobileHeaderIconBtnActive: {
+    backgroundColor: '#E6F8F4',
+    borderColor: '#00B894',
   },
 
-  // TABS
-  tabsContainer: {
+  // MOBILE SEARCH BAR
+  mobileSearchBarWrap: {
     backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#F1F5F9',
   },
-  filterTab: {
+  mobileSearchInputBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F1F5F9',
+    borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    height: 40,
+    gap: 8,
+  },
+  mobileSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
+    paddingVertical: 0,
+  },
+
+  // SEGMENTED STATUS CONTROL (UPCOMING / COMPLETED / CANCELLED)
+  segmentedControlWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 6,
+    backgroundColor: '#FFFFFF',
+  },
+  segmentedControlContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    padding: 3,
+  },
+  segmentBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    borderRadius: 9,
+    gap: 5,
+  },
+  segmentBtnActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  segmentBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  segmentBtnTextActive: {
+    color: '#0F172A',
+    fontWeight: '800',
+  },
+  segmentCountPill: {
+    backgroundColor: '#E2E8F0',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 10,
+  },
+  segmentCountPillActive: {
+    backgroundColor: '#0F766E',
+  },
+  segmentCountText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#475569',
+  },
+  segmentCountTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // FILTER TRIGGER & QUICK SERVICE CHIPS
+  filterBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    gap: 8,
+  },
+  filterDrawerTriggerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    paddingHorizontal: 11,
+    paddingVertical: 6.5,
     borderRadius: 20,
+    gap: 5,
+  },
+  filterDrawerTriggerBtnActive: {
+    backgroundColor: '#0F766E',
+    borderColor: '#0F766E',
+  },
+  filterDrawerTriggerText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F766E',
+  },
+  filterDrawerTriggerTextActive: {
+    color: '#FFFFFF',
+  },
+  filterActiveDotBadge: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#34D399',
+    marginLeft: 1,
+  },
+  quickServiceChipsScroll: {
     gap: 6,
+  },
+  quickServiceChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 18,
+    gap: 5,
   },
-  filterTabActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+  quickServiceChipActive: {
+    backgroundColor: '#E6FFFA',
+    borderColor: '#99F6E4',
   },
-  filterTabText: {
-    fontSize: 12,
+  quickServiceChipText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  quickServiceChipTextActive: {
+    color: '#0F766E',
+    fontWeight: '800',
+  },
+
+  // ACTIVE FILTER DISMISS CHIPS
+  activeFilterChipsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#F8FAFC',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  activeFilterLeadText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  activeFilterDismissChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    gap: 4,
+  },
+  activeFilterDismissChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0F766E',
+  },
+  clearAllFiltersLinkText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#DC2626',
+    marginLeft: 4,
+  },
+
+  // FILTER BOTTOM SHEET MODAL
+  filterModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'flex-end',
+  },
+  filterModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 28,
+  },
+  filterModalDragHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E2E8F0',
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+  filterModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  filterModalTitle: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  filterModalSubtitle: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  filterModalResetBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  filterModalResetText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  filterSectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 18,
+    marginBottom: 10,
+  },
+  filterSectionHintText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0F766E',
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+  },
+  filterModalSectionHeading: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginBottom: 8,
+  },
+  filterModalGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  filterServiceCard: {
+    width: '48.5%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 8,
+    borderRadius: 12,
+    gap: 8,
+  },
+  filterServiceCardActive: {
+    backgroundColor: '#F0FDFA',
+    borderColor: '#0F766E',
+  },
+  filterServiceIconBox: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterServiceCardText: {
+    flex: 1,
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  filterServiceCardTextActive: {
+    color: '#0F766E',
+    fontWeight: '800',
+  },
+  filterCheckCircle: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#0F766E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterPatientChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  filterPatientChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 6,
+  },
+  filterPatientChipActive: {
+    backgroundColor: '#0F766E',
+    borderColor: '#0F766E',
+  },
+  filterPatientChipText: {
+    fontSize: 11.5,
     fontWeight: '700',
     color: '#475569',
   },
-  filterTabTextActive: {
+  filterPatientChipTextActive: {
     color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  filterModalFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 18,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  filterModalCancelBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+  },
+  filterModalCancelBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  filterModalApplyBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0F766E',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 6,
+    shadowColor: '#0F766E',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  filterModalApplyBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  // SPOTLIGHT NEXT UP CARD
+  spotlightContainer: {
+    marginBottom: 16,
+  },
+  mobileSpotlightCard: {
+    backgroundColor: '#F0FDF4',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: '#86EFAC',
+    shadowColor: '#16A34A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  spotlightHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 8,
+  },
+  spotlightLiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 20,
+    gap: 5,
+    flexShrink: 0,
+  },
+  spotlightPulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#16A34A',
+  },
+  spotlightLiveText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#15803D',
+    letterSpacing: 0.5,
+  },
+  spotlightTimeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 20,
+    gap: 4,
+    flexShrink: 1,
+    maxWidth: '58%',
+  },
+  spotlightTimeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#059669',
+    flexShrink: 1,
+  },
+  spotlightBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  spotlightAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  spotlightTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  spotlightSub: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0D9488',
+    marginTop: 1,
+  },
+  spotlightLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 3,
+  },
+  spotlightLocationText: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  spotlightFooter: {
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#DCFCE7',
+  },
+  spotlightCtaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00B894',
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    gap: 6,
+  },
+  spotlightCtaBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  listSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 4,
+    paddingHorizontal: 2,
+  },
+  listSectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#475569',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  listSectionCount: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#94A3B8',
   },
 
   // LIST CONTENT
@@ -3185,11 +4285,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 14,
+    gap: 6,
   },
   cardHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
+    minWidth: 0,
   },
   serviceBadge: {
     flexDirection: 'row',
@@ -3199,17 +4302,21 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     gap: 5,
+    flexShrink: 1,
+    maxWidth: '75%',
   },
   serviceBadgeText: {
     fontSize: 10.5,
     fontWeight: '800',
     letterSpacing: 0.3,
+    flexShrink: 1,
   },
   tokenPill: {
     backgroundColor: '#F1F5F9',
     paddingHorizontal: 8,
     paddingVertical: 3.5,
     borderRadius: 7,
+    flexShrink: 0,
   },
   tokenPillText: {
     fontSize: 11,
@@ -3224,6 +4331,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     gap: 6,
+    flexShrink: 0,
   },
   statusDot: {
     width: 7,
@@ -3331,32 +4439,91 @@ const styles = StyleSheet.create({
 
   // SCHEDULE & PATIENT STRIP
   scheduleStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    paddingVertical: 9,
+    borderRadius: 14,
+    paddingVertical: 10,
     paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: '#EDF2F7',
     marginBottom: 12,
-    gap: 12,
+    gap: 8,
   },
-  scheduleStripItem: {
+  scheduleRowTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  scheduleDateTimeCol: {
+    flexDirection: 'column',
+    gap: 3,
+    flex: 1,
+    minWidth: 0,
+  },
+  scheduleDateLine: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
   },
-  scheduleStripDivider: {
-    width: 1,
-    height: 18,
-    backgroundColor: '#CBD5E1',
+  scheduleDateVal: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#0F172A',
   },
-  scheduleStripText: {
+  scheduleTimeLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  scheduleTimeVal: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+  scheduleFeeCol: {
+    alignItems: 'flex-end',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D1FAE5',
+    maxWidth: '48%',
+    flexShrink: 0,
+  },
+  scheduleFeeText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#059669',
+  },
+  scheduleFeeSub: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#047857',
+    maxWidth: 130,
+  },
+  scheduleRowBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  schedulePatientRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    flex: 1,
+    minWidth: 0,
+  },
+  schedulePatientText: {
     fontSize: 11.5,
-    color: '#475569',
+    color: '#64748B',
+    flex: 1,
   },
-  scheduleStripVal: {
+  schedulePatientVal: {
     fontSize: 11.5,
     fontWeight: '700',
     color: '#0F172A',
@@ -3371,7 +4538,6 @@ const styles = StyleSheet.create({
     paddingVertical: 2.5,
     borderRadius: 6,
     gap: 3,
-    marginLeft: 'auto',
   },
   docAttachBadgeText: {
     fontSize: 10.5,
@@ -3381,39 +4547,38 @@ const styles = StyleSheet.create({
 
   // CARD ACTIONS BAR
   cardActionsBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     gap: 8,
     paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
   },
-  cardActionsLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-    flex: 1,
-  },
   btnPrimaryAction: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 10,
-    gap: 6,
+    gap: 8,
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
     elevation: 1,
   },
   btnPrimaryActionText: {
     fontSize: 12.5,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  cardActionsSecondaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    width: '100%',
   },
   livePulseDot: {
     width: 7,
@@ -3422,32 +4587,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#34D399',
   },
   btnSecondaryAction: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
+    paddingHorizontal: 6,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     backgroundColor: '#FFFFFF',
-    gap: 5,
+    gap: 4,
   },
   btnSecondaryActionText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
     color: '#334155',
   },
   btnCancelAction: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 10,
+    paddingHorizontal: 8,
+    borderRadius: 8,
     backgroundColor: '#FEF2F2',
     borderWidth: 1,
     borderColor: '#FEE2E2',
-    gap: 4,
+    gap: 3,
   },
   btnCancelActionText: {
     fontSize: 11.5,

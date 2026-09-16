@@ -441,11 +441,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: colors.white,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    ...Platform.select({
+
+      web: { boxShadow: '0px 2px 8px rgba(0,0,0,0.25)' },
+
+      default: {
+
+        shadowColor: '#000',
+
+        shadowOffset: { width: 0, height: 2 },
+
+        shadowOpacity: 0.25,
+
+        shadowRadius: 4,
+
+        elevation: 5,
+
+      },
+
+    }),
   },
   markerArrow: {
     width: 0,

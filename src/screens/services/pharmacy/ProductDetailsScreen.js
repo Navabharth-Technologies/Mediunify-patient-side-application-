@@ -162,7 +162,7 @@ const ProductDetailsScreen = ({ navigation, route }) => {
 
           {product.inStock && (
             <View style={styles.stockTag}>
-              <Ionicons name="checkmark-circle" size={12} color="#00B894" />
+              <Ionicons name="checkmark-circle" size={12} color="#FF5252" />
               <Text style={styles.stockTagText}>In Stock</Text>
             </View>
           )}
@@ -436,17 +436,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
+    ...Platform.select({
+
+      web: { boxShadow: '0px 4px 12px rgba(0,0,0,0.08)' },
+
+      default: {
+
+        shadowColor: '#000',
+
+        shadowOffset: { width: 0, height: 4 },
+
+        shadowOpacity: 0.08,
+
+        shadowRadius: 6,
+
+        elevation: 3,
+
+      },
+
+    }),
   },
   discountTag: {
     position: 'absolute',
     top: 14,
     left: 14,
-    backgroundColor: '#00B894',
+    backgroundColor: '#FF5252',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
@@ -469,7 +483,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   stockTagText: {
-    color: '#00B894',
+    color: '#FF5252',
     fontSize: 10,
     fontWeight: '800',
   },
@@ -541,7 +555,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   discountPillText: {
-    color: '#00B894',
+    color: '#FF5252',
     fontSize: 11,
     fontWeight: '900',
   },

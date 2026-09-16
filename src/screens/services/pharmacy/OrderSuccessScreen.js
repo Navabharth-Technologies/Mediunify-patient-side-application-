@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 34,
-    backgroundColor: '#00B894',
+    backgroundColor: '#FF5252',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   statusPill: {
-    backgroundColor: '#00B894',
+    backgroundColor: '#FF5252',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 10,

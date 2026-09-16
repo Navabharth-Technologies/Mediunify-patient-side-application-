@@ -6,1772 +6,1035 @@ import {
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   Image,
-  Modal,
   Platform,
+  StatusBar,
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { showAlert } from '../../../utils/alert';
 import {
   fertilitySpecialists,
   fertilityTreatments,
   partnerFertilityCenters,
-  emiPlans,
   fertilityFaqs,
+  samplePatientJourneys,
+  dedicatedCareCoordinator,
 } from '../../../data/fertilityData';
+import {
+  FertilityDoctorCard,
+  FertilityServiceCard,
+  ClinicCard,
+} from '../../../components/fertility';
 import WebFooter from '../../../components/web/WebFooter';
+
+const QUICK_SERVICES = [
+  { id: 'specialists', label: 'Find Doctors', icon: 'people', route: 'FertilitySpecialists', color: '#0F766E', bg: '#F0FDFA' },
+  { id: 'clinics', label: 'IVF Clinics', icon: 'business', route: 'FertilityClinics', color: '#0284C7', bg: '#F0F9FF' },
+  { id: 'care-request', label: 'Care Request', icon: 'document-text', route: 'FertilityCareRequest', color: '#7C3AED', bg: '#FAF5FF' },
+  { id: 'trackers', label: 'Cycle Tracker', icon: 'pulse', route: 'MyFertilityJourney', color: '#E11D48', bg: '#FFF1F2' },
+  { id: 'tests', label: 'Fertility Tests', icon: 'flask', route: 'FertilityTests', color: '#D97706', bg: '#FFFBEB' },
+  { id: 'packages', label: 'IVF Packages', icon: 'card', route: 'IVFPackage', color: '#059669', bg: '#ECFDF5' },
+  { id: 'records', label: 'Records Vault', icon: 'folder-open', route: 'FertilityRecords', color: '#2563EB', bg: '#EFF6FF' },
+  { id: 'ai', label: 'Fertility AI', icon: 'sparkles', route: 'FertilityAI', color: '#BE123C', bg: '#FFF1F2' },
+];
+
+const TRUST_METRICS = [
+  { value: '74.2%', label: 'Cumulative Success', icon: 'ribbon-outline', color: '#0F766E' },
+  { value: '12,000+', label: 'Happy Families', icon: 'heart-outline', color: '#E11D48' },
+  { value: '100%', label: 'Private & Secure', icon: 'shield-checkmark-outline', color: '#0284C7' },
+];
 
 const FertilityIvfScreen = ({ navigation }) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 992;
 
-  // Tabs: 'TREATMENTS' | 'DOCTORS' | 'CENTERS' | 'FINANCING' | 'FAQS'
-  const [activeTab, setActiveTab] = useState('TREATMENTS');
+  const [expandedFaqIndex, setExpandedFaqIndex] = useState(0);
 
-  // Booking Modal State
-  const [bookingModalVisible, setBookingModalVisible] = useState(false);
-  const [selectedTarget, setSelectedTarget] = useState(null); // Doctor or Treatment
-  const [bookingCategory, setBookingCategory] = useState('consult'); // 'consult' | 'treatment'
-  const [partnerName, setPartnerName] = useState('Ananya & Ramesh');
-  const [contactPhone, setContactPhone] = useState('+91 98450 12345');
-  const [preferredSlot, setPreferredSlot] = useState('Tomorrow, 11:00 AM');
-  const [consultType, setConsultType] = useState('In-Clinic'); // 'In-Clinic' | 'Private Video Call'
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('UPI');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const PAYMENT_METHODS_IVF = [
-    { id: 'UPI', label: 'UPI / Google Pay / PhonePe', icon: 'phone-portrait-outline', color: '#7C3AED' },
-    { id: 'CARD', label: 'Credit / Debit Card', icon: 'card-outline', color: '#DB2777' },
-    { id: 'NETBANKING', label: 'Net Banking', icon: 'business-outline', color: '#0369A1' },
-    { id: 'WALLET', label: 'Health Wallet Balance', icon: 'wallet-outline', color: '#059669' },
-    { id: 'CLINIC', label: 'Pay at Clinic (EMI Available)', icon: 'cash-outline', color: '#D97706' },
-  ];
-
-  // EMI Calculator State
-  const [selectedEmiTreatment, setSelectedEmiTreatment] = useState(fertilityTreatments[1]); // Default IVF
-  const [selectedTenureMonths, setSelectedTenureMonths] = useState(18);
-
-  const calculateMonthlyEmi = (price, months) => {
-    if (!months || months <= 0) return price;
-    return Math.round(price / months);
-  };
-
-  const handleOpenBooking = (item, cat) => {
-    setSelectedTarget(item);
-    setBookingCategory(cat);
-    setBookingModalVisible(true);
-  };
-
-  const handleConfirmConsultation = async () => {
-    if (!partnerName.trim() || !contactPhone.trim()) {
-      showAlert('Required', 'Please enter your name and confidential phone number.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const isDoc = bookingCategory === 'doctor';
-      const bookingId = `IVF-${Date.now().toString().slice(-6)}`;
-      const newBooking = {
-        id: bookingId,
-        tokenNumber: `FERT-${Math.floor(100 + Math.random() * 900)}`,
-        type: isDoc ? 'Fertility Specialist Consult' : `Fertility Care: ${selectedTarget?.title || 'Treatment'}`,
-        serviceType: 'fertility',
-        doctor: isDoc
-          ? {
-              name: selectedTarget?.name || 'Dr. Priya V. Shenoy',
-              specialty: selectedTarget?.specialty || 'Reproductive Medicine Specialist',
-              clinicName: selectedTarget?.clinicName || 'Nova IVF & Fertility Care Centre',
-              clinicAddress: selectedTarget?.clinicAddress || 'Gokulam, Mysore',
-              fee: selectedTarget?.fee || 600,
-              image: selectedTarget?.image,
-            }
-          : {
-              name: 'Nova IVF & Fertility Institute',
-              specialty: `Reproductive Treatment: ${selectedTarget?.title || 'IVF Cycle'}`,
-              clinicName: 'Nova IVF Centre',
-              clinicAddress: 'Gokulam 3rd Stage, Mysore',
-              fee: selectedTarget?.price || 4999,
-              image: selectedTarget?.image,
-            },
-        date: preferredSlot,
-        time: preferredSlot.includes('AM') ? '11:00 AM' : '04:00 PM',
-        status: 'Confirmed',
-        paidAmount: isDoc ? (selectedTarget?.fee || 600) : (selectedTarget?.price || 4999),
-        paymentStatus: selectedPaymentMethod === 'Pay at Clinic'
-          ? 'Pay at Clinic (0% EMI Available)'
-          : `Paid Online via ${selectedPaymentMethod}`,
-        consultMode: consultType,
-        patient: {
-          name: partnerName.trim(),
-          phone: contactPhone.trim(),
-          confidential: true,
-        },
-      };
-
-      // Save to @unnathi_fertility_bookings
-      const existingJson = await AsyncStorage.getItem('@unnathi_fertility_bookings');
-      const existingList = existingJson ? JSON.parse(existingJson) : [];
-      existingList.unshift(newBooking);
-      await AsyncStorage.setItem('@unnathi_fertility_bookings', JSON.stringify(existingList));
-
-      // Also save into standard appointments list
-      const apptsJson = await AsyncStorage.getItem('@unnathi_appointments');
-      const apptsList = apptsJson ? JSON.parse(apptsJson) : [];
-      apptsList.unshift(newBooking);
-      await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(apptsList));
-
-      setIsSubmitting(false);
-      setBookingModalVisible(false);
-
-      showAlert(
-        'Consultation Confirmed 🛡️',
-        `Your confidential fertility appointment has been scheduled for ${preferredSlot}. Token: ${newBooking.tokenNumber}. Our care coordinator will call discreetly to confirm.`,
-        [
-          { text: 'View Bookings', onPress: () => navigation?.navigate('Bookings') },
-          { text: 'OK', style: 'cancel' },
-        ]
-      );
-    } catch (e) {
-      setIsSubmitting(false);
-      showAlert('Error', 'Could not save appointment. Please try again.');
-    }
-  };
+  const activeIui = samplePatientJourneys.iui;
+  const coordinator = dedicatedCareCoordinator;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Mobile Header */}
-      {!isDesktopWeb && (
-        <View style={styles.mobileHeader}>
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={() => navigation?.goBack()}
-            activeOpacity={0.75}
-          >
-            <Ionicons name="arrow-back" size={22} color="#0F172A" />
-          </TouchableOpacity>
-          <View style={styles.mobileHeaderCenter}>
-            <Text style={styles.mobileHeaderTitle}>Fertility & IVF Care</Text>
-            <Text style={styles.mobileHeaderSub}>Compassionate Reproductive Medicine</Text>
-          </View>
-          <View style={styles.confidentialPillSmall}>
-            <Ionicons name="lock-closed" size={11} color="#DB2777" />
-            <Text style={styles.confidentialPillSmallText}>100% Private</Text>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      {/* Mobile-Native App Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Home')}
+          style={styles.backBtn}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={20} color="#0F172A" />
+        </TouchableOpacity>
+
+        <View style={styles.headerTitleWrap}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            Fertility & IVF Care
+          </Text>
+          <View style={styles.headerSubRow}>
+            <Ionicons name="shield-checkmark" size={11} color="#059669" />
+            <Text style={styles.headerSubtitle} numberOfLines={1}>
+              Personalized, Discreet & Accredited
+            </Text>
           </View>
         </View>
-      )}
+
+        <View style={styles.headerIconsRow}>
+          <TouchableOpacity
+            style={styles.headerIconBtn}
+            onPress={() => navigation.navigate('FertilityNotifications')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="notifications-outline" size={19} color="#0F172A" />
+            <View style={styles.badgeDot} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.headerIconBtn, { backgroundColor: '#F0FDFA', borderColor: '#99F6E4' }]}
+            onPress={() => navigation.navigate('FertilityAI')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="sparkles" size={17} color="#0F766E" />
+          </TouchableOpacity>
+        </View>
+      </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        style={styles.scrollArea}
+        contentContainerStyle={[
+          styles.scrollContent,
+          isDesktopWeb && styles.desktopContainer,
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ============================================================
-            HERO BANNER
-        ============================================================ */}
-        <View style={styles.heroBannerWrap}>
-          <View style={[styles.heroBannerContainer, isDesktopWeb && styles.desktopHeroBanner]}>
-            <View style={styles.heroLeftCol}>
-              <View style={styles.heroBadgeRow}>
-                <View style={styles.privacyBadge}>
-                  <Ionicons name="lock-closed" size={13} color="#9D174D" />
-                  <Text style={styles.privacyBadgeText}>100% STRICT CONFIDENTIALITY</Text>
-                </View>
-                <View style={styles.successBadge}>
-                  <Ionicons name="ribbon" size={13} color="#BE185D" />
-                  <Text style={styles.successBadgeText}>Up to 73% Success Rate</Text>
-                </View>
-              </View>
+        {/* Quick Search Bar */}
+        <TouchableOpacity
+          style={styles.searchBar}
+          onPress={() => navigation.navigate('FertilitySpecialists')}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="search-outline" size={17} color="#0F766E" />
+          <Text style={styles.searchPlaceholder} numberOfLines={1}>
+            Search doctors, clinics, IVF packages, AMH tests...
+          </Text>
+          <View style={styles.searchFilterBadge}>
+            <Ionicons name="options-outline" size={13} color="#0F766E" />
+          </View>
+        </TouchableOpacity>
 
-              <Text style={styles.heroHeading}>
-                Your Dream of Parenthood,{'\n'}
-                <Text style={styles.heroHeadingAccent}>Nurtured with Advanced Science.</Text>
-              </Text>
-
-              <Text style={styles.heroSubHeading}>
-                Trusted reproductive endocrinologists, ISO-certified cleanroom embryology labs, transparent treatment costs, and flexible 0% interest monthly EMI plans across Mysore and Bangalore.
-              </Text>
-
-              <View style={styles.heroStatsRow}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statVal}>71.8%</Text>
-                  <Text style={styles.statLbl}>Clinical Pregnancy Rate</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statVal}>15,000+</Text>
-                  <Text style={styles.statLbl}>Parenthood Journeys</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statVal}>0% EMI</Text>
-                  <Text style={styles.statLbl}>Flexible Financing</Text>
-                </View>
-              </View>
+        {/* Compact Mobile Hero Banner */}
+        <View style={styles.heroBanner}>
+          <View style={styles.heroBadgeRow}>
+            <View style={styles.heroPill}>
+              <Ionicons name="lock-closed" size={10} color="#FFFFFF" />
+              <Text style={styles.heroPillText}>100% PRIVATE • ART ACT 2021</Text>
             </View>
+            <View style={styles.heroEmiBadge}>
+              <Text style={styles.heroEmiText}>ICMR & ART ACCREDITED</Text>
+            </View>
+          </View>
 
-            {isDesktopWeb && (
-              <View style={styles.heroRightCol}>
-                <Image
-                  source={{ uri: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=600' }}
-                  style={styles.heroImage}
-                  resizeMode="cover"
-                />
-              </View>
-            )}
+          <Text style={styles.heroTitle}>
+            Compassionate Fertility Care & Science
+          </Text>
+          <Text style={styles.heroSubtitle} numberOfLines={2}>
+            Senior reproductive endocrinologists, ISO-5 cleanrooms & transparent pricing.
+          </Text>
+
+          <View style={styles.heroBtnRow}>
+            <TouchableOpacity
+              style={styles.heroPrimaryBtn}
+              onPress={() => navigation.navigate('FertilityCareRequest')}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.heroPrimaryBtnText}>Start Care Request</Text>
+              <Ionicons name="arrow-forward" size={13} color="#0F766E" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.heroSecondaryBtn}
+              onPress={() => navigation.navigate('FertilitySpecialists')}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="calendar-outline" size={13} color="#FFFFFF" />
+              <Text style={styles.heroSecondaryBtnText}>Book Specialist</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* ============================================================
-            NAVIGATION TABS
-        ============================================================ */}
-        <View style={styles.tabsWrap}>
+        {/* Active Cycle Status Card */}
+        <TouchableOpacity
+          style={styles.activeCycleCard}
+          onPress={() => navigation.navigate('IUIJourney')}
+          activeOpacity={0.9}
+        >
+          <View style={styles.activeCycleHeader}>
+            <View style={styles.activeCycleBadgeRow}>
+              <View style={styles.pulseDot} />
+              <Text style={styles.activeCycleBadge}>LIVE JOURNEY • DAY {activeIui.cycleDay}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#0F766E" />
+          </View>
+          <Text style={styles.activeCycleTitle}>IUI Ovulation Stimulation Protocol</Text>
+          <View style={styles.progressBarWrap}>
+            <View style={[styles.progressBarFill, { width: '50%' }]} />
+          </View>
+          <View style={styles.activeCycleFooter}>
+            <View style={styles.alertPill}>
+              <Ionicons name="alarm-outline" size={11} color="#0F766E" />
+              <Text style={styles.alertPillText} numberOfLines={1}>
+                Trigger injection (Inj Ovidrel) due tonight at 09:00 PM
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        {/* 4x2 Essential Services Grid (Symmetrical Mobile Layout) */}
+        <View style={styles.servicesSection}>
+          <Text style={styles.sectionHeaderTitle}>Essential Fertility Services</Text>
+          <View style={styles.servicesGrid}>
+            {QUICK_SERVICES.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.serviceTile}
+                onPress={() => navigation.navigate(item.route)}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.serviceIconBox, { backgroundColor: item.bg }]}>
+                  <Ionicons name={item.icon} size={20} color={item.color} />
+                </View>
+                <Text style={styles.serviceLabel} numberOfLines={2}>
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Trust Metrics Strip */}
+        <View style={styles.trustBar}>
+          {TRUST_METRICS.map((metric, idx) => (
+            <View
+              key={metric.label}
+              style={[
+                styles.trustCol,
+                idx < TRUST_METRICS.length - 1 && styles.trustColBorder,
+              ]}
+            >
+              <Ionicons name={metric.icon} size={15} color={metric.color} />
+              <Text style={[styles.trustVal, { color: metric.color }]}>{metric.value}</Text>
+              <Text style={styles.trustLbl}>{metric.label}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Featured Specialists Section */}
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionHeaderLeft}>
+            <Text style={styles.sectionTitle}>Senior Fertility Specialists</Text>
+            <Text style={styles.sectionSubtitle}>
+              Reproductive Endocrinologists, Andrologists & Embryologists
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('FertilitySpecialists')}
+            style={styles.viewAllBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.viewAllText}>View All</Text>
+            <Ionicons name="chevron-forward" size={12} color="#0F766E" />
+          </TouchableOpacity>
+        </View>
+
+        {isDesktopWeb ? (
+          <View style={[styles.cardGrid, styles.desktopTwoCol]}>
+            {fertilitySpecialists.slice(0, 4).map((doc) => (
+              <View key={doc.id} style={styles.colHalf}>
+                <FertilityDoctorCard
+                  doctor={doc}
+                  onPress={(d) =>
+                    navigation.navigate('FertilityDoctorProfile', { doctor: d })
+                  }
+                  onBook={(d) =>
+                    navigation.navigate('FertilityDoctorProfile', {
+                      doctor: d,
+                      autoFocusBooking: true,
+                    })
+                  }
+                />
+              </View>
+            ))}
+          </View>
+        ) : (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={[styles.tabsRow, isDesktopWeb && styles.desktopTabsRow]}
+            contentContainerStyle={styles.horizontalScrollList}
           >
-            {[
-              { id: 'TREATMENTS', label: 'Treatments & Packages', icon: 'heart' },
-              { id: 'DOCTORS', label: 'Fertility Specialists', icon: 'medkit' },
-              { id: 'CENTERS', label: 'Partner Clinics & Labs', icon: 'business' },
-              { id: 'FINANCING', label: '0% EMI Calculator', icon: 'calculator' },
-              { id: 'FAQS', label: 'Patient FAQs', icon: 'help-circle' },
-            ].map((tab) => {
-              const active = activeTab === tab.id;
-              return (
-                <TouchableOpacity
-                  key={tab.id}
-                  style={[styles.tabBtn, active && styles.tabBtnActive]}
-                  onPress={() => setActiveTab(tab.id)}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons
-                    name={tab.icon}
-                    size={16}
-                    color={active ? '#FFFFFF' : '#DB2777'}
-                  />
-                  <Text style={[styles.tabBtnText, active && styles.tabBtnTextActive]}>
-                    {tab.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+            {fertilitySpecialists.slice(0, 5).map((doc) => (
+              <View key={doc.id} style={styles.horizontalDoctorCardWrap}>
+                <FertilityDoctorCard
+                  doctor={doc}
+                  onPress={(d) =>
+                    navigation.navigate('FertilityDoctorProfile', { doctor: d })
+                  }
+                  onBook={(d) =>
+                    navigation.navigate('FertilityDoctorProfile', {
+                      doctor: d,
+                      autoFocusBooking: true,
+                    })
+                  }
+                />
+              </View>
+            ))}
           </ScrollView>
+        )}
+
+        {/* Featured IVF Clinics & Hospitals */}
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionHeaderLeft}>
+            <Text style={styles.sectionTitle}>Accredited IVF Centers</Text>
+            <Text style={styles.sectionSubtitle}>
+              Modular ISO Cleanrooms & 70%+ Clinical Pregnancy Rates
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('FertilityClinics')}
+            style={styles.viewAllBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.viewAllText}>View All</Text>
+            <Ionicons name="chevron-forward" size={12} color="#0F766E" />
+          </TouchableOpacity>
         </View>
 
-        {/* ============================================================
-            TAB 1: TREATMENTS & PACKAGES
-        ============================================================ */}
-        {activeTab === 'TREATMENTS' && (
-          <View style={styles.sectionWrap}>
-            <View style={styles.sectionHeader}>
-              <View>
-                <Text style={styles.sectionTitle}>Advanced Reproductive Treatments</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Transparent packages with blastocyst culture, ICSI, and genetic testing options
-                </Text>
+        {isDesktopWeb ? (
+          <View style={[styles.cardGrid, styles.desktopTwoCol]}>
+            {partnerFertilityCenters.slice(0, 2).map((clinic) => (
+              <View key={clinic.id} style={styles.colHalf}>
+                <ClinicCard
+                  clinic={clinic}
+                  onPress={(c, tab) =>
+                    navigation.navigate('FertilityClinicProfile', {
+                      clinic: c,
+                      initialTab: tab || 'overview',
+                    })
+                  }
+                  onCompare={() =>
+                    navigation.navigate('CompareClinics', {
+                      initialClinics: [partnerFertilityCenters[0], partnerFertilityCenters[1]],
+                    })
+                  }
+                />
               </View>
-            </View>
-
-            <View style={[styles.cardsGrid, isDesktopWeb && styles.desktopTwoColGrid]}>
-              {fertilityTreatments.map((treat) => (
-                <View key={treat.id} style={styles.treatmentCard}>
-                  <View style={styles.treatmentHeader}>
-                    <View style={styles.treatmentBadgeRow}>
-                      <View style={[styles.treatmentBadgePill, { backgroundColor: treat.badgeColor || '#DB2777' }]}>
-                        <Text style={styles.treatmentBadgeText}>{treat.badge}</Text>
-                      </View>
-                      <View style={styles.durationPill}>
-                        <Ionicons name="calendar-outline" size={12} color="#475569" />
-                        <Text style={styles.durationPillText}>{treat.duration}</Text>
-                      </View>
-                    </View>
-
-                    <Text style={styles.treatmentTitle}>{treat.title}</Text>
-                    <Text style={styles.treatmentSub}>{treat.subtitle}</Text>
-                  </View>
-
-                  <View style={styles.treatmentBody}>
-                    <Text style={styles.inclusionsHeading}>Package Inclusions:</Text>
-                    <View style={styles.inclusionsList}>
-                      {treat.inclusions.map((inc, i) => (
-                        <View key={i} style={styles.incItem}>
-                          <Ionicons name="checkmark-circle" size={14} color="#DB2777" />
-                          <Text style={styles.incText}>{inc}</Text>
-                        </View>
-                      ))}
-                    </View>
-
-                    {treat.emiAvailable && (
-                      <View style={styles.emiHighlightBox}>
-                        <Ionicons name="card-outline" size={15} color="#BE185D" />
-                        <Text style={styles.emiHighlightText}>
-                          Zero Cost EMI Starts At: <Text style={{ fontWeight: '800' }}>{treat.emiStartsAt}</Text>
-                        </Text>
-                      </View>
-                    )}
-
-                    <View style={styles.treatmentFooter}>
-                      <View>
-                        <View style={styles.priceRow}>
-                          <Text style={styles.currentPrice}>₹{treat.price.toLocaleString('en-IN')}</Text>
-                          <Text style={styles.origPrice}>₹{treat.originalPrice.toLocaleString('en-IN')}</Text>
-                        </View>
-                        <Text style={styles.discountText}>{treat.discount}</Text>
-                      </View>
-
-                      <TouchableOpacity
-                        style={styles.bookTreatmentBtn}
-                        onPress={() => handleOpenBooking(treat, 'treatment')}
-                        activeOpacity={0.88}
-                      >
-                        <Text style={styles.bookTreatmentBtnText}>Book Consultation</Text>
-                        <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </View>
+            ))}
           </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalScrollList}
+          >
+            {partnerFertilityCenters.slice(0, 4).map((clinic) => (
+              <View key={clinic.id} style={styles.horizontalClinicCardWrap}>
+                <ClinicCard
+                  clinic={clinic}
+                  onPress={(c, tab) =>
+                    navigation.navigate('FertilityClinicProfile', {
+                      clinic: c,
+                      initialTab: tab || 'overview',
+                    })
+                  }
+                  onCompare={() =>
+                    navigation.navigate('CompareClinics', {
+                      initialClinics: [partnerFertilityCenters[0], partnerFertilityCenters[1]],
+                    })
+                  }
+                />
+              </View>
+            ))}
+          </ScrollView>
         )}
 
-        {/* ============================================================
-            TAB 2: FERTILITY SPECIALISTS
-        ============================================================ */}
-        {activeTab === 'DOCTORS' && (
-          <View style={styles.sectionWrap}>
-            <View style={styles.sectionHeader}>
-              <View>
-                <Text style={styles.sectionTitle}>Senior Reproductive Endocrinologists</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Internationally trained fertility physicians, clinical embryologists, and andrology surgeons
-                </Text>
-              </View>
-            </View>
-
-            <View style={[styles.cardsGrid, isDesktopWeb && styles.desktopThreeColGrid]}>
-              {fertilitySpecialists.map((doc) => (
-                <View key={doc.id} style={styles.doctorCard}>
-                  <View style={styles.docHeaderRow}>
-                    <Image source={{ uri: doc.image }} style={styles.docAvatar} />
-                    <View style={styles.docInfoCol}>
-                      <View style={styles.ratingBadgeRow}>
-                        <View style={styles.ratingBadge}>
-                          <Ionicons name="star" size={12} color="#F59E0B" />
-                          <Text style={styles.ratingBadgeText}>{doc.rating}</Text>
-                        </View>
-                        <Text style={styles.reviewsCountText}>({doc.reviewsCount} reviews)</Text>
-                      </View>
-                      <Text style={styles.docName}>{doc.name}</Text>
-                      <Text style={styles.docSpecialty}>{doc.specialty}</Text>
-                      <Text style={styles.docQual}>{doc.qualification}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.successRateBadgeBox}>
-                    <Ionicons name="trophy-outline" size={14} color="#BE185D" />
-                    <Text style={styles.successRateBadgeText}>{doc.successRate}</Text>
-                  </View>
-
-                  <View style={styles.docClinicBox}>
-                    <Ionicons name="location-outline" size={14} color="#DB2777" />
-                    <Text style={styles.docClinicText} numberOfLines={2}>
-                      {doc.clinicName} • {doc.clinicAddress}
-                    </Text>
-                  </View>
-
-                  <View style={styles.specialtiesPillsRow}>
-                    {doc.specializations.map((spec, i) => (
-                      <View key={i} style={styles.specPill}>
-                        <Text style={styles.specPillText}>{spec}</Text>
-                      </View>
-                    ))}
-                  </View>
-
-                  <View style={styles.docFooterRow}>
-                    <View>
-                      <Text style={styles.feeLabel}>Confidential Consult</Text>
-                      <Text style={styles.feePrice}>₹{doc.fee}</Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.bookDocBtn}
-                      onPress={() => handleOpenBooking(doc, 'doctor')}
-                      activeOpacity={0.88}
-                    >
-                      <Ionicons name="calendar-outline" size={15} color="#FFFFFF" />
-                      <Text style={styles.bookDocBtnText}>Book Slot</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
-            </View>
+        {/* Popular Treatment Pathways */}
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionHeaderLeft}>
+            <Text style={styles.sectionTitle}>Treatment Pathways</Text>
+            <Text style={styles.sectionSubtitle}>
+              Transparent Inclusions, Cryo-Preservation & Ethical Care
+            </Text>
           </View>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('TreatmentDetails')}
+            style={styles.viewAllBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.viewAllText}>Explore</Text>
+            <Ionicons name="chevron-forward" size={12} color="#0F766E" />
+          </TouchableOpacity>
+        </View>
+
+        {isDesktopWeb ? (
+          <View style={[styles.cardGrid, styles.desktopTwoCol]}>
+            {fertilityTreatments.slice(0, 2).map((treatment) => (
+              <View key={treatment.id} style={styles.colHalf}>
+                <FertilityServiceCard
+                  treatment={treatment}
+                  onPress={() => navigation.navigate('TreatmentDetails')}
+                  onBook={() =>
+                    navigation.navigate('FertilityCareRequest', {
+                      selectedTreatment: treatment,
+                    })
+                  }
+                />
+              </View>
+            ))}
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalScrollList}
+          >
+            {fertilityTreatments.map((treatment) => (
+              <View key={treatment.id} style={styles.horizontalTreatmentCardWrap}>
+                <FertilityServiceCard
+                  treatment={treatment}
+                  onPress={() => navigation.navigate('TreatmentDetails')}
+                  onBook={() =>
+                    navigation.navigate('FertilityCareRequest', {
+                      selectedTreatment: treatment,
+                    })
+                  }
+                />
+              </View>
+            ))}
+          </ScrollView>
         )}
 
-        {/* ============================================================
-            TAB 3: PARTNER CLINICS & ACCREDITED LABS
-        ============================================================ */}
-        {activeTab === 'CENTERS' && (
-          <View style={styles.sectionWrap}>
-            <View style={styles.sectionHeader}>
-              <View>
-                <Text style={styles.sectionTitle}>Accredited Partner Fertility Centers</Text>
-                <Text style={styles.sectionSubtitle}>
-                  ISAR & NABH accredited centers equipped with Class 10,000 modular embryology laboratories
-                </Text>
-              </View>
+        {/* Dedicated Care Coordinator Banner */}
+        <View style={styles.coordinatorCard}>
+          <Image source={{ uri: coordinator.avatar }} style={styles.coordinatorImg} />
+          <View style={styles.coordinatorInfo}>
+            <View style={styles.coordBadge}>
+              <Text style={styles.coordBadgeText}>COMPLIMENTARY CARE BUDDY</Text>
             </View>
-
-            <View style={[styles.cardsGrid, isDesktopWeb && styles.desktopThreeColGrid]}>
-              {partnerFertilityCenters.map((center) => (
-                <View key={center.id} style={styles.centerCard}>
-                  <View style={styles.centerTop}>
-                    <Ionicons name="business" size={28} color="#DB2777" />
-                    <View style={styles.successPill}>
-                      <Text style={styles.successPillText}>{center.successRate} Success</Text>
-                    </View>
-                  </View>
-
-                  <Text style={styles.centerName}>{center.name}</Text>
-                  <Text style={styles.centerAddress}>{center.address}</Text>
-
-                  <View style={styles.certsRow}>
-                    {center.certifications.map((cert, i) => (
-                      <View key={i} style={styles.certBadge}>
-                        <Ionicons name="shield-checkmark" size={11} color="#059669" />
-                        <Text style={styles.certBadgeText}>{cert}</Text>
-                      </View>
-                    ))}
-                  </View>
-
-                  <View style={styles.featuresBox}>
-                    <Text style={styles.featuresHeading}>Facility Highlights:</Text>
-                    {center.features.map((f, i) => (
-                      <View key={i} style={styles.featRow}>
-                        <Ionicons name="sparkles" size={12} color="#DB2777" />
-                        <Text style={styles.featText}>{f}</Text>
-                      </View>
-                    ))}
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.visitCenterBtn}
-                    onPress={() => handleOpenBooking({ name: center.name, title: center.name, fee: 600 }, 'doctor')}
-                    activeOpacity={0.88}
-                  >
-                    <Text style={styles.visitCenterBtnText}>Book Visit to This Center</Text>
-                    <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
+            <Text style={styles.coordName}>{coordinator.name}</Text>
+            <Text style={styles.coordRole} numberOfLines={2}>
+              Dedicated patient navigator for scan schedules, injection alerts & insurance assistance.
+            </Text>
+            <TouchableOpacity
+              style={styles.coordChatBtn}
+              onPress={() => navigation.navigate('FertilityCoordinator')}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="chatbubbles" size={13} color="#FFFFFF" />
+              <Text style={styles.coordChatBtnText}>Chat with Swathi</Text>
+            </TouchableOpacity>
           </View>
-        )}
+        </View>
 
-        {/* ============================================================
-            TAB 4: 0% EMI FINANCING CALCULATOR
-        ============================================================ */}
-        {activeTab === 'FINANCING' && (
-          <View style={styles.sectionWrap}>
-            <View style={styles.sectionHeader}>
-              <View>
-                <Text style={styles.sectionTitle}>Zero Interest (0% EMI) Financing</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Make world-class fertility care stress-free with zero deposit and zero interest monthly installments
-                </Text>
-              </View>
-            </View>
-
-            <View style={[styles.calculatorCard, isDesktopWeb && styles.desktopCalcCard]}>
-              <View style={styles.calcLeftCol}>
-                <Text style={styles.calcStepTitle}>1. Select Fertility Treatment</Text>
-                <View style={styles.treatPickerList}>
-                  {fertilityTreatments.map((t) => {
-                    const isSelected = selectedEmiTreatment.id === t.id;
-                    return (
-                      <TouchableOpacity
-                        key={t.id}
-                        style={[styles.treatPickerItem, isSelected && styles.treatPickerItemSelected]}
-                        onPress={() => setSelectedEmiTreatment(t)}
-                        activeOpacity={0.85}
-                      >
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.treatPickerItemName, isSelected && styles.treatPickerItemNameSelected]}>
-                            {t.title}
-                          </Text>
-                          <Text style={styles.treatPickerItemPrice}>₹{t.price.toLocaleString('en-IN')}</Text>
-                        </View>
-                        {isSelected && <Ionicons name="checkmark-circle" size={18} color="#DB2777" />}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-
-                <Text style={[styles.calcStepTitle, { marginTop: 20 }]}>2. Select Repayment Tenure</Text>
-                <View style={styles.tenurePickerRow}>
-                  {emiPlans.map((plan) => {
-                    const isSelected = selectedTenureMonths === plan.tenureMonths;
-                    return (
-                      <TouchableOpacity
-                        key={plan.tenureMonths}
-                        style={[styles.tenureBtn, isSelected && styles.tenureBtnSelected]}
-                        onPress={() => setSelectedTenureMonths(plan.tenureMonths)}
-                        activeOpacity={0.85}
-                      >
-                        <Text style={[styles.tenureMonthsText, isSelected && styles.tenureMonthsTextSelected]}>
-                          {plan.tenureMonths} Months
-                        </Text>
-                        <Text style={[styles.tenureRateText, isSelected && styles.tenureRateTextSelected]}>
-                          0% Interest
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              <View style={styles.calcRightCol}>
-                <View style={styles.emiResultBox}>
-                  <Text style={styles.emiResultLabel}>Estimated Monthly EMI</Text>
-                  <Text style={styles.emiResultAmount}>
-                    ₹{calculateMonthlyEmi(selectedEmiTreatment.price, selectedTenureMonths).toLocaleString('en-IN')}
-                    <Text style={styles.emiMonthSuffix}> /month</Text>
-                  </Text>
-                  <View style={styles.emiBadgeRow}>
-                    <View style={styles.zeroCostBadge}>
-                      <Text style={styles.zeroCostBadgeText}>0% Interest • ₹0 Processing Fee</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.emiBreakdownList}>
-                    <View style={styles.breakdownItem}>
-                      <Text style={styles.breakdownLabel}>Treatment Package Cost:</Text>
-                      <Text style={styles.breakdownVal}>₹{selectedEmiTreatment.price.toLocaleString('en-IN')}</Text>
-                    </View>
-                    <View style={styles.breakdownItem}>
-                      <Text style={styles.breakdownLabel}>Loan Tenure:</Text>
-                      <Text style={styles.breakdownVal}>{selectedTenureMonths} Months</Text>
-                    </View>
-                    <View style={styles.breakdownItem}>
-                      <Text style={styles.breakdownLabel}>Instant Pre-Approval:</Text>
-                      <Text style={[styles.breakdownVal, { color: '#059669' }]}>Under 15 Mins</Text>
-                    </View>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.applyEmiBtn}
-                    onPress={() => handleOpenBooking(selectedEmiTreatment, 'treatment')}
-                    activeOpacity={0.88}
-                  >
-                    <Ionicons name="card-outline" size={16} color="#FFFFFF" />
-                    <Text style={styles.applyEmiBtnText}>Apply for 0% EMI Pre-Approval</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
+        {/* AI Assistant Banner */}
+        <TouchableOpacity
+          style={styles.aiBannerCard}
+          onPress={() => navigation.navigate('FertilityAI')}
+          activeOpacity={0.9}
+        >
+          <View style={styles.aiBannerIconWrap}>
+            <Ionicons name="sparkles" size={20} color="#0F766E" />
           </View>
-        )}
-
-        {/* ============================================================
-            TAB 5: PATIENT FAQS
-        ============================================================ */}
-        {activeTab === 'FAQS' && (
-          <View style={styles.sectionWrap}>
-            <View style={styles.sectionHeader}>
-              <View>
-                <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Answers to common questions about treatment confidentiality, timeline, and financing
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.faqsList}>
-              {fertilityFaqs.map((faq, i) => (
-                <View key={i} style={styles.faqCard}>
-                  <View style={styles.faqQuestionRow}>
-                    <Ionicons name="help-circle" size={20} color="#DB2777" />
-                    <Text style={styles.faqQuestionText}>{faq.q}</Text>
-                  </View>
-                  <Text style={styles.faqAnswerText}>{faq.a}</Text>
-                </View>
-              ))}
-            </View>
+          <View style={styles.aiBannerInfo}>
+            <Text style={styles.aiBannerTitle}>Have questions about AMH or IVF?</Text>
+            <Text style={styles.aiBannerSub} numberOfLines={2}>
+              Ask MediUnify AI for instant, empathetic guidance on tests, diets, and protocols.
+            </Text>
           </View>
-        )}
+          <Ionicons name="chevron-forward" size={16} color="#0F766E" />
+        </TouchableOpacity>
 
-        {/* Web Footer */}
-        <WebFooter navigation={navigation} />
+        {/* Patient FAQs */}
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
+            <Text style={styles.sectionSubtitle}>
+              Evidence-based answers to common fertility concerns
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.faqList}>
+          {fertilityFaqs.map((faq, index) => {
+            const isExpanded = expandedFaqIndex === index;
+            const itemKey = faq.id || `faq-item-${index}`;
+            const questionText = faq.question || faq.q;
+            const answerText = faq.answer || faq.a;
+            return (
+              <TouchableOpacity
+                key={itemKey}
+                style={styles.faqItem}
+                onPress={() =>
+                  setExpandedFaqIndex(isExpanded ? -1 : index)
+                }
+                activeOpacity={0.8}
+              >
+                <View style={styles.faqQuestionRow}>
+                  <Text style={styles.faqQuestion}>{questionText}</Text>
+                  <Ionicons
+                    name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color="#64748B"
+                  />
+                </View>
+                {isExpanded && <Text style={styles.faqAnswer}>{answerText}</Text>}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {isDesktopWeb && <WebFooter navigation={navigation} />}
       </ScrollView>
-
-      {/* ============================================================
-          CONFIDENTIAL BOOKING MODAL
-      ============================================================ */}
-      <Modal
-        visible={bookingModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setBookingModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, isDesktopWeb && { maxWidth: 520 }]}>
-            <View style={styles.modalHeader}>
-              <View>
-                <View style={styles.confidentialModalPill}>
-                  <Ionicons name="lock-closed" size={11} color="#DB2777" />
-                  <Text style={styles.confidentialModalPillText}>100% DISCRETE & CONFIDENTIAL</Text>
-                </View>
-                <Text style={styles.modalTitle}>Book Fertility Consultation</Text>
-                <Text style={styles.modalSub} numberOfLines={1}>
-                  {selectedTarget?.name || selectedTarget?.title}
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => setBookingModalVisible(false)}
-                style={styles.modalCloseBtn}
-              >
-                <Ionicons name="close" size={20} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalForm} showsVerticalScrollIndicator={false}>
-              <Text style={styles.inputLabel}>Patient / Couple Name</Text>
-              <TextInput
-                style={styles.textInput}
-                value={partnerName}
-                onChangeText={setPartnerName}
-                placeholder="Enter couple or individual name"
-                placeholderTextColor="#94A3B8"
-              />
-
-              <Text style={styles.inputLabel}>Confidential Mobile Number</Text>
-              <TextInput
-                style={styles.textInput}
-                value={contactPhone}
-                onChangeText={setContactPhone}
-                keyboardType="phone-pad"
-                placeholder="+91 98450 12345"
-                placeholderTextColor="#94A3B8"
-              />
-
-              <Text style={styles.inputLabel}>Consultation Mode</Text>
-              <View style={styles.modeToggleRow}>
-                {['In-Clinic', 'Private Video Call'].map((m) => {
-                  const isSelected = consultType === m;
-                  return (
-                    <TouchableOpacity
-                      key={m}
-                      style={[styles.modeBtn, isSelected && styles.modeBtnSelected]}
-                      onPress={() => setConsultType(m)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons
-                        name={m === 'In-Clinic' ? 'business-outline' : 'videocam-outline'}
-                        size={15}
-                        color={isSelected ? '#DB2777' : '#64748B'}
-                      />
-                      <Text style={[styles.modeBtnText, isSelected && styles.modeBtnTextSelected]}>{m}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              <Text style={styles.inputLabel}>Preferred Date & Time</Text>
-              <View style={styles.slotPickerRow}>
-                {['Tomorrow, 11:00 AM', 'Tomorrow, 04:00 PM', 'Day After, 10:30 AM'].map((slot, i) => (
-                  <TouchableOpacity
-                    key={i}
-                    style={[styles.slotChip, preferredSlot === slot && styles.slotChipSelected]}
-                    onPress={() => setPreferredSlot(slot)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.slotChipText, preferredSlot === slot && styles.slotChipTextSelected]}>
-                      {slot}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {/* PAYMENT METHOD SELECTION */}
-              <Text style={styles.inputLabel}>Select Payment Method</Text>
-              <View style={styles.paymentMethodsWrap}>
-                {PAYMENT_METHODS_IVF.map((pm) => {
-                  const isSelected = selectedPaymentMethod === pm.id;
-                  return (
-                    <TouchableOpacity
-                      key={pm.id}
-                      style={[
-                        styles.paymentMethodRow,
-                        isSelected && { borderColor: pm.color, backgroundColor: pm.color + '10' },
-                      ]}
-                      onPress={() => setSelectedPaymentMethod(pm.id)}
-                      activeOpacity={0.8}
-                    >
-                      <View style={[styles.paymentRadio, isSelected && { borderColor: pm.color }]}>
-                        {isSelected && <View style={[styles.paymentRadioDot, { backgroundColor: pm.color }]} />}
-                      </View>
-                      <Ionicons name={pm.icon} size={18} color={isSelected ? pm.color : '#64748B'} />
-                      <Text style={[styles.paymentMethodLabel, isSelected && { color: pm.color, fontWeight: '700' }]}>
-                        {pm.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              <View style={styles.privacyAssuranceBox}>
-                <Ionicons name="shield-checkmark" size={16} color="#059669" />
-                <Text style={styles.privacyAssuranceText}>
-                  Your privacy is sacred to us. No SMS broadcast, discrete bill descriptions, and encrypted personal records.
-                </Text>
-              </View>
-            </ScrollView>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.confirmBookingBtn}
-                onPress={handleConfirmConsultation}
-                activeOpacity={0.88}
-                disabled={isSubmitting}
-              >
-                <Text style={styles.confirmBookingBtnText}>
-                  {isSubmitting ? 'Securing Slot...' : 'Confirm Private Consultation'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
-    backgroundColor: '#FDF8F9',
+    backgroundColor: '#F8FAFC',
   },
-  scrollContent: {
-    flexGrow: 1,
-  },
-
-  // MOBILE HEADER
-  mobileHeader: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 6 : 8,
+    paddingBottom: 10,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#FCE7F3',
+    borderBottomColor: '#F1F5F9',
+    gap: 10,
   },
   backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#FDF2F8',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mobileHeaderCenter: {
+  headerTitleWrap: {
     flex: 1,
-    marginLeft: 12,
   },
-  mobileHeaderTitle: {
+  headerTitle: {
     fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
   },
-  mobileHeaderSub: {
-    fontSize: 11,
-    color: '#DB2777',
-    fontWeight: '600',
-  },
-  confidentialPillSmall: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: '#FCE7F3',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  confidentialPillSmallText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#BE185D',
-  },
-
-  // HERO BANNER
-  heroBannerWrap: {
-    backgroundColor: '#831843',
-    paddingVertical: 32,
-    paddingHorizontal: 20,
-  },
-  heroBannerContainer: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  desktopHeroBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 32,
-  },
-  heroLeftCol: {
-    flex: 1,
-  },
-  heroRightCol: {
-    flex: 0.9,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroImage: {
-    width: '100%',
-    height: 280,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  heroBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
-    flexWrap: 'wrap',
-  },
-  privacyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#FDF2F8',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-  },
-  privacyBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#9D174D',
-  },
-  successBadge: {
+  headerSubRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FCE7F3',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
+    marginTop: 1,
   },
-  successBadgeText: {
+  headerSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  headerIconsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  badgeDot: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#E11D48',
+  },
+  scrollArea: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 30,
+  },
+  desktopContainer: {
+    maxWidth: 1120,
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: 24,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  searchPlaceholder: {
+    flex: 1,
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  searchFilterBadge: {
+    padding: 3,
+    borderRadius: 5,
+    backgroundColor: '#F0FDFA',
+  },
+  heroBanner: {
+    backgroundColor: '#0F766E',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+    shadowColor: '#0F766E',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  heroBadgeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  heroPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 5,
+  },
+  heroPillText: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+  },
+  heroEmiBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
+    borderRadius: 5,
+  },
+  heroEmiText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#CCFBF1',
+  },
+  heroTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    lineHeight: 21,
+    marginBottom: 4,
+  },
+  heroSubtitle: {
+    fontSize: 11,
+    color: '#CCFBF1',
+    lineHeight: 15,
+    marginBottom: 12,
+  },
+  heroBtnRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  heroPrimaryBtn: {
+    flex: 1.2,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  heroPrimaryBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0F766E',
+  },
+  heroSecondaryBtn: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  heroSecondaryBtnText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#831843',
-  },
-  heroHeading: {
-    fontSize: 28,
-    fontWeight: '900',
     color: '#FFFFFF',
-    lineHeight: 36,
   },
-  heroHeadingAccent: {
-    color: '#FBCFE8',
-  },
-  heroSubHeading: {
-    fontSize: 13.5,
-    color: '#FCE7F3',
-    lineHeight: 20,
-    marginTop: 10,
-    maxWidth: 620,
-  },
-  heroStatsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 22,
-    gap: 16,
-  },
-  statItem: {
-    alignItems: 'flex-start',
-  },
-  statVal: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#FBCFE8',
-  },
-  statLbl: {
-    fontSize: 10.5,
-    color: '#FDF2F8',
-    fontWeight: '600',
-  },
-  statDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-
-  // TABS
-  tabsWrap: {
+  activeCycleCard: {
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#FCE7F3',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    padding: 12,
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  tabsRow: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 10,
+  activeCycleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
-  desktopTabsRow: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  tabBtn: {
+  activeCycleBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 24,
-    backgroundColor: '#FDF2F8',
+    gap: 5,
+  },
+  pulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#0F766E',
+  },
+  activeCycleBadge: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#0F766E',
+    letterSpacing: 0.3,
+  },
+  activeCycleTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  progressBarWrap: {
+    height: 4,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#0F766E',
+    borderRadius: 2,
+  },
+  activeCycleFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  alertPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    flex: 1,
+  },
+  alertPillText: {
+    fontSize: 10,
+    color: '#0F766E',
+    fontWeight: '600',
+    flex: 1,
+  },
+  servicesSection: {
+    marginBottom: 14,
+  },
+  sectionHeaderTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 10,
+  },
+  servicesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  serviceTile: {
+    width: '23.5%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#FBCFE8',
+    borderColor: '#F1F5F9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
+    marginBottom: 8,
   },
-  tabBtnActive: {
-    backgroundColor: '#DB2777',
-    borderColor: '#DB2777',
+  serviceIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 5,
   },
-  tabBtnText: {
-    fontSize: 12.5,
+  serviceLabel: {
+    fontSize: 10,
     fontWeight: '700',
-    color: '#BE185D',
+    color: '#334155',
+    textAlign: 'center',
+    lineHeight: 12,
   },
-  tabBtnTextActive: {
-    color: '#FFFFFF',
+  trustBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 16,
   },
-
-  // SECTION WRAP
-  sectionWrap: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    padding: 20,
+  trustCol: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  trustColBorder: {
+    borderRightWidth: 1,
+    borderRightColor: '#E2E8F0',
+  },
+  trustVal: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  trustLbl: {
+    fontSize: 9.5,
+    color: '#64748B',
+    marginTop: 1,
   },
   sectionHeader: {
-    marginBottom: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginBottom: 10,
+    marginTop: 2,
+  },
+  sectionHeaderLeft: {
+    flex: 1,
+    paddingRight: 8,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 14,
     fontWeight: '800',
     color: '#0F172A',
   },
   sectionSubtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 4,
-  },
-
-  // GRIDS
-  cardsGrid: {
-    gap: 16,
-  },
-  desktopTwoColGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-  desktopThreeColGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-
-  // TREATMENT CARD
-  treatmentCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#FCE7F3',
-    overflow: 'hidden',
-    flex: 1,
-    minWidth: 320,
-    shadowColor: '#DB2777',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-    justifyContent: 'space-between',
-  },
-  treatmentHeader: {
-    padding: 16,
-    backgroundColor: '#FDF2F8',
-    borderBottomWidth: 1,
-    borderBottomColor: '#FCE7F3',
-  },
-  treatmentBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  treatmentBadgePill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  treatmentBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  durationPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  durationPillText: {
     fontSize: 10.5,
-    fontWeight: '700',
-    color: '#475569',
+    color: '#64748B',
+    marginTop: 1,
   },
-  treatmentTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  treatmentSub: {
-    fontSize: 11.5,
-    color: '#BE185D',
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  treatmentBody: {
-    padding: 16,
-    flex: 1,
-    justifyContent: 'space-between',
-  },
-  inclusionsHeading: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#334155',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  inclusionsList: {
-    gap: 6,
-    marginBottom: 14,
-  },
-  incItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 6,
-  },
-  incText: {
-    fontSize: 11.5,
-    color: '#334155',
-    flex: 1,
-    lineHeight: 16,
-  },
-  emiHighlightBox: {
+  viewAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FDF2F8',
-    padding: 8,
-    borderRadius: 8,
-    marginBottom: 14,
-  },
-  emiHighlightText: {
-    fontSize: 11,
-    color: '#9D174D',
-  },
-  treatmentFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#FCE7F3',
-  },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 6,
-  },
-  currentPrice: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  origPrice: {
-    fontSize: 12,
-    color: '#94A3B8',
-    textDecorationLine: 'line-through',
-  },
-  discountText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#BE185D',
-  },
-  bookTreatmentBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#DB2777',
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 10,
-  },
-  bookTreatmentBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-
-  // DOCTOR CARD
-  doctorCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#FCE7F3',
-    padding: 16,
-    flex: 1,
-    minWidth: 320,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-    justifyContent: 'space-between',
-  },
-  docHeaderRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  docAvatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#E2E8F0',
-  },
-  docInfoCol: {
-    flex: 1,
-  },
-  ratingBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
-  },
-  ratingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
+    gap: 2,
     paddingVertical: 2,
-    borderRadius: 6,
   },
-  ratingBadgeText: {
+  viewAllText: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#B45309',
-  },
-  reviewsCountText: {
-    fontSize: 10.5,
-    color: '#64748B',
-  },
-  docName: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  docSpecialty: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: '#BE185D',
-    marginTop: 2,
-  },
-  docQual: {
-    fontSize: 10.5,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  successRateBadgeBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#FDF2F8',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginTop: 10,
-    alignSelf: 'flex-start',
-  },
-  successRateBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#9D174D',
-  },
-  docClinicBox: {
-    flexDirection: 'row',
-    gap: 6,
-    backgroundColor: '#F8FAFC',
-    padding: 8,
-    borderRadius: 8,
-    marginVertical: 10,
-  },
-  docClinicText: {
-    fontSize: 11,
-    color: '#475569',
-    flex: 1,
-    lineHeight: 15,
-  },
-  specialtiesPillsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 5,
-    marginBottom: 12,
-  },
-  specPill: {
-    backgroundColor: '#FDF2F8',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  specPillText: {
-    fontSize: 10,
     fontWeight: '700',
-    color: '#9D174D',
+    color: '#0F766E',
   },
-  docFooterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#FCE7F3',
-  },
-  feeLabel: {
-    fontSize: 10,
-    color: '#64748B',
-  },
-  feePrice: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  bookDocBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#DB2777',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  bookDocBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-
-  // CENTER CARD
-  centerCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#FCE7F3',
-    padding: 18,
-    flex: 1,
-    minWidth: 300,
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  centerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  successPill: {
-    backgroundColor: '#FDF2F8',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  successPillText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#BE185D',
-  },
-  centerName: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  centerAddress: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 4,
-    marginBottom: 10,
-  },
-  certsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 12,
-  },
-  certBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  certBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#065F46',
-  },
-  featuresBox: {
-    backgroundColor: '#FDF8F9',
-    padding: 10,
-    borderRadius: 8,
+  cardGrid: {
     marginBottom: 14,
-    gap: 4,
   },
-  featuresHeading: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#831843',
-    marginBottom: 4,
-  },
-  featRow: {
+  desktopTwoCol: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    flexWrap: 'wrap',
+    marginHorizontal: -8,
   },
-  featText: {
-    fontSize: 11,
-    color: '#475569',
+  colHalf: {
+    width: '50%',
+    paddingHorizontal: 8,
   },
-  visitCenterBtn: {
+  horizontalScrollList: {
+    paddingRight: 16,
+    gap: 12,
+    marginBottom: 16,
+  },
+  horizontalDoctorCardWrap: {
+    width: 285,
+  },
+  horizontalClinicCardWrap: {
+    width: 305,
+  },
+  horizontalTreatmentCardWrap: {
+    width: 280,
+  },
+  coordinatorCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#DB2777',
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  visitCenterBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-
-  // 0% EMI CALCULATOR
-  calculatorCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 14,
+    padding: 12,
     borderWidth: 1,
-    borderColor: '#FCE7F3',
-    padding: 24,
-    gap: 24,
+    borderColor: '#E2E8F0',
+    gap: 10,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  desktopCalcCard: {
-    flexDirection: 'row',
+  coordinatorImg: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
   },
-  calcLeftCol: {
-    flex: 1.2,
-  },
-  calcRightCol: {
+  coordinatorInfo: {
     flex: 1,
-    justifyContent: 'center',
   },
-  calcStepTitle: {
+  coordBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+    marginBottom: 2,
+  },
+  coordBadgeText: {
+    fontSize: 7.5,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  coordName: {
     fontSize: 13,
     fontWeight: '800',
     color: '#0F172A',
-    marginBottom: 10,
   },
-  treatPickerList: {
-    gap: 8,
-  },
-  treatPickerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 10,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  treatPickerItemSelected: {
-    backgroundColor: '#FDF2F8',
-    borderColor: '#DB2777',
-  },
-  treatPickerItemName: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#334155',
-  },
-  treatPickerItemNameSelected: {
-    color: '#BE185D',
-  },
-  treatPickerItemPrice: {
-    fontSize: 12,
+  coordRole: {
+    fontSize: 10.5,
     color: '#64748B',
-    marginTop: 2,
+    marginTop: 1,
+    lineHeight: 14,
   },
-  tenurePickerRow: {
+  coordChatBtn: {
     flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  tenureBtn: {
-    flex: 1,
-    minWidth: 90,
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
     alignItems: 'center',
-  },
-  tenureBtnSelected: {
-    backgroundColor: '#FDF2F8',
-    borderColor: '#DB2777',
-  },
-  tenureMonthsText: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#334155',
-  },
-  tenureMonthsTextSelected: {
-    color: '#BE185D',
-  },
-  tenureRateText: {
-    fontSize: 10,
-    color: '#059669',
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  tenureRateTextSelected: {
-    color: '#BE185D',
-  },
-  emiResultBox: {
-    backgroundColor: '#FDF2F8',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1.5,
-    borderColor: '#FBCFE8',
-  },
-  emiResultLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#9D174D',
-    textTransform: 'uppercase',
-  },
-  emiResultAmount: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#831843',
-    marginVertical: 6,
-  },
-  emiMonthSuffix: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#9D174D',
-  },
-  emiBadgeRow: {
-    marginBottom: 16,
-  },
-  zeroCostBadge: {
-    backgroundColor: '#FCE7F3',
+    gap: 4,
+    backgroundColor: '#0F766E',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 6,
     alignSelf: 'flex-start',
+    marginTop: 6,
   },
-  zeroCostBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#831843',
-  },
-  emiBreakdownList: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    padding: 12,
-    gap: 8,
-    marginBottom: 16,
-  },
-  breakdownItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  breakdownLabel: {
-    fontSize: 11.5,
-    color: '#64748B',
-  },
-  breakdownVal: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  applyEmiBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#DB2777',
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  applyEmiBtnText: {
-    fontSize: 13,
-    fontWeight: '800',
+  coordChatBtnText: {
+    fontSize: 10.5,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
-
-  // FAQS
-  faqsList: {
-    gap: 12,
+  aiBannerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    marginBottom: 16,
+    gap: 10,
   },
-  faqCard: {
+  aiBannerIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#CCFBF1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiBannerInfo: {
+    flex: 1,
+  },
+  aiBannerTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F766E',
+  },
+  aiBannerSub: {
+    fontSize: 10.5,
+    color: '#334155',
+    marginTop: 1,
+    lineHeight: 14,
+  },
+  faqList: {
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#FCE7F3',
-    padding: 16,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  faqItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
   faqQuestionRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
-  },
-  faqQuestionText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0F172A',
-    flex: 1,
-  },
-  faqAnswerText: {
-    fontSize: 12.5,
-    color: '#475569',
-    lineHeight: 19,
-    paddingLeft: 30,
-  },
-
-  // MODAL
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-  },
-  modalCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    width: '100%',
-    maxHeight: '90%',
-    overflow: 'hidden',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#FCE7F3',
-  },
-  confidentialModalPill: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FDF2F8',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    marginBottom: 6,
+    gap: 8,
   },
-  confidentialModalPillText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#BE185D',
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  modalSub: {
+  faqQuestion: {
     fontSize: 12,
-    color: '#DB2777',
-    fontWeight: '600',
-    maxWidth: 280,
-  },
-  modalCloseBtn: {
-    padding: 4,
-  },
-  modalForm: {
-    padding: 16,
-  },
-  inputLabel: {
-    fontSize: 11.5,
     fontWeight: '700',
-    color: '#334155',
-    marginBottom: 6,
-    marginTop: 10,
-  },
-  textInput: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: 13,
     color: '#0F172A',
-  },
-  modeToggleRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  modeBtn: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 9,
-    borderRadius: 10,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
-  modeBtnSelected: {
-    backgroundColor: '#FDF2F8',
-    borderColor: '#DB2777',
-  },
-  modeBtnText: {
-    fontSize: 11.5,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  modeBtnTextSelected: {
-    color: '#BE185D',
-    fontWeight: '800',
-  },
-  slotPickerRow: {
-    gap: 6,
-    marginTop: 4,
-  },
-  slotChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  slotChipSelected: {
-    backgroundColor: '#FDF2F8',
-    borderColor: '#DB2777',
-  },
-  slotChipText: {
-    fontSize: 11.5,
-    color: '#475569',
-  },
-  slotChipTextSelected: {
-    fontWeight: '800',
-    color: '#BE185D',
-  },
-  privacyAssuranceBox: {
-    flexDirection: 'row',
-    gap: 8,
-    backgroundColor: '#ECFDF5',
-    padding: 12,
-    borderRadius: 10,
-    marginTop: 16,
-  },
-  privacyAssuranceText: {
+  faqAnswer: {
     fontSize: 11,
-    color: '#065F46',
-    flex: 1,
-    lineHeight: 16,
-  },
-  modalFooter: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#FCE7F3',
-  },
-  confirmBookingBtn: {
-    backgroundColor: '#DB2777',
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  confirmBookingBtnText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-
-  // PAYMENT METHOD STYLES
-  paymentMethodsWrap: {
-    gap: 8,
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  paymentMethodRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#F8FAFC',
-  },
-  paymentRadio: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: '#CBD5E1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  paymentRadioDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
-  },
-  paymentMethodLabel: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#334155',
+    color: '#475569',
+    marginTop: 6,
+    lineHeight: 15,
   },
 });
 

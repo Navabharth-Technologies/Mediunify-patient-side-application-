@@ -795,16 +795,16 @@ const HomeScreen = ({ navigation }) => {
             <Text style={styles.mockupServiceLabel}>Order{'\n'}Medicines</Text>
           </TouchableOpacity>
 
-          {/* 4. Hospitals & Surgery */}
+          {/* 4. Video Call */}
           <TouchableOpacity
             style={styles.mockupServiceTile}
-            onPress={() => navigation.navigate('HospitalCare')}
+            onPress={() => navigation.navigate('VideoConsultation')}
             activeOpacity={0.8}
           >
             <View style={[styles.mockupServiceIconBox, { backgroundColor: '#EFF6FF' }]}>
-              <Ionicons name="business" size={24} color="#1E3A8A" />
+              <Ionicons name="videocam" size={24} color="#2563EB" />
             </View>
-            <Text style={styles.mockupServiceLabel}>Hospitals &{'\n'}Surgery</Text>
+            <Text style={styles.mockupServiceLabel}>Video{'\n'}Call</Text>
           </TouchableOpacity>
 
           {/* 5. Home Nursing */}
@@ -855,10 +855,10 @@ const HomeScreen = ({ navigation }) => {
             <Text style={styles.mockupServiceLabel}>Ayurveda &{'\n'}Wellness</Text>
           </TouchableOpacity>
 
-          {/* 9. View All */}
+          {/* 9. View All Services */}
           <TouchableOpacity
             style={styles.mockupServiceTile}
-            onPress={() => navigation.navigate('GlobalSearch')}
+            onPress={() => navigation.navigate('AllServices')}
             activeOpacity={0.8}
           >
             <View style={[styles.mockupServiceIconBox, { backgroundColor: '#EEF2FF' }]}>
@@ -867,29 +867,6 @@ const HomeScreen = ({ navigation }) => {
             <Text style={styles.mockupServiceLabel}>View{'\n'}All</Text>
           </TouchableOpacity>
         </View>
-
-        {/* ============================================================
-            MOCKUP 1: TRUSTED CARE BANNER
-        ============================================================ */}
-        <TouchableOpacity
-          style={styles.mockupTrustedBanner}
-          onPress={() => navigation.navigate('DoctorList')}
-          activeOpacity={0.9}
-        >
-          <View style={styles.mockupTrustedTextCol}>
-            <Text style={styles.mockupTrustedTitle}>
-              Trusted care for{'\n'}every step of your health journey
-            </Text>
-            <View style={styles.mockupLearnMoreRow}>
-              <Text style={styles.mockupLearnMoreText}>Learn More →</Text>
-            </View>
-          </View>
-          <Image
-            source={{ uri: 'https://images.unsplash.com/photo-1576765608535-5f04d1e3f289?w=400' }}
-            style={styles.mockupTrustedImg}
-            resizeMode="cover"
-          />
-        </TouchableOpacity>
 
         <View style={{ height: 30 }} />
       </ScrollView>
@@ -2978,43 +2955,6 @@ const styles = StyleSheet.create({
     color: '#1E293B',
     textAlign: 'center',
     lineHeight: 14,
-  },
-  mockupTrustedBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 14,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  mockupTrustedTextCol: {
-    flex: 1,
-    paddingRight: 10,
-  },
-  mockupTrustedTitle: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#0F172A',
-    lineHeight: 17,
-  },
-  mockupLearnMoreRow: {
-    marginTop: 6,
-  },
-  mockupLearnMoreText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#0D9488',
-  },
-  mockupTrustedImg: {
-    width: 72,
-    height: 52,
-    borderRadius: 10,
   },
 });
 

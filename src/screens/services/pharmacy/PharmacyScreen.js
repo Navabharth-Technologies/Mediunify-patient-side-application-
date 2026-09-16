@@ -18,8 +18,7 @@ import {
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import { useCart } from '../../../context/CartContext';
-import pharmacyProducts from '../../../data/pharmacyProducts';
-import pharmacyStores, { POPULAR_LOCALITIES, calculateDistanceKm } from '../../../data/pharmacyStores';
+import pharmacyProducts, { POPULAR_LOCALITIES, calculateDistanceKm } from '../../../data/pharmacyProducts';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { showAlert } from '../../../utils/alert';
@@ -57,7 +56,7 @@ const PHARMACY_HERO_SLIDES = [
     id: 'pharma-slide-2',
     pillText: 'RX VERIFICATION',
     pillBg: '#CCFBF1',
-    pillColor: '#0D9488',
+    pillColor: '#FF5252',
     certText: 'Verified Pharmacists',
     certIcon: 'shield-checkmark',
     title: 'Upload Doctor Prescription for Instant Order',
@@ -72,7 +71,7 @@ const PHARMACY_HERO_SLIDES = [
     ],
     ctaText: 'Upload Prescription Now',
     ctaBg: '#00A389',
-    bgColor: '#F0FDF4',
+    bgColor: '#FFF5F5',
     borderColor: '#CCFBF1',
     image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=900',
     trustBadge: 'Licensed & Registered Pharmacists',
@@ -130,7 +129,7 @@ export const BROWSE_HEALTH_CONDITIONS = [
     badge: '100% DISCREET',
     tagline: 'Safe & Stamina',
     bg: '#6DBFA0',
-    accentColor: '#0D9488',
+    accentColor: '#FF5252',
     image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&auto=format&fit=crop&q=80',
     filterKeywords: ['wellness', 'condom', 'test', 'fertility', 'care', 'stamina', 'energy', 'supplement', 'vigor', 'multivitamin'],
     categoryFilter: 'Sexual Wellness',
@@ -183,7 +182,7 @@ export const BROWSE_CATEGORIES = [
     badge: 'ENERGY & POWER',
     tagline: 'Proteins & Nutrition',
     bg: '#5EB895',
-    accentColor: '#059669',
+    accentColor: '#FF5252',
     image: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=80',
     categoryFilter: 'Vitamins & Minerals',
   },
@@ -225,8 +224,8 @@ const ACTION_CARDS = [
     bgColor: '#EDFAF5',
     borderColor: '#BBF7D0',
     iconBg: '#DCFCE7',
-    iconColor: '#059669',
-    ctaColor: '#059669',
+    iconColor: '#FF5252',
+    ctaColor: '#FF5252',
     actionType: 'upload',
   },
   {
@@ -314,7 +313,7 @@ const HEALTH_CONDITIONS = [
     id: 'liver',
     name: 'Liver Care',
     iconName: 'leaf-outline',
-    color: '#059669',
+    color: '#FF5252',
     bg: '#DCFCE7',
     filterKeywords: ['liv.52', 'liver', 'himalaya', 'detox', 'herbal', 'appetite'],
   },
@@ -330,7 +329,7 @@ const HEALTH_CONDITIONS = [
     id: 'cold-immunity',
     name: 'Cold & Immunity',
     iconName: 'shield-checkmark-outline',
-    color: '#00B894',
+    color: '#FF5252',
     bg: '#E6FAF5',
     filterKeywords: ['vitamin c', 'zinc', 'immunity', 'antiseptic', 'dettol', 'sanitizer', 'fever'],
   },
@@ -467,19 +466,6 @@ const PharmacyScreen = ({ navigation, route }) => {
 
   // Delivery Locality
   const [selectedLocality, setSelectedLocality] = useState(POPULAR_LOCALITIES[0]);
-
-  // Stores with distance from current locality
-  const storesWithDistance = useMemo(() => {
-    return pharmacyStores.map((store) => ({
-      ...store,
-      distanceKm: calculateDistanceKm(
-        selectedLocality.latitude,
-        selectedLocality.longitude,
-        store.latitude,
-        store.longitude
-      ),
-    })).sort((a, b) => a.distanceKm - b.distanceKm);
-  }, [selectedLocality]);
 
   // Filtered Products based on search, category, catalog tab, condition
   const filteredProducts = useMemo(() => {
@@ -633,7 +619,7 @@ const PharmacyScreen = ({ navigation, route }) => {
           activeOpacity={0.8}
         >
           <View style={styles.headerLocalityIconWrap}>
-            <Ionicons name="location" size={14} color="#059669" />
+            <Ionicons name="location" size={14} color="#FF5252" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerDeliverTo}>Deliver to</Text>
@@ -687,7 +673,7 @@ const PharmacyScreen = ({ navigation, route }) => {
                   </Text>
                 </View>
                 <View style={styles.discountTag}>
-                  <Ionicons name={activeSlide.certIcon} size={12} color="#059669" />
+                  <Ionicons name={activeSlide.certIcon} size={12} color="#FF5252" />
                   <Text style={styles.discountTagText}>{activeSlide.certText}</Text>
                 </View>
               </View>
@@ -709,7 +695,7 @@ const PharmacyScreen = ({ navigation, route }) => {
                 <View style={styles.heroBulletsBox}>
                   {activeSlide.bullets.map((b, bIdx) => (
                     <View key={bIdx} style={styles.heroBulletRow}>
-                      <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                      <Ionicons name="checkmark-circle" size={14} color="#FF5252" />
                       <Text style={styles.heroBulletText} numberOfLines={1}>
                         {b}
                       </Text>
@@ -742,7 +728,7 @@ const PharmacyScreen = ({ navigation, route }) => {
                   onPress={() => setShowUploadModal(true)}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="document-text-outline" size={14} color="#059669" />
+                  <Ionicons name="document-text-outline" size={14} color="#FF5252" />
                   <Text style={styles.heroSecondaryBtnText}>Upload Rx</Text>
                 </TouchableOpacity>
               </View>
@@ -753,7 +739,7 @@ const PharmacyScreen = ({ navigation, route }) => {
               <View style={styles.heroRightCol}>
                 <Image source={{ uri: activeSlide.image }} style={styles.heroImage} resizeMode="cover" />
                 <View style={styles.heroTrustPill}>
-                  <Ionicons name="shield-checkmark" size={12} color="#059669" />
+                  <Ionicons name="shield-checkmark" size={12} color="#FF5252" />
                   <Text style={styles.heroTrustPillText}>{activeSlide.trustBadge}</Text>
                 </View>
               </View>
@@ -795,7 +781,7 @@ const PharmacyScreen = ({ navigation, route }) => {
               onPress={() => setShowUploadModal(true)}
               activeOpacity={0.8}
             >
-              <Ionicons name="camera" size={18} color="#059669" />
+              <Ionicons name="camera" size={18} color="#FF5252" />
               <Text style={styles.searchCameraText}>Scan Rx</Text>
             </TouchableOpacity>
           </View>
@@ -840,7 +826,7 @@ const PharmacyScreen = ({ navigation, route }) => {
           <View style={styles.mobileBrowseHeaderRow}>
             <Text style={styles.mobileBrowseMainHeading}>Browse medicines & health products</Text>
             <View style={styles.mobileBrowseHeaderBadge}>
-              <Ionicons name="sparkles" size={11} color="#00B894" />
+              <Ionicons name="sparkles" size={11} color="#FF5252" />
               <Text style={styles.mobileBrowseHeaderBadgeText}>100% Genuine</Text>
             </View>
           </View>
@@ -1051,7 +1037,7 @@ const PharmacyScreen = ({ navigation, route }) => {
                     <View style={styles.productBottomRow}>
                       <View>
                         <Text style={styles.productPrice}>₹{prod.price}</Text>
-                        {prod.mrp && <Text style={styles.productMrp}>MRP ₹{prod.mrp}</Text>}
+                        {Boolean(prod.mrp) && <Text style={styles.productMrp}>MRP ₹{prod.mrp}</Text>}
                       </View>
 
                       {qty > 0 ? (
@@ -1060,14 +1046,14 @@ const PharmacyScreen = ({ navigation, route }) => {
                             style={styles.stepperBtn}
                             onPress={() => decreaseQuantity(prod.id, 'pharmacy')}
                           >
-                            <Ionicons name="remove" size={13} color="#059669" />
+                            <Ionicons name="remove" size={13} color="#FF5252" />
                           </TouchableOpacity>
                           <Text style={styles.stepperQty}>{qty}</Text>
                           <TouchableOpacity
                             style={styles.stepperBtn}
                             onPress={() => increaseQuantity(prod.id, 'pharmacy')}
                           >
-                            <Ionicons name="add" size={13} color="#059669" />
+                            <Ionicons name="add" size={13} color="#FF5252" />
                           </TouchableOpacity>
                         </View>
                       ) : (
@@ -1087,55 +1073,6 @@ const PharmacyScreen = ({ navigation, route }) => {
             })}
           </View>
         </View>
-
-        {/* ============================================================
-            7. NEAREST VERIFIED PHARMACY STORES
-        ============================================================ */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Nearest Pharmacy Stores</Text>
-          <Text style={styles.catalogItemCount}>Mysuru</Text>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.storesScroll}
-        >
-          {storesWithDistance.slice(0, 4).map((store) => (
-            <TouchableOpacity
-              key={store.id}
-              style={styles.storeCard}
-              onPress={() => {
-                setSelectedPharmacyStore(store);
-                navigation.navigate('PharmacyStoreDetail', { store });
-              }}
-              activeOpacity={0.85}
-            >
-              <Image source={{ uri: store.image }} style={styles.storeImage} />
-              <View style={styles.storeInfo}>
-                <View style={styles.storeBadgeRow}>
-                  <View style={styles.storeVerifiedTag}>
-                    <Ionicons name="shield-checkmark" size={10} color="#059669" />
-                    <Text style={styles.storeVerifiedText}>VERIFIED</Text>
-                  </View>
-                  {store.is24x7 && (
-                    <View style={styles.store24x7Tag}>
-                      <Text style={styles.store24x7Text}>24x7 OPEN</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.storeName} numberOfLines={1}>
-                  {store.name}
-                </Text>
-                <Text style={styles.storeLocality} numberOfLines={1}>
-                  📍 {store.locality} • {store.distanceKm} km
-                </Text>
-                <Text style={styles.storeDelivery} numberOfLines={1}>
-                  ⚡ {store.deliveryTime || '20-30 mins'} delivery
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
       </ScrollView>
 
       {/* ============================================================
@@ -1181,7 +1118,7 @@ const PharmacyScreen = ({ navigation, route }) => {
             <View style={styles.modalHeader}>
               <View>
                 <View style={styles.modalTrustBadge}>
-                  <Ionicons name="shield-checkmark" size={11} color="#059669" />
+                  <Ionicons name="shield-checkmark" size={11} color="#FF5252" />
                   <Text style={styles.modalTrustBadgeText}>LICENSED PHARMACISTS</Text>
                 </View>
                 <Text style={styles.modalTitle}>Upload Prescription</Text>
@@ -1212,7 +1149,7 @@ const PharmacyScreen = ({ navigation, route }) => {
                       onPress={() => handlePickDocument('image')}
                       activeOpacity={0.85}
                     >
-                      <Ionicons name="image" size={24} color="#059669" />
+                      <Ionicons name="image" size={24} color="#FF5252" />
                       <Text style={styles.uploadOptionTitle}>Gallery Image</Text>
                       <Text style={styles.uploadOptionSub}>From Photo Library</Text>
                     </TouchableOpacity>
@@ -1255,15 +1192,15 @@ const PharmacyScreen = ({ navigation, route }) => {
               {/* Verified Points */}
               <View style={styles.verifiedPointsBox}>
                 <View style={styles.verifiedPointItem}>
-                  <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                  <Ionicons name="checkmark-circle" size={14} color="#FF5252" />
                   <Text style={styles.verifiedPointText}>Free dosage & drug interaction check</Text>
                 </View>
                 <View style={styles.verifiedPointItem}>
-                  <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                  <Ionicons name="checkmark-circle" size={14} color="#FF5252" />
                   <Text style={styles.verifiedPointText}>Up to 20% discount on branded medicines</Text>
                 </View>
                 <View style={styles.verifiedPointItem}>
-                  <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                  <Ionicons name="checkmark-circle" size={14} color="#FF5252" />
                   <Text style={styles.verifiedPointText}>Pharmacist calls to confirm exact brand</Text>
                 </View>
               </View>
@@ -1324,14 +1261,14 @@ const PharmacyScreen = ({ navigation, route }) => {
                     <Ionicons
                       name="location"
                       size={18}
-                      color={isSelected ? '#059669' : '#94A3B8'}
+                      color={isSelected ? '#FF5252' : '#94A3B8'}
                     />
                     <Text
                       style={[styles.localityRowText, isSelected && styles.localityRowTextSelected]}
                     >
                       {loc.name}, Mysuru
                     </Text>
-                    {isSelected && <Ionicons name="checkmark-circle" size={18} color="#059669" />}
+                    {isSelected && <Ionicons name="checkmark-circle" size={18} color="#FF5252" />}
                   </TouchableOpacity>
                 );
               })}
@@ -1388,7 +1325,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#FFF0F0',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1440,11 +1377,25 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    ...Platform.select({
+
+      web: { boxShadow: '0px 3px 16px rgba(0,0,0,0.05)' },
+
+      default: {
+
+        shadowColor: '#000',
+
+        shadowOffset: { width: 0, height: 3 },
+
+        shadowOpacity: 0.05,
+
+        shadowRadius: 8,
+
+        elevation: 2,
+
+      },
+
+    }),
   },
   heroBannerCardMobile: {
     flexDirection: 'column',
@@ -1506,17 +1457,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#FFF0F0',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#FFBDBD',
   },
   discountTagText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#059669',
+    color: '#FF5252',
   },
   heroTitle: {
     fontSize: 18,
@@ -1602,7 +1553,7 @@ const styles = StyleSheet.create({
   },
   dotActive: {
     width: 18,
-    backgroundColor: '#059669',
+    backgroundColor: '#FF5252',
   },
 
   // SEARCH SECTION
@@ -1619,11 +1570,25 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+    ...Platform.select({
+
+      web: { boxShadow: '0px 2px 8px rgba(0,0,0,0.04)' },
+
+      default: {
+
+        shadowColor: '#000',
+
+        shadowOffset: { width: 0, height: 2 },
+
+        shadowOpacity: 0.04,
+
+        shadowRadius: 4,
+
+        elevation: 1,
+
+      },
+
+    }),
   },
   searchInput: {
     flex: 1,
@@ -1636,17 +1601,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#FFF0F0',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#FFBDBD',
   },
   searchCameraText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#059669',
+    color: '#FF5252',
   },
 
   // 4 ACTION CARDS
@@ -1703,7 +1668,7 @@ const styles = StyleSheet.create({
   sectionSeeAll: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#059669',
+    color: '#FF5252',
   },
 
   // CATEGORIES SCROLL
@@ -1731,7 +1696,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#FFF0F0',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
@@ -1739,7 +1704,7 @@ const styles = StyleSheet.create({
   mobileBrowseHeaderBadgeText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#059669',
+    color: '#FF5252',
   },
   mobileBrowseSubSection: {
     marginBottom: 16,
@@ -1776,11 +1741,25 @@ const styles = StyleSheet.create({
     position: 'relative',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.4)',
-    shadowColor: '#1E3A8A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
+    ...Platform.select({
+
+      web: { boxShadow: '0px 2px 12px rgba(30,58,138,0.08)' },
+
+      default: {
+
+        shadowColor: '#1E3A8A',
+
+        shadowOffset: { width: 0, height: 2 },
+
+        shadowOpacity: 0.08,
+
+        shadowRadius: 6,
+
+        elevation: 2,
+
+      },
+
+    }),
   },
   mobileBrowseCardActive: {
     borderWidth: 2.5,
@@ -1882,8 +1861,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   catalogTabBtnActive: {
-    backgroundColor: '#059669',
-    borderColor: '#059669',
+    backgroundColor: '#FF5252',
+    borderColor: '#FF5252',
   },
   catalogTabBtnText: {
     fontSize: 11,
@@ -1907,11 +1886,25 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     padding: 10,
     position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
+    ...Platform.select({
+
+      web: { boxShadow: '0px 1px 8px rgba(0,0,0,0.03)' },
+
+      default: {
+
+        shadowColor: '#000',
+
+        shadowOffset: { width: 0, height: 1 },
+
+        shadowOpacity: 0.03,
+
+        shadowRadius: 4,
+
+        elevation: 1,
+
+      },
+
+    }),
   },
   productDiscountBadge: {
     position: 'absolute',
@@ -1995,7 +1988,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: '#059669',
+    backgroundColor: '#FF5252',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 6,
@@ -2008,9 +2001,9 @@ const styles = StyleSheet.create({
   stepperWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#FFF0F0',
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#FFBDBD',
     borderRadius: 6,
   },
   stepperBtn: {
@@ -2020,7 +2013,7 @@ const styles = StyleSheet.create({
   stepperQty: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#065F46',
+    color: '#B91C1C',
     paddingHorizontal: 4,
   },
 
@@ -2053,7 +2046,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#FFF0F0',
     paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 4,
@@ -2061,7 +2054,7 @@ const styles = StyleSheet.create({
   storeVerifiedText: {
     fontSize: 8.5,
     fontWeight: '800',
-    color: '#059669',
+    color: '#FF5252',
   },
   store24x7Tag: {
     backgroundColor: '#FEF3C7',
@@ -2086,7 +2079,7 @@ const styles = StyleSheet.create({
   },
   storeDelivery: {
     fontSize: 10,
-    color: '#059669',
+    color: '#FF5252',
     fontWeight: '600',
     marginTop: 2,
   },
@@ -2104,11 +2097,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 8,
+    ...Platform.select({
+
+      web: { boxShadow: '0px 4px 20px rgba(0,0,0,0.25)' },
+
+      default: {
+
+        shadowColor: '#000',
+
+        shadowOffset: { width: 0, height: 4 },
+
+        shadowOpacity: 0.25,
+
+        shadowRadius: 10,
+
+        elevation: 8,
+
+      },
+
+    }),
   },
   cartBarInfo: {
     flexDirection: 'row',
@@ -2119,7 +2126,7 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: '#059669',
+    backgroundColor: '#FF5252',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2142,7 +2149,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#059669',
+    backgroundColor: '#FF5252',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
@@ -2167,11 +2174,25 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 480,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 8,
+    ...Platform.select({
+
+      web: { boxShadow: '0px 6px 32px rgba(0,0,0,0.2)' },
+
+      default: {
+
+        shadowColor: '#000',
+
+        shadowOffset: { width: 0, height: 6 },
+
+        shadowOpacity: 0.2,
+
+        shadowRadius: 16,
+
+        elevation: 8,
+
+      },
+
+    }),
   },
   modalHeader: {
     flexDirection: 'row',
@@ -2187,7 +2208,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#FFF0F0',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
@@ -2197,7 +2218,7 @@ const styles = StyleSheet.create({
   modalTrustBadgeText: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#059669',
+    color: '#FF5252',
   },
   modalTitle: {
     fontSize: 16,
@@ -2259,9 +2280,9 @@ const styles = StyleSheet.create({
   attachedFileCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#FFF5F5',
     borderWidth: 1,
-    borderColor: '#86EFAC',
+    borderColor: '#FFBDBD',
     borderRadius: 10,
     padding: 10,
   },
@@ -2285,7 +2306,7 @@ const styles = StyleSheet.create({
   },
   attachedFileStatus: {
     fontSize: 10.5,
-    color: '#059669',
+    color: '#FF5252',
     fontWeight: '700',
     marginTop: 2,
   },
@@ -2311,7 +2332,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#F1F5F9',
   },
   confirmUploadBtn: {
-    backgroundColor: '#059669',
+    backgroundColor: '#FF5252',
     paddingVertical: 11,
     borderRadius: 10,
     alignItems: 'center',
@@ -2339,7 +2360,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   localityRowSelected: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#FFF0F0',
   },
   localityRowText: {
     flex: 1,
@@ -2348,7 +2369,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   localityRowTextSelected: {
-    color: '#059669',
+    color: '#FF5252',
     fontWeight: '800',
   },
 });

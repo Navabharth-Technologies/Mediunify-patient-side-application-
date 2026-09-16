@@ -70,23 +70,6 @@ const EquipmentRentalScreen = ({ navigation }) => {
     setRentalModalVisible(true);
   };
 
-  const handleBuyNow = (equip) => {
-    if (addToCart) {
-      addToCart({
-        id: equip.id,
-        name: `${equip.name} (Brand New Purchase)`,
-        price: equip.buyPrice,
-        mrp: Math.round(equip.buyPrice * 1.15),
-        quantity: 1,
-        image: equip.image,
-      });
-    }
-    showAlert(
-      'Added to Healthcare Cart 🛒',
-      `"${equip.name}" has been added to your cart for direct purchase with warranty.`
-    );
-  };
-
   const handleConfirmRental = async () => {
     if (!deliveryAddress.trim() || !contactPhone.trim()) {
       showAlert('Required', 'Please enter your delivery address and phone number.');
@@ -391,14 +374,6 @@ const EquipmentRentalScreen = ({ navigation }) => {
                     </View>
 
                     <View style={styles.actionButtonsRow}>
-                      <TouchableOpacity
-                        style={styles.buyBtn}
-                        onPress={() => handleBuyNow(item)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.buyBtnText}>Buy: ₹{item.buyPrice.toLocaleString('en-IN')}</Text>
-                      </TouchableOpacity>
-
                       <TouchableOpacity
                         style={styles.rentBtn}
                         onPress={() => handleOpenRental(item)}
@@ -1057,34 +1032,20 @@ const styles = StyleSheet.create({
   },
   actionButtonsRow: {
     flexDirection: 'row',
-    gap: 8,
-  },
-  buyBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buyBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#334155',
   },
   rentBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    justifyContent: 'center',
+    gap: 6,
     backgroundColor: '#7C3AED',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
   rentBtnText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '800',
     color: '#FFFFFF',
   },

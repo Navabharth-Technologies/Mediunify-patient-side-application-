@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,6 @@ import * as ImagePicker from 'expo-image-picker';
 
 import colors from '../../../theme/colors';
 import pharmacyProducts from '../../../data/pharmacyProducts';
-import pharmacyStores from '../../../data/pharmacyStores';
 import ProductCard from '../../../components/ProductCard';
 import { useCart } from '../../../context/CartContext';
 
@@ -49,7 +48,15 @@ const PharmacyStoreDetailScreen = ({ navigation, route }) => {
     setSelectedPharmacyStore,
   } = useCart();
 
-  const store = route?.params?.store || selectedPharmacyStore || pharmacyStores[0];
+  const store = route?.params?.store || selectedPharmacyStore || {
+    id: 'store-apollo-kuvempu',
+    name: 'Apollo Pharmacy - Kuvempunagar',
+    locality: 'Kuvempunagar',
+    address: '#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023',
+    deliveryTime: '15-25 mins',
+    rating: 4.9,
+    reviewsCount: 1450,
+  };
 
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -174,7 +181,7 @@ const PharmacyStoreDetailScreen = ({ navigation, route }) => {
 
             <View style={styles.metaRow}>
               <View style={styles.metaBadge}>
-                <Ionicons name="bicycle" size={14} color="#059669" />
+                <Ionicons name="bicycle" size={14} color="#FF5252" />
                 <Text style={styles.metaBadgeText}>{store.deliveryTime || '20-30 mins'}</Text>
               </View>
 
@@ -184,9 +191,9 @@ const PharmacyStoreDetailScreen = ({ navigation, route }) => {
                   <Text style={[styles.metaBadgeText, { color: '#2563EB' }]}>24x7 Open</Text>
                 </View>
               ) : (
-                <View style={[styles.metaBadge, { backgroundColor: '#ECFDF5' }]}>
-                  <Ionicons name="checkmark-circle" size={14} color="#059669" />
-                  <Text style={[styles.metaBadgeText, { color: '#059669' }]}>Open Now</Text>
+                <View style={[styles.metaBadge, { backgroundColor: '#FFF0F0' }]}>
+                  <Ionicons name="checkmark-circle" size={14} color="#FF5252" />
+                  <Text style={[styles.metaBadgeText, { color: '#FF5252' }]}>Open Now</Text>
                 </View>
               )}
 
@@ -223,12 +230,12 @@ const PharmacyStoreDetailScreen = ({ navigation, route }) => {
                 <Ionicons
                   name={prescriptionUploaded ? 'checkmark-circle' : 'document-text'}
                   size={16}
-                  color={prescriptionUploaded ? '#059669' : '#FFFFFF'}
+                  color={prescriptionUploaded ? '#FF5252' : '#FFFFFF'}
                 />
                 <Text
                   style={[
                     styles.rxUploadText,
-                    prescriptionUploaded && { color: '#059669' },
+                    prescriptionUploaded && { color: '#FF5252' },
                   ]}
                 >
                   {prescriptionUploaded ? 'Rx Attached ✓' : 'Upload Rx to Shop'}
@@ -486,11 +493,25 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    ...Platform.select({
+
+      web: { boxShadow: '0px 3px 16px rgba(0,0,0,0.06)' },
+
+      default: {
+
+        shadowColor: '#000',
+
+        shadowOffset: { width: 0, height: 3 },
+
+        shadowOpacity: 0.06,
+
+        shadowRadius: 8,
+
+        elevation: 3,
+
+      },
+
+    }),
   },
   storeImage: {
     width: '100%',
@@ -519,7 +540,7 @@ const styles = StyleSheet.create({
   ratingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#059669',
+    backgroundColor: '#FF5252',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -552,7 +573,7 @@ const styles = StyleSheet.create({
   metaBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#FFF5F5',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -561,7 +582,7 @@ const styles = StyleSheet.create({
   metaBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#059669',
+    color: '#FF5252',
   },
   licenseBox: {
     flexDirection: 'row',
@@ -617,9 +638,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   rxUploadedBtn: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#FFF0F0',
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#FFBDBD',
   },
   rxUploadText: {
     fontSize: 13,
@@ -765,11 +786,25 @@ const styles = StyleSheet.create({
     borderTopColor: '#E2E8F0',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 8,
+    ...Platform.select({
+
+      web: { boxShadow: '0px -4px 20px rgba(0,0,0,0.1)' },
+
+      default: {
+
+        shadowColor: '#000',
+
+        shadowOffset: { width: 0, height: -4 },
+
+        shadowOpacity: 0.1,
+
+        shadowRadius: 10,
+
+        elevation: 8,
+
+      },
+
+    }),
   },
   floatingCartInner: {
     width: '100%',
@@ -800,7 +835,7 @@ const styles = StyleSheet.create({
   },
   floatingCartShop: {
     fontSize: 12,
-    color: '#059669',
+    color: '#FF5252',
     fontWeight: '700',
   },
   floatingCartButton: {
