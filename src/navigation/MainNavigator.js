@@ -965,7 +965,7 @@ const MainNavigator = ({
           BOTTOM NAVIGATION (ONLY ON MAIN TAB SCREENS)
       ================================================== */}
 
-      {!isDesktopWeb && ['Home', 'DoctorList', 'VideoConsultation', 'Bookings', 'HealthRecords', 'Profile'].includes(currentRoute) && (
+      {!isDesktopWeb && ['Home', 'DoctorList', 'VideoConsultation', 'Bookings', 'HealthRecords', 'Profile', 'AllServices'].includes(currentRoute) && (
         <BottomNavigation
           navigation={navigation}
           currentRoute={currentRoute}
@@ -1044,13 +1044,17 @@ const styles = StyleSheet.create({
 
   bottomNavigation: {
 
-    position: 'absolute',
+    position: Platform.OS === 'web' ? 'fixed' : 'absolute',
 
     left: 14,
 
     right: 14,
 
     bottom: 12,
+
+    maxWidth: 520,
+
+    marginHorizontal: 'auto',
 
     height: 72,
 

@@ -117,10 +117,32 @@ if (fs.existsSync(INDEX_HTML)) {
   html = html.replace(/src="\/assets\//g,       `src="${BASE_PATH}/assets/`);
   html = html.replace(/href="\/assets\//g,      `href="${BASE_PATH}/assets/`);
 
+  // Mobile application viewport & PWA meta tags
+  html = html.replace(
+    /<meta name="viewport"[^>]*>/i,
+    `<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="theme-color" content="#0F766E" />`
+  );
+
   // Injected head scripts and @font-face CSS
   const headAdditions = `
   <style data-gh-font-patch="true">
     ${fontFaceCss}
+    /* Mobile web application native feel optimizations */
+    html, body {
+      overscroll-behavior-y: none;
+      -webkit-overflow-scrolling: touch;
+      touch-action: manipulation;
+    }
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
+    input, textarea, select {
+      font-size: 16px !important;
+    }
   </style>
   <script data-gh-patch="true">
     (function() {

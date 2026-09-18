@@ -18,6 +18,7 @@ import { useCart } from '../../context/CartContext';
 import doctors, { doctorSpecialties } from '../../data/doctors';
 import { labPackages } from '../../data/homeData';
 import WebFooter from '../../components/web/WebFooter';
+import HomeScreenMobile from './HomeScreenMobile';
 
 const HERO_PROMO_ADS = [
   {
@@ -2483,4 +2484,15 @@ const styles = StyleSheet.create({
   },
 });
 
-export default HomeScreenWeb;
+const HomeScreenResponsive = (props) => {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
+
+  if (!isDesktop) {
+    return <HomeScreenMobile {...props} />;
+  }
+
+  return <HomeScreenWeb {...props} />;
+};
+
+export default HomeScreenResponsive;
