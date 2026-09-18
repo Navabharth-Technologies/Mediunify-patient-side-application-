@@ -15,11 +15,10 @@
         "backgroundColor": "#FFFFFF"
       }
     },
-    "web": {
-      "favicon": "./assets/logo.png"
-    },
+    "web": { "favicon": "./assets/logo.png", "publicPath": "/Mediunify-patient-side-application-" },
     "plugins": [
       "expo-font"
     ]
   }
 }
+
