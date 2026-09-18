@@ -24,6 +24,7 @@ import colors from '../../../theme/colors';
 import labTests from '../../../data/labTests';
 import { syncActiveUser } from '../../../services/dataSyncService';
 import WebFooter from '../../../components/web/WebFooter';
+import { assignedNursesData } from '../../../data/homeNursingData';
 
 const DEFAULT_SAMPLE_APPOINTMENTS = [
   {
@@ -388,6 +389,8 @@ const BookingsScreen = ({ navigation, route }) => {
       item.type === 'Nurse' ||
       item.serviceType === 'nurse' ||
       item.assignedNurse !== undefined ||
+      (Array.isArray(item.selectedServices) && item.selectedServices.length > 0) ||
+      (typeof item.id === 'string' && item.id.startsWith('HN-')) ||
       (typeof item.serviceName === 'string' && item.serviceName.includes('Staff')));
 
     if (isVideo) {
@@ -542,29 +545,84 @@ const BookingsScreen = ({ navigation, route }) => {
     }
 
     if (isNurse) {
-      const nurseName = item.assignedNurse?.name || item.nurseName || 'Certified Staff Nurse';
+      const nurseObj =
+        item.assignedNurse && typeof item.assignedNurse === 'string' && assignedNursesData && assignedNursesData[item.assignedNurse]
+          ? assignedNursesData[item.assignedNurse]
+          : item.assignedNurse && typeof item.assignedNurse === 'object'
+          ? item.assignedNurse
+          : null;
+
+      const nurseName =
+        nurseObj?.name ||
+        item.nurseName ||
+        item.doctor?.name ||
+        (typeof item.assignedNurse === 'string' ? item.assignedNurse : null) ||
+        'MediUnify Certified Nurse';
+
+      const srvList = Array.isArray(item.selectedServices) && item.selectedServices.length > 0
+        ? item.selectedServices.join(', ')
+        : item.serviceName || item.plan || 'General Home Nursing & Clinical Care';
+
+      const durationText = item.preferences?.careDays
+        ? `${item.preferences.careDays} Day${item.preferences.careDays > 1 ? 's' : ''} (${item.preferences.shiftDuration || 'Per Visit'})`
+        : item.preferences?.shiftDuration || item.timeSlot || 'Day Duty (09:00 AM - 05:00 PM)';
+
+      const cost =
+        item.preferences?.estimatedTotalCost ||
+        item.payment?.amount ||
+        item.paidAmount ||
+        item.fee ||
+        299;
+
+      const startDateText =
+        item.preferences?.startDate ||
+        item.confirmedVisitDate ||
+        item.schedule?.startDate ||
+        item.startDate ||
+        item.date ||
+        'Today';
+
+      const timeSlotText =
+        item.confirmedVisitTime ||
+        item.preferences?.preferredTimeSlot ||
+        item.schedule?.time ||
+        item.timeSlot ||
+        item.time ||
+        'Scheduled Shift';
+
+      const patientObj = item.patient || {
+        name: item.patientName || 'Patient (Self)',
+        age: item.patientAge || '28',
+        gender: item.patientGender || 'Home Care',
+        phone: item.contactNumber || '',
+      };
+
       return {
         ...item,
         type: 'Home Nurse Care',
-        tokenNumber: item.tokenNumber || item.id || 'NURSE-01',
+        tokenNumber: item.tokenNumber || item.id || 'HN-2026',
         doctor: {
           name: nurseName,
-          specialty: item.serviceName || item.plan || 'General Post-Op & Vitals Care',
-          qualification: item.assignedNurse?.qualification || 'B.Sc Nursing, Certified',
-          clinicName: 'Unnathi Home Care & Nursing',
-          clinicAddress: item.patient?.address || item.address || 'Doorstep Home Care, Mysore',
-          clinicArea: 'Kuvempunagar, Mysore',
-          phone: item.doctor?.phone || '+91 821 245 9905',
-          fee: item.payment?.amount || item.paidAmount || item.fee || 1200,
-          image: 'https://images.unsplash.com/photo-1594824813576-92f70b79873a?auto=format&fit=crop&q=80&w=300',
+          specialty: srvList,
+          qualification: nurseObj?.qualification || 'KNC Registered Nurse (GNM / B.Sc)',
+          clinicName: 'MediUnify Home Care & Nursing',
+          clinicAddress: item.address || item.patient?.address || 'Doorstep Home Care, Mysuru',
+          clinicArea: 'Mysuru / Bengaluru',
+          phone: item.doctor?.phone || item.contactNumber || '1800-425-0099',
+          fee: cost,
+          image:
+            nurseObj?.photo ||
+            item.doctor?.image ||
+            'https://images.unsplash.com/photo-1594824813576-92f70b79873a?auto=format&fit=crop&q=80&w=300',
         },
-        day: item.day || item.schedule?.startDate || item.startDate || 'Scheduled',
-        date: item.date || item.schedule?.startDate || item.startDate || 'Today',
-        time: item.time || item.schedule?.time || item.timeSlot || 'Day Duty (09:00 AM - 05:00 PM)',
-        status: item.status || 'Confirmed',
-        paidAmount: item.payment?.amount || item.paidAmount || item.fee || 1200,
-        paymentStatus: item.payment?.method || item.paymentStatus || 'Paid Online',
-        patient: item.patient || { name: item.patientName || 'Patient (Self)', age: '28', gender: 'Home Care' },
+        day: startDateText,
+        date: startDateText,
+        time: timeSlotText,
+        duration: durationText,
+        status: item.status || 'Care Team Will Call You',
+        paidAmount: cost,
+        paymentStatus: item.paymentStatus || 'Pay After Visit (Zero Advance)',
+        patient: patientObj,
         details: item.details || item,
       };
     }
@@ -692,9 +750,19 @@ const BookingsScreen = ({ navigation, route }) => {
       const radJson = await AsyncStorage.getItem('@radiologyBookings');
       const storedRad = radJson ? JSON.parse(radJson) : [];
 
-      // 5. Load nurse bookings
+      // 5. Load nurse bookings from all relevant storage keys
       const nurseJson = await AsyncStorage.getItem('@unnathi_nurse_bookings');
+      const homeNurseJson = await AsyncStorage.getItem('@unnathi_home_nursing_requests');
       const storedNurse = nurseJson ? JSON.parse(nurseJson) : [];
+      const storedHomeNurse = homeNurseJson ? JSON.parse(homeNurseJson) : [];
+      const allNurseBookings = [];
+      const seenNurseIds = new Set();
+      [...storedNurse, ...storedHomeNurse].forEach((n) => {
+        if (n && n.id && !seenNurseIds.has(n.id)) {
+          seenNurseIds.add(n.id);
+          allNurseBookings.push(n);
+        }
+      });
 
       // 6. Load pharmacy orders (from both storage keys)
       const pharmJson = await AsyncStorage.getItem('@unnathi_pharmacy_orders');
@@ -732,7 +800,7 @@ const BookingsScreen = ({ navigation, route }) => {
         ...storedVideo,
         ...storedLabs,
         ...storedRad,
-        ...storedNurse,
+        ...allNurseBookings,
         ...storedAyu,
         ...storedFert,
         ...storedEquip,
@@ -891,11 +959,16 @@ const BookingsScreen = ({ navigation, route }) => {
             a.status === 'Rescheduled' ||
             a.status === 'Out for Delivery' ||
             a.status === 'Scheduled' ||
+            a.status === 'Care Team Will Call You' ||
+            a.status === 'Requirement Confirmed' ||
+            a.status === 'Nurse Assigned' ||
+            a.status === 'Visit Confirmed' ||
+            a.status === 'Active' ||
             (!a.status && a.status !== 'Cancelled')
         );
       } else if (mobileStatusSegment === 'completed') {
         list = list.filter(
-          (a) => a.status === 'Completed' || a.status === 'Delivered'
+          (a) => a.status === 'Completed' || a.status === 'Delivered' || a.status === 'Visit Completed'
         );
       } else if (mobileStatusSegment === 'cancelled') {
         list = list.filter((a) => a.status === 'Cancelled');
@@ -920,6 +993,8 @@ const BookingsScreen = ({ navigation, route }) => {
             item.type === 'Nurse' ||
             item.serviceType === 'nurse' ||
             item.assignedNurse !== undefined ||
+            Array.isArray(item.selectedServices) ||
+            (typeof item.id === 'string' && item.id.startsWith('HN-')) ||
             (typeof item.serviceName === 'string' && item.serviceName.includes('Staff'));
           const isPharmacy = item.type === 'Pharmacy Order' || item.isPharmacyOrder;
           const isEquipment = item.type?.includes('Equipment') || item.serviceType === 'equipment';
@@ -972,6 +1047,8 @@ const BookingsScreen = ({ navigation, route }) => {
           item.type === 'Nurse' ||
           item.serviceType === 'nurse' ||
           item.assignedNurse !== undefined ||
+          Array.isArray(item.selectedServices) ||
+          (typeof item.id === 'string' && item.id.startsWith('HN-')) ||
           (typeof item.serviceName === 'string' && item.serviceName.includes('Staff'));
         const isPharmacy = item.type === 'Pharmacy Order' || item.isPharmacyOrder;
         const isEquipment =
@@ -1003,7 +1080,12 @@ const BookingsScreen = ({ navigation, route }) => {
             item.status === 'Confirmed' ||
             item.status === 'Rescheduled' ||
             item.status === 'Out for Delivery' ||
-            item.status === 'Scheduled'
+            item.status === 'Scheduled' ||
+            item.status === 'Care Team Will Call You' ||
+            item.status === 'Requirement Confirmed' ||
+            item.status === 'Nurse Assigned' ||
+            item.status === 'Visit Confirmed' ||
+            item.status === 'Active'
           );
         }
         if (selectedTab === 'Cancelled') {
@@ -1130,6 +1212,8 @@ const BookingsScreen = ({ navigation, route }) => {
           a.type === 'Nurse' ||
           a.serviceType === 'nurse' ||
           a.assignedNurse !== undefined ||
+          Array.isArray(a.selectedServices) ||
+          (typeof a.id === 'string' && a.id.startsWith('HN-')) ||
           (typeof a.serviceName === 'string' && a.serviceName.includes('Staff'))
       ).length,
       confirmed: appointments.filter(
@@ -1138,6 +1222,11 @@ const BookingsScreen = ({ navigation, route }) => {
           a.status === 'Rescheduled' ||
           a.status === 'Out for Delivery' ||
           a.status === 'Scheduled' ||
+          a.status === 'Care Team Will Call You' ||
+          a.status === 'Requirement Confirmed' ||
+          a.status === 'Nurse Assigned' ||
+          a.status === 'Visit Confirmed' ||
+          a.status === 'Active' ||
           (!a.status && a.status !== 'Cancelled')
       ).length,
       completed: Math.max(
@@ -2044,125 +2133,6 @@ const BookingsScreen = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.desktopPageScroll}
         >
-          {/* DESKTOP BREADCRUMBS */}
-          <View style={styles.webBreadcrumbsRow}>
-            <TouchableOpacity onPress={() => navigation.navigate('Home')} activeOpacity={0.7}>
-              <Text style={styles.webBreadcrumbLink}>Home</Text>
-            </TouchableOpacity>
-            <Text style={styles.webBreadcrumbSlash}>/</Text>
-            <Text style={styles.webBreadcrumbCurrent}>My Appointments & Bookings</Text>
-          </View>
-
-          {/* HERO PROMOTIONAL BANNER */}
-          <View style={styles.heroBannerDesktop}>
-            <View style={styles.heroContent}>
-              <View style={styles.heroTag}>
-                <Ionicons name="sparkles" size={13} color="#FFFFFF" />
-                <Text style={styles.heroTagText}>MEDIUNIFY HEALTH DASHBOARD</Text>
-              </View>
-              <View style={styles.heroTitleRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.heroTitle}>My Appointments & Health Care</Text>
-                  <Text style={styles.heroSubtitle}>
-                    Track in-clinic physical visits, live HD video calls, home lab collections, radiology scans, and pharmacy deliveries in real time.
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.heroSyncBtn}
-                  onPress={() => loadAppointments()}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="sync-outline" size={16} color="#FFFFFF" />
-                  <Text style={styles.heroSyncBtnText}>Sync Live</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* QUICK STATS ROW */}
-              <View style={styles.heroStatsRow}>
-                <TouchableOpacity
-                  style={[styles.heroStatItem, selectedTab === 'All' && styles.heroStatItemActive]}
-                  onPress={() => setSelectedTab('All')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.heroStatNum}>{counts.all}</Text>
-                  <Text style={styles.heroStatLabel}>Total Bookings</Text>
-                </TouchableOpacity>
-                <View style={styles.heroStatDivider} />
-                <TouchableOpacity
-                  style={[styles.heroStatItem, selectedTab === 'Confirmed' && styles.heroStatItemActive]}
-                  onPress={() => setSelectedTab('Confirmed')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.heroStatNum, { color: '#34D399' }]}>{counts.confirmed}</Text>
-                  <Text style={styles.heroStatLabel}>Active / Upcoming</Text>
-                </TouchableOpacity>
-                <View style={styles.heroStatDivider} />
-                <TouchableOpacity
-                  style={[styles.heroStatItem, selectedTab === 'Doctor Visits' && styles.heroStatItemActive]}
-                  onPress={() => setSelectedTab('Doctor Visits')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.heroStatNum}>{counts.doctors}</Text>
-                  <Text style={styles.heroStatLabel}>In-Clinic Visits</Text>
-                </TouchableOpacity>
-                <View style={styles.heroStatDivider} />
-                <TouchableOpacity
-                  style={[styles.heroStatItem, selectedTab === 'Video Consults' && styles.heroStatItemActive]}
-                  onPress={() => setSelectedTab('Video Consults')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.heroStatNum}>{counts.videoCalls}</Text>
-                  <Text style={styles.heroStatLabel}>Video Calls</Text>
-                </TouchableOpacity>
-                <View style={styles.heroStatDivider} />
-                <TouchableOpacity
-                  style={[styles.heroStatItem, selectedTab === 'Lab Tests' && styles.heroStatItemActive]}
-                  onPress={() => setSelectedTab('Lab Tests')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.heroStatNum}>{counts.labTests}</Text>
-                  <Text style={styles.heroStatLabel}>Lab Tests</Text>
-                </TouchableOpacity>
-                <View style={styles.heroStatDivider} />
-                <TouchableOpacity
-                  style={[styles.heroStatItem, selectedTab === 'Equipment Rental' && styles.heroStatItemActive]}
-                  onPress={() => setSelectedTab('Equipment Rental')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.heroStatNum, { color: '#8B5CF6' }]}>{counts.equipment}</Text>
-                  <Text style={styles.heroStatLabel}>Equipment</Text>
-                </TouchableOpacity>
-                <View style={styles.heroStatDivider} />
-                <TouchableOpacity
-                  style={[styles.heroStatItem, selectedTab === 'Ayurveda & Wellness' && styles.heroStatItemActive]}
-                  onPress={() => setSelectedTab('Ayurveda & Wellness')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.heroStatNum, { color: '#059669' }]}>{counts.ayurveda}</Text>
-                  <Text style={styles.heroStatLabel}>Ayurveda</Text>
-                </TouchableOpacity>
-                <View style={styles.heroStatDivider} />
-                <TouchableOpacity
-                  style={[styles.heroStatItem, selectedTab === 'Fertility & IVF' && styles.heroStatItemActive]}
-                  onPress={() => setSelectedTab('Fertility & IVF')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.heroStatNum, { color: '#DB2777' }]}>{counts.fertility}</Text>
-                  <Text style={styles.heroStatLabel}>Fertility</Text>
-                </TouchableOpacity>
-                <View style={styles.heroStatDivider} />
-                <TouchableOpacity
-                  style={[styles.heroStatItem, selectedTab === 'Pharmacy Orders' && styles.heroStatItemActive]}
-                  onPress={() => setSelectedTab('Pharmacy Orders')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.heroStatNum}>{counts.pharmacy}</Text>
-                  <Text style={styles.heroStatLabel}>Pharmacy Orders</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-
           {/* MAIN 2-COLUMN LAYOUT */}
           <View style={styles.mainLayoutWrapDesktop}>
             {/* LEFT COLUMN: DEDICATED STICKY FILTER SIDEBAR */}
@@ -5460,7 +5430,7 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 24,
     paddingBottom: 60,
   },
   webBreadcrumbsRow: {

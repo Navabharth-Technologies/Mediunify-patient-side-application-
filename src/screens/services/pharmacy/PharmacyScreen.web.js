@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -519,6 +519,28 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
       : 'Kuvempunagar, Mysuru'
   );
 
+  // Scroll ref & auto-scroll to products
+  const mainScrollRef = useRef(null);
+  const [catalogY, setCatalogY] = useState(0);
+
+  const scrollToProducts = () => {
+    setTimeout(() => {
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        const el = document.getElementById('pharmacy-products-section');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+      }
+      if (mainScrollRef.current) {
+        mainScrollRef.current.scrollTo({
+          y: Math.max(0, catalogY - 20),
+          animated: true,
+        });
+      }
+    }, 80);
+  };
+
   useEffect(() => {
     if (selectedAddress?.locality) {
       setCurrentAddress(`${selectedAddress.locality}, ${selectedAddress.city || 'Mysuru'}`);
@@ -602,6 +624,8 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
     } else {
       setSelectedCondition(conditionId);
       setSelectedCategory('all');
+      setCurrentPage(1);
+      scrollToProducts();
     }
   };
 
@@ -692,7 +716,11 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
         </View>
       )}
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={mainScrollRef}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* ============================================================
             1. FULL-WIDTH HERO SHOWCASE BANNER (Exact HomeScreen Standard)
         ============================================================ */}
@@ -928,6 +956,8 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                           } else {
                             setSelectedCategory('all');
                             setSelectedCondition(item.id);
+                            setCurrentPage(1);
+                            scrollToProducts();
                           }
                         }}
                         activeOpacity={0.88}
@@ -1015,6 +1045,8 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                         onPress={() => {
                           setSelectedCondition(null);
                           setSelectedCategory(item.categoryFilter);
+                          setCurrentPage(1);
+                          scrollToProducts();
                         }}
                         activeOpacity={0.88}
                       >
@@ -1109,7 +1141,17 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
         {/* ============================================================
             POPULAR PRODUCTS (Matching Mockup Heading)
         ============================================================ */}
-        <View style={styles.pharmacySectionWrap}>
+        <View
+          style={styles.pharmacySectionWrap}
+          nativeID="pharmacy-products-section"
+          {...(Platform.OS === 'web' ? { id: 'pharmacy-products-section' } : {})}
+          onLayout={(event) => {
+            const layout = event.nativeEvent.layout;
+            if (layout && layout.y) {
+              setCatalogY(layout.y);
+            }
+          }}
+        >
           <View style={styles.sectionHeaderLine}>
             <View>
               <Text style={styles.sectionHeadingTitle}>

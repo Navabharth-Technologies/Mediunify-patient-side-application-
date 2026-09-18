@@ -34,3 +34,18 @@ targetFiles.forEach((file) => {
     console.log('[patchExpoAsset] Patched', file);
   }
 });
+
+// Also fix tsconfig.json in expo-asset if present
+const tsconfigFile = path.join(__dirname, '..', 'node_modules', 'expo-asset', 'tsconfig.json');
+if (fs.existsSync(tsconfigFile)) {
+  const cleanTsConfig = JSON.stringify({
+    compilerOptions: {
+      rootDir: "./src",
+      outDir: "./build"
+    },
+    include: ["./src"],
+    exclude: ["**/__mocks__/*", "**/__tests__/*", "**/__rsc_tests__/*"]
+  }, null, 2);
+  fs.writeFileSync(tsconfigFile, cleanTsConfig, 'utf8');
+  console.log('[patchExpoAsset] Cleaned', tsconfigFile);
+}

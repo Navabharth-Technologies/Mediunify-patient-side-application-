@@ -17,6 +17,7 @@ const ORDERS_STORAGE_KEY = '@unnathi_pharmacy_orders';
 const ADDRESS_STORAGE_KEY = '@unnathi_delivery_address';
 const PHARMACY_CART_KEY = '@unnathi_pharmacy_cart';
 const LAB_CART_KEY = '@unnathi_lab_cart';
+const RADIOLOGY_CART_KEY = '@unnathi_radiology_cart';
 const SELECTED_STORE_KEY = '@unnathi_selected_pharmacy_store';
 
 const DEFAULT_ORDERS = [
@@ -70,9 +71,10 @@ const DEFAULT_ORDERS = [
 ];
 
 export const CartProvider = ({ children }) => {
-  // Separate carts for Pharmacy and Lab tests
+  // Separate carts for Pharmacy, Lab tests, and Radiology scans
   const [pharmacyCart, setPharmacyCart] = useState([]);
   const [labCart, setLabCart] = useState([]);
+  const [radiologyCart, setRadiologyCart] = useState([]);
 
   const [orders, setOrders] = useState(DEFAULT_ORDERS);
   const [appliedCoupon, setAppliedCoupon] = useState(null);
@@ -129,6 +131,9 @@ export const CartProvider = ({ children }) => {
 
       const storedLab = await AsyncStorage.getItem(LAB_CART_KEY);
       if (storedLab) setLabCart(JSON.parse(storedLab));
+
+      const storedRadiology = await AsyncStorage.getItem(RADIOLOGY_CART_KEY);
+      if (storedRadiology) setRadiologyCart(JSON.parse(storedRadiology));
     } catch (e) {
       console.log('Error loading saved cart data:', e);
     }
@@ -152,18 +157,62 @@ export const CartProvider = ({ children }) => {
     AsyncStorage.setItem(LAB_CART_KEY, JSON.stringify(labCart)).catch(() => {});
   }, [labCart]);
 
-  // Helper to determine if an item is a lab test
+  useEffect(() => {
+    AsyncStorage.setItem(RADIOLOGY_CART_KEY, JSON.stringify(radiologyCart)).catch(() => {});
+  }, [radiologyCart]);
+
+  // Helper to determine if an item is a radiology/imaging scan
+  const isRadiologyItem = (item, forcedType) => {
+    if (forcedType === 'radiology') return true;
+    if (forcedType === 'lab' || forcedType === 'pharmacy') return false;
+    const cat = (item.category || '').toLowerCase();
+    const catLabel = (item.categoryLabel || '').toLowerCase();
+    const name = (item.name || '').toLowerCase();
+    return (
+      item.cartType === 'radiology' ||
+      item.itemType === 'radiology' ||
+      item.itemType === 'scan' ||
+      item.itemType === 'imaging' ||
+      cat === 'radiology' ||
+      cat === 'diagnostic scan' ||
+      Boolean(item.modality) ||
+      Boolean(item.modalityCode) ||
+      catLabel.includes('mri') ||
+      catLabel.includes('ct') ||
+      catLabel.includes('x-ray') ||
+      catLabel.includes('xray') ||
+      catLabel.includes('ultrasound') ||
+      catLabel.includes('usg') ||
+      catLabel.includes('echo') ||
+      catLabel.includes('ecg') ||
+      catLabel.includes('dexa') ||
+      catLabel.includes('mammo') ||
+      catLabel.includes('pet') ||
+      name.includes('mri') ||
+      name.includes('ct scan') ||
+      name.includes('ultrasound') ||
+      name.includes('x-ray') ||
+      name.includes('2d echo')
+    );
+  };
+
+  // Helper to determine if an item is a pathology/blood lab test
   const isLabItem = (item, forcedType) => {
     if (forcedType === 'lab') return true;
-    if (forcedType === 'pharmacy') return false;
+    if (forcedType === 'radiology' || forcedType === 'pharmacy') return false;
+    if (isRadiologyItem(item, forcedType)) return false;
+    const cat = (item.category || '').toLowerCase();
     return (
-      item.itemType === 'diagnostic' ||
+      item.cartType === 'lab' ||
       item.itemType === 'lab' ||
-      item.category === 'Diagnostic Scan' ||
-      item.category === 'Lab Test' ||
-      item.category === 'Radiology' ||
+      item.itemType === 'diagnostic' ||
+      cat === 'lab test' ||
+      cat === 'health package' ||
+      cat === 'blood test' ||
+      cat === 'pathology' ||
       item.isLabTest === true ||
-      item.labId !== undefined
+      Boolean(item.sampleType) ||
+      Boolean(item.testsCount)
     );
   };
 
@@ -171,7 +220,17 @@ export const CartProvider = ({ children }) => {
   // ADD TO CART (AUTOMATIC CART ROUTING)
   // ==========================================
   const addToCart = (product, quantityToAdd = 1, forcedType = null, storeOverride = null) => {
-    if (isLabItem(product, forcedType)) {
+    if (isRadiologyItem(product, forcedType)) {
+      setRadiologyCart((prev) => {
+        const existing = prev.find((item) => item.id === product.id);
+        if (existing) {
+          return prev.map((item) =>
+            item.id === product.id ? { ...item, quantity: item.quantity + quantityToAdd } : item
+          );
+        }
+        return [...prev, { ...product, quantity: quantityToAdd, cartType: 'radiology' }];
+      });
+    } else if (isLabItem(product, forcedType)) {
       setLabCart((prev) => {
         const existing = prev.find((item) => item.id === product.id);
         if (existing) {
@@ -220,6 +279,11 @@ export const CartProvider = ({ children }) => {
     }
   };
 
+  // Dedicated Radiology Scan Add
+  const addRadiologyScanToCart = (scan, quantity = 1) => {
+    addToCart(scan, quantity, 'radiology');
+  };
+
   // Dedicated Lab Test Add
   const addLabTestToCart = (test, quantity = 1) => {
     addToCart(test, quantity, 'lab');
@@ -234,7 +298,11 @@ export const CartProvider = ({ children }) => {
   // INCREASE QUANTITY
   // ==========================================
   const increaseQuantity = (productId, cartType = null, storeId = null) => {
-    if (cartType === 'lab' || (labCart.some((i) => i.id === productId) && cartType !== 'pharmacy')) {
+    if (cartType === 'radiology' || (radiologyCart.some((i) => i.id === productId) && cartType !== 'pharmacy' && cartType !== 'lab')) {
+      setRadiologyCart((prev) =>
+        prev.map((item) => (item.id === productId ? { ...item, quantity: item.quantity + 1 } : item))
+      );
+    } else if (cartType === 'lab' || (labCart.some((i) => i.id === productId) && cartType !== 'pharmacy' && cartType !== 'radiology')) {
       setLabCart((prev) =>
         prev.map((item) => (item.id === productId ? { ...item, quantity: item.quantity + 1 } : item))
       );
@@ -253,7 +321,13 @@ export const CartProvider = ({ children }) => {
   // DECREASE QUANTITY
   // ==========================================
   const decreaseQuantity = (productId, cartType = null, storeId = null) => {
-    if (cartType === 'lab' || (labCart.some((i) => i.id === productId) && cartType !== 'pharmacy')) {
+    if (cartType === 'radiology' || (radiologyCart.some((i) => i.id === productId) && cartType !== 'pharmacy' && cartType !== 'lab')) {
+      setRadiologyCart((prev) =>
+        prev
+          .map((item) => (item.id === productId ? { ...item, quantity: item.quantity - 1 } : item))
+          .filter((item) => item.quantity > 0)
+      );
+    } else if (cartType === 'lab' || (labCart.some((i) => i.id === productId) && cartType !== 'pharmacy' && cartType !== 'radiology')) {
       setLabCart((prev) =>
         prev
           .map((item) => (item.id === productId ? { ...item, quantity: item.quantity - 1 } : item))
@@ -276,17 +350,20 @@ export const CartProvider = ({ children }) => {
   // REMOVE ITEM
   // ==========================================
   const removeFromCart = (productId, cartType = null, storeId = null) => {
-    if (cartType === 'lab') {
+    if (cartType === 'radiology') {
+      setRadiologyCart((prev) => prev.filter((item) => item.id !== productId));
+    } else if (cartType === 'lab') {
       setLabCart((prev) => prev.filter((item) => item.id !== productId));
     } else if (cartType === 'pharmacy') {
       setPharmacyCart((prev) =>
         prev.filter((item) => !(item.id === productId && (!storeId || item.storeId === storeId)))
       );
     } else {
+      setRadiologyCart((prev) => prev.filter((item) => item.id !== productId));
+      setLabCart((prev) => prev.filter((item) => item.id !== productId));
       setPharmacyCart((prev) =>
         prev.filter((item) => !(item.id === productId && (!storeId || item.storeId === storeId)))
       );
-      setLabCart((prev) => prev.filter((item) => item.id !== productId));
     }
   };
 
@@ -298,9 +375,12 @@ export const CartProvider = ({ children }) => {
       setPharmacyCart([]);
     } else if (cartType === 'lab') {
       setLabCart([]);
+    } else if (cartType === 'radiology') {
+      setRadiologyCart([]);
     } else {
       setPharmacyCart([]);
       setLabCart([]);
+      setRadiologyCart([]);
       setAppliedCoupon(null);
     }
   };
@@ -437,7 +517,88 @@ export const CartProvider = ({ children }) => {
   }, [labCart.length, labSubtotal, labDiscountAmount, labSampleFee]);
 
   // ==========================================
-  // MULTI-HOSPITAL SEPARATE CARTS FOR RADIOLOGY
+  // RADIOLOGY & SCANS TOTALS
+  // ==========================================
+  const radiologyCartCount = useMemo(() => {
+    return radiologyCart.reduce((total, item) => total + item.quantity, 0);
+  }, [radiologyCart]);
+
+  const radiologySubtotal = useMemo(() => {
+    return radiologyCart.reduce(
+      (total, item) => total + Number(item.price || 0) * item.quantity,
+      0
+    );
+  }, [radiologyCart]);
+
+  const radiologyMrpTotal = useMemo(() => {
+    return radiologyCart.reduce(
+      (total, item) => total + Number(item.mrp || item.oldPrice || item.price || 0) * item.quantity,
+      0
+    );
+  }, [radiologyCart]);
+
+  const radiologySavings = useMemo(() => {
+    return Math.max(0, radiologyMrpTotal - radiologySubtotal);
+  }, [radiologyMrpTotal, radiologySubtotal]);
+
+  const radiologyDiscountAmount = useMemo(() => {
+    if (!appliedCoupon) return 0;
+    if (appliedCoupon.discountPercent) {
+      return Math.round((radiologySubtotal * appliedCoupon.discountPercent) / 100);
+    }
+    if (appliedCoupon.discountAmount) {
+      return Math.min(radiologySubtotal, appliedCoupon.discountAmount);
+    }
+    return 0;
+  }, [appliedCoupon, radiologySubtotal]);
+
+  const radiologyFinalTotal = useMemo(() => {
+    if (radiologyCart.length === 0) return 0;
+    return Math.max(0, radiologySubtotal - radiologyDiscountAmount);
+  }, [radiologyCart.length, radiologySubtotal, radiologyDiscountAmount]);
+
+  // ==========================================
+  // MULTI-CENTER SEPARATE CARTS FOR RADIOLOGY
+  // ==========================================
+  const groupedRadiologyCarts = useMemo(() => {
+    const map = new Map();
+    radiologyCart.forEach((item) => {
+      const centerKey = item.labId || item.labName || 'default-scan-center';
+      if (!map.has(centerKey)) {
+        map.set(centerKey, {
+          labId: item.labId || 'default-scan-center',
+          labName: item.labName || 'MediUnify Advanced Imaging & Scan Center',
+          labArea: item.labArea || 'Kuvempunagar, Mysore',
+          labAddress: item.labAddress || 'Plot 14, Kuvempunagar, Mysore',
+          labPhone: item.labPhone || '+91 821 245 8890',
+          accreditation: item.labAccreditation || item.accreditation || 'NABL & NABH Accredited',
+          items: [],
+          itemsCount: 0,
+          subtotal: 0,
+          mrpTotal: 0,
+          savings: 0,
+        });
+      }
+
+      const centerCart = map.get(centerKey);
+      centerCart.items.push(item);
+      centerCart.itemsCount += item.quantity;
+      centerCart.subtotal += Number(item.price || 0) * item.quantity;
+      centerCart.mrpTotal += Number(item.mrp || item.oldPrice || item.price || 0) * item.quantity;
+      centerCart.savings = Math.max(0, centerCart.mrpTotal - centerCart.subtotal);
+    });
+
+    return Array.from(map.values());
+  }, [radiologyCart]);
+
+  const clearRadiologyCenterCart = (labId) => {
+    setRadiologyCart((prev) =>
+      prev.filter((item) => (item.labId || item.labName || 'default-scan-center') !== labId)
+    );
+  };
+
+  // ==========================================
+  // MULTI-HOSPITAL SEPARATE CARTS FOR LAB TESTS
   // ==========================================
   const groupedHospitalCarts = useMemo(() => {
     const map = new Map();
@@ -446,7 +607,7 @@ export const CartProvider = ({ children }) => {
       if (!map.has(hospitalKey)) {
         map.set(hospitalKey, {
           labId: item.labId || 'default-hospital',
-          labName: item.labName || 'MediUnify Diagnostic & Imaging Center',
+          labName: item.labName || 'MediUnify Diagnostic Lab & Pathology',
           labArea: item.labArea || 'Kuvempunagar, Mysore',
           labAddress: item.labAddress || 'Plot 14, Kuvempunagar, Mysore',
           labPhone: item.labPhone || '+91 821 245 8890',
@@ -456,7 +617,6 @@ export const CartProvider = ({ children }) => {
           subtotal: 0,
           mrpTotal: 0,
           savings: 0,
-          hasRadiologyScans: false,
         });
       }
 
@@ -466,18 +626,6 @@ export const CartProvider = ({ children }) => {
       hospCart.subtotal += Number(item.price || 0) * item.quantity;
       hospCart.mrpTotal += Number(item.mrp || item.oldPrice || item.price || 0) * item.quantity;
       hospCart.savings = Math.max(0, hospCart.mrpTotal - hospCart.subtotal);
-      if (
-        item.category === 'Radiology' ||
-        item.category === 'Diagnostic Scan' ||
-        item.modality ||
-        item.modalityCode ||
-        item.itemType === 'diagnostic' ||
-        (item.categoryLabel &&
-          !item.categoryLabel.toLowerCase().includes('blood') &&
-          !item.categoryLabel.toLowerCase().includes('urine'))
-      ) {
-        hospCart.hasRadiologyScans = true;
-      }
     });
 
     return Array.from(map.values());
@@ -543,7 +691,7 @@ export const CartProvider = ({ children }) => {
   };
 
   // Overall combined totals (for global headers if needed)
-  const totalCartCount = pharmacyCartCount + labCartCount;
+  const totalCartCount = pharmacyCartCount + labCartCount + radiologyCartCount;
 
   // ==========================================
   // ORDERS MANAGEMENT
@@ -619,12 +767,14 @@ export const CartProvider = ({ children }) => {
         // Separate Carts
         pharmacyCart,
         labCart,
+        radiologyCart,
         cart: pharmacyCart, // fallback for legacy components
         cartItems: pharmacyCart,
 
         // Add actions
         addToCart,
         addLabTestToCart,
+        addRadiologyScanToCart,
         addPharmacyProductToCart,
         increaseQuantity,
         decreaseQuantity,
@@ -636,6 +786,7 @@ export const CartProvider = ({ children }) => {
         cartCount: pharmacyCartCount,
         pharmacyCartCount,
         labCartCount,
+        radiologyCartCount,
 
         // Pharmacy Pricing & Multi-Store Carts
         subtotal: pharmacySubtotal,
@@ -664,6 +815,15 @@ export const CartProvider = ({ children }) => {
         labFinalTotal,
         groupedHospitalCarts,
         clearHospitalCart,
+
+        // Radiology Pricing & Multi-Center Carts
+        radiologySubtotal,
+        radiologyMrpTotal,
+        radiologySavings,
+        radiologyDiscountAmount,
+        radiologyFinalTotal,
+        groupedRadiologyCarts,
+        clearRadiologyCenterCart,
 
         // Coupons
         appliedCoupon,

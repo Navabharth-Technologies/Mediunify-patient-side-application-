@@ -18,16 +18,64 @@ import { useCart } from '../../context/CartContext';
 
 const NAV_LINKS = [
   { id: 'find-care', label: 'Find Care', hasDropdown: true },
-  { id: 'consultation', label: 'Consultation', hasDropdown: true },
+  { id: 'consultation', label: 'Consultation', shortLabel: 'Consult', hasDropdown: true },
   { id: 'lab-tests', label: 'Lab Tests', route: 'LabTests' },
   { id: 'radiology', label: 'Radiology', route: 'Imaging' },
   { id: 'pharmacy', label: 'Pharmacy', route: 'Pharmacy' },
-  { id: 'hospitals', label: 'Hospital & Surgery', route: 'HospitalCare' },
+  { id: 'hospitals', label: 'Hospital & Surgery', shortLabel: 'Hospitals', route: 'HospitalCare' },
   { id: 'insurance', label: 'Insurance', route: 'HealthInsurance' },
   { id: 'more', label: 'More', hasDropdown: true },
 ];
 
+const INITIAL_NOTIFICATIONS = [
+  {
+    id: 'notif-1',
+    title: 'Doctor Appointment Confirmed',
+    message: 'Dr. Ananya Rao (Cardiologist) • Today at 04:30 PM. MediUnify Heart Center.',
+    time: '12m ago',
+    unread: true,
+    icon: 'calendar',
+    iconColor: '#00B894',
+    iconBg: '#E6F9F4',
+    route: 'Bookings',
+  },
+  {
+    id: 'notif-2',
+    title: 'Medicine Order Out for Delivery',
+    message: 'Order #MU-8842 with 3 items dispatched. Arriving at your doorstep in 30 mins.',
+    time: '45m ago',
+    unread: true,
+    icon: 'cart',
+    iconColor: '#3B82F6',
+    iconBg: '#EFF6FF',
+    route: 'Pharmacy',
+  },
+  {
+    id: 'notif-3',
+    title: 'Lab Test Reports Ready',
+    message: 'Full Body Checkup (68 Tests) digital reports are certified & ready to view.',
+    time: '2h ago',
+    unread: true,
+    icon: 'document-text',
+    iconColor: '#0EA5E9',
+    iconBg: '#F0F9FF',
+    route: 'LabTests',
+  },
+  {
+    id: 'notif-4',
+    title: '₹150 MediCoins Credited',
+    message: 'Health Cashback reward has been credited to your MediUnify Health Wallet.',
+    time: 'Yesterday',
+    unread: false,
+    icon: 'wallet',
+    iconColor: '#8B5CF6',
+    iconBg: '#F5F3FF',
+    route: 'Wallet',
+  },
+];
+
 const SCROLLING_ADS = [
+  { id: 'ad-ai', badge: '24/7 AI HEALTHCARE', text: 'Instant Health Guidance, Doctor Recommendations & Prescription OCR Scanner • Free MediUnify AI', icon: 'sparkles', route: 'Chatbot' },
   { id: 'ad-med', badge: 'FLAT 20% OFF', text: 'Doorstep Medicines & Jan Aushadhi in 60 mins • Code: MEDI20', icon: 'medkit', route: 'Pharmacy' },
   { id: 'ad-ayu', badge: 'AYURVEDA & WELLNESS', text: 'Authentic Nadi Pariksha & Classical Panchakarma Starting @ ₹999 • AYUSH Certified Vaidyas', icon: 'leaf', route: 'AyurvedaWellness' },
   { id: 'ad-fert', badge: 'FERTILITY & IVF', text: '0% EMI IVF Packages & Confidential Fertility Guidance • Top Specialists across Karnataka', icon: 'heart', route: 'FertilityIvf' },
@@ -64,13 +112,12 @@ const CONSULTATION_ITEMS = [
 ];
 
 const FIND_CARE_ITEMS = [
-  { label: 'Hospitals & Surgeries', route: 'HospitalCare', icon: 'medkit-outline', desc: 'Accredited hospitals & surgical care' },
-  { label: 'Fertility & IVF Care', route: 'FertilityIvf', icon: 'heart-outline', desc: 'Advanced IVF, IUI & reproductive medicine' },
-  { label: 'Equipment Rental at Home', route: 'EquipmentRental', icon: 'fitness-outline', desc: 'Hospital beds, oxygen & wheelchairs' },
+  { label: 'MediUnify AI Assistant', route: 'Chatbot', icon: 'sparkles-outline', desc: 'Instant AI symptom triage & health guidance' },
   { label: '24/7 Emergency Care', route: 'Emergency', icon: 'flash-outline', desc: 'Immediate ambulance & emergency' },
 ];
 
 const MORE_ITEMS = [
+  { label: 'Ask MediUnify AI', route: 'Chatbot', icon: 'sparkles-outline' },
   { label: 'Ayurveda & Wellness', route: 'AyurvedaWellness', icon: 'leaf-outline' },
   { label: 'Fertility & IVF Care', route: 'FertilityIvf', icon: 'heart-outline' },
   { label: 'Medical Equipment Rental', route: 'EquipmentRental', icon: 'fitness-outline' },
@@ -87,17 +134,20 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
   const isTablet = width >= 768 && width < 1024;
+  const isCompactDesktop = width >= 1024 && width < 1340;
 
   const [selectedCity, setSelectedCity] = useState('Mysuru');
   const [isCityModalOpen, setIsCityModalOpen] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState(null); // 'find-care' | 'more' | null
+  const [openDropdown, setOpenDropdown] = useState(null); // 'find-care' | 'consultation' | 'more' | 'notifications' | null
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('');
+  const [notificationsList, setNotificationsList] = useState(INITIAL_NOTIFICATIONS);
 
-  const { pharmacyCartCount = 0, pharmacyFinalTotal = 0, labCartCount = 0 } = useCart() || {};
-  const totalCartCount = (pharmacyCartCount || 0) + (labCartCount || 0);
+  const { pharmacyCartCount = 0, pharmacyFinalTotal = 0, labCartCount = 0, radiologyCartCount = 0 } = useCart() || {};
+  const totalCartCount = (pharmacyCartCount || 0) + (labCartCount || 0) + (radiologyCartCount || 0);
+  const unreadNotifsCount = notificationsList.filter((n) => n.unread).length;
 
   const getBadgeStyle = (badge) => {
     if (!badge) return { bg: '#CCFBF1', border: '#99F6E4', text: '#0F766E', iconColor: '#0D9488' };
@@ -128,6 +178,9 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
     }
     if (b.includes('EQUIPMENT') || b.includes('RENTAL')) {
       return { bg: '#FAF5FF', border: '#DDD6FE', text: '#5B21B6', iconColor: '#7C3AED' };
+    }
+    if (b.includes('AI') || b.includes('CHATBOT')) {
+      return { bg: '#F0FDFA', border: '#99F6E4', text: '#0F766E', iconColor: '#0D9488' };
     }
     return { bg: '#CCFBF1', border: '#99F6E4', text: '#0F766E', iconColor: '#0D9488' };
   };
@@ -186,17 +239,48 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
     checkAuth();
   }, [currentRoute]);
 
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const handleClickOutside = (e) => {
+        if (!openDropdown) return;
+        const headerEl = document.getElementById('mediunify-web-header');
+        if (headerEl && !headerEl.contains(e.target)) {
+          setOpenDropdown(null);
+        }
+      };
+      const timer = setTimeout(() => {
+        document.addEventListener('click', handleClickOutside);
+      }, 50);
+      return () => {
+        clearTimeout(timer);
+        document.removeEventListener('click', handleClickOutside);
+      };
+    }
+  }, [openDropdown]);
+
   const handleNavigate = (routeName, params = {}) => {
     setOpenDropdown(null);
     setShowSearchModal(false);
     if (!navigation) return;
 
-    // Navigate smoothly inside MainApp
+    // Navigate smoothly inside MainApp or direct stack
     if (navigation.navigate) {
       if (['Login', 'Register', 'Auth'].includes(routeName)) {
         navigation.navigate('Auth', { screen: routeName === 'Register' ? 'Register' : 'Login' });
       } else {
-        navigation.navigate('MainApp', { screen: routeName, params });
+        try {
+          navigation.navigate('MainApp', { screen: routeName, params });
+        } catch (e) {
+          try {
+            navigation.navigate(routeName, params);
+          } catch (e2) {
+            console.error('Navigation error:', e2);
+          }
+        }
+        // Also fire direct navigation if navigation is already the inner stack
+        try {
+          navigation.navigate(routeName, params);
+        } catch (e) {}
       }
     }
   };
@@ -214,7 +298,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
   };
 
   return (
-    <View style={styles.headerRoot}>
+    <View style={styles.headerRoot} nativeID="mediunify-web-header">
       <View style={styles.headerContainer}>
         {/* ============================================================
             LEFT: BRAND LOGO + SUBTITLE
@@ -235,9 +319,11 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                 <Text style={styles.brandTitle}>Medi</Text>
                 <Text style={styles.brandTitleAccent}>Unify</Text>
               </View>
-              <Text style={styles.brandTagline} numberOfLines={1}>
-                All your healthcare. One intelligent platform.
-              </Text>
+              {width >= 1360 && (
+                <Text style={styles.brandTagline} numberOfLines={1}>
+                  All your healthcare. One intelligent platform.
+                </Text>
+              )}
             </View>
           </View>
         </TouchableOpacity>
@@ -247,14 +333,19 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
         ============================================================ */}
         {isDesktop && (
           <View style={styles.navLinksRow}>
-            {NAV_LINKS.map((item) => {
+            {NAV_LINKS.filter((item) => !(isCompactDesktop && item.hideOnCompact)).map((item) => {
               const active = isTabActive(item);
               const isOpen = openDropdown === item.id;
+              const displayLabel = isCompactDesktop && item.shortLabel ? item.shortLabel : item.label;
 
               return (
                 <View key={item.id} style={styles.navItemWrapper}>
                   <TouchableOpacity
-                    style={[styles.navLinkBtn, active && styles.navLinkBtnActive]}
+                    style={[
+                      styles.navLinkBtn,
+                      isCompactDesktop && { paddingHorizontal: 7, paddingVertical: 8 },
+                      active && styles.navLinkBtnActive,
+                    ]}
                     onPress={() => {
                       if (item.hasDropdown) {
                         setOpenDropdown(isOpen ? null : item.id);
@@ -268,11 +359,17 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                     <Text
                       style={[
                         styles.navLinkText,
+                        isCompactDesktop && { fontSize: 12.5 },
                         active && styles.navLinkTextActive,
                       ]}
                     >
-                      {item.label}
+                      {displayLabel}
                     </Text>
+                    {item.isAi && (
+                      <View style={{ backgroundColor: active ? '#0D9488' : '#CCFBF1', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 6, marginLeft: 4 }}>
+                        <Ionicons name="sparkles" size={10} color={active ? '#FFFFFF' : '#0D9488'} />
+                      </View>
+                    )}
                     {item.hasDropdown && (
                       <Ionicons
                         name={isOpen ? 'chevron-up' : 'chevron-down'}
@@ -347,18 +444,21 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
         )}
 
         {/* ============================================================
-            RIGHT: LOCATION + SEARCH + LOGIN + SIGN UP
+            RIGHT: LOCATION + SEARCH + NOTIFICATION + CART + PROFILE
         ============================================================ */}
-        <View style={styles.rightActionsRow}>
+        <View style={[styles.rightActionsRow, { gap: width < 1280 ? 7 : (width < 1440 ? 9 : 12) }]}>
           {/* Location Selector (Mysuru ▾) */}
           <TouchableOpacity
-            style={styles.locationSelectorBtn}
+            style={[
+              styles.locationSelectorBtn,
+              width < 1280 && { paddingHorizontal: 7, paddingVertical: 6, gap: 4 },
+            ]}
             onPress={() => setIsCityModalOpen(true)}
             activeOpacity={0.8}
           >
-            <Ionicons name="location-sharp" size={15} color="#00C2CB" />
+            <Ionicons name="location-sharp" size={14} color="#00C2CB" />
             <Text style={styles.locationCityText}>{selectedCity}</Text>
-            <Ionicons name="chevron-down" size={12} color="#64748B" />
+            <Ionicons name="chevron-down" size={11} color="#64748B" />
           </TouchableOpacity>
 
           {/* Search Icon */}
@@ -367,18 +467,134 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
             onPress={() => setShowSearchModal(true)}
             activeOpacity={0.7}
           >
-            <Ionicons name="search-outline" size={19} color="#1E3A8A" />
+            <Ionicons name="search-outline" size={18} color="#1E3A8A" />
           </TouchableOpacity>
+
+          {/* Notification Icon & Dropdown (Next to Cart) */}
+          <View style={styles.notifWrapper}>
+            <TouchableOpacity
+              style={[
+                styles.headerNotifBtn,
+                (openDropdown === 'notifications' || unreadNotifsCount > 0) && styles.headerNotifBtnActive,
+              ]}
+              onPress={() => setOpenDropdown(openDropdown === 'notifications' ? null : 'notifications')}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={openDropdown === 'notifications' ? 'notifications' : 'notifications-outline'}
+                size={19}
+                color={openDropdown === 'notifications' ? '#00B894' : '#1E3A8A'}
+              />
+              {unreadNotifsCount > 0 && (
+                <View style={styles.headerNotifBadge}>
+                  <Text style={styles.headerNotifBadgeText}>{unreadNotifsCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            {/* Notification Popover Dropdown */}
+            {openDropdown === 'notifications' && (
+              <View style={styles.notifDropdown}>
+                {/* Popover Header */}
+                <View style={styles.notifDropdownHeader}>
+                  <View style={styles.notifDropdownTitleRow}>
+                    <Ionicons name="notifications" size={16} color="#00B894" />
+                    <Text style={styles.notifDropdownTitle}>Notifications</Text>
+                    {unreadNotifsCount > 0 && (
+                      <View style={styles.notifBadgeCount}>
+                        <Text style={styles.notifBadgeCountText}>{unreadNotifsCount} new</Text>
+                      </View>
+                    )}
+                  </View>
+                  {unreadNotifsCount > 0 && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setNotificationsList((prev) => prev.map((n) => ({ ...n, unread: false })));
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.notifMarkAllText}>Mark all read</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Notification Items List */}
+                <ScrollView style={styles.notifListScroll} showsVerticalScrollIndicator={false}>
+                  {notificationsList.map((item) => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[styles.notifItem, item.unread && styles.notifItemUnread]}
+                      onPress={() => {
+                        setNotificationsList((prev) =>
+                          prev.map((n) => (n.id === item.id ? { ...n, unread: false } : n))
+                        );
+                        setOpenDropdown(null);
+                        if (item.route) handleNavigate(item.route);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.notifIconBox, { backgroundColor: item.iconBg }]}>
+                        <Ionicons name={item.icon} size={17} color={item.iconColor} />
+                      </View>
+                      <View style={styles.notifContentCol}>
+                        <Text style={styles.notifItemTitle} numberOfLines={1}>
+                          {item.title}
+                        </Text>
+                        <Text style={styles.notifItemMsg} numberOfLines={2}>
+                          {item.message}
+                        </Text>
+                        <View style={styles.notifItemFooter}>
+                          <Text style={styles.notifItemTime}>{item.time}</Text>
+                          {item.unread && <View style={styles.notifUnreadDot} />}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {/* Dropdown Footer */}
+                <View style={styles.notifDropdownFooter}>
+                  <TouchableOpacity
+                    style={styles.notifViewAllBtn}
+                    onPress={() => {
+                      setOpenDropdown(null);
+                      handleNavigate('Notifications');
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.notifViewAllText}>View All Notifications</Text>
+                    <Ionicons name="arrow-forward" size={13} color="#1E3A8A" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.notifSettingsBtn}
+                    onPress={() => {
+                      setOpenDropdown(null);
+                      handleNavigate('Settings');
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="settings-outline" size={15} color="#64748B" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
 
           {/* Cart Icon & Badge */}
           <TouchableOpacity
             style={[styles.headerCartBtn, totalCartCount > 0 && styles.headerCartBtnActive]}
-            onPress={() => handleNavigate('Cart', { initialTab: 'pharmacy' })}
+            onPress={() => {
+              let targetTab = 'pharmacy';
+              if (pharmacyCartCount > 0) targetTab = 'pharmacy';
+              else if (labCartCount > 0) targetTab = 'lab';
+              else if (radiologyCartCount > 0) targetTab = 'radiology';
+              handleNavigate('Cart', { initialTab: targetTab });
+            }}
             activeOpacity={0.8}
           >
             <Ionicons
               name="cart-outline"
-              size={20}
+              size={19}
               color={totalCartCount > 0 ? '#00B894' : '#1E3A8A'}
             />
             {totalCartCount > 0 && (
@@ -391,7 +607,10 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
           {/* Auth Action Buttons */}
           {isLoggedIn ? (
             <TouchableOpacity
-              style={styles.userProfilePill}
+              style={[
+                styles.userProfilePill,
+                width < 1280 && { paddingHorizontal: 7, paddingVertical: 4 },
+              ]}
               onPress={() => handleNavigate('Profile')}
               activeOpacity={0.85}
             >
@@ -407,7 +626,13 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
 
               {/* User Name & Patient Verified Tag */}
               <View style={styles.userTextCol}>
-                <Text style={styles.userProfileName} numberOfLines={1}>
+                <Text
+                  style={[
+                    styles.userProfileName,
+                    { maxWidth: width < 1280 ? 75 : (width < 1440 ? 95 : 120) },
+                  ]}
+                  numberOfLines={1}
+                >
                   {userName ? userName.trim().split(' ')[0] : 'My Account'}
                 </Text>
                 <View style={styles.userRoleTag}>
@@ -660,21 +885,23 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     width: '100%',
-    maxWidth: 1360,
+    maxWidth: 1520,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 28,
+    paddingHorizontal: 20,
     height: 72,
     position: 'relative',
     zIndex: 1000,
+    flexWrap: 'nowrap',
   },
 
   // Brand Logo
   brandCol: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 0,
   },
   brandRow: {
     flexDirection: 'row',
@@ -773,12 +1000,14 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 20,
     zIndex: 99999,
+    ...(Platform.OS === 'web' ? { pointerEvents: 'auto' } : {}),
   },
   dropdownItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 10,
     borderRadius: 8,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', userSelect: 'none' } : {}),
   },
   dropdownItemCompact: {
     flexDirection: 'row',
@@ -786,23 +1015,65 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     paddingHorizontal: 12,
     borderRadius: 8,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', userSelect: 'none' } : {}),
   },
   dropdownItemTitle: {
     fontSize: 13,
     fontWeight: '700',
     color: '#1E293B',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   dropdownItemDesc: {
     fontSize: 11,
     color: '#64748B',
     marginTop: 1,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
 
   // Right Actions
   rightActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    flexShrink: 0,
+  },
+  aiChatbotHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1.2,
+    borderColor: '#99F6E4',
+    gap: 7,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', transition: 'all 0.2s ease' } : {}),
+  },
+  aiChatbotHeaderBtnActive: {
+    backgroundColor: '#0D9488',
+    borderColor: '#0D9488',
+  },
+  aiHeaderIconWrap: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#CCFBF1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiHeaderBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0F766E',
+    letterSpacing: 0.2,
+  },
+  aiHeaderBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  aiHeaderLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
   },
   locationSelectorBtn: {
     flexDirection: 'row',
@@ -829,6 +1100,181 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+  },
+  notifWrapper: {
+    position: 'relative',
+    zIndex: 1002,
+  },
+  headerNotifBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    position: 'relative',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', transition: 'all 0.2s ease' } : {}),
+  },
+  headerNotifBtnActive: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#00B894',
+  },
+  headerNotifBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#EF4444',
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  headerNotifBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  notifDropdown: {
+    position: 'absolute',
+    top: 48,
+    right: -70,
+    width: 370,
+    maxWidth: 380,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.16,
+    shadowRadius: 28,
+    elevation: 25,
+    zIndex: 99999,
+    overflow: 'hidden',
+  },
+  notifDropdownHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    backgroundColor: '#FAFBFD',
+  },
+  notifDropdownTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  notifDropdownTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  notifBadgeCount: {
+    backgroundColor: '#00B894',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  notifBadgeCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  notifMarkAllText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#00B894',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  notifListScroll: {
+    maxHeight: 350,
+  },
+  notifItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
+    gap: 12,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', transition: 'background-color 0.15s ease' } : {}),
+  },
+  notifItemUnread: {
+    backgroundColor: '#F0FDFA',
+  },
+  notifIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+    flexShrink: 0,
+  },
+  notifContentCol: {
+    flex: 1,
+  },
+  notifItemTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 2,
+  },
+  notifItemMsg: {
+    fontSize: 11.5,
+    color: '#64748B',
+    lineHeight: 16,
+    marginBottom: 4,
+  },
+  notifItemFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  notifItemTime: {
+    fontSize: 10.5,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+  notifUnreadDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#00B894',
+  },
+  notifDropdownFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    backgroundColor: '#FFFFFF',
+  },
+  notifViewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  notifViewAllText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#1E3A8A',
+  },
+  notifSettingsBtn: {
+    padding: 4,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   headerCartBtn: {
     width: 38,

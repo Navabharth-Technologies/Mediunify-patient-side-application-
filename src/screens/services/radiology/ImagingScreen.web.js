@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,38 +15,65 @@ import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import { showAlert } from '../../../utils/alert';
 import WebFooter from '../../../components/web/WebFooter';
+import { radiologyLabs, radiologyCategories, getLabById } from '../../../data/radiologyLabsData';
+import { useCart } from '../../../context/CartContext';
 
 // ==================================================
-// RADIOLOGY CATEGORIES
+// RADIOLOGY & CARDIOLOGY CATEGORIES (MAPPED FROM SINGLE SOURCE OF TRUTH)
 // ==================================================
-const RADIOLOGY_CATEGORIES = [
-  { id: 'mri', name: 'MRI', icon: 'scan-outline', bg: '#F0F9FF', color: '#1E3A8A' },
-  { id: 'ct', name: 'CT Scan', icon: 'radio-outline', bg: '#E0F7FA', color: '#00C2CB' },
-  { id: 'xray', name: 'X-Ray', icon: 'body-outline', bg: '#FFF3E0', color: '#FF7F50' },
-  { id: 'usg', name: 'Ultrasound', icon: 'water-outline', bg: '#E8F8F5', color: '#00B894' },
-  { id: 'mammo', name: 'Mammography', icon: 'female-outline', bg: '#FFEBE6', color: '#FF7F50' },
-  { id: 'dexa', name: 'DEXA Scan', icon: 'fitness-outline', bg: '#F1F8E9', color: '#7BC96F' },
-  { id: 'pet', name: 'PET-CT', icon: 'nuclear-outline', bg: '#E8EAF6', color: '#1E3A8A' },
-  { id: 'interventional', name: 'Interventional Radiology', icon: 'medkit-outline', bg: '#E0F7FA', color: '#00C2CB' },
-  { id: 'other', name: 'Other Scans', icon: 'ellipsis-horizontal-circle-outline', bg: '#F8FAFC', color: '#64748B' },
-];
+const CATEGORY_THEMES = {
+  all: { bg: '#F1F5F9', color: '#1E3A8A' },
+  cardiology: { bg: '#FFF1F2', color: '#E11D48' },
+  mri: { bg: '#F0F9FF', color: '#1E3A8A' },
+  ct: { bg: '#E0F7FA', color: '#00C2CB' },
+  usg: { bg: '#E8F8F5', color: '#00B894' },
+  xray: { bg: '#FFF3E0', color: '#FF7F50' },
+  mammo: { bg: '#FFEBE6', color: '#FF7F50' },
+  dexa: { bg: '#F1F8E9', color: '#7BC96F' },
+  doppler: { bg: '#F3E8FF', color: '#8B5CF6' },
+  pet: { bg: '#E8EAF6', color: '#1E3A8A' },
+};
+
+const RADIOLOGY_CATEGORIES = radiologyCategories.map((cat) => ({
+  ...cat,
+  bg: CATEGORY_THEMES[cat.id]?.bg || '#F8FAFC',
+  color: CATEGORY_THEMES[cat.id]?.color || '#1E3A8A',
+}));
 
 // ==================================================
 // POPULAR SEARCHES
 // ==================================================
 const POPULAR_SEARCHES = [
+  '2D Echo',
+  'ECG',
   'MRI Brain',
+  'TMT Test',
+  'CT Coronary Angio',
   'CT Scan',
   'Ultrasound Abdomen',
   'X-Ray Chest',
-  'Mammography',
-  'CT KUB',
 ];
 
 // ==================================================
 // RECOMMENDED SCAN DEALS
 // ==================================================
 const RECOMMENDED_DEALS = [
+  {
+    id: 'REC-CAR-1',
+    scanTitle: '2D Echo + Doppler Study',
+    price: 1899,
+    centreName: 'Unnathi Advanced Diagnostics',
+    image: 'https://images.unsplash.com/photo-1628348068343-c6a848d2b6dd?w=400',
+    category: 'cardiology',
+  },
+  {
+    id: 'REC-CAR-2',
+    scanTitle: '12-Lead Digital ECG',
+    price: 299,
+    centreName: 'MediCare Precision Scan Lab',
+    image: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=400',
+    category: 'cardiology',
+  },
   {
     id: 'REC-1',
     scanTitle: 'MRI Brain (With Contrast)',
@@ -82,127 +109,258 @@ const RECOMMENDED_DEALS = [
 ];
 
 // ==================================================
-// RADIOLOGY CENTRES DATA
+// DIAGNOSTIC LABS PHOTOGRAPHY & SLOTS (WEB MAPPING)
 // ==================================================
-const CENTRES_DATA = [
-  {
-    id: 'centre-1',
-    name: 'Mysore Scan & Diagnostic Centre',
-    rating: 4.6,
-    reviews: '1.2k',
-    distance: '3.2 km',
-    area: 'Kuvempunagar, Mysuru',
-    price: 4500,
-    availableToday: true,
-    reportsIn24h: true,
-    parking: true,
-    cashless: true,
-    weekend: true,
-    slots: ['10:00 AM', '11:30 AM', '02:00 PM', '04:00 PM'],
-    moreSlots: 3,
-    image: 'https://images.unsplash.com/photo-1587351021759-3e566b6af7cc?w=500',
-    category: 'mri',
-  },
-  {
-    id: 'centre-2',
-    name: 'Apollo BGS Hospitals',
-    rating: 4.4,
-    reviews: '2.8k',
-    distance: '5.1 km',
-    area: 'Adichunchanagiri Road, Mysuru',
-    price: 5200,
-    availableToday: true,
-    reportsIn24h: true,
-    parking: true,
-    cashless: true,
-    weekend: true,
-    slots: ['09:00 AM', '11:00 AM', '01:00 PM', '03:00 PM'],
-    moreSlots: 5,
-    image: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=500',
-    category: 'mri',
-  },
-  {
-    id: 'centre-3',
-    name: 'Narayana Health City',
-    rating: 4.5,
-    reviews: '1.9k',
-    distance: '6.3 km',
-    area: 'Bengaluru-Mysuru Road, Mysuru',
-    price: 5500,
-    availableToday: false,
-    reportsIn24h: true,
-    parking: true,
-    cashless: true,
-    weekend: false,
-    slots: ['10:00 AM', '12:00 PM', '02:00 PM', '04:00 PM'],
-    moreSlots: 4,
-    image: 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=500',
-    category: 'mri',
-  },
-  {
-    id: 'centre-4',
-    name: 'Spark Diagnostic Centre',
-    rating: 4.3,
-    reviews: '980',
-    distance: '2.8 km',
-    area: 'Saraswathipuram, Mysuru',
-    price: 6000,
-    availableToday: true,
-    reportsIn24h: true,
-    parking: false,
-    cashless: false,
-    weekend: true,
-    slots: ['09:30 AM', '11:30 AM', '01:30 PM', '03:30 PM'],
-    moreSlots: 2,
-    image: 'https://images.unsplash.com/photo-1512678080530-7760d81faba6?w=500',
-    category: 'mri',
-  },
-  {
-    id: 'centre-5',
-    name: 'Aster CMI Hospital',
-    rating: 4.5,
-    reviews: '1.7k',
-    distance: '7.1 km',
-    area: 'Hebbal Industrial Area, Mysuru',
-    price: 6500,
-    availableToday: true,
-    reportsIn24h: true,
-    parking: true,
-    cashless: true,
-    weekend: true,
-    slots: ['10:00 AM', '12:00 PM', '02:00 PM', '05:00 PM'],
-    moreSlots: 4,
-    image: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=500',
-    category: 'mri',
-  },
-];
+const LAB_IMAGES = {
+  'lab-unnathi-main': 'https://images.unsplash.com/photo-1628348068343-c6a848d2b6dd?w=600',
+  'lab-medall-02': 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=600',
+  'lab-hp-03': 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=600',
+  'lab-city-04': 'https://images.unsplash.com/photo-1512678080530-7760d81faba6?w=600',
+  'lab-apollo-05': 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=600',
+  'lab-clumax-06': 'https://images.unsplash.com/photo-1587351021759-3e566b6af7cc?w=600',
+};
 
-const ImagingScreenWeb = ({ navigation }) => {
+const LAB_SLOTS = {
+  'lab-unnathi-main': ['08:30 AM', '10:30 AM', '01:30 PM', '04:30 PM'],
+  'lab-medall-02': ['09:00 AM', '11:00 AM', '02:00 PM', '05:00 PM'],
+  'lab-hp-03': ['09:00 AM', '11:00 AM', '01:00 PM', '03:00 PM'],
+  'lab-city-04': ['09:30 AM', '11:30 AM', '01:30 PM', '03:30 PM'],
+  'lab-apollo-05': ['10:00 AM', '12:00 PM', '02:00 PM', '04:00 PM'],
+  'lab-clumax-06': ['10:00 AM', '12:00 PM', '02:00 PM', '05:00 PM'],
+};
+
+// Helper to get active test for a lab based on current category or search query
+const getLabActiveTest = (lab, category, query = '') => {
+  if (!lab || !lab.availableTests || lab.availableTests.length === 0) {
+    return {
+      id: 'RAD-DEFAULT',
+      name: 'Diagnostic Scan',
+      category: 'mri',
+      categoryLabel: 'Diagnostic Scan',
+      price: 2500,
+      mrp: 3500,
+      discount: '25% OFF',
+      reportTime: 'Within 4 Hours',
+      fastingRequired: false,
+    };
+  }
+
+  const q = (query || '').toLowerCase().trim();
+
+  // 1. Search Query keyword match (prioritizing specific test name)
+  if (q) {
+    if (q.includes('echo')) {
+      const echoTest = lab.availableTests.find((t) => t.name.toLowerCase().includes('echo'));
+      if (echoTest) return echoTest;
+    }
+    if (q.includes('ecg')) {
+      const ecgTest = lab.availableTests.find((t) => t.name.toLowerCase().includes('ecg'));
+      if (ecgTest) return ecgTest;
+    }
+    if (q.includes('tmt') || q.includes('treadmill') || q.includes('stress')) {
+      const tmtTest = lab.availableTests.find((t) => {
+        const n = t.name.toLowerCase();
+        return n.includes('tmt') || n.includes('treadmill') || n.includes('stress');
+      });
+      if (tmtTest) return tmtTest;
+    }
+    if (q.includes('holter')) {
+      const holterTest = lab.availableTests.find((t) => t.name.toLowerCase().includes('holter'));
+      if (holterTest) return holterTest;
+    }
+    if (q.includes('angio') || q.includes('coronary')) {
+      const angioTest = lab.availableTests.find((t) => {
+        const n = t.name.toLowerCase();
+        return n.includes('angio') || n.includes('coronary');
+      });
+      if (angioTest) return angioTest;
+    }
+    if (q.includes('mri')) {
+      const mriTest = lab.availableTests.find((t) => t.name.toLowerCase().includes('mri') || t.category === 'mri');
+      if (mriTest) return mriTest;
+    }
+    if (q.includes('ct')) {
+      const ctTest = lab.availableTests.find((t) => t.name.toLowerCase().includes('ct') || t.category === 'ct');
+      if (ctTest) return ctTest;
+    }
+    if (q.includes('usg') || q.includes('ultrasound')) {
+      const usgTest = lab.availableTests.find((t) => t.name.toLowerCase().includes('ultrasound') || t.category === 'usg');
+      if (usgTest) return usgTest;
+    }
+    if (q.includes('x-ray') || q.includes('xray')) {
+      const xrayTest = lab.availableTests.find((t) => t.name.toLowerCase().includes('x-ray') || t.category === 'xray');
+      if (xrayTest) return xrayTest;
+    }
+    if (q.includes('dexa') || q.includes('bone') || q.includes('bmd')) {
+      const dexaTest = lab.availableTests.find((t) => t.name.toLowerCase().includes('dexa') || t.category === 'dexa');
+      if (dexaTest) return dexaTest;
+    }
+    if (q.includes('mammo') || q.includes('breast')) {
+      const mammoTest = lab.availableTests.find((t) => t.name.toLowerCase().includes('mammo') || t.category === 'mammo');
+      if (mammoTest) return mammoTest;
+    }
+    if (q.includes('pet')) {
+      const petTest = lab.availableTests.find((t) => t.name.toLowerCase().includes('pet') || t.category === 'pet');
+      if (petTest) return petTest;
+    }
+
+    // Direct test name substring match
+    const directNameMatch = lab.availableTests.find((t) => t.name.toLowerCase().includes(q));
+    if (directNameMatch) return directNameMatch;
+
+    // Direct category / label substring match
+    const directLabelMatch = lab.availableTests.find((t) => (t.categoryLabel || '').toLowerCase().includes(q));
+    if (directLabelMatch) return directLabelMatch;
+  }
+
+  // 2. Specific category match (e.g. "cardiology", "mri", etc.)
+  if (category && category !== 'all') {
+    const catMatched = lab.availableTests.find((t) => t.category === category);
+    if (catMatched) return catMatched;
+  }
+
+  // 3. Fallback to primary test
+  return lab.availableTests[0];
+};
+
+const ImagingScreenWeb = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
 
-  // Search & Filter State
-  const [searchQuery, setSearchQuery] = useState('');
+  const mainScrollViewRef = useRef(null);
+  const resultsSectionRef = useRef(null);
+  const resultsSectionY = useRef(0);
+
+  // Cart Context & Quick Filter State
+  const { radiologyCart, addToCart, removeFromCart, radiologyCartCount, radiologyFinalTotal } = useCart();
+  const [selectedFilter, setSelectedFilter] = useState('All');
+  const filterTabs = ['All', 'Top Rated (4.8+)', 'Open 24x7', 'Nearest', 'Special Offers'];
+
+  // Search & Filter State (Defaulting to 'all' exactly like mobile)
+  const [searchQuery, setSearchQuery] = useState(route?.params?.query || route?.params?.search || '');
   const [selectedCity, setSelectedCity] = useState('Mysuru');
-  const [selectedCategory, setSelectedCategory] = useState('mri');
-  const [selectedDistance, setSelectedDistance] = useState('5km'); // '5km' | '10km' | '20km'
-  const [selectedScanTypes, setSelectedScanTypes] = useState(['mri']);
-  const [selectedAvailability, setSelectedAvailability] = useState('today'); // 'today' | 'tomorrow' | 'week'
+  const [selectedCategory, setSelectedCategory] = useState(route?.params?.initialCategory || 'all');
+  const [selectedDistance, setSelectedDistance] = useState('all'); // 'all' | '5km' | '10km' | '20km'
+  const [selectedScanTypes, setSelectedScanTypes] = useState(
+    route?.params?.initialCategory && route.params.initialCategory !== 'all' ? [route.params.initialCategory] : []
+  );
+  const [selectedAvailability, setSelectedAvailability] = useState('all'); // 'all' | 'today' | 'tomorrow' | 'week'
   const [selectedFeatures, setSelectedFeatures] = useState({
     cashless: false,
     reports24h: false,
     weekend: false,
     parking: false,
   });
+  const [minPrice, setMinPrice] = useState(200);
+  const [maxPrice, setMaxPrice] = useState(25000);
   const [sortBy, setSortBy] = useState('price-low'); // 'price-low' | 'price-high' | 'distance' | 'rating'
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [uploadToast, setUploadToast] = useState(null);
+  const [selectedTestPerLab, setSelectedTestPerLab] = useState({});
+
+  // Sync with route params changes
+  React.useEffect(() => {
+    if (route?.params?.query !== undefined) {
+      setSearchQuery(route.params.query);
+    } else if (route?.params?.search !== undefined) {
+      setSearchQuery(route.params.search);
+    }
+    if (route?.params?.initialCategory) {
+      setSelectedCategory(route.params.initialCategory);
+      setSelectedScanTypes(route.params.initialCategory === 'all' ? [] : [route.params.initialCategory]);
+    }
+  }, [route?.params?.query, route?.params?.search, route?.params?.initialCategory]);
+
+  // Handle Popular Search pill tap
+  const handlePopularSearch = (term) => {
+    setSearchQuery(term);
+    const q = term.toLowerCase();
+    if (q.includes('echo') || q.includes('ecg') || q.includes('tmt') || q.includes('coronary') || q.includes('holter')) {
+      setSelectedCategory('cardiology');
+      setSelectedScanTypes(['cardiology']);
+    } else if (q.includes('mri')) {
+      setSelectedCategory('mri');
+      setSelectedScanTypes(['mri']);
+    } else if (q.includes('ct')) {
+      setSelectedCategory('ct');
+      setSelectedScanTypes(['ct']);
+    } else if (q.includes('ultrasound') || q.includes('usg') || q.includes('abdomen')) {
+      setSelectedCategory('usg');
+      setSelectedScanTypes(['usg']);
+    } else if (q.includes('x-ray') || q.includes('chest')) {
+      setSelectedCategory('xray');
+      setSelectedScanTypes(['xray']);
+    }
+    scrollToResults();
+  };
+
+  // Robust Smooth Scroll to Results Section Below ("the below screen") on Web
+  const scrollToResults = () => {
+    const doScroll = () => {
+      const targetY = resultsSectionY.current > 100 ? resultsSectionY.current - 15 : 680;
+
+      // 1. Direct React Native Web ScrollView scrollTo
+      if (mainScrollViewRef.current && typeof mainScrollViewRef.current.scrollTo === 'function') {
+        try {
+          mainScrollViewRef.current.scrollTo({ y: targetY, animated: true });
+        } catch (e) {}
+      }
+
+      // 2. Direct DOM scrollIntoView if element exists
+      if (typeof document !== 'undefined') {
+        const el =
+          document.getElementById('radiologyResultsAnchor') ||
+          document.querySelector('[data-testid="radiologyResultsAnchor"]') ||
+          document.querySelector('[aria-label="radiologyResultsAnchor"]') ||
+          document.querySelector('[data-results-anchor="true"]');
+
+        if (el && typeof el.scrollIntoView === 'function') {
+          try {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          } catch (e) {
+            try { el.scrollIntoView(true); } catch (e2) {}
+          }
+        }
+      }
+
+      // 3. Window scroll fallback
+      if (typeof window !== 'undefined') {
+        try {
+          window.scrollTo({ top: targetY, behavior: 'smooth' });
+        } catch (e) {
+          window.scrollTo(0, targetY);
+        }
+      }
+    };
+
+    doScroll();
+    setTimeout(doScroll, 40);
+    setTimeout(doScroll, 120);
+    setTimeout(doScroll, 250);
+  };
+
+  // Handle Category Selection with Immediate Scroll to the Results Below (Same as Mobile)
+  const handleSelectCategory = (catId) => {
+    setSelectedCategory(catId);
+    if (catId === 'all') {
+      setSelectedScanTypes([]);
+    } else {
+      setSelectedScanTypes([catId]);
+    }
+    scrollToResults();
+  };
 
   // Toggle Scan Type Checkbox
   const toggleScanType = (typeId) => {
-    setSelectedScanTypes((prev) =>
-      prev.includes(typeId) ? prev.filter((id) => id !== typeId) : [...prev, typeId]
-    );
+    setSelectedScanTypes((prev) => {
+      const updated = prev.includes(typeId) ? prev.filter((id) => id !== typeId) : [...prev, typeId];
+      if (updated.length === 1) {
+        setSelectedCategory(updated[0]);
+      } else if (updated.length === 0) {
+        setSelectedCategory('all');
+      }
+      return updated;
+    });
   };
 
   // Toggle Feature Checkbox
@@ -213,10 +371,13 @@ const ImagingScreenWeb = ({ navigation }) => {
   // Reset Filters
   const handleResetFilters = () => {
     setSearchQuery('');
-    setSelectedCategory('mri');
-    setSelectedDistance('5km');
-    setSelectedScanTypes(['mri']);
-    setSelectedAvailability('today');
+    setSelectedCategory('all');
+    setSelectedDistance('all');
+    setSelectedScanTypes([]);
+    setSelectedFilter('All');
+    setMinPrice(200);
+    setMaxPrice(25000);
+    setSelectedAvailability('all');
     setSelectedFeatures({
       cashless: false,
       reports24h: false,
@@ -224,36 +385,146 @@ const ImagingScreenWeb = ({ navigation }) => {
       parking: false,
     });
     setSortBy('price-low');
+    setSelectedTestPerLab({});
   };
 
-  // Filtered & Sorted Centres
-  const filteredCentres = useMemo(() => {
-    return CENTRES_DATA.filter((centre) => {
-      // Search query filter
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesName = centre.name.toLowerCase().includes(q);
-        const matchesArea = centre.area.toLowerCase().includes(q);
-        if (!matchesName && !matchesArea) return false;
+  // Handle Add to Cart (supports active test or selected test in card)
+  const handleAddToCart = (lab, specificTest = null) => {
+    const activeTest =
+      specificTest ||
+      (selectedTestPerLab[lab.id] && lab.availableTests.find((t) => t.id === selectedTestPerLab[lab.id])) ||
+      getLabActiveTest(lab, selectedCategory, searchQuery);
+    const cartItem = {
+      id: activeTest.id,
+      name: activeTest.name,
+      category: 'Radiology',
+      categoryLabel: activeTest.categoryLabel || 'Radiology',
+      modality: activeTest.categoryLabel,
+      modalityCode: activeTest.modalityCode,
+      price: activeTest.price,
+      mrp: activeTest.mrp,
+      discount: activeTest.discount,
+      duration: activeTest.duration,
+      reportTime: activeTest.reportTime,
+      fastingRequired: activeTest.fastingRequired,
+      fastingHours: activeTest.fastingHours,
+      preparation: activeTest.preparation,
+      labId: lab.id,
+      labName: lab.name,
+      labArea: lab.area,
+      labAddress: lab.address,
+      labPhone: lab.phone,
+      itemType: 'radiology',
+      quantity: 1,
+    };
+    addToCart(cartItem, 1, 'radiology');
+    setUploadToast(`Added "${activeTest.name}" to Radiology Cart!`);
+    setTimeout(() => setUploadToast(null), 3000);
+  };
+
+  // Check if test is currently in radiology cart
+  const isItemInCart = (testId) => {
+    return radiologyCart?.some((item) => item.id === testId);
+  };
+
+  // Filtered & Sorted Radiology Labs (Single Source of Truth from radiologyLabsData)
+  const filteredLabs = useMemo(() => {
+    return radiologyLabs.filter((lab) => {
+      // 1. Modality category filter / Scan Type filter (matching mobile)
+      if (selectedScanTypes && selectedScanTypes.length > 0) {
+        const matchesScanType = selectedScanTypes.some(
+          (st) =>
+            lab.availableTests.some((t) => t.category === st) ||
+            lab.modalities?.some((m) => m.toLowerCase().includes(st))
+        );
+        if (!matchesScanType) return false;
+      } else if (selectedCategory && selectedCategory !== 'all') {
+        const hasCategoryTest = lab.availableTests.some((t) => t.category === selectedCategory);
+        if (!hasCategoryTest) return false;
       }
 
-      // Feature filters
-      if (selectedFeatures.cashless && !centre.cashless) return false;
-      if (selectedFeatures.reports24h && !centre.reportsIn24h) return false;
-      if (selectedFeatures.weekend && !centre.weekend) return false;
-      if (selectedFeatures.parking && !centre.parking) return false;
+      // Relevant tests in this lab for current category/query
+      const relevantTests = selectedCategory !== 'all'
+        ? lab.availableTests.filter((t) => t.category === selectedCategory)
+        : lab.availableTests;
 
-      // Availability
-      if (selectedAvailability === 'today' && !centre.availableToday) return false;
+      // 2. Price filter (Interactive Range Slider & Quick Presets)
+      const hasTestInPriceRange = relevantTests.some(
+        (t) => t.price >= minPrice && t.price <= maxPrice
+      );
+      if (!hasTestInPriceRange) {
+        return false;
+      }
+
+      // 3. Search query filter (Lab Name, Area, Modalities, or Tests)
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchesName = lab.name.toLowerCase().includes(q);
+        const matchesArea = lab.area.toLowerCase().includes(q);
+        const matchesModality = lab.modalities?.some((m) => m.toLowerCase().includes(q));
+        const matchesTest = lab.availableTests.some(
+          (t) =>
+            t.name.toLowerCase().includes(q) ||
+            (t.categoryLabel && t.categoryLabel.toLowerCase().includes(q)) ||
+            (t.description && t.description.toLowerCase().includes(q))
+        );
+        const matchesKeywords =
+          (q.includes('echo') && (lab.modalities?.some((m) => m.toLowerCase().includes('cardio')) || lab.availableTests.some((t) => t.name.toLowerCase().includes('echo')))) ||
+          (q.includes('ecg') && (lab.modalities?.some((m) => m.toLowerCase().includes('cardio')) || lab.availableTests.some((t) => t.name.toLowerCase().includes('ecg')))) ||
+          (q.includes('tmt') && (lab.modalities?.some((m) => m.toLowerCase().includes('cardio')) || lab.availableTests.some((t) => t.name.toLowerCase().includes('tmt')))) ||
+          (q.includes('holter') && (lab.modalities?.some((m) => m.toLowerCase().includes('cardio')) || lab.availableTests.some((t) => t.name.toLowerCase().includes('holter')))) ||
+          (q.includes('mri') && lab.availableTests.some((t) => t.category === 'mri')) ||
+          (q.includes('ct') && lab.availableTests.some((t) => t.category === 'ct')) ||
+          (q.includes('x-ray') && lab.availableTests.some((t) => t.category === 'xray')) ||
+          (q.includes('ultrasound') && lab.availableTests.some((t) => t.category === 'usg')) ||
+          (q.includes('dexa') && lab.availableTests.some((t) => t.category === 'dexa')) ||
+          (q.includes('mammo') && lab.availableTests.some((t) => t.category === 'mammo'));
+
+        if (!matchesName && !matchesArea && !matchesModality && !matchesTest && !matchesKeywords) {
+          return false;
+        }
+      }
+
+      // 4. Quick filter tabs (Same as Mobile)
+      if (selectedFilter === 'Top Rated (4.8+)') {
+        if (lab.rating < 4.8) return false;
+      } else if (selectedFilter === 'Open 24x7') {
+        if (!lab.openHours.toLowerCase().includes('24x7')) return false;
+      } else if (selectedFilter === 'Nearest') {
+        if (parseFloat(lab.distance) > 3.0) return false;
+      } else if (selectedFilter === 'Special Offers') {
+        if (!lab.discountOffer) return false;
+      }
+
+      // 5. Distance filter
+      if (selectedDistance === '5km') {
+        const distNum = parseFloat(lab.distance) || 0;
+        if (distNum > 5.0) return false;
+      } else if (selectedDistance === '10km') {
+        const distNum = parseFloat(lab.distance) || 0;
+        if (distNum > 10.0) return false;
+      }
+
+      // 6. Features filter
+      if (selectedFeatures.reports24h && !lab.turnaroundTime.toLowerCase().includes('hour')) return false;
+      if (selectedFeatures.weekend && !lab.openHours.toLowerCase().includes('24x7')) return false;
+
+      // 7. Availability
+      if (selectedAvailability === 'today' && !lab.openHours.toLowerCase().includes('open')) return false;
 
       return true;
     }).sort((a, b) => {
-      if (sortBy === 'price-low') return a.price - b.price;
-      if (sortBy === 'price-high') return b.price - a.price;
+      const priceA = getLabActiveTest(a, selectedCategory, searchQuery).price;
+      const priceB = getLabActiveTest(b, selectedCategory, searchQuery).price;
+      if (sortBy === 'price-low') return priceA - priceB;
+      if (sortBy === 'price-high') return priceB - priceA;
       if (sortBy === 'rating') return b.rating - a.rating;
+      if (sortBy === 'distance') return parseFloat(a.distance) - parseFloat(b.distance);
       return 0;
     });
-  }, [searchQuery, selectedFeatures, selectedAvailability, sortBy]);
+  }, [searchQuery, selectedCategory, selectedScanTypes, selectedFilter, minPrice, maxPrice, selectedDistance, selectedFeatures, selectedAvailability, sortBy]);
+
+  const filteredCentres = filteredLabs;
 
   // Handle File Upload
   const handleFileUpload = () => {
@@ -273,24 +544,38 @@ const ImagingScreenWeb = ({ navigation }) => {
   };
 
   // Handle Booking Action
-  const handleBookCentre = (centre) => {
+  const handleBookCentre = (lab, specificTest = null) => {
+    const bookingTest =
+      specificTest ||
+      (selectedTestPerLab[lab.id] && lab.availableTests.find((t) => t.id === selectedTestPerLab[lab.id])) ||
+      getLabActiveTest(lab, selectedCategory, searchQuery);
+    const labSlot = selectedSlot
+      ? selectedSlot.split('-').slice(1).join('-')
+      : (LAB_SLOTS[lab.id] ? LAB_SLOTS[lab.id][0] : '09:30 AM');
+
     if (navigation?.navigate) {
       navigation.navigate('RadiologyBooking', {
-        lab: centre,
+        lab,
         test: {
-          name: 'MRI Brain (With Contrast)',
-          price: centre.price,
-          timeSlot: selectedSlot || centre.slots[0],
+          ...bookingTest,
+          price: bookingTest.price,
+          timeSlot: labSlot,
         },
+        selectedTests: [{
+          ...bookingTest,
+          price: bookingTest.price,
+          timeSlot: labSlot,
+        }],
       });
     } else {
-      showAlert('Booking', `Proceeding to slot booking for ${centre.name} at ₹${centre.price.toLocaleString('en-IN')}`);
+      showAlert('Booking', `Proceeding to slot booking for ${lab.name} (${bookingTest.name}) at ₹${bookingTest.price.toLocaleString('en-IN')}`);
     }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
+        ref={mainScrollViewRef}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
@@ -305,17 +590,31 @@ const ImagingScreenWeb = ({ navigation }) => {
                 <Text style={styles.breadcrumbLink}>Home</Text>
               </TouchableOpacity>
               <Ionicons name="chevron-forward" size={12} color="#64748B" />
-              <Text style={styles.breadcrumbActive}>Radiology</Text>
+              <Text style={styles.breadcrumbActive}>Radiology & Cardiology Diagnostics</Text>
+
+              {radiologyCartCount > 0 && (
+                <TouchableOpacity
+                  style={styles.headerCartPill}
+                  onPress={() => navigation?.navigate('Cart', { initialTab: 'radiology' })}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="radio-outline" size={13} color="#00B894" />
+                  <Text style={styles.headerCartPillText}>
+                    Radiology Cart ({radiologyCartCount}) • ₹{radiologyFinalTotal.toLocaleString('en-IN')}
+                  </Text>
+                  <Ionicons name="arrow-forward" size={11} color="#00B894" />
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Main Hero Row */}
             <View style={[styles.heroRow, !isDesktop && { flexDirection: 'column' }]}>
               {/* Left Column: Heading, Subtitle & Search Bar */}
               <View style={styles.heroLeftCol}>
-                <Text style={styles.heroMainTitle}>Book Radiology Tests</Text>
-                <Text style={styles.heroSubTitle}>Compare prices. Choose the right centre.</Text>
+                <Text style={styles.heroMainTitle}>Book Radiology & Cardiology Tests</Text>
+                <Text style={styles.heroSubTitle}>Compare prices. Choose accredited diagnostic centres.</Text>
                 <Text style={styles.heroDesc}>
-                  MRI, CT, X-Ray, Ultrasound, Mammography and more — at trusted diagnostic centres near you.
+                  2D Echo, 12-Lead ECG, TMT, 3T MRI, CT Scan, Ultrasound, Digital X-Ray, Mammography & more — verified reports.
                 </Text>
 
                 {/* Search & Location Bar */}
@@ -347,7 +646,7 @@ const ImagingScreenWeb = ({ navigation }) => {
 
                   <TouchableOpacity
                     style={styles.searchSubmitBtn}
-                    onPress={() => {}}
+                    onPress={scrollToResults}
                     activeOpacity={0.88}
                   >
                     <Text style={styles.searchSubmitBtnText}>Search</Text>
@@ -365,7 +664,7 @@ const ImagingScreenWeb = ({ navigation }) => {
                           styles.popularPill,
                           searchQuery === term && styles.popularPillActive,
                         ]}
-                        onPress={() => setSearchQuery(term)}
+                        onPress={() => handlePopularSearch(term)}
                         activeOpacity={0.75}
                       >
                         <Text
@@ -449,7 +748,7 @@ const ImagingScreenWeb = ({ navigation }) => {
                   <TouchableOpacity
                     key={cat.id}
                     style={[styles.catCard, isSelected && styles.catCardActive]}
-                    onPress={() => setSelectedCategory(cat.id)}
+                    onPress={() => handleSelectCategory(cat.id)}
                     activeOpacity={0.8}
                   >
                     <View style={[styles.catIconCircle, { backgroundColor: cat.bg }]}>
@@ -494,6 +793,7 @@ const ImagingScreenWeb = ({ navigation }) => {
                     style={styles.recommendedCard}
                     onPress={() => {
                       setSearchQuery(deal.scanTitle);
+                      if (deal.category) handleSelectCategory(deal.category);
                     }}
                     activeOpacity={0.88}
                   >
@@ -520,7 +820,19 @@ const ImagingScreenWeb = ({ navigation }) => {
         {/* ============================================================
             4. MAIN THREE-COLUMN WORKSPACE
         ============================================================ */}
-        <View style={styles.mainContentWrap}>
+        <View
+          ref={resultsSectionRef}
+          testID="radiologyResultsAnchor"
+          nativeID="radiologyResultsAnchor"
+          accessibilityLabel="radiologyResultsAnchor"
+          dataSet={{ resultsAnchor: 'true' }}
+          style={styles.mainContentWrap}
+          onLayout={(e) => {
+            if (e?.nativeEvent?.layout?.y) {
+              resultsSectionY.current = e.nativeEvent.layout.y;
+            }
+          }}
+        >
           <View style={[styles.sectionMaxWidth, styles.threeColLayout, !isDesktop && { flexDirection: 'column' }]}>
             {/* ----------------------------------------------------
                 COLUMN 1: FILTERS SIDEBAR
@@ -549,7 +861,7 @@ const ImagingScreenWeb = ({ navigation }) => {
                       <TouchableOpacity
                         key={key}
                         style={styles.checkboxRow}
-                        onPress={() => setSelectedDistance(key)}
+                        onPress={() => setSelectedDistance(isChecked ? 'all' : key)}
                         activeOpacity={0.8}
                       >
                         <Ionicons
@@ -571,6 +883,7 @@ const ImagingScreenWeb = ({ navigation }) => {
                 <Text style={styles.filterGroupLabel}>Scan Type</Text>
                 <View style={styles.checkboxList}>
                   {[
+                    { id: 'cardiology', label: 'Cardiology & ECG' },
                     { id: 'mri', label: 'MRI' },
                     { id: 'ct', label: 'CT Scan' },
                     { id: 'xray', label: 'X-Ray' },
@@ -605,12 +918,75 @@ const ImagingScreenWeb = ({ navigation }) => {
 
               {/* Price Range Section */}
               <View style={styles.filterSectionGroup}>
-                <Text style={styles.filterGroupLabel}>Price Range</Text>
-                <View style={styles.sliderTrackDummy}>
-                  <View style={styles.sliderFilledDummy} />
-                  <View style={styles.sliderThumbDummy} />
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <Text style={styles.filterGroupLabel}>Price Range</Text>
+                  {maxPrice < 25000 && (
+                    <TouchableOpacity onPress={() => setMaxPrice(25000)}>
+                      <Text style={styles.clearFilterLink}>Reset</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
-                <Text style={styles.priceRangeValues}>₹500 — ₹25,000</Text>
+
+                {/* Range Slider */}
+                {Platform.OS === 'web' ? (
+                  <View style={{ marginVertical: 6, width: '100%' }}>
+                    <input
+                      type="range"
+                      min="200"
+                      max="25000"
+                      step="100"
+                      value={maxPrice}
+                      onChange={(e) => setMaxPrice(Number(e.target.value))}
+                      style={{
+                        width: '100%',
+                        height: 6,
+                        borderRadius: 3,
+                        accentColor: '#00B894',
+                        cursor: 'pointer',
+                        outline: 'none',
+                        margin: 0,
+                      }}
+                    />
+                  </View>
+                ) : (
+                  <View style={styles.sliderTrackDummy}>
+                    <View style={[styles.sliderFilledDummy, { width: `${Math.min(100, Math.max(10, (maxPrice / 25000) * 100))}%` }]} />
+                    <View style={[styles.sliderThumbDummy, { left: `${Math.min(95, Math.max(5, (maxPrice / 25000) * 100))}%` }]} />
+                  </View>
+                )}
+
+                {/* Live Values Display */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                  <Text style={styles.priceRangeValues}>₹{minPrice.toLocaleString('en-IN')} — ₹{maxPrice.toLocaleString('en-IN')}</Text>
+                  <View style={styles.activePriceBadge}>
+                    <Text style={styles.activePriceBadgeText}>Up to ₹{maxPrice.toLocaleString('en-IN')}</Text>
+                  </View>
+                </View>
+
+                {/* Quick Price Preset Chips */}
+                <View style={styles.pricePresetsWrap}>
+                  {[
+                    { label: 'All', val: 25000 },
+                    { label: '< ₹1k', val: 1000 },
+                    { label: '< ₹2.5k', val: 2500 },
+                    { label: '< ₹5k', val: 5000 },
+                    { label: '< ₹10k', val: 10000 },
+                  ].map((preset) => {
+                    const isActive = maxPrice === preset.val;
+                    return (
+                      <TouchableOpacity
+                        key={preset.label}
+                        style={[styles.pricePresetChip, isActive && styles.pricePresetChipActive]}
+                        onPress={() => setMaxPrice(preset.val)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.pricePresetChipText, isActive && styles.pricePresetChipTextActive]}>
+                          {preset.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
 
               {/* Availability Section */}
@@ -685,10 +1061,16 @@ const ImagingScreenWeb = ({ navigation }) => {
               <View style={styles.resultsHeaderRow}>
                 <View>
                   <Text style={styles.resultsScanHeading}>
-                    {searchQuery ? searchQuery : 'MRI Brain (With Contrast)'}
+                    {searchQuery
+                      ? searchQuery
+                      : selectedCategory === 'cardiology'
+                      ? 'Cardiology & ECG Diagnostics (2D Echo, TMT, Holter)'
+                      : selectedCategory === 'all'
+                      ? 'All Diagnostic & Imaging Scans'
+                      : `${selectedCategory.toUpperCase()} Scans`}
                   </Text>
                   <Text style={styles.resultsCountSub}>
-                    {filteredCentres.length} centres available in {selectedCity}
+                    {filteredLabs.length} accredited diagnostic centres available in {selectedCity}
                   </Text>
                 </View>
 
@@ -696,133 +1078,288 @@ const ImagingScreenWeb = ({ navigation }) => {
                 <TouchableOpacity
                   style={styles.sortDropdownBtn}
                   onPress={() => {
-                    setSortBy(sortBy === 'price-low' ? 'price-high' : 'price-low');
+                    setSortBy(sortBy === 'price-low' ? 'price-high' : sortBy === 'price-high' ? 'rating' : 'price-low');
                   }}
                   activeOpacity={0.8}
                 >
                   <Text style={styles.sortLabel}>
                     Sort by{' '}
                     <Text style={styles.sortValue}>
-                      {sortBy === 'price-low' ? 'Price: Low to High' : 'Price: High to Low'}
+                      {sortBy === 'price-low' ? 'Price: Low to High' : sortBy === 'price-high' ? 'Price: High to Low' : 'Highest Rated'}
                     </Text>
                   </Text>
                   <Ionicons name="chevron-down" size={13} color="#64748B" />
                 </TouchableOpacity>
               </View>
 
-              {/* Centre Result Cards */}
+              {/* Quick Filter Tabs (Same as Mobile App) */}
+              <View style={styles.webFilterTabsRow}>
+                {filterTabs.map((tab) => {
+                  const isSelected = selectedFilter === tab;
+                  return (
+                    <TouchableOpacity
+                      key={tab}
+                      style={[styles.webFilterTab, isSelected && styles.webFilterTabActive]}
+                      onPress={() => setSelectedFilter(tab)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.webFilterTabText, isSelected && styles.webFilterTabTextActive]}>
+                        {tab}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Empty State */}
+              {filteredLabs.length === 0 && (
+                <View style={styles.emptyStateBox}>
+                  <Ionicons name="search-outline" size={42} color="#94A3B8" />
+                  <Text style={styles.emptyStateTitle}>No diagnostic centres match your filters</Text>
+                  <Text style={styles.emptyStateDesc}>Try broadening your price range, clearing keywords, or resetting filters.</Text>
+                  <TouchableOpacity style={styles.emptyResetBtn} onPress={handleResetFilters} activeOpacity={0.85}>
+                    <Text style={styles.emptyResetBtnText}>Reset All Filters</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Diagnostic Lab Result Cards */}
               <View style={styles.cardsFeedList}>
-                {filteredCentres.map((centre) => (
-                  <View key={centre.id} style={styles.centreResultCard}>
-                    {/* Left Thumbnail */}
-                    <Image source={{ uri: centre.image }} style={styles.centreThumbImg} />
+                {filteredLabs.map((lab) => {
+                  const selectedTestId = selectedTestPerLab[lab.id];
+                  const activeTest =
+                    (selectedTestId && lab.availableTests.find((t) => t.id === selectedTestId)) ||
+                    getLabActiveTest(lab, selectedCategory, searchQuery);
+                  const isCardio = selectedCategory === 'cardiology' || activeTest.category === 'cardiology';
+                  const labImg = LAB_IMAGES[lab.id] || 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=600';
+                  const slots = LAB_SLOTS[lab.id] || ['09:00 AM', '11:00 AM', '02:00 PM', '04:00 PM'];
+                  const inCart = isItemInCart(activeTest.id);
 
-                    {/* Middle Info Column */}
-                    <View style={styles.centreMetaCol}>
-                      <Text style={styles.centreNameText}>{centre.name}</Text>
+                  // Relevant tests for selected category
+                  const relevantTests = selectedCategory !== 'all'
+                    ? lab.availableTests.filter((t) => t.category === selectedCategory)
+                    : lab.availableTests;
+                  const minPriceInLab = Math.min(
+                    ...(relevantTests.length > 0 ? relevantTests : lab.availableTests).map((t) => t.price)
+                  );
+                  const cardioTestsCount = lab.availableTests.filter((t) => t.category === 'cardiology').length;
 
-                      {/* Ratings & Reviews Row */}
-                      <View style={styles.ratingDistanceRow}>
-                        <View style={styles.starBadge}>
-                          <Ionicons name="star" size={11} color="#FF7F50" />
-                          <Text style={styles.starText}>{centre.rating}</Text>
-                        </View>
-                        <Text style={styles.reviewsText}>({centre.reviews} reviews)</Text>
-                        <Text style={styles.metaDot}>•</Text>
-                        <Text style={styles.distanceText}>{centre.distance}</Text>
-                        <Text style={styles.metaDot}>|</Text>
-                        <Text style={styles.areaText} numberOfLines={1}>
-                          {centre.area}
-                        </Text>
-                      </View>
-
-                      {/* Feature Tags Row */}
-                      <View style={styles.badgeTagsRow}>
-                        {centre.availableToday && (
-                          <View style={styles.featurePill}>
-                            <Ionicons name="calendar-outline" size={12} color="#00B894" />
-                            <Text style={styles.featurePillText}>Today Available</Text>
-                          </View>
-                        )}
-
-                        {centre.reportsIn24h && (
-                          <View style={styles.featurePill}>
-                            <Ionicons name="time-outline" size={12} color="#00C2CB" />
-                            <Text style={styles.featurePillText}>Reports in 24 hrs</Text>
-                          </View>
-                        )}
-
-                        {centre.parking && (
-                          <View style={styles.featurePill}>
-                            <Ionicons name="car-outline" size={12} color="#64748B" />
-                            <Text style={styles.featurePillText}>Parking Available</Text>
-                          </View>
-                        )}
-
-                        {centre.cashless && (
-                          <View style={styles.featurePill}>
-                            <Ionicons name="shield-checkmark-outline" size={12} color="#1E3A8A" />
-                            <Text style={styles.featurePillText}>Cashless Available</Text>
-                          </View>
-                        )}
-                      </View>
-
-                      {/* Time Slots Row */}
-                      <View style={styles.slotsRow}>
-                        {centre.slots.map((slot, sIdx) => {
-                          const isSlotSelected = selectedSlot === `${centre.id}-${slot}`;
-                          return (
-                            <TouchableOpacity
-                              key={sIdx}
-                              style={[
-                                styles.timeSlotChip,
-                                isSlotSelected && styles.timeSlotChipSelected,
-                              ]}
-                              onPress={() => setSelectedSlot(`${centre.id}-${slot}`)}
-                              activeOpacity={0.8}
-                            >
-                              <Text
-                                style={[
-                                  styles.timeSlotText,
-                                  isSlotSelected && styles.timeSlotTextSelected,
-                                ]}
-                              >
-                                {slot}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                        {centre.moreSlots > 0 && (
-                          <Text style={styles.moreSlotsText}>+{centre.moreSlots} more</Text>
-                        )}
-                      </View>
-                    </View>
-
-                    {/* Right Price & Booking Action Column */}
-                    <View style={styles.priceActionCol}>
-                      <Text style={styles.centrePrice}>₹{centre.price.toLocaleString('en-IN')}</Text>
+                  return (
+                    <View key={lab.id} style={styles.centreResultCard}>
+                      {/* Left Thumbnail & Badges */}
                       <TouchableOpacity
-                        onPress={() =>
-                          showAlert(
-                            'Price Breakdown',
-                            `Includes scan procedure, radiologist consultation report, and digital high-res DICOM access. GST Included.`
-                          )
-                        }
-                      >
-                        <Text style={styles.viewPriceLink}>View Price Details</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.bookNowBtn}
-                        onPress={() => handleBookCentre(centre)}
                         activeOpacity={0.88}
+                        onPress={() => navigation?.navigate('RadiologyLabDetails', { labId: lab.id, initialCategory: selectedCategory })}
+                        style={styles.thumbWrapper}
                       >
-                        <Text style={styles.bookNowBtnText}>Book Now</Text>
-                        <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
+                        <Image source={{ uri: labImg }} style={styles.centreThumbImg} />
+                        <View style={styles.accreditTagOverlay}>
+                          <Ionicons name="shield-checkmark" size={10} color="#FFFFFF" />
+                          <Text style={styles.accreditTagOverlayText} numberOfLines={1}>{lab.accreditation}</Text>
+                        </View>
+                        {lab.badge && (
+                          <View style={styles.labBadgeOverlay}>
+                            <Text style={styles.labBadgeOverlayText}>{lab.badge}</Text>
+                          </View>
+                        )}
                       </TouchableOpacity>
+
+                      {/* Middle Info Column */}
+                      <View style={styles.centreMetaCol}>
+                        <TouchableOpacity
+                          activeOpacity={0.8}
+                          onPress={() => navigation?.navigate('RadiologyLabDetails', { labId: lab.id, initialCategory: selectedCategory })}
+                        >
+                          <Text style={styles.centreNameText}>{lab.name}</Text>
+                        </TouchableOpacity>
+
+                        {/* Category & Tests Count Badge (Matching Mobile) */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4, marginBottom: 5 }}>
+                          {isCardio ? (
+                            <View style={[styles.cardioCountBadge, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+                              <Ionicons name="heart" size={12} color="#E11D48" />
+                              <Text style={styles.cardioCountBadgeText}>
+                                {cardioTestsCount} Cardiology Tests Available
+                              </Text>
+                            </View>
+                          ) : (
+                            <View style={styles.totalTestsBadge}>
+                              <Text style={styles.totalTestsBadgeText}>
+                                {relevantTests.length} Tests Available
+                              </Text>
+                            </View>
+                          )}
+
+                          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isCardio ? '#FFF1F2' : '#EFF6FF', paddingHorizontal: 8, paddingVertical: 2.5, borderRadius: 5, borderWidth: 1, borderColor: isCardio ? '#FECDD3' : '#DBEAFE' }}>
+                            <Ionicons
+                              name={isCardio ? 'pulse' : 'scan'}
+                              size={11}
+                              color={isCardio ? '#BE123C' : '#1E40AF'}
+                              style={{ marginRight: 4 }}
+                            />
+                            <Text style={{ fontSize: 11.5, fontWeight: '700', color: isCardio ? '#BE123C' : '#1E40AF' }}>
+                              Active: {activeTest.name}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Ratings & Reviews Row */}
+                        <View style={styles.ratingDistanceRow}>
+                          <View style={styles.starBadge}>
+                            <Ionicons name="star" size={11} color="#FF7F50" />
+                            <Text style={styles.starText}>{lab.rating}</Text>
+                          </View>
+                          <Text style={styles.reviewsText}>({lab.reviewCount} reviews)</Text>
+                          <Text style={styles.metaDot}>•</Text>
+                          <Text style={styles.distanceText}>{lab.distance}</Text>
+                          <Text style={styles.metaDot}>|</Text>
+                          <Text style={styles.areaText} numberOfLines={1}>
+                            {lab.area}
+                          </Text>
+                          <Text style={styles.metaDot}>•</Text>
+                          <Text style={styles.turnaroundText}>{lab.turnaroundTime}</Text>
+                        </View>
+
+                        {/* Modalities Chips */}
+                        <View style={styles.modalitiesFeedRow}>
+                          {lab.modalities.slice(0, 4).map((modality, mIdx) => (
+                            <View key={mIdx} style={styles.modalityPill}>
+                              <Text style={styles.modalityPillText}>{modality}</Text>
+                            </View>
+                          ))}
+                          {lab.modalities.length > 4 && (
+                            <View style={[styles.modalityPill, styles.modalityMorePill]}>
+                              <Text style={styles.modalityMorePillText}>+{lab.modalities.length - 4} more</Text>
+                            </View>
+                          )}
+                        </View>
+
+                        {/* Quick Test Selection Chips (Cardiology & Category Tests) */}
+                        {relevantTests.length > 1 && (
+                          <View style={styles.testMiniPillsRow}>
+                            <Text style={styles.quickTestsLabel}>Tests in this lab:</Text>
+                            {relevantTests.slice(0, 4).map((t) => {
+                              const isTestActive = activeTest.id === t.id;
+                              return (
+                                <TouchableOpacity
+                                  key={t.id}
+                                  style={[styles.testMiniPill, isTestActive && styles.testMiniPillActive]}
+                                  onPress={() => setSelectedTestPerLab((prev) => ({ ...prev, [lab.id]: t.id }))}
+                                  activeOpacity={0.8}
+                                >
+                                  <Text style={[styles.testMiniPillName, isTestActive && styles.testMiniPillNameActive]}>
+                                    {t.name.split('(')[0].trim()}
+                                  </Text>
+                                  <Text style={[styles.testMiniPillPrice, isTestActive && styles.testMiniPillPriceActive]}>
+                                    ₹{t.price}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        )}
+
+                        {/* Discount Offer Banner if Available */}
+                        {lab.discountOffer && (
+                          <View style={styles.labOfferBanner}>
+                            <Ionicons name="pricetag" size={12} color="#00875A" />
+                            <Text style={styles.labOfferBannerText}>{lab.discountOffer}</Text>
+                          </View>
+                        )}
+
+                        {/* Time Slots Row */}
+                        <View style={styles.slotsRow}>
+                          <Text style={styles.slotLabel}>Slots:</Text>
+                          {slots.map((slot, sIdx) => {
+                            const isSlotSelected = selectedSlot === `${lab.id}-${slot}`;
+                            return (
+                              <TouchableOpacity
+                                key={sIdx}
+                                style={[
+                                  styles.timeSlotChip,
+                                  isSlotSelected && styles.timeSlotChipSelected,
+                                ]}
+                                onPress={() => setSelectedSlot(`${lab.id}-${slot}`)}
+                                activeOpacity={0.8}
+                              >
+                                <Text
+                                  style={[
+                                    styles.timeSlotText,
+                                    isSlotSelected && styles.timeSlotTextSelected,
+                                  ]}
+                                >
+                                  {slot}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
+
+                      {/* Right Price & Booking Action Column */}
+                      <View style={styles.priceActionCol}>
+                        <View style={{ alignItems: 'flex-end', width: '100%' }}>
+                          <Text style={styles.fromPriceLabel}>From</Text>
+                          <Text style={styles.centrePrice}>₹{minPriceInLab.toLocaleString('en-IN')}</Text>
+                          {activeTest.price !== minPriceInLab && (
+                            <Text style={styles.activeTestPriceLabel}>
+                              {activeTest.name.split('(')[0].trim()}: ₹{activeTest.price.toLocaleString('en-IN')}
+                            </Text>
+                          )}
+                          {activeTest.mrp && activeTest.mrp > activeTest.price && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                              <Text style={styles.mrpText}>₹{activeTest.mrp.toLocaleString('en-IN')}</Text>
+                              <View style={styles.discountBadgeWrap}>
+                                <Text style={styles.discountBadgeWrapText}>{activeTest.discount || 'Special Price'}</Text>
+                              </View>
+                            </View>
+                          )}
+                        </View>
+
+                        {/* Primary View Tests & Book Button (Direct Route to RadiologyLabDetails) */}
+                        <TouchableOpacity
+                          style={styles.viewTestsPrimaryBtn}
+                          onPress={() =>
+                            navigation?.navigate('RadiologyLabDetails', {
+                              labId: lab.id,
+                              initialCategory: selectedCategory,
+                            })
+                          }
+                          activeOpacity={0.88}
+                        >
+                          <Text style={styles.viewTestsPrimaryBtnText}>View Tests & Book</Text>
+                          <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
+                        </TouchableOpacity>
+
+                        {/* Action Buttons Row */}
+                        <View style={styles.cardActionsContainer}>
+                          <TouchableOpacity
+                            style={[styles.webAddToCartBtn, inCart && styles.webAddToCartBtnActive]}
+                            onPress={() => handleAddToCart(lab, activeTest)}
+                            activeOpacity={0.85}
+                          >
+                            <Ionicons
+                              name={inCart ? 'checkmark-circle' : 'cart-outline'}
+                              size={13}
+                              color={inCart ? '#00875A' : '#1E3A8A'}
+                            />
+                            <Text style={[styles.webAddToCartText, inCart && styles.webAddToCartTextActive]}>
+                              {inCart ? 'In Cart' : 'Add to Cart'}
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.bookNowBtn}
+                            onPress={() => handleBookCentre(lab, activeTest)}
+                            activeOpacity={0.88}
+                          >
+                            <Text style={styles.bookNowBtnText}>Book Now</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
                     </View>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             </View>
 
@@ -1005,6 +1542,33 @@ const ImagingScreenWeb = ({ navigation }) => {
         {/* 6. ENTERPRISE FOOTER */}
         <WebFooter navigation={navigation} />
       </ScrollView>
+
+      {/* Floating Bottom Cart Bar (Web) */}
+      {radiologyCartCount > 0 && (
+        <View style={styles.webFloatingCartBar}>
+          <View style={styles.floatingCartLeft}>
+            <View style={styles.floatingCartIconCircle}>
+              <Ionicons name="radio" size={18} color="#FFFFFF" />
+            </View>
+            <View>
+              <Text style={styles.floatingCartTitle}>
+                {radiologyCartCount} Radiology Scan{radiologyCartCount > 1 ? 's' : ''} in Cart
+              </Text>
+              <Text style={styles.floatingCartSubtitle}>
+                Total: ₹{radiologyFinalTotal.toLocaleString('en-IN')} • Verified Radiologist Reports
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.floatingCartBtn}
+            onPress={() => navigation.navigate('Cart', { initialTab: 'radiology' })}
+            activeOpacity={0.88}
+          >
+            <Text style={styles.floatingCartBtnText}>View Radiology Cart</Text>
+            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 };
@@ -1035,8 +1599,9 @@ const styles = StyleSheet.create({
   breadcrumbRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     marginBottom: 16,
+    flexWrap: 'wrap',
   },
   breadcrumbLink: {
     fontSize: 13,
@@ -1047,6 +1612,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#1E3A8A',
+  },
+  headerCartPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginLeft: 'auto',
+    backgroundColor: '#E6FAF5',
+    borderWidth: 1,
+    borderColor: '#00B894',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  headerCartPillText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#00875A',
   },
   heroRow: {
     flexDirection: 'row',
@@ -1519,9 +2101,54 @@ const styles = StyleSheet.create({
     backgroundColor: '#00B894',
   },
   priceRangeValues: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '700',
     color: '#1E3A8A',
+  },
+  pricePresetsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 10,
+  },
+  pricePresetChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  pricePresetChipActive: {
+    backgroundColor: '#E6FAF5',
+    borderColor: '#00B894',
+  },
+  pricePresetChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  pricePresetChipTextActive: {
+    color: '#00B894',
+    fontWeight: '800',
+  },
+  activePriceBadge: {
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+  },
+  activePriceBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  clearFilterLink: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#00B894',
   },
 
   // COLUMN 2: RESULTS FEED
@@ -1563,6 +2190,71 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#1E3A8A',
   },
+  webFilterTabsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  webFilterTab: {
+    paddingHorizontal: 13,
+    paddingVertical: 6.5,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  webFilterTabActive: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
+  },
+  webFilterTabText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  webFilterTabTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // Empty State Box
+  emptyStateBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 12,
+  },
+  emptyStateTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#1E3A8A',
+    marginTop: 12,
+  },
+  emptyStateDesc: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 6,
+    maxWidth: 420,
+  },
+  emptyResetBtn: {
+    marginTop: 16,
+    backgroundColor: '#00B894',
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+  emptyResetBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
   cardsFeedList: {
     gap: 14,
   },
@@ -1573,25 +2265,90 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 16,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 16,
     shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 6,
   },
-  centreThumbImg: {
-    width: 115,
-    height: 105,
+  thumbWrapper: {
+    position: 'relative',
+    width: 125,
+    height: 120,
     borderRadius: 10,
+    overflow: 'hidden',
+  },
+  centreThumbImg: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
+  },
+  accreditTagOverlay: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    right: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(30, 58, 138, 0.88)',
+    paddingHorizontal: 5,
+    paddingVertical: 2.5,
+    borderRadius: 4,
+  },
+  accreditTagOverlayText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  labBadgeOverlay: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    backgroundColor: '#FF7F50',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  labBadgeOverlayText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   centreMetaCol: {
     flex: 1,
   },
   centreNameText: {
-    fontSize: 15.5,
+    fontSize: 16,
     fontWeight: '800',
     color: '#1E3A8A',
+  },
+  cardioCountBadge: {
+    backgroundColor: '#FFF1F2',
+    borderWidth: 1,
+    borderColor: '#FECDD3',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 4,
+  },
+  cardioCountBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#E11D48',
+  },
+  totalTestsBadge: {
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 4,
+  },
+  totalTestsBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
   },
   ratingDistanceRow: {
     flexDirection: 'row',
@@ -1616,7 +2373,7 @@ const styles = StyleSheet.create({
   },
   metaDot: {
     fontSize: 11,
-    color: '#E2E8F0',
+    color: '#CBD5E1',
   },
   distanceText: {
     fontSize: 11,
@@ -1628,27 +2385,56 @@ const styles = StyleSheet.create({
     color: '#64748B',
     maxWidth: 160,
   },
-  badgeTagsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginVertical: 4,
+  turnaroundText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1E3A8A',
   },
-  featurePill: {
+  modalitiesFeedRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 5,
+    marginVertical: 4,
+  },
+  modalityPill: {
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    paddingHorizontal: 6,
+    paddingHorizontal: 7,
     paddingVertical: 2.5,
     borderRadius: 4,
-    gap: 4,
   },
-  featurePillText: {
-    fontSize: 10,
+  modalityPillText: {
+    fontSize: 10.5,
     fontWeight: '600',
-    color: '#64748B',
+    color: '#475569',
+  },
+  modalityMorePill: {
+    backgroundColor: '#F1F5F9',
+  },
+  modalityMorePillText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  labOfferBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#E6FAF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 5,
+    marginVertical: 4,
+    alignSelf: 'flex-start',
+  },
+  labOfferBannerText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#00875A',
   },
   slotsRow: {
     flexDirection: 'row',
@@ -1656,6 +2442,11 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
     marginTop: 6,
+  },
+  slotLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
   },
   timeSlotChip: {
     borderWidth: 1,
@@ -1678,42 +2469,164 @@ const styles = StyleSheet.create({
     color: '#00B894',
     fontWeight: '800',
   },
-  moreSlotsText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#1E3A8A',
-  },
 
   // PRICE ACTION COLUMN
   priceActionCol: {
     alignItems: 'flex-end',
-    minWidth: 130,
-    gap: 4,
+    minWidth: 175,
+    maxWidth: 200,
+    gap: 8,
+  },
+  fromPriceLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   centrePrice: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '900',
     color: '#1E3A8A',
   },
-  viewPriceLink: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#1E3A8A',
-    marginBottom: 6,
+  activeTestPriceLabel: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#00875A',
+    marginTop: 2,
+    textAlign: 'right',
   },
-  bookNowBtn: {
-    backgroundColor: '#00B894',
+  mrpText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  discountBadgeWrap: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+  },
+  discountBadgeWrapText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  viewTestsPrimaryBtn: {
+    backgroundColor: '#00C2CB', // MediUnify Cyan
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8.5,
+    borderRadius: 8,
+    width: '100%',
+    shadowColor: '#00C2CB',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  viewTestsPrimaryBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  cardActionsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8.5,
-    borderRadius: 8,
+    width: '100%',
+    justifyContent: 'space-between',
+  },
+  webAddToCartBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    paddingHorizontal: 8,
+    paddingVertical: 6.5,
+    borderRadius: 7,
+  },
+  webAddToCartBtnActive: {
+    borderColor: '#00875A',
+    backgroundColor: '#E6FAF5',
+  },
+  webAddToCartText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1E3A8A',
+  },
+  webAddToCartTextActive: {
+    color: '#00875A',
+  },
+  bookNowBtn: {
+    flex: 1,
+    backgroundColor: '#00B894',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6.5,
+    borderRadius: 7,
   },
   bookNowBtnText: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+
+  // QUICK TEST MINI PILLS (MATCHING MOBILE LAB DETAILS TEST LIST)
+  quickTestsLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    marginRight: 2,
+  },
+  testMiniPillsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  testMiniPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+  },
+  testMiniPillActive: {
+    backgroundColor: '#FFF1F2',
+    borderColor: '#FECDD3',
+  },
+  testMiniPillName: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  testMiniPillNameActive: {
+    color: '#BE123C',
+    fontWeight: '800',
+  },
+  testMiniPillPrice: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#00B894',
+  },
+  testMiniPillPriceActive: {
+    color: '#E11D48',
   },
 
   // COLUMN 3: SIDEBAR WIDGETS
@@ -2006,6 +2919,65 @@ const styles = StyleSheet.create({
     color: '#1E3A8A',
     flex: 1,
     lineHeight: 16,
+  },
+  webFloatingCartBar: {
+    position: 'fixed',
+    bottom: 24,
+    left: '50%',
+    transform: [{ translateX: -320 }],
+    width: 640,
+    maxWidth: '90%',
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 20,
+    zIndex: 9999,
+  },
+  floatingCartLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  floatingCartIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#00B894',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  floatingCartTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  floatingCartSubtitle: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  floatingCartBtn: {
+    backgroundColor: '#00B894',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  floatingCartBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });
 

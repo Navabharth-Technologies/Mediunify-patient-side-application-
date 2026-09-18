@@ -107,6 +107,41 @@ const radiologists = [
       '05:00 PM',
     ],
   },
+
+  {
+    id: '6',
+    name: 'Dr. Rajesh Kulkarni',
+    specialty: 'Senior Consultant Cardiologist',
+    experience: '16 years experience',
+    qualification: 'MD, DM Cardiology',
+    fee: 900,
+    rating: 4.9,
+    hospital: 'Unnathi Heart & Diagnostics Centre',
+    slots: [
+      '09:00 AM',
+      '11:30 AM',
+      '02:00 PM',
+      '04:30 PM',
+      '06:00 PM',
+    ],
+  },
+
+  {
+    id: '7',
+    name: 'Dr. Sunita Rao',
+    specialty: 'Cardiac Imaging & Radiologist',
+    experience: '11 years experience',
+    qualification: 'MD Radiology, Fellowship in Cardiac Imaging',
+    fee: 850,
+    rating: 4.8,
+    hospital: 'Apollo Diagnostic & Heart Centre',
+    slots: [
+      '10:00 AM',
+      '12:00 PM',
+      '03:00 PM',
+      '05:00 PM',
+    ],
+  },
 ];
 
 
@@ -127,9 +162,11 @@ const RadiologistListScreen = ({
 
   const specialties = [
     'All',
+    'Cardiologist',
     'Diagnostic Radiologist',
     'Interventional Radiologist',
     'Neuro Radiologist',
+    'Cardiac Imaging',
   ];
 
 
@@ -160,10 +197,8 @@ const RadiologistListScreen = ({
 
 
           const matchesSpecialty =
-            selectedSpecialty ===
-              'All' ||
-            doctor.specialty ===
-              selectedSpecialty;
+            selectedSpecialty === 'All' ||
+            doctor.specialty.toLowerCase().includes(selectedSpecialty.toLowerCase());
 
 
           return (
@@ -383,7 +418,7 @@ const RadiologistListScreen = ({
         <Text
           style={styles.headerTitle}
         >
-          Radiologists
+          Radiologists & Cardiologists
         </Text>
 
 

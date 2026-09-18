@@ -205,8 +205,53 @@
       "name": "Hemanth Gowda T N",
       "phone": "+91 9741422544",
       "email": "hemanthtn808@gmail.com",
-      "walletBalance": 2283,
+      "walletBalance": 2498,
       "walletTransactions": [
+        {
+          "id": "tx-1789195393526",
+          "title": "Paid for Video Consultation",
+          "subtitle": "Consultation with Dr. Ananya Rao (General Physician)",
+          "amount": "-₹450",
+          "type": "debit",
+          "date": "Just Now",
+          "icon": "videocam-outline"
+        },
+        {
+          "id": "tx-doc-1789195536080",
+          "title": "Doctor Consultation: Dr. Ananya Rao",
+          "subtitle": "In-Person Clinic Visit (Booking: DOC-968072)",
+          "amount": "-₹500",
+          "type": "debit",
+          "date": "Just now",
+          "icon": "person-outline"
+        },
+        {
+          "id": "tx-1789199209657",
+          "title": "Wallet Top-Up Added",
+          "subtitle": "Added via Instant UPI Payment",
+          "amount": "+₹2,000",
+          "type": "credit",
+          "date": "Just now",
+          "icon": "add-circle-outline"
+        },
+        {
+          "id": "tx-1789199490776",
+          "title": "Paid for Pharmacy Medicine Order",
+          "subtitle": "Order #UNC41967 • Apollo Pharmacy - Kuvempunagar",
+          "amount": "-₹475",
+          "type": "debit",
+          "date": "12 Sept, 01:21 pm",
+          "icon": "medkit-outline"
+        },
+        {
+          "id": "tx-1789447626499",
+          "title": "Paid for Video Consultation",
+          "subtitle": "Consultation with Dr. Ananya Rao (General Physician)",
+          "amount": "-₹450",
+          "type": "debit",
+          "date": "Just Now",
+          "icon": "videocam-outline"
+        },
         {
           "id": "tx-1788943577073",
           "title": "Paid for Video Consultation",
@@ -362,6 +407,1132 @@
         }
       ],
       "appointments": [
+        {
+          "id": "UNC66863",
+          "date": "9 Sept 2026, 01:55 pm",
+          "status": "Confirmed",
+          "paymentMethod": "Cash on Delivery",
+          "paymentStatus": "Pending on Delivery",
+          "total": 200,
+          "subtotal": 155,
+          "deliveryFee": 40,
+          "packagingFee": 5,
+          "discount": 0,
+          "items": [
+            {
+              "id": "1",
+              "name": "Paracetamol 500mg (10 Tablets)",
+              "brand": "Dolo / Micro Labs",
+              "category": "Medicines",
+              "price": 35,
+              "mrp": 45,
+              "oldPrice": 45,
+              "discount": "22% OFF",
+              "rating": 4.8,
+              "reviewsCount": 1420,
+              "icon": "medkit",
+              "requiresPrescription": false,
+              "inStock": true,
+              "packSize": "Strip of 10 Tablets",
+              "activeIngredients": "Paracetamol IP 500mg",
+              "uses": "Fever, Body Ache, Headache, Mild arthritis pain",
+              "dosage": "Take 1 tablet every 6-8 hours after food as directed by physician.",
+              "description": "Paracetamol 500mg is an antipyretic and analgesic tablet used for fast relief from fever, headache, body pains, and seasonal viral aches.",
+              "storeId": "store-apollo-kuvempu",
+              "storeName": "Apollo Pharmacy - Kuvempunagar",
+              "storeArea": "Kuvempunagar",
+              "storeAddress": "#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023",
+              "deliveryTime": "15-25 mins",
+              "storePhone": "+91 821 2548901",
+              "partnerTier": "Platinum Partner",
+              "cartType": "pharmacy",
+              "quantity": 1
+            },
+            {
+              "id": "2",
+              "name": "Vitamin C + Zinc Chewable (60 Tablets)",
+              "brand": "Limcee / Abbott",
+              "category": "Vitamins & Minerals",
+              "price": 120,
+              "mrp": 160,
+              "oldPrice": 160,
+              "discount": "25% OFF",
+              "rating": 4.7,
+              "reviewsCount": 980,
+              "icon": "fitness",
+              "requiresPrescription": false,
+              "inStock": true,
+              "packSize": "Bottle of 60 Chewable Tablets",
+              "activeIngredients": "Ascorbic Acid 500mg + Elemental Zinc 5mg",
+              "uses": "Immunity booster, Skin collagen support, Daily antioxidant",
+              "dosage": "Chew 1 tablet daily after breakfast.",
+              "description": "Delicious orange-flavoured chewable vitamin C tablets enriched with Zinc to boost natural immune resistance and maintain radiant skin.",
+              "storeId": "store-apollo-kuvempu",
+              "storeName": "Apollo Pharmacy - Kuvempunagar",
+              "storeArea": "Kuvempunagar",
+              "storeAddress": "#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023",
+              "deliveryTime": "15-25 mins",
+              "storePhone": "+91 821 2548901",
+              "partnerTier": "Platinum Partner",
+              "cartType": "pharmacy",
+              "quantity": 1
+            }
+          ],
+          "prescriptionAttached": true,
+          "address": {
+            "name": "User",
+            "phone": "9876543210",
+            "addressLine": "Detecting your delivery location...",
+            "city": "Mysore",
+            "pincode": "570023",
+            "tag": "Home"
+          },
+          "store": {
+            "id": "store-apollo-kuvempu",
+            "name": "Apollo Pharmacy - Kuvempunagar",
+            "chain": "Apollo 24|7",
+            "tagline": "Certified 24x7 Chemist • Express 20-Min Delivery",
+            "locality": "Kuvempunagar",
+            "city": "Mysore",
+            "address": "#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023",
+            "latitude": 12.2858,
+            "longitude": 76.6341,
+            "rating": 4.9,
+            "reviewsCount": 1450,
+            "deliveryTime": "15-25 mins",
+            "minOrder": "₹99",
+            "freeDeliveryAbove": "₹299",
+            "is24x7": true,
+            "isOpen": true,
+            "isPartner": true,
+            "partnerTier": "Platinum Partner",
+            "discountOffer": "Flat 20% OFF on all Rx Medicines",
+            "phone": "+91 821 2548901",
+            "licenseNumber": "KA-MYS-DRUG-01-2023-8821",
+            "storeType": "Retail & Emergency Chemist",
+            "image": "https://images.unsplash.com/photo-1586015555751-63bb77f4322a?auto=format&fit=crop&q=80&w=600",
+            "tags": [
+              "24x7 Open",
+              "Express Delivery",
+              "Rx Support",
+              "Cold Chain Storage"
+            ],
+            "pharmacistName": "Dr. Suresh Kumar (Reg. Pharmacist #KA4491)",
+            "distanceKm": 0
+          },
+          "deliverySlot": "Express Delivery (30-45 mins)",
+          "tokenNumber": "UNC66863",
+          "type": "Pharmacy Order",
+          "isPharmacyOrder": true,
+          "tests": [
+            {
+              "name": "Paracetamol 500mg (10 Tablets) (x1)"
+            },
+            {
+              "name": "Vitamin C + Zinc Chewable (60 Tablets) (x1)"
+            }
+          ],
+          "doctor": {
+            "name": "Unnathi Certified Pharmacy Store",
+            "specialty": "Medicine Delivery • 2 Items",
+            "qualification": "100% Genuine Certified Medicines",
+            "clinicName": "Unnathi Express Pharmacy Hub",
+            "clinicAddress": "Detecting your delivery location..., Mysore - 570023",
+            "clinicArea": "Kuvempunagar, Mysore",
+            "phone": "+91 821 245 9905",
+            "fee": 200,
+            "image": "https://images.unsplash.com/photo-1586015555751-63bb77f4322a?auto=format&fit=crop&q=80&w=300"
+          },
+          "day": "9 Sept 2026",
+          "time": "Express Delivery (30-45 mins)",
+          "paidAmount": 200,
+          "patient": {
+            "name": "User",
+            "age": "28",
+            "gender": "Delivery",
+            "phone": "9876543210"
+          },
+          "itemsSummary": "Paracetamol 500mg (10 Tablets) (x1), Vitamin C + Zinc Chewable (60 Tablets) (x1)",
+          "rider": {
+            "name": "Santosh M.",
+            "phone": "+91 98765 43210",
+            "temperature": "98.4°F (Verified Safe)",
+            "badge": "Vaccinated • Mask & Sanitizer Verified"
+          },
+          "details": {
+            "id": "UNC66863",
+            "date": "9 Sept 2026, 01:55 pm",
+            "status": "Confirmed",
+            "paymentMethod": "Cash on Delivery",
+            "paymentStatus": "Pending on Delivery",
+            "total": 200,
+            "subtotal": 155,
+            "deliveryFee": 40,
+            "packagingFee": 5,
+            "discount": 0,
+            "items": [
+              {
+                "id": "1",
+                "name": "Paracetamol 500mg (10 Tablets)",
+                "brand": "Dolo / Micro Labs",
+                "category": "Medicines",
+                "price": 35,
+                "mrp": 45,
+                "oldPrice": 45,
+                "discount": "22% OFF",
+                "rating": 4.8,
+                "reviewsCount": 1420,
+                "icon": "medkit",
+                "requiresPrescription": false,
+                "inStock": true,
+                "packSize": "Strip of 10 Tablets",
+                "activeIngredients": "Paracetamol IP 500mg",
+                "uses": "Fever, Body Ache, Headache, Mild arthritis pain",
+                "dosage": "Take 1 tablet every 6-8 hours after food as directed by physician.",
+                "description": "Paracetamol 500mg is an antipyretic and analgesic tablet used for fast relief from fever, headache, body pains, and seasonal viral aches.",
+                "storeId": "store-apollo-kuvempu",
+                "storeName": "Apollo Pharmacy - Kuvempunagar",
+                "storeArea": "Kuvempunagar",
+                "storeAddress": "#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023",
+                "deliveryTime": "15-25 mins",
+                "storePhone": "+91 821 2548901",
+                "partnerTier": "Platinum Partner",
+                "cartType": "pharmacy",
+                "quantity": 1
+              },
+              {
+                "id": "2",
+                "name": "Vitamin C + Zinc Chewable (60 Tablets)",
+                "brand": "Limcee / Abbott",
+                "category": "Vitamins & Minerals",
+                "price": 120,
+                "mrp": 160,
+                "oldPrice": 160,
+                "discount": "25% OFF",
+                "rating": 4.7,
+                "reviewsCount": 980,
+                "icon": "fitness",
+                "requiresPrescription": false,
+                "inStock": true,
+                "packSize": "Bottle of 60 Chewable Tablets",
+                "activeIngredients": "Ascorbic Acid 500mg + Elemental Zinc 5mg",
+                "uses": "Immunity booster, Skin collagen support, Daily antioxidant",
+                "dosage": "Chew 1 tablet daily after breakfast.",
+                "description": "Delicious orange-flavoured chewable vitamin C tablets enriched with Zinc to boost natural immune resistance and maintain radiant skin.",
+                "storeId": "store-apollo-kuvempu",
+                "storeName": "Apollo Pharmacy - Kuvempunagar",
+                "storeArea": "Kuvempunagar",
+                "storeAddress": "#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023",
+                "deliveryTime": "15-25 mins",
+                "storePhone": "+91 821 2548901",
+                "partnerTier": "Platinum Partner",
+                "cartType": "pharmacy",
+                "quantity": 1
+              }
+            ],
+            "prescriptionAttached": true,
+            "address": {
+              "name": "User",
+              "phone": "9876543210",
+              "addressLine": "Detecting your delivery location...",
+              "city": "Mysore",
+              "pincode": "570023",
+              "tag": "Home"
+            },
+            "store": {
+              "id": "store-apollo-kuvempu",
+              "name": "Apollo Pharmacy - Kuvempunagar",
+              "chain": "Apollo 24|7",
+              "tagline": "Certified 24x7 Chemist • Express 20-Min Delivery",
+              "locality": "Kuvempunagar",
+              "city": "Mysore",
+              "address": "#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023",
+              "latitude": 12.2858,
+              "longitude": 76.6341,
+              "rating": 4.9,
+              "reviewsCount": 1450,
+              "deliveryTime": "15-25 mins",
+              "minOrder": "₹99",
+              "freeDeliveryAbove": "₹299",
+              "is24x7": true,
+              "isOpen": true,
+              "isPartner": true,
+              "partnerTier": "Platinum Partner",
+              "discountOffer": "Flat 20% OFF on all Rx Medicines",
+              "phone": "+91 821 2548901",
+              "licenseNumber": "KA-MYS-DRUG-01-2023-8821",
+              "storeType": "Retail & Emergency Chemist",
+              "image": "https://images.unsplash.com/photo-1586015555751-63bb77f4322a?auto=format&fit=crop&q=80&w=600",
+              "tags": [
+                "24x7 Open",
+                "Express Delivery",
+                "Rx Support",
+                "Cold Chain Storage"
+              ],
+              "pharmacistName": "Dr. Suresh Kumar (Reg. Pharmacist #KA4491)",
+              "distanceKm": 0
+            },
+            "deliverySlot": "Express Delivery (30-45 mins)",
+            "tokenNumber": "UNC66863",
+            "type": "Pharmacy Order",
+            "isPharmacyOrder": true,
+            "tests": [
+              {
+                "name": "Paracetamol 500mg (10 Tablets) (x1)"
+              },
+              {
+                "name": "Vitamin C + Zinc Chewable (60 Tablets) (x1)"
+              }
+            ],
+            "doctor": {
+              "name": "Unnathi Certified Pharmacy Store",
+              "specialty": "Medicine Delivery • 2 Items",
+              "qualification": "100% Genuine Certified Medicines",
+              "clinicName": "Unnathi Express Pharmacy Hub",
+              "clinicAddress": "Detecting your delivery location..., Mysore - 570023",
+              "clinicArea": "Kuvempunagar, Mysore",
+              "phone": "+91 821 245 9905",
+              "fee": 200,
+              "image": "https://images.unsplash.com/photo-1586015555751-63bb77f4322a?auto=format&fit=crop&q=80&w=300"
+            },
+            "day": "9 Sept 2026",
+            "time": "Express Delivery (30-45 mins)",
+            "paidAmount": 200,
+            "patient": {
+              "name": "User",
+              "age": "28",
+              "gender": "Delivery",
+              "phone": "9876543210"
+            },
+            "itemsSummary": "Paracetamol 500mg (10 Tablets) (x1), Vitamin C + Zinc Chewable (60 Tablets) (x1)",
+            "rider": {
+              "name": "Santosh M.",
+              "phone": "+91 98765 43210",
+              "temperature": "98.4°F (Verified Safe)",
+              "badge": "Vaccinated • Mask & Sanitizer Verified"
+            },
+            "details": {
+              "id": "UNC66863",
+              "date": "9 Sept 2026, 01:55 pm",
+              "status": "Confirmed",
+              "paymentMethod": "Cash on Delivery",
+              "paymentStatus": "Pending on Delivery",
+              "total": 200,
+              "subtotal": 155,
+              "deliveryFee": 40,
+              "packagingFee": 5,
+              "discount": 0,
+              "items": [
+                {
+                  "id": "1",
+                  "name": "Paracetamol 500mg (10 Tablets)",
+                  "brand": "Dolo / Micro Labs",
+                  "category": "Medicines",
+                  "price": 35,
+                  "mrp": 45,
+                  "oldPrice": 45,
+                  "discount": "22% OFF",
+                  "rating": 4.8,
+                  "reviewsCount": 1420,
+                  "icon": "medkit",
+                  "requiresPrescription": false,
+                  "inStock": true,
+                  "packSize": "Strip of 10 Tablets",
+                  "activeIngredients": "Paracetamol IP 500mg",
+                  "uses": "Fever, Body Ache, Headache, Mild arthritis pain",
+                  "dosage": "Take 1 tablet every 6-8 hours after food as directed by physician.",
+                  "description": "Paracetamol 500mg is an antipyretic and analgesic tablet used for fast relief from fever, headache, body pains, and seasonal viral aches.",
+                  "storeId": "store-apollo-kuvempu",
+                  "storeName": "Apollo Pharmacy - Kuvempunagar",
+                  "storeArea": "Kuvempunagar",
+                  "storeAddress": "#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023",
+                  "deliveryTime": "15-25 mins",
+                  "storePhone": "+91 821 2548901",
+                  "partnerTier": "Platinum Partner",
+                  "cartType": "pharmacy",
+                  "quantity": 1
+                },
+                {
+                  "id": "2",
+                  "name": "Vitamin C + Zinc Chewable (60 Tablets)",
+                  "brand": "Limcee / Abbott",
+                  "category": "Vitamins & Minerals",
+                  "price": 120,
+                  "mrp": 160,
+                  "oldPrice": 160,
+                  "discount": "25% OFF",
+                  "rating": 4.7,
+                  "reviewsCount": 980,
+                  "icon": "fitness",
+                  "requiresPrescription": false,
+                  "inStock": true,
+                  "packSize": "Bottle of 60 Chewable Tablets",
+                  "activeIngredients": "Ascorbic Acid 500mg + Elemental Zinc 5mg",
+                  "uses": "Immunity booster, Skin collagen support, Daily antioxidant",
+                  "dosage": "Chew 1 tablet daily after breakfast.",
+                  "description": "Delicious orange-flavoured chewable vitamin C tablets enriched with Zinc to boost natural immune resistance and maintain radiant skin.",
+                  "storeId": "store-apollo-kuvempu",
+                  "storeName": "Apollo Pharmacy - Kuvempunagar",
+                  "storeArea": "Kuvempunagar",
+                  "storeAddress": "#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023",
+                  "deliveryTime": "15-25 mins",
+                  "storePhone": "+91 821 2548901",
+                  "partnerTier": "Platinum Partner",
+                  "cartType": "pharmacy",
+                  "quantity": 1
+                }
+              ],
+              "prescriptionAttached": true,
+              "address": {
+                "name": "User",
+                "phone": "9876543210",
+                "addressLine": "Detecting your delivery location...",
+                "city": "Mysore",
+                "pincode": "570023",
+                "tag": "Home"
+              },
+              "store": {
+                "id": "store-apollo-kuvempu",
+                "name": "Apollo Pharmacy - Kuvempunagar",
+                "chain": "Apollo 24|7",
+                "tagline": "Certified 24x7 Chemist • Express 20-Min Delivery",
+                "locality": "Kuvempunagar",
+                "city": "Mysore",
+                "address": "#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023",
+                "latitude": 12.2858,
+                "longitude": 76.6341,
+                "rating": 4.9,
+                "reviewsCount": 1450,
+                "deliveryTime": "15-25 mins",
+                "minOrder": "₹99",
+                "freeDeliveryAbove": "₹299",
+                "is24x7": true,
+                "isOpen": true,
+                "isPartner": true,
+                "partnerTier": "Platinum Partner",
+                "discountOffer": "Flat 20% OFF on all Rx Medicines",
+                "phone": "+91 821 2548901",
+                "licenseNumber": "KA-MYS-DRUG-01-2023-8821",
+                "storeType": "Retail & Emergency Chemist",
+                "image": "https://images.unsplash.com/photo-1586015555751-63bb77f4322a?auto=format&fit=crop&q=80&w=600",
+                "tags": [
+                  "24x7 Open",
+                  "Express Delivery",
+                  "Rx Support",
+                  "Cold Chain Storage"
+                ],
+                "pharmacistName": "Dr. Suresh Kumar (Reg. Pharmacist #KA4491)",
+                "distanceKm": 0
+              },
+              "deliverySlot": "Express Delivery (30-45 mins)"
+            }
+          }
+        },
+        {
+          "id": "UNC10245",
+          "date": "25 Aug 2026, 03:30 PM",
+          "status": "Confirmed",
+          "paymentMethod": "UPI (PhonePe)",
+          "paymentStatus": "Paid",
+          "total": 315,
+          "subtotal": 275,
+          "deliveryFee": 40,
+          "items": [
+            {
+              "id": "1",
+              "name": "Paracetamol 500mg",
+              "price": 35,
+              "quantity": 2
+            },
+            {
+              "id": "2",
+              "name": "Vitamin C 500mg",
+              "price": 120,
+              "quantity": 1
+            },
+            {
+              "id": "5",
+              "name": "Antiseptic Liquid",
+              "price": 85,
+              "quantity": 1
+            }
+          ],
+          "address": {
+            "name": "Ramesh Kumar",
+            "phone": "9876543210",
+            "addressLine": "Flat 402, Green Valley Apartments, Kuvempunagar",
+            "city": "Mysore",
+            "state": "Karnataka",
+            "pincode": "570023"
+          },
+          "deliverySlot": "Express Delivery (30-45 mins)",
+          "tokenNumber": "UNC10245",
+          "type": "Pharmacy Order",
+          "isPharmacyOrder": true,
+          "tests": [
+            {
+              "name": "Paracetamol 500mg (x2)"
+            },
+            {
+              "name": "Vitamin C 500mg (x1)"
+            },
+            {
+              "name": "Antiseptic Liquid (x1)"
+            }
+          ],
+          "doctor": {
+            "name": "Unnathi Certified Pharmacy Store",
+            "specialty": "Medicine Delivery • 3 Items",
+            "qualification": "100% Genuine Certified Medicines",
+            "clinicName": "Unnathi Express Pharmacy Hub",
+            "clinicAddress": "Flat 402, Green Valley Apartments, Kuvempunagar, Mysore - 570023",
+            "clinicArea": "Kuvempunagar, Mysore",
+            "phone": "+91 821 245 9905",
+            "fee": 315,
+            "image": "https://images.unsplash.com/photo-1586015555751-63bb77f4322a?auto=format&fit=crop&q=80&w=300"
+          },
+          "day": "25 Aug 2026",
+          "time": "Express Delivery (30-45 mins)",
+          "paidAmount": 315,
+          "patient": {
+            "name": "Ramesh Kumar",
+            "age": "28",
+            "gender": "Delivery",
+            "phone": "9876543210"
+          },
+          "itemsSummary": "Paracetamol 500mg (x2), Vitamin C 500mg (x1), Antiseptic Liquid (x1)",
+          "rider": {
+            "name": "Santosh M.",
+            "phone": "+91 98765 43210",
+            "temperature": "98.4°F (Verified Safe)",
+            "badge": "Vaccinated • Mask & Sanitizer Verified"
+          },
+          "details": {
+            "id": "UNC10245",
+            "date": "25 Aug 2026, 03:30 PM",
+            "status": "Confirmed",
+            "paymentMethod": "UPI (PhonePe)",
+            "paymentStatus": "Paid",
+            "total": 315,
+            "subtotal": 275,
+            "deliveryFee": 40,
+            "items": [
+              {
+                "id": "1",
+                "name": "Paracetamol 500mg",
+                "price": 35,
+                "quantity": 2
+              },
+              {
+                "id": "2",
+                "name": "Vitamin C 500mg",
+                "price": 120,
+                "quantity": 1
+              },
+              {
+                "id": "5",
+                "name": "Antiseptic Liquid",
+                "price": 85,
+                "quantity": 1
+              }
+            ],
+            "address": {
+              "name": "Ramesh Kumar",
+              "phone": "9876543210",
+              "addressLine": "Flat 402, Green Valley Apartments, Kuvempunagar",
+              "city": "Mysore",
+              "state": "Karnataka",
+              "pincode": "570023"
+            },
+            "deliverySlot": "Express Delivery (30-45 mins)",
+            "tokenNumber": "UNC10245",
+            "type": "Pharmacy Order",
+            "isPharmacyOrder": true,
+            "tests": [
+              {
+                "name": "Paracetamol 500mg (x2)"
+              },
+              {
+                "name": "Vitamin C 500mg (x1)"
+              },
+              {
+                "name": "Antiseptic Liquid (x1)"
+              }
+            ],
+            "doctor": {
+              "name": "Unnathi Certified Pharmacy Store",
+              "specialty": "Medicine Delivery • 3 Items",
+              "qualification": "100% Genuine Certified Medicines",
+              "clinicName": "Unnathi Express Pharmacy Hub",
+              "clinicAddress": "Flat 402, Green Valley Apartments, Kuvempunagar, Mysore - 570023",
+              "clinicArea": "Kuvempunagar, Mysore",
+              "phone": "+91 821 245 9905",
+              "fee": 315,
+              "image": "https://images.unsplash.com/photo-1586015555751-63bb77f4322a?auto=format&fit=crop&q=80&w=300"
+            },
+            "day": "25 Aug 2026",
+            "time": "Express Delivery (30-45 mins)",
+            "paidAmount": 315,
+            "patient": {
+              "name": "Ramesh Kumar",
+              "age": "28",
+              "gender": "Delivery",
+              "phone": "9876543210"
+            },
+            "itemsSummary": "Paracetamol 500mg (x2), Vitamin C 500mg (x1), Antiseptic Liquid (x1)",
+            "rider": {
+              "name": "Santosh M.",
+              "phone": "+91 98765 43210",
+              "temperature": "98.4°F (Verified Safe)",
+              "badge": "Vaccinated • Mask & Sanitizer Verified"
+            },
+            "details": {
+              "id": "UNC10245",
+              "date": "25 Aug 2026, 03:30 PM",
+              "status": "Confirmed",
+              "paymentMethod": "UPI (PhonePe)",
+              "paymentStatus": "Paid",
+              "total": 315,
+              "subtotal": 275,
+              "deliveryFee": 40,
+              "items": [
+                {
+                  "id": "1",
+                  "name": "Paracetamol 500mg",
+                  "price": 35,
+                  "quantity": 2
+                },
+                {
+                  "id": "2",
+                  "name": "Vitamin C 500mg",
+                  "price": 120,
+                  "quantity": 1
+                },
+                {
+                  "id": "5",
+                  "name": "Antiseptic Liquid",
+                  "price": 85,
+                  "quantity": 1
+                }
+              ],
+              "address": {
+                "name": "Ramesh Kumar",
+                "phone": "9876543210",
+                "addressLine": "Flat 402, Green Valley Apartments, Kuvempunagar",
+                "city": "Mysore",
+                "state": "Karnataka",
+                "pincode": "570023"
+              },
+              "deliverySlot": "Express Delivery (30-45 mins)"
+            }
+          }
+        },
+        {
+          "id": "UNC10187",
+          "date": "18 Aug 2026, 11:15 AM",
+          "status": "Cancelled",
+          "paymentMethod": "Cash on Delivery",
+          "paymentStatus": "Paid on Delivery",
+          "total": 540,
+          "subtotal": 540,
+          "deliveryFee": 0,
+          "items": [
+            {
+              "id": "3",
+              "name": "Multivitamin Tablets",
+              "price": 199,
+              "quantity": 1
+            },
+            {
+              "id": "7",
+              "name": "First Aid Kit",
+              "price": 399,
+              "quantity": 1
+            }
+          ],
+          "address": {
+            "name": "Ramesh Kumar",
+            "phone": "9876543210",
+            "addressLine": "No. 45, 3rd Cross, Vijayanagar 2nd Stage",
+            "city": "Mysore",
+            "state": "Karnataka",
+            "pincode": "570017"
+          },
+          "deliverySlot": "Standard Delivery",
+          "tokenNumber": "UNC10187",
+          "type": "Pharmacy Order",
+          "isPharmacyOrder": true,
+          "tests": [
+            {
+              "name": "Multivitamin Tablets (x1)"
+            },
+            {
+              "name": "First Aid Kit (x1)"
+            }
+          ],
+          "doctor": {
+            "name": "Unnathi Certified Pharmacy Store",
+            "specialty": "Medicine Delivery • 2 Items",
+            "qualification": "100% Genuine Certified Medicines",
+            "clinicName": "Unnathi Express Pharmacy Hub",
+            "clinicAddress": "No. 45, 3rd Cross, Vijayanagar 2nd Stage, Mysore - 570017",
+            "clinicArea": "Kuvempunagar, Mysore",
+            "phone": "+91 821 245 9905",
+            "fee": 540,
+            "image": "https://images.unsplash.com/photo-1586015555751-63bb77f4322a?auto=format&fit=crop&q=80&w=300"
+          },
+          "day": "18 Aug 2026",
+          "time": "Standard Delivery",
+          "paidAmount": 540,
+          "patient": {
+            "name": "Ramesh Kumar",
+            "age": "28",
+            "gender": "Delivery",
+            "phone": "9876543210"
+          },
+          "itemsSummary": "Multivitamin Tablets (x1), First Aid Kit (x1)",
+          "rider": {
+            "name": "Santosh M.",
+            "phone": "+91 98765 43210",
+            "temperature": "98.4°F (Verified Safe)",
+            "badge": "Vaccinated • Mask & Sanitizer Verified"
+          },
+          "details": {
+            "id": "UNC10187",
+            "date": "18 Aug 2026, 11:15 AM",
+            "status": "Delivered",
+            "paymentMethod": "Cash on Delivery",
+            "paymentStatus": "Paid on Delivery",
+            "total": 540,
+            "subtotal": 540,
+            "deliveryFee": 0,
+            "items": [
+              {
+                "id": "3",
+                "name": "Multivitamin Tablets",
+                "price": 199,
+                "quantity": 1
+              },
+              {
+                "id": "7",
+                "name": "First Aid Kit",
+                "price": 399,
+                "quantity": 1
+              }
+            ],
+            "address": {
+              "name": "Ramesh Kumar",
+              "phone": "9876543210",
+              "addressLine": "No. 45, 3rd Cross, Vijayanagar 2nd Stage",
+              "city": "Mysore",
+              "state": "Karnataka",
+              "pincode": "570017"
+            },
+            "deliverySlot": "Standard Delivery",
+            "tokenNumber": "UNC10187",
+            "type": "Pharmacy Order",
+            "isPharmacyOrder": true,
+            "tests": [
+              {
+                "name": "Multivitamin Tablets (x1)"
+              },
+              {
+                "name": "First Aid Kit (x1)"
+              }
+            ],
+            "doctor": {
+              "name": "Unnathi Certified Pharmacy Store",
+              "specialty": "Medicine Delivery • 2 Items",
+              "qualification": "100% Genuine Certified Medicines",
+              "clinicName": "Unnathi Express Pharmacy Hub",
+              "clinicAddress": "No. 45, 3rd Cross, Vijayanagar 2nd Stage, Mysore - 570017",
+              "clinicArea": "Kuvempunagar, Mysore",
+              "phone": "+91 821 245 9905",
+              "fee": 540,
+              "image": "https://images.unsplash.com/photo-1586015555751-63bb77f4322a?auto=format&fit=crop&q=80&w=300"
+            },
+            "day": "18 Aug 2026",
+            "time": "Standard Delivery",
+            "paidAmount": 540,
+            "patient": {
+              "name": "Ramesh Kumar",
+              "age": "28",
+              "gender": "Delivery",
+              "phone": "9876543210"
+            },
+            "itemsSummary": "Multivitamin Tablets (x1), First Aid Kit (x1)",
+            "rider": {
+              "name": "Santosh M.",
+              "phone": "+91 98765 43210",
+              "temperature": "98.4°F (Verified Safe)",
+              "badge": "Vaccinated • Mask & Sanitizer Verified"
+            },
+            "details": {
+              "id": "UNC10187",
+              "date": "18 Aug 2026, 11:15 AM",
+              "status": "Delivered",
+              "paymentMethod": "Cash on Delivery",
+              "paymentStatus": "Paid on Delivery",
+              "total": 540,
+              "subtotal": 540,
+              "deliveryFee": 0,
+              "items": [
+                {
+                  "id": "3",
+                  "name": "Multivitamin Tablets",
+                  "price": 199,
+                  "quantity": 1
+                },
+                {
+                  "id": "7",
+                  "name": "First Aid Kit",
+                  "price": 399,
+                  "quantity": 1
+                }
+              ],
+              "address": {
+                "name": "Ramesh Kumar",
+                "phone": "9876543210",
+                "addressLine": "No. 45, 3rd Cross, Vijayanagar 2nd Stage",
+                "city": "Mysore",
+                "state": "Karnataka",
+                "pincode": "570017"
+              },
+              "deliverySlot": "Standard Delivery"
+            }
+          }
+        },
+        {
+          "id": "VID-999921",
+          "tokenNumber": "TK-71",
+          "type": "Video Consultation",
+          "doctor": {
+            "name": "Dr. Ananya Rao",
+            "specialty": "General Physician",
+            "qualification": "MBBS, MD (General Medicine)",
+            "languages": [
+              "English",
+              "Kannada",
+              "Hindi"
+            ],
+            "image": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=400"
+          },
+          "day": "Today",
+          "date": "Sat, 12 Sep",
+          "time": "04:15 PM",
+          "status": "Confirmed",
+          "paidAmount": 450,
+          "paymentStatus": "Paid via MediUnify Wallet",
+          "paymentMethod": "MediUnify Health Wallet",
+          "videoRoomLink": "https://telehealth.unnathi.org/room/VID-999921",
+          "patient": {
+            "name": "Hemanth Gowda T N",
+            "age": "32",
+            "gender": "Male",
+            "phone": "9876543210",
+            "reason": "",
+            "reportUri": null
+          }
+        },
+        {
+          "id": "DOC-968072",
+          "tokenNumber": "TK-29",
+          "type": "In-Person",
+          "doctor": {
+            "name": "Dr. Ananya Rao",
+            "specialty": "General Physician",
+            "qualification": "MBBS, MD",
+            "clinicName": "Unnathi Multispeciality Clinic",
+            "clinicAddress": "No. 24, 5th Cross, Near Vishwamanava Double Road, Kuvempunagar, Mysore - 570023",
+            "clinicArea": "Kuvempunagar, Mysore",
+            "phone": "+91 821 245 9901",
+            "fee": 500,
+            "image": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300"
+          },
+          "day": "Today",
+          "date": "Sat, 12 Sep",
+          "time": "09:30 AM",
+          "status": "Confirmed",
+          "paidAmount": 500,
+          "paymentStatus": "Paid via MediUnify Health Wallet",
+          "paymentMethod": "MediUnify Health Wallet",
+          "patient": {
+            "name": "Hemanth Gowda T N",
+            "age": "32",
+            "gender": "Male",
+            "phone": "9876543210",
+            "reason": ""
+          },
+          "details": {
+            "id": "DOC-968072",
+            "tokenNumber": "TK-29",
+            "type": "In-Person",
+            "doctor": {
+              "name": "Dr. Ananya Rao",
+              "specialty": "General Physician",
+              "clinicName": "Unnathi Multispeciality Clinic",
+              "clinicAddress": "No. 24, 5th Cross, Near Vishwamanava Double Road, Kuvempunagar, Mysore - 570023",
+              "clinicArea": "Kuvempunagar, Mysore",
+              "phone": "+91 821 245 9901",
+              "latitude": 12.2858,
+              "longitude": 76.6341,
+              "distance": "0 km away"
+            },
+            "day": "Today",
+            "date": "Sat, 12 Sep",
+            "time": "09:30 AM",
+            "status": "Confirmed",
+            "paidAmount": 500,
+            "paymentStatus": "Paid via MediUnify Health Wallet",
+            "paymentMethod": "MediUnify Health Wallet",
+            "patient": {
+              "name": "Hemanth Gowda T N",
+              "age": "32",
+              "gender": "Male",
+              "phone": "9876543210",
+              "reason": ""
+            }
+          }
+        },
+        {
+          "id": "NURSE-987178",
+          "bookingId": "NURSE-987178",
+          "serviceName": "Home Staff: 12-Hr Day Shift",
+          "duration": "2 Days (12 Sep to 13 Sep)",
+          "schedule": {
+            "startDate": "Sat, 12 Sep 2026",
+            "endDate": "Sun, 13 Sep 2026",
+            "daysCount": 2,
+            "time": "09:00 AM"
+          },
+          "patient": {
+            "name": "Hemanth Gowda T N",
+            "relation": "Self",
+            "phone": "+91 9741422544",
+            "address": "House #142, 5th Cross, Kuvempunagar, Mysore"
+          },
+          "assignedNurse": {
+            "name": "Sister Anitha K., B.Sc (Nursing)",
+            "qualification": "Registered Nurse (INC / KSNC Certified)",
+            "experience": "7+ Years Experience"
+          },
+          "payment": {
+            "method": "Pay on Arrival",
+            "amount": "₹3,184"
+          },
+          "bookedAt": "12/9/2026, 12:21:33 pm"
+        },
+        {
+          "id": "VID-895199",
+          "tokenNumber": "TK-49",
+          "type": "Video Consultation",
+          "doctor": {
+            "name": "Dr. Ananya Rao",
+            "specialty": "General Physician",
+            "qualification": "MBBS, MD (General Medicine)",
+            "languages": [
+              "English",
+              "Kannada",
+              "Hindi"
+            ],
+            "image": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=400"
+          },
+          "day": "Today",
+          "date": "Tue, 15 Sep",
+          "time": "04:15 PM",
+          "status": "Confirmed",
+          "paidAmount": 450,
+          "paymentStatus": "Paid via MediUnify Wallet",
+          "paymentMethod": "MediUnify Health Wallet",
+          "videoRoomLink": "https://telehealth.unnathi.org/room/VID-895199",
+          "patient": {
+            "name": "Hemanth",
+            "age": "32",
+            "gender": "Male",
+            "phone": "9876543210",
+            "reason": "",
+            "reportUri": null
+          }
+        },
+        {
+          "id": "IVF-678494",
+          "tokenNumber": "FERT-647",
+          "type": "Fertility Care: Advanced IVF Cycle with ICSI",
+          "serviceType": "fertility",
+          "doctor": {
+            "name": "Nova IVF & Fertility Institute",
+            "specialty": "Reproductive Treatment: Advanced IVF Cycle with ICSI",
+            "clinicName": "Nova IVF Centre",
+            "clinicAddress": "Gokulam 3rd Stage, Mysore",
+            "fee": 125000,
+            "image": "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=400"
+          },
+          "date": "Day After, 10:30 AM",
+          "time": "11:00 AM",
+          "status": "Confirmed",
+          "paidAmount": 125000,
+          "paymentStatus": "Pay at Clinic (0% EMI Available)",
+          "consultMode": "In-Clinic",
+          "patient": {
+            "name": "Ananya & Ramesh",
+            "phone": "+91 98450 12345",
+            "confidential": true
+          }
+        },
+        {
+          "id": "VID-195374",
+          "tokenNumber": "VID-785",
+          "type": "Video Consultation",
+          "doctor": {
+            "id": "v-1",
+            "name": "Dr. Ananya Rao",
+            "specialty": "General Physician",
+            "qualification": "MBBS, MD (General Medicine)",
+            "clinicName": "MediUnify Virtual TeleHealth Room",
+            "clinicAddress": "Live HD Encrypted TeleHealth",
+            "clinicArea": "Mysore",
+            "phone": "+91 821 245 9901",
+            "fee": 450,
+            "image": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=400"
+          },
+          "day": "Today",
+          "date": "Today, Within 15 Mins (Instant)",
+          "time": "Within 15 Mins (Instant)",
+          "status": "Confirmed",
+          "paidAmount": 450,
+          "paymentStatus": "Paid Online via UPI",
+          "videoRoomLink": "https://telehealth.mediunify.org/room/VID-785",
+          "patient": {
+            "name": "Hemanth (Self)",
+            "phone": "+91 9741422544",
+            "concern": "Stress, Joint Pain & Wellness",
+            "reportName": null,
+            "reportUri": null
+          },
+          "createdAt": "2026-09-15T06:11:48.578Z"
+        },
+        {
+          "id": "AYU-338444",
+          "tokenNumber": "AYU-982",
+          "type": "Ayurvedic Consultation",
+          "serviceType": "ayurveda",
+          "doctor": {
+            "name": "Dr. Vaidya Madhavan Nambiar",
+            "specialty": "Senior Ayurvedic Physician & Nadi Pariksha Specialist",
+            "clinicName": "Kottakkal Arya Vaidya Sala Partner Clinic",
+            "clinicAddress": "No. 88, Vishwamanava Double Road, Saraswathipuram, Mysore - 570009",
+            "fee": 400,
+            "image": "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400"
+          },
+          "date": "Tomorrow, 10:30 AM",
+          "time": "10:30 AM",
+          "status": "Confirmed",
+          "paidAmount": 400,
+          "paymentStatus": "Pay at Clinic / Centre",
+          "patient": {
+            "name": "Ramesh (Self)",
+            "phone": "+91 98450 12345",
+            "concern": "Stress, Joint Pain & Wellness"
+          }
+        },
+        {
+          "id": "DOC-673184",
+          "tokenNumber": "TK-42",
+          "type": "In-Person",
+          "doctor": {
+            "id": "1",
+            "name": "Dr. Ananya Rao",
+            "specialty": "General Physician",
+            "qualification": "MBBS, MD (General Medicine)",
+            "clinicName": "Unnathi Multispeciality Clinic",
+            "clinicAddress": "No. 24, 5th Cross, Near Vishwamanava Double Road, Kuvempunagar, Mysore - 570023",
+            "clinicArea": "Kuvempunagar, Mysore",
+            "phone": "+91 821 245 9901",
+            "fee": 500,
+            "image": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=400"
+          },
+          "day": "Tomorrow",
+          "date": "Tomorrow, 10:30 AM",
+          "time": "10:30 AM",
+          "status": "Confirmed",
+          "paidAmount": 500,
+          "paymentStatus": "Pay at Clinic Reception",
+          "videoRoomLink": null,
+          "patient": {
+            "name": "Hemanth (Self)",
+            "phone": "+91 9741422544",
+            "concern": "Stress, Joint Pain & Wellness",
+            "reportName": null,
+            "reportUri": null
+          },
+          "createdAt": "2026-09-16T04:43:42.491Z"
+        },
+        {
+          "id": "VID-793782",
+          "tokenNumber": "VID-209",
+          "type": "Video Consultation",
+          "doctor": {
+            "id": "v-1",
+            "name": "Dr. Ananya Rao",
+            "specialty": "General Physician",
+            "qualification": "MBBS, MD (General Medicine)",
+            "clinicName": "MediUnify Virtual TeleHealth Room",
+            "clinicAddress": "Live HD Encrypted TeleHealth",
+            "clinicArea": "Mysore",
+            "phone": "+91 821 245 9901",
+            "fee": 450,
+            "image": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=400"
+          },
+          "day": "Today",
+          "date": "Today, Within 15 Mins (Instant)",
+          "time": "Within 15 Mins (Instant)",
+          "status": "Confirmed",
+          "paidAmount": 450,
+          "paymentStatus": "Paid from Health Wallet",
+          "videoRoomLink": "https://telehealth.mediunify.org/room/VID-209",
+          "patient": {
+            "name": "Hemanth (Self)",
+            "phone": "+91 9741422544",
+            "concern": "Stress, Joint Pain & Wellness",
+            "reportName": null,
+            "reportUri": null
+          },
+          "createdAt": "2026-09-16T04:43:56.420Z"
+        },
+        {
+          "id": "NC-246329",
+          "bookingId": "NC-246329",
+          "serviceType": "Home Care",
+          "serviceName": "Verified Home Nursing Care",
+          "shift": "12-Hour Day Shift",
+          "shiftTiming": "08:00 AM – 08:00 PM",
+          "purpose": "All Nursing Services",
+          "daysCount": 1,
+          "startDate": "17 Sep 2026",
+          "endDate": "17 Sep 2026",
+          "reportingTime": "02:00",
+          "timeNote": "Standard reporting",
+          "patient": {
+            "name": "Sneha",
+            "phone": "9845012345",
+            "relation": "Spouse",
+            "address": "Flat 402, Royal Palms, Kuvempunagar, Mysuru"
+          },
+          "assignedNurse": {
+            "name": "Sister Anitha K., B.Sc (Nursing)",
+            "qualification": "Registered Nurse (INC / KSNC Certified)",
+            "experience": "7+ Years Experience"
+          },
+          "payment": {
+            "method": "WALLET",
+            "gross": "₹1,499",
+            "discount": "₹0",
+            "total": "₹1,769",
+            "status": "Paid Online"
+          },
+          "status": "Confirmed",
+          "createdAt": "2026-09-16T06:30:46.329Z"
+        },
         {
           "id": "VID-706600",
           "tokenNumber": "TK-24",
@@ -7186,6 +8357,186 @@
         }
       ],
       "orders": [
+        {
+          "id": "UNC41967",
+          "date": "12 Sept 2026, 01:21 pm",
+          "status": "Confirmed",
+          "paymentMethod": "MediUnify Health Wallet",
+          "paymentStatus": "Paid Online (MediUnify Wallet)",
+          "total": 475,
+          "subtotal": 430,
+          "deliveryFee": 40,
+          "packagingFee": 5,
+          "discount": 0,
+          "items": [
+            {
+              "id": "1",
+              "name": "Paracetamol 500mg (10 Tablets)",
+              "brand": "Dolo / Micro Labs",
+              "category": "Medicines",
+              "price": 35,
+              "mrp": 45,
+              "oldPrice": 45,
+              "discount": "22% OFF",
+              "rating": 4.8,
+              "reviewsCount": 1420,
+              "icon": "medkit",
+              "requiresPrescription": false,
+              "inStock": true,
+              "packSize": "Strip of 10 Tablets",
+              "activeIngredients": "Paracetamol IP 500mg",
+              "uses": "Fever, Body Ache, Headache, Mild arthritis pain",
+              "dosage": "Take 1 tablet every 6-8 hours after food as directed by physician.",
+              "description": "Paracetamol 500mg is an antipyretic and analgesic tablet used for fast relief from fever, headache, body pains, and seasonal viral aches.",
+              "storeId": "store-apollo-kuvempu",
+              "storeName": "Apollo Pharmacy - Kuvempunagar",
+              "storeArea": "Kuvempunagar",
+              "storeAddress": "#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023",
+              "deliveryTime": "15-25 mins",
+              "storePhone": "+91 821 2548901",
+              "partnerTier": "Platinum Partner",
+              "cartType": "pharmacy",
+              "quantity": 1
+            },
+            {
+              "id": "8",
+              "name": "Amoxicillin + Clavulanic Acid 625mg",
+              "brand": "Augmentin / GSK",
+              "category": "Medicines",
+              "price": 210,
+              "mrp": 260,
+              "oldPrice": 260,
+              "discount": "19% OFF",
+              "rating": 4.6,
+              "reviewsCount": 310,
+              "icon": "medical",
+              "requiresPrescription": true,
+              "inStock": true,
+              "packSize": "Strip of 10 Tablets",
+              "activeIngredients": "Amoxicillin 500mg + Clavulanic Acid 125mg",
+              "uses": "Bacterial infections of the respiratory tract, ear, nose, throat, and skin",
+              "dosage": "Strictly as prescribed by a licensed doctor. Must complete full course.",
+              "description": "Broad-spectrum prescription antibiotic tablet indicated for respiratory and soft tissue bacterial infections. Requires doctor prescription.",
+              "storeId": "store-apollo-kuvempu",
+              "storeName": "Apollo Pharmacy - Kuvempunagar",
+              "storeArea": "Kuvempunagar",
+              "storeAddress": "#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023",
+              "deliveryTime": "15-25 mins",
+              "storePhone": "+91 821 2548901",
+              "partnerTier": "Platinum Partner",
+              "cartType": "pharmacy",
+              "quantity": 1
+            },
+            {
+              "id": "9",
+              "name": "Volini Pain Relief Spray 100g (Fast Relief)",
+              "brand": "Sun Pharma",
+              "category": "Pain Relief",
+              "price": 185,
+              "mrp": 230,
+              "oldPrice": 230,
+              "discount": "20% OFF",
+              "rating": 4.7,
+              "reviewsCount": 1600,
+              "icon": "flash",
+              "requiresPrescription": false,
+              "inStock": true,
+              "packSize": "100g Spray Can",
+              "activeIngredients": "Diclofenac Diethylamine 1.16%, Methyl Salicylate, Menthol",
+              "uses": "Backache, neck pain, joint stiffness, muscle sprains, sport injury",
+              "dosage": "Spray from 5cm distance onto affected area 3-4 times daily.",
+              "description": "Micro-gel formula penetrates deep into muscles within seconds to provide long-lasting relief from backache, sprains, and joint stiffness.",
+              "storeId": "store-apollo-kuvempu",
+              "storeName": "Apollo Pharmacy - Kuvempunagar",
+              "storeArea": "Kuvempunagar",
+              "storeAddress": "#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023",
+              "deliveryTime": "15-25 mins",
+              "storePhone": "+91 821 2548901",
+              "partnerTier": "Platinum Partner",
+              "cartType": "pharmacy",
+              "quantity": 1
+            }
+          ],
+          "prescriptionAttached": true,
+          "address": {
+            "name": "Ramesh Kumar",
+            "phone": "9876543210",
+            "addressLine": "Flat 402, Green Valley Apartments, Kuvempunagar",
+            "city": "Mysuru",
+            "pincode": "570023",
+            "tag": "Home"
+          },
+          "store": {
+            "id": "store-apollo-kuvempu",
+            "name": "Apollo Pharmacy - Kuvempunagar",
+            "chain": "Apollo 24|7",
+            "tagline": "Certified 24x7 Chemist • Express 20-Min Delivery",
+            "locality": "Kuvempunagar",
+            "city": "Mysore",
+            "address": "#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023",
+            "latitude": 12.2858,
+            "longitude": 76.6341,
+            "rating": 4.9,
+            "reviewsCount": 1450,
+            "deliveryTime": "15-25 mins",
+            "minOrder": "₹99",
+            "freeDeliveryAbove": "₹299",
+            "is24x7": true,
+            "isOpen": true,
+            "isPartner": true,
+            "partnerTier": "Platinum Partner",
+            "discountOffer": "Flat 20% OFF on all Rx Medicines",
+            "phone": "+91 821 2548901",
+            "licenseNumber": "KA-MYS-DRUG-01-2023-8821",
+            "storeType": "Retail & Emergency Chemist",
+            "image": "https://images.unsplash.com/photo-1586015555751-63bb77f4322a?auto=format&fit=crop&q=80&w=600",
+            "tags": [
+              "24x7 Open",
+              "Express Delivery",
+              "Rx Support",
+              "Cold Chain Storage"
+            ],
+            "pharmacistName": "Dr. Suresh Kumar (Reg. Pharmacist #KA4491)",
+            "distanceKm": 0
+          },
+          "deliverySlot": "Express Delivery (30-45 mins)"
+        },
+        {
+          "orderId": "PHARM-823478",
+          "id": "PHARM-823478",
+          "date": "16 Sept 2026",
+          "status": "Confirmed",
+          "itemsCount": 1,
+          "subtotal": 242,
+          "deliveryFee": 0,
+          "packagingFee": 0,
+          "discountAmount": 0,
+          "totalAmount": 287,
+          "finalTotal": 287,
+          "paymentMethod": "Pay at Clinic",
+          "recipientName": "Hemanth (Self)",
+          "recipientPhone": "+91 9741422544",
+          "healthConcern": "Stress, Joint Pain & Wellness",
+          "address": {
+            "name": "Hemanth (Self)",
+            "phone": "+91 9741422544",
+            "addressLine": "Flat 402, Green Valley Apartments, Kuvempunagar, Mysore",
+            "city": "Mysuru",
+            "pincode": "570023"
+          },
+          "prescriptionAttached": null,
+          "deliverySlot": "Tomorrow, 10:30 AM",
+          "items": [
+            {
+              "id": "deal-4",
+              "name": "Combiflam Pain Relief Cream",
+              "brand": "Sanofi",
+              "price": 121,
+              "quantity": 2,
+              "category": "Pain Relief"
+            }
+          ]
+        },
         {
           "id": "UNC10187",
           "date": "18 Aug 2026, 11:15 AM",

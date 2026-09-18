@@ -63,6 +63,7 @@ const linking = {
           FertilityNotifications: 'fertility-notifications',
           FertilityAI: 'fertility-ai',
           EquipmentRental: 'equipment-rental',
+          Chatbot: 'chatbot',
           Profile: 'profile',
         },
       },

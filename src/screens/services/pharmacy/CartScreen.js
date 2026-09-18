@@ -21,6 +21,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { requestLocationPermissionWebSafe, getCurrentPositionWebSafe, reverseGeocodeWebSafe } from '../../../utils/locationHelper';
 import pharmacyProducts from '../../../data/pharmacyProducts';
+import { LAB_PACKAGES } from '../../../data/labTestData';
 import WebFooter from '../../../components/web/WebFooter';
 
 // PAYMENT CONSTANTS MATCHED TO CHECKOUT MODAL
@@ -46,6 +47,94 @@ const PAYMENT_METHODS_CHECKOUT = [
   { id: 'NETBANKING', label: 'Net Banking', icon: 'business-outline', iconColor: '#0369A1' },
   { id: 'WALLET', label: 'Health Wallet Balance', icon: 'wallet-outline', iconColor: '#059669' },
   { id: 'COD', label: 'Cash on Delivery (Pay at Doorstep)', icon: 'cash-outline', iconColor: '#D97706' },
+];
+
+const RADIOLOGY_PAYMENT_METHODS = [
+  { id: 'UPI', label: 'Instant UPI (GPay / PhonePe / Paytm)', icon: 'phone-portrait-outline', iconColor: '#7C3AED' },
+  { id: 'CARD', label: 'Credit / Debit Card (Visa, MasterCard, RuPay)', icon: 'card-outline', iconColor: '#0284C7' },
+  { id: 'NETBANKING', label: 'Net Banking (All Indian Banks)', icon: 'business-outline', iconColor: '#0369A1' },
+  { id: 'WALLET', label: 'MediUnify Health Wallet', icon: 'wallet-outline', iconColor: '#059669' },
+];
+
+const POPULAR_RADIOLOGY_RECOMMENDED = [
+  {
+    id: 'REC-CAR-1',
+    name: '2D Echo + Color Doppler',
+    category: 'Cardiology',
+    modality: '2D Echo',
+    price: 1899,
+    mrp: 2600,
+    centerName: 'Unnathi Advanced Diagnostics',
+    labName: 'Unnathi Advanced Diagnostics',
+    labArea: 'Kuvempunagar, Mysore',
+    reportTime: 'Within 2 Hours',
+    fastingRequired: false,
+  },
+  {
+    id: 'REC-CAR-2',
+    name: '12-Lead Digital ECG',
+    category: 'Cardiology',
+    modality: 'Digital ECG',
+    price: 299,
+    mrp: 450,
+    centerName: 'MediCare Precision Scan Lab',
+    labName: 'MediCare Precision Scan Lab',
+    labArea: 'Jayalakshmipuram, Mysore',
+    reportTime: 'Instant (30 Mins)',
+    fastingRequired: false,
+  },
+  {
+    id: 'REC-1',
+    name: 'MRI Brain (Plain)',
+    category: 'Radiology',
+    modality: '3.0T MRI',
+    price: 4500,
+    mrp: 6500,
+    centerName: 'Mysore Scan & Diagnostic Centre',
+    labName: 'Mysore Scan & Diagnostic Centre',
+    labArea: 'Saraswathipuram, Mysore',
+    reportTime: 'Within 4 Hours',
+    fastingRequired: false,
+  },
+  {
+    id: 'REC-2',
+    name: 'CT Chest (High Resolution)',
+    category: 'Radiology',
+    modality: '128-Slice CT',
+    price: 3200,
+    mrp: 4200,
+    centerName: 'Apollo BGS Hospitals',
+    labName: 'Apollo BGS Hospitals',
+    labArea: 'Kuvempunagar, Mysore',
+    reportTime: 'Within 4 Hours',
+    fastingRequired: true,
+  },
+  {
+    id: 'REC-3',
+    name: 'Ultrasound Whole Abdomen',
+    category: 'Radiology',
+    modality: 'USG Scan',
+    price: 1000,
+    mrp: 1400,
+    centerName: 'Narayana Health City',
+    labName: 'Narayana Health City',
+    labArea: 'Hebbal, Mysore',
+    reportTime: 'Within 2 Hours',
+    fastingRequired: true,
+  },
+  {
+    id: 'REC-4',
+    name: 'Digital X-Ray Chest PA View',
+    category: 'Radiology',
+    modality: 'Digital X-Ray',
+    price: 350,
+    mrp: 500,
+    centerName: 'Spark Diagnostic Centre',
+    labName: 'Spark Diagnostic Centre',
+    labArea: 'Vijayanagar 2nd Stage, Mysore',
+    reportTime: 'Instant (1 Hour)',
+    fastingRequired: false,
+  },
 ];
 
 // CURATED TOP DEALS (Matching Sanofi top deals in reference image)
@@ -210,19 +299,36 @@ const CartScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
   const {
-    pharmacyCart,
+    pharmacyCart = [],
+    labCart = [],
+    radiologyCart = [],
     cart,
     addToCart,
     increaseQuantity,
     decreaseQuantity,
     removeFromCart,
-    pharmacySubtotal,
-    pharmacyMrpTotal,
-    pharmacySavings,
-    pharmacyDiscountAmount,
-    pharmacyDeliveryFee,
-    pharmacyPackagingFee,
-    pharmacyFinalTotal,
+    pharmacySubtotal = 0,
+    pharmacyMrpTotal = 0,
+    pharmacySavings = 0,
+    pharmacyDiscountAmount = 0,
+    pharmacyDeliveryFee = 0,
+    pharmacyPackagingFee = 0,
+    pharmacyFinalTotal = 0,
+    labSubtotal = 0,
+    labMrpTotal = 0,
+    labSavings = 0,
+    labDiscountAmount = 0,
+    labSampleFee = 0,
+    labFinalTotal = 0,
+    radiologySubtotal = 0,
+    radiologyMrpTotal = 0,
+    radiologySavings = 0,
+    radiologyDiscountAmount = 0,
+    radiologyFinalTotal = 0,
+    pharmacyCartCount = 0,
+    labCartCount = 0,
+    radiologyCartCount = 0,
+    totalCartCount = 0,
     appliedCoupon,
     applyCoupon,
     removeCoupon,
@@ -232,9 +338,42 @@ const CartScreen = ({ navigation, route }) => {
     clearCart,
   } = useCart();
 
+  const [activeCartTab, setActiveCartTab] = useState(() => {
+    if (route?.params?.initialTab === 'radiology') return 'radiology';
+    if (route?.params?.initialTab === 'lab') return 'lab';
+    if (route?.params?.initialTab === 'pharmacy') return 'pharmacy';
+    if (radiologyCart?.length > 0 && (!labCart || labCart.length === 0) && (!pharmacyCart || pharmacyCart.length === 0)) return 'radiology';
+    if (labCart?.length > 0 && (!pharmacyCart || pharmacyCart.length === 0)) return 'lab';
+    return 'pharmacy';
+  });
+
+  useEffect(() => {
+    if (route?.params?.initialTab) {
+      setActiveCartTab(route.params.initialTab);
+    }
+  }, [route?.params?.initialTab]);
+
   const [checkoutModalVisible, setCheckoutModalVisible] = useState(
     Boolean(route?.params?.openCheckout)
   );
+
+  const [labCheckoutModalVisible, setLabCheckoutModalVisible] = useState(false);
+  const [labCollectionMode, setLabCollectionMode] = useState('HOME');
+  const [labBookingDate, setLabBookingDate] = useState('Tomorrow');
+  const [labBookingSlot, setLabBookingSlot] = useState('08:00 AM - 09:00 AM (Fasting)');
+  const [isSubmittingLabOrder, setIsSubmittingLabOrder] = useState(false);
+
+  // Radiology Scan Booking & Checkout State
+  const [radiologyCheckoutModalVisible, setRadiologyCheckoutModalVisible] = useState(false);
+  const [radiologyPatientName, setRadiologyPatientName] = useState('Hemanth (Self)');
+  const [radiologyPatientAge, setRadiologyPatientAge] = useState('28');
+  const [radiologyPatientGender, setRadiologyPatientGender] = useState('Male');
+  const [radiologyPatientPhone, setRadiologyPatientPhone] = useState('+91 97414 22544');
+  const [radiologyBookingDate, setRadiologyBookingDate] = useState('Tomorrow');
+  const [radiologyBookingSlot, setRadiologyBookingSlot] = useState('09:30 AM - 10:30 AM');
+  const [radiologyPreparationAcknowledged, setRadiologyPreparationAcknowledged] = useState(true);
+  const [selectedRadiologyPaymentMethod, setSelectedRadiologyPaymentMethod] = useState('UPI');
+  const [isSubmittingRadiologyOrder, setIsSubmittingRadiologyOrder] = useState(false);
 
   useEffect(() => {
     if (route?.params?.openCheckout) {
@@ -530,6 +669,181 @@ const CartScreen = ({ navigation, route }) => {
     }, 1200);
   };
 
+  const handleConfirmLabBooking = async () => {
+    if (!recipientName.trim()) {
+      showAlert('Name Required', 'Please enter patient name.');
+      return;
+    }
+    if (!contactPhone.trim()) {
+      showAlert('Phone Required', 'Please enter patient contact number.');
+      return;
+    }
+    if (labCollectionMode === 'HOME' && !deliveryAddress.trim()) {
+      showAlert('Address Required', 'Please enter home sample collection address.');
+      return;
+    }
+
+    setIsSubmittingLabOrder(true);
+
+    setTimeout(async () => {
+      const labBookingId = `LAB-${Date.now().toString().slice(-6)}`;
+      const testsSummary = labCart.map((t) => t.name).join(', ');
+      const centerTitle = labCart[0]?.centerName || labCart[0]?.labName || 'Unnathi Certified Diagnostics';
+
+      const newLabAppointment = {
+        id: labBookingId,
+        bookingId: labBookingId,
+        title: labCart.length === 1 ? labCart[0].name : `${labCart[0].name} (+${labCart.length - 1} more)`,
+        testName: testsSummary,
+        tests: labCart.map((t) => ({ id: t.id, name: t.name, price: t.price })),
+        doctorName: centerTitle,
+        centerName: centerTitle,
+        department: 'Diagnostic & Pathology',
+        category: 'Lab Tests',
+        serviceType: 'lab',
+        type: 'Diagnostic Test',
+        date: labBookingDate,
+        time: labBookingSlot,
+        timeSlot: labBookingSlot,
+        patientName: recipientName,
+        patientPhone: contactPhone,
+        address: labCollectionMode === 'HOME' ? deliveryAddress.trim() : centerTitle,
+        collectionMethod: labCollectionMode,
+        status: 'Confirmed',
+        paymentStatus: 'Paid Online',
+        paymentMethod: selectedPaymentMethod,
+        totalAmount: labFinalTotal,
+        amount: labFinalTotal,
+        bookedAt: new Date().toISOString(),
+      };
+
+      try {
+        const existingAppts = await AsyncStorage.getItem('@unnathi_appointments');
+        const parsedAppts = existingAppts ? JSON.parse(existingAppts) : [];
+        await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify([newLabAppointment, ...parsedAppts]));
+
+        const existingLab = await AsyncStorage.getItem('@labBookings');
+        const parsedLab = existingLab ? JSON.parse(existingLab) : [];
+        await AsyncStorage.setItem('@labBookings', JSON.stringify([newLabAppointment, ...parsedLab]));
+
+        const existingMy = await AsyncStorage.getItem('@my_service_bookings');
+        const parsedMy = existingMy ? JSON.parse(existingMy) : [];
+        await AsyncStorage.setItem('@my_service_bookings', JSON.stringify([newLabAppointment, ...parsedMy]));
+
+        try {
+          const { syncActiveUser } = require('../../../services/dataSyncService');
+          await syncActiveUser();
+        } catch (e) {}
+      } catch (err) {
+        console.log('Error saving lab booking:', err);
+      }
+
+      if (clearCart) clearCart('lab');
+      setIsSubmittingLabOrder(false);
+      setLabCheckoutModalVisible(false);
+
+      showAlert(
+        'Diagnostic Tests Booked! 🧪',
+        `Your lab tests appointment (${labBookingId}) has been successfully booked.\n\nTotal Paid: ₹${labFinalTotal.toLocaleString('en-IN')}\nMode: ${labCollectionMode === 'HOME' ? 'Home Sample Collection' : 'Lab Visit'}\nSlot: ${labBookingDate}, ${labBookingSlot}`,
+        [
+          {
+            text: 'View My Bookings',
+            onPress: () => navigation.navigate('Bookings', { initialTab: 'lab' }),
+          },
+          {
+            text: 'OK',
+            onPress: () => navigation.navigate('Home'),
+          },
+        ]
+      );
+    }, 1200);
+  };
+
+  const handleConfirmRadiologyBooking = async () => {
+    if (!radiologyPatientName.trim() || !radiologyPatientPhone.trim()) {
+      showAlert('Required Fields', 'Please fill patient name and mobile number.');
+      return;
+    }
+    if (!radiologyPreparationAcknowledged) {
+      showAlert('Preparation Notice', 'Please acknowledge pre-scan preparation instructions.');
+      return;
+    }
+
+    setIsSubmittingRadiologyOrder(true);
+
+    setTimeout(async () => {
+      const radiologyBookingId = `RAD-${Math.floor(100000 + Math.random() * 900000)}`;
+      const centerTitle = radiologyCart[0]?.labName || radiologyCart[0]?.centerName || 'MediUnify Imaging & Scan Centre';
+      const centerArea = radiologyCart[0]?.labArea || 'Kuvempunagar, Mysore';
+
+      const newRadiologyAppointment = {
+        id: radiologyBookingId,
+        bookingId: radiologyBookingId,
+        category: 'Radiology Scans',
+        serviceType: 'radiology',
+        title: radiologyCart.map((it) => it.name).join(', '),
+        centerName: centerTitle,
+        centerArea: centerArea,
+        items: radiologyCart,
+        itemsCount: radiologyCart.length,
+        date: radiologyBookingDate,
+        appointmentDate: radiologyBookingDate,
+        time: radiologyBookingSlot,
+        timeSlot: radiologyBookingSlot,
+        patientName: radiologyPatientName,
+        patientAge: radiologyPatientAge,
+        patientGender: radiologyPatientGender,
+        patientPhone: radiologyPatientPhone,
+        status: 'Confirmed',
+        paymentStatus: 'Paid Online',
+        paymentMethod: selectedRadiologyPaymentMethod,
+        totalAmount: radiologyFinalTotal,
+        amount: radiologyFinalTotal,
+        bookedAt: new Date().toISOString(),
+      };
+
+      try {
+        const existingAppts = await AsyncStorage.getItem('@unnathi_appointments');
+        const parsedAppts = existingAppts ? JSON.parse(existingAppts) : [];
+        await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify([newRadiologyAppointment, ...parsedAppts]));
+
+        const existingRad = await AsyncStorage.getItem('@radiologyBookings');
+        const parsedRad = existingRad ? JSON.parse(existingRad) : [];
+        await AsyncStorage.setItem('@radiologyBookings', JSON.stringify([newRadiologyAppointment, ...parsedRad]));
+
+        const existingMy = await AsyncStorage.getItem('@my_service_bookings');
+        const parsedMy = existingMy ? JSON.parse(existingMy) : [];
+        await AsyncStorage.setItem('@my_service_bookings', JSON.stringify([newRadiologyAppointment, ...parsedMy]));
+
+        try {
+          const { syncActiveUser } = require('../../../services/dataSyncService');
+          await syncActiveUser();
+        } catch (e) {}
+      } catch (err) {
+        console.log('Error saving radiology booking:', err);
+      }
+
+      if (clearCart) clearCart('radiology');
+      setIsSubmittingRadiologyOrder(false);
+      setRadiologyCheckoutModalVisible(false);
+
+      showAlert(
+        'Radiology Scan Booked! 🩻',
+        `Your scan appointment (${radiologyBookingId}) has been successfully confirmed.\n\nCenter: ${centerTitle}\nTotal Paid Online: ₹${radiologyFinalTotal.toLocaleString('en-IN')}\nSlot: ${radiologyBookingDate}, ${radiologyBookingSlot}`,
+        [
+          {
+            text: 'View in My Bookings',
+            onPress: () => navigation.navigate('Bookings', { initialTab: 'radiology' }),
+          },
+          {
+            text: 'OK',
+            onPress: () => navigation.navigate('Home'),
+          },
+        ]
+      );
+    }, 1200);
+  };
+
   const [localDemoItems, setLocalDemoItems] = useState(DEFAULT_MOCKUP_ITEMS);
 
   // Active items in pharmacy cart
@@ -669,8 +983,13 @@ const CartScreen = ({ navigation, route }) => {
                 <Text style={styles.breadcrumbLink}>Home</Text>
               </TouchableOpacity>
               <Ionicons name="chevron-forward" size={13} color="#94A3B8" />
-              <TouchableOpacity onPress={() => navigation.navigate('Pharmacy')} activeOpacity={0.7}>
-                <Text style={styles.breadcrumbLink}>Pharmacy</Text>
+              <TouchableOpacity
+                onPress={() => navigation.navigate(activeCartTab === 'radiology' ? (Platform.OS === 'web' ? 'Imaging' : 'RadiologyLabs') : activeCartTab === 'lab' ? 'LabTests' : 'Pharmacy')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.breadcrumbLink}>
+                  {activeCartTab === 'radiology' ? 'Radiology & Imaging Scans' : activeCartTab === 'lab' ? 'Lab Tests & Diagnostics' : 'Pharmacy'}
+                </Text>
               </TouchableOpacity>
               <Ionicons name="chevron-forward" size={13} color="#94A3B8" />
               <Text style={styles.breadcrumbActive}>Shopping Cart</Text>
@@ -679,20 +998,30 @@ const CartScreen = ({ navigation, route }) => {
         ) : (
           <View style={styles.mobileAppHeader}>
             <TouchableOpacity
-              onPress={() => (navigation.canGoBack && navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Pharmacy'))}
+              onPress={() => (navigation.canGoBack && navigation.canGoBack() ? navigation.goBack() : navigation.navigate(activeCartTab === 'radiology' ? (Platform.OS === 'web' ? 'Imaging' : 'RadiologyLabs') : activeCartTab === 'lab' ? 'LabTests' : 'Pharmacy'))}
               style={styles.mobileBackBtn}
               activeOpacity={0.7}
             >
               <Ionicons name="arrow-back" size={22} color="#0F172A" />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
-              <Text style={styles.mobileHeaderTitle}>Shopping Cart</Text>
+              <Text style={styles.mobileHeaderTitle}>
+                {activeCartTab === 'radiology'
+                  ? 'Radiology & Scans Cart'
+                  : activeCartTab === 'lab'
+                  ? 'Diagnostic & Lab Cart'
+                  : 'Pharmacy Cart'}
+              </Text>
               <Text style={styles.mobileHeaderSub}>
-                {items.length > 0 ? `${items.length} item${items.length > 1 ? 's' : ''} added` : '0 items'}
+                {activeCartTab === 'radiology'
+                  ? (radiologyCart.length > 0 ? `${radiologyCart.length} scan${radiologyCart.length > 1 ? 's' : ''} added` : '0 scans added')
+                  : activeCartTab === 'lab'
+                  ? (labCart.length > 0 ? `${labCart.length} test${labCart.length > 1 ? 's' : ''} added` : '0 tests added')
+                  : (items.length > 0 ? `${items.length} item${items.length > 1 ? 's' : ''} added` : '0 items')}
               </Text>
             </View>
             <TouchableOpacity
-              onPress={() => navigation.navigate('Pharmacy')}
+              onPress={() => navigation.navigate(activeCartTab === 'radiology' ? (Platform.OS === 'web' ? 'Imaging' : 'RadiologyLabs') : activeCartTab === 'lab' ? 'LabTests' : 'Pharmacy')}
               style={styles.mobileAddMoreBtn}
               activeOpacity={0.7}
             >
@@ -701,12 +1030,476 @@ const CartScreen = ({ navigation, route }) => {
           </View>
         )}
 
+        {/* CATEGORY SWITCHER TABS: PHARMACY vs LAB TESTS vs RADIOLOGY SCANS */}
+        <View style={styles.cartCategoryTabsWrap}>
+          <View style={styles.cartCategoryTabsInner}>
+            <TouchableOpacity
+              style={[
+                styles.cartCategoryTab,
+                activeCartTab === 'pharmacy' && styles.cartCategoryTabActive,
+              ]}
+              onPress={() => setActiveCartTab('pharmacy')}
+              activeOpacity={0.85}
+            >
+              <Ionicons
+                name="medkit"
+                size={16}
+                color={activeCartTab === 'pharmacy' ? '#FF5252' : '#64748B'}
+              />
+              <Text
+                style={[
+                  styles.cartCategoryTabText,
+                  activeCartTab === 'pharmacy' && styles.cartCategoryTabTextActive,
+                ]}
+              >
+                Pharmacy
+              </Text>
+              <View
+                style={[
+                  styles.cartTabBadge,
+                  activeCartTab === 'pharmacy' && styles.cartTabBadgeActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.cartTabBadgeText,
+                    activeCartTab === 'pharmacy' && styles.cartTabBadgeTextActive,
+                  ]}
+                >
+                  {pharmacyCartCount || pharmacyCart?.length || 0}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.cartCategoryTab,
+                activeCartTab === 'lab' && styles.cartCategoryTabActiveLab,
+              ]}
+              onPress={() => setActiveCartTab('lab')}
+              activeOpacity={0.85}
+            >
+              <Ionicons
+                name="flask"
+                size={16}
+                color={activeCartTab === 'lab' ? '#00B894' : '#64748B'}
+              />
+              <Text
+                style={[
+                  styles.cartCategoryTabText,
+                  activeCartTab === 'lab' && styles.cartCategoryTabTextActiveLab,
+                ]}
+              >
+                Lab Tests
+              </Text>
+              <View
+                style={[
+                  styles.cartTabBadge,
+                  activeCartTab === 'lab' && styles.cartTabBadgeActiveLab,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.cartTabBadgeText,
+                    activeCartTab === 'lab' && styles.cartTabBadgeTextActiveLab,
+                  ]}
+                >
+                  {labCartCount || labCart?.length || 0}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.cartCategoryTab,
+                activeCartTab === 'radiology' && styles.cartCategoryTabActiveRad,
+              ]}
+              onPress={() => setActiveCartTab('radiology')}
+              activeOpacity={0.85}
+            >
+              <Ionicons
+                name="radio"
+                size={16}
+                color={activeCartTab === 'radiology' ? '#0284C7' : '#64748B'}
+              />
+              <Text
+                style={[
+                  styles.cartCategoryTabText,
+                  activeCartTab === 'radiology' && styles.cartCategoryTabTextActiveRad,
+                ]}
+              >
+                Radiology & Scans
+              </Text>
+              <View
+                style={[
+                  styles.cartTabBadge,
+                  activeCartTab === 'radiology' && styles.cartTabBadgeActiveRad,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.cartTabBadgeText,
+                    activeCartTab === 'radiology' && styles.cartTabBadgeTextActiveRad,
+                  ]}
+                >
+                  {radiologyCartCount || radiologyCart?.length || 0}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* MAIN LAYOUT WRAPPER */}
         <View style={[styles.mainLayoutWrapper, !isDesktop && styles.mainLayoutWrapperMobile]}>
           {/* ============================================================
               LEFT COLUMN: CART ITEMS & DEALS SECTIONS
           ============================================================ */}
-          <View style={[styles.leftColumn, !isDesktop && styles.columnMobile]}>
+          {activeCartTab === 'radiology' ? (
+            <View style={[styles.leftColumn, !isDesktop && styles.columnMobile]}>
+              <View style={styles.cartItemsCard}>
+                <View style={styles.cartHeaderRow}>
+                  <Text style={styles.cartHeaderTitle}>
+                    {radiologyCart.length > 0
+                      ? `${radiologyCart.length} scan${radiologyCart.length > 1 ? 's' : ''} added`
+                      : 'Radiology Cart (0 scans)'}
+                  </Text>
+                  {radiologyCart.length > 0 && (
+                    <TouchableOpacity onPress={() => clearCart && clearCart('radiology')} activeOpacity={0.7}>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#EF4444' }}>Clear Radiology Cart</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <View style={[styles.labCertifiedPillRow, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}>
+                  <Ionicons name="shield-checkmark" size={14} color="#0284C7" />
+                  <Text style={[styles.labCertifiedPillText, { color: '#0369A1' }]}>
+                    3.0T MRI • Low-Dose CT • NABH & NABL Accredited Diagnostic Imaging Centres
+                  </Text>
+                </View>
+
+                {radiologyCart.length === 0 ? (
+                  <View style={styles.emptyCartBox}>
+                    <Ionicons name="radio-outline" size={54} color="#CBD5E1" />
+                    <Text style={styles.emptyCartTitle}>Your Radiology Cart is empty</Text>
+                    <Text style={styles.emptyCartSub}>
+                      Add MRI, CT scans, Digital X-Ray, Ultrasound, 2D Echo, Mammography, or PET-CT with verified radiologist reports.
+                    </Text>
+                    <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+                      <TouchableOpacity
+                        style={[styles.browseProductsBtn, { backgroundColor: '#0284C7' }]}
+                        onPress={() => navigation.navigate(Platform.OS === 'web' ? 'Imaging' : 'RadiologyLabs')}
+                        activeOpacity={0.88}
+                      >
+                        <Text style={styles.browseProductsBtnText}>Browse Radiology Scans</Text>
+                        <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.browseProductsBtn, { backgroundColor: '#00B894' }]}
+                        onPress={() => navigation.navigate('LabTests')}
+                        activeOpacity={0.88}
+                      >
+                        <Text style={styles.browseProductsBtnText}>Browse Lab Tests</Text>
+                        <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.itemsListWrap}>
+                    {radiologyCart.map((item, index) => {
+                      const itemPrice = Number(item.price || 0);
+                      const itemMrp = Number(item.mrp || Math.round(itemPrice * 1.3));
+                      const discountPct = itemMrp > itemPrice ? Math.round(((itemMrp - itemPrice) / itemMrp) * 100) : null;
+
+                      return (
+                        <View key={item.id || index} style={[styles.labItemCardContainer, { borderColor: '#E0F2FE' }]}>
+                          <View style={[styles.labItemIconWrap, { backgroundColor: '#F0F9FF' }]}>
+                            <Ionicons
+                              name="radio-outline"
+                              size={22}
+                              color="#0284C7"
+                            />
+                          </View>
+
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                              <Text style={styles.labItemTitleText} numberOfLines={2}>
+                                {item.name}
+                              </Text>
+                              <TouchableOpacity
+                                onPress={() => removeFromCart && removeFromCart(item.id, 'radiology')}
+                                style={styles.labRemoveItemBtn}
+                                activeOpacity={0.7}
+                              >
+                                <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                              </TouchableOpacity>
+                            </View>
+
+                            <Text style={styles.labItemCenterText} numberOfLines={1}>
+                              🏥 {item.centerName || item.labName || 'MediUnify Imaging Centre'} • {item.labArea || 'Mysuru'}
+                            </Text>
+
+                            <View style={styles.labItemBadgesRow}>
+                              <View style={[styles.labBadgePill, { backgroundColor: '#EFF6FF' }]}>
+                                <Ionicons name="scan-outline" size={11} color="#2563EB" />
+                                <Text style={[styles.labBadgePillText, { color: '#1D4ED8' }]}>
+                                  {item.modality || item.categoryLabel || item.category || 'Diagnostic Scan'}
+                                </Text>
+                              </View>
+                              <View style={styles.labBadgePill}>
+                                <Ionicons name="time-outline" size={11} color="#64748B" />
+                                <Text style={styles.labBadgePillText}>
+                                  Report: {item.reportTime || 'Within 4 Hours'}
+                                </Text>
+                              </View>
+                              <View style={[styles.labBadgePill, { backgroundColor: item.fastingRequired ? '#FFFBEB' : '#F0FDF4' }]}>
+                                <Ionicons name="restaurant-outline" size={11} color={item.fastingRequired ? '#D97706' : '#16A34A'} />
+                                <Text style={[styles.labBadgePillText, { color: item.fastingRequired ? '#B45309' : '#15803D', fontWeight: '700' }]}>
+                                  {item.fastingRequired ? 'Fasting Needed' : 'No Fasting'}
+                                </Text>
+                              </View>
+                            </View>
+
+                            <View style={styles.labItemPriceRow}>
+                              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+                                <Text style={[styles.labPriceVal, { color: '#0284C7' }]}>₹{itemPrice}</Text>
+                                {itemMrp > itemPrice && <Text style={styles.labMrpVal}>₹{itemMrp}</Text>}
+                                {discountPct && <Text style={styles.labDiscountVal}>{discountPct}% off</Text>}
+                              </View>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Ionicons name="checkmark-done-circle" size={14} color="#0284C7" />
+                                <Text style={{ fontSize: 11, fontWeight: '600', color: '#0369A1' }}>Center Slot Included</Text>
+                              </View>
+                            </View>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+
+              {/* Radiology Recommended Scans Carousel */}
+              <View style={styles.dealsSectionCard}>
+                <View style={styles.dealsHeaderRow}>
+                  <Text style={styles.dealsSectionTitle}>Recommended Radiology & Cardiac Scans</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dealsScrollContainer}>
+                  {POPULAR_RADIOLOGY_RECOMMENDED.map((scan) => {
+                    const inCart = radiologyCart.some((it) => it.id === scan.id);
+                    return (
+                      <View key={scan.id} style={styles.dealCard}>
+                        <View style={[styles.dealImageWrap, { backgroundColor: '#F0F9FF', justifyContent: 'center', alignItems: 'center' }]}>
+                          <Ionicons name="radio" size={32} color="#0284C7" />
+                        </View>
+                        <Text style={styles.dealNameText} numberOfLines={2}>{scan.name}</Text>
+                        <Text style={styles.dealPackSize} numberOfLines={1}>{scan.centerName}</Text>
+                        <View style={styles.dealPriceRow}>
+                          <Text style={styles.dealPriceText}>₹{scan.price}</Text>
+                          {scan.mrp && <Text style={styles.dealMrpText}>₹{scan.mrp}</Text>}
+                        </View>
+                        <TouchableOpacity
+                          style={[styles.dealAddBtn, inCart && { backgroundColor: '#0284C7' }]}
+                          onPress={() => {
+                            if (inCart) {
+                              removeFromCart(scan.id, 'radiology');
+                            } else {
+                              addToCart({
+                                id: scan.id,
+                                name: scan.name,
+                                price: scan.price,
+                                mrp: scan.mrp,
+                                category: 'Radiology',
+                                categoryLabel: scan.category,
+                                modality: scan.modality,
+                                centerName: scan.centerName,
+                                labName: scan.centerName,
+                                reportTime: scan.reportTime,
+                                itemType: 'radiology',
+                              }, 1, 'radiology');
+                              showAlert('Added to Radiology Cart! 🩻', `${scan.name} added to your radiology cart.`);
+                            }
+                          }}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.dealAddBtnText}>{inCart ? '✓ In Cart' : '+ Add Scan'}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </View>
+          ) : activeCartTab === 'lab' ? (
+            <View style={[styles.leftColumn, !isDesktop && styles.columnMobile]}>
+              <View style={styles.cartItemsCard}>
+                <View style={styles.cartHeaderRow}>
+                  <Text style={styles.cartHeaderTitle}>
+                    {labCart.length > 0 ? `${labCart.length} diagnostic test${labCart.length > 1 ? 's' : ''} added` : 'Diagnostic Cart (0 tests)'}
+                  </Text>
+                  {labCart.length > 0 && (
+                    <TouchableOpacity onPress={() => clearCart && clearCart('lab')} activeOpacity={0.7}>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#EF4444' }}>Clear Lab Cart</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <View style={styles.labCertifiedPillRow}>
+                  <Ionicons name="shield-checkmark" size={14} color="#00B894" />
+                  <Text style={styles.labCertifiedPillText}>
+                    100% NABL & ICMR Certified Labs • Free Doorstep Collection • Digital Reports
+                  </Text>
+                </View>
+
+                {labCart.length === 0 ? (
+                  <View style={styles.emptyCartBox}>
+                    <Ionicons name="flask-outline" size={54} color="#CBD5E1" />
+                    <Text style={styles.emptyCartTitle}>Your Diagnostic Cart is empty</Text>
+                    <Text style={styles.emptyCartSub}>
+                      Add pathology tests, full body checkup packages, or radiology imaging scans.
+                    </Text>
+                    <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+                      <TouchableOpacity
+                        style={styles.browseProductsBtn}
+                        onPress={() => navigation.navigate('LabTests')}
+                        activeOpacity={0.88}
+                      >
+                        <Text style={styles.browseProductsBtnText}>Browse Lab Tests</Text>
+                        <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.browseProductsBtn, { backgroundColor: '#0284C7' }]}
+                        onPress={() => navigation.navigate('RadiologyLabs')}
+                        activeOpacity={0.88}
+                      >
+                        <Text style={styles.browseProductsBtnText}>Browse Scans</Text>
+                        <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.itemsListWrap}>
+                    {labCart.map((item, index) => {
+                      const itemPrice = Number(item.price || 0);
+                      const itemMrp = Number(item.mrp || Math.round(itemPrice * 1.25));
+                      const discountPct = itemMrp > itemPrice ? Math.round(((itemMrp - itemPrice) / itemMrp) * 100) : null;
+
+                      return (
+                        <View key={item.id || index} style={styles.labItemCardContainer}>
+                          <View style={styles.labItemIconWrap}>
+                            <Ionicons
+                              name={item.category === 'Radiology' || item.modality ? 'scan-outline' : 'flask'}
+                              size={22}
+                              color="#00B894"
+                            />
+                          </View>
+
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                              <Text style={styles.labItemTitleText} numberOfLines={2}>
+                                {item.name}
+                              </Text>
+                              <TouchableOpacity
+                                onPress={() => removeFromCart && removeFromCart(item.id, 'lab')}
+                                style={styles.labRemoveItemBtn}
+                                activeOpacity={0.7}
+                              >
+                                <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                              </TouchableOpacity>
+                            </View>
+
+                            <Text style={styles.labItemCenterText} numberOfLines={1}>
+                              🏥 {item.centerName || item.labName || 'Unnathi Diagnostic Partner'}
+                            </Text>
+
+                            <View style={styles.labItemBadgesRow}>
+                              <View style={styles.labBadgePill}>
+                                <Ionicons name="water-outline" size={11} color="#0284C7" />
+                                <Text style={styles.labBadgePillText}>
+                                  {item.sampleType || item.categoryLabel || 'Sample Test'}
+                                </Text>
+                              </View>
+                              <View style={styles.labBadgePill}>
+                                <Ionicons name="time-outline" size={11} color="#64748B" />
+                                <Text style={styles.labBadgePillText}>
+                                  TAT: {item.reportTime || item.tat || item.reportTAT || 'Within 24 hrs'}
+                                </Text>
+                              </View>
+                              <View style={[styles.labBadgePill, { backgroundColor: '#F0FDF4' }]}>
+                                <Ionicons name="home-outline" size={11} color="#00B894" />
+                                <Text style={[styles.labBadgePillText, { color: '#00B894', fontWeight: '700' }]}>
+                                  {item.homeSample !== false ? 'Home Collection' : 'Lab Visit'}
+                                </Text>
+                              </View>
+                            </View>
+
+                            <View style={styles.labItemPriceRow}>
+                              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+                                <Text style={styles.labPriceVal}>₹{itemPrice}</Text>
+                                {itemMrp > itemPrice && <Text style={styles.labMrpVal}>₹{itemMrp}</Text>}
+                                {discountPct && <Text style={styles.labDiscountVal}>{discountPct}% off</Text>}
+                              </View>
+                            </View>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+
+              {/* Lab Packages Carousel Upsell */}
+              {LAB_PACKAGES && LAB_PACKAGES.length > 0 && (
+                <View style={styles.dealsSectionCard}>
+                  <View style={styles.dealsHeaderRow}>
+                    <Text style={styles.dealsSectionTitle}>Recommended Diagnostic Health Packages</Text>
+                  </View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dealsScrollContainer}>
+                    {LAB_PACKAGES.map((pkg) => {
+                      const inCart = labCart.some((it) => it.id === pkg.id);
+                      return (
+                        <View key={pkg.id} style={styles.dealCard}>
+                          <View style={[styles.dealImageWrap, { backgroundColor: '#F0FDF4', justifyContent: 'center', alignItems: 'center' }]}>
+                            <Ionicons name="fitness" size={32} color="#00B894" />
+                          </View>
+                          <Text style={styles.dealNameText} numberOfLines={2}>{pkg.name}</Text>
+                          <Text style={styles.dealPackSize} numberOfLines={1}>{pkg.includedCount} Tests Included</Text>
+                          <View style={styles.dealPriceRow}>
+                            <Text style={styles.dealPriceText}>₹{pkg.price}</Text>
+                            <Text style={styles.dealMrpText}>₹{pkg.mrp}</Text>
+                          </View>
+                          <TouchableOpacity
+                            style={[styles.addToCartBtn, inCart && { backgroundColor: '#00B894', borderColor: '#00B894' }]}
+                            onPress={() => {
+                              if (inCart) {
+                                removeFromCart(pkg.id, 'lab');
+                              } else {
+                                addToCart({
+                                  id: pkg.id,
+                                  name: pkg.name,
+                                  price: pkg.price,
+                                  mrp: pkg.mrp,
+                                  centerName: 'Unnathi Comprehensive Diagnostic Care',
+                                  sampleType: `${pkg.includedCount} Parameters`,
+                                  homeSample: true,
+                                }, 1, 'lab');
+                                showAlert('Added to Cart! 🧪', `${pkg.name} added to cart.`);
+                              }
+                            }}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={[styles.addToCartBtnText, inCart && { color: '#FFFFFF' }]}>
+                              {inCart ? '✓ In Cart' : 'Add to cart'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={[styles.leftColumn, !isDesktop && styles.columnMobile]}>
             {/* 1. CART ITEMS SECTION */}
             <View style={styles.cartItemsCard}>
               <View style={styles.cartHeaderRow}>
@@ -907,10 +1700,208 @@ const CartScreen = ({ navigation, route }) => {
               </ScrollView>
             </View>
           </View>
+        )}
 
-          {/* ============================================================
-              RIGHT COLUMN: CARE PLAN, COUPON, VITAL UPSELL, BILL SUMMARY
-          ============================================================ */}
+        {/* ============================================================
+            RIGHT COLUMN: CARE PLAN, COUPON, VITAL UPSELL, BILL SUMMARY
+        ============================================================ */}
+        {activeCartTab === 'radiology' ? (
+          <View style={[styles.rightColumn, !isDesktop && styles.rightColumnMobile]}>
+            {/* Radiology Centre Details Card */}
+            <View style={styles.carePlanCard}>
+              <View style={[styles.carePlanBadge, { backgroundColor: '#0284C7' }]}>
+                <Text style={styles.carePlanBadgeText}>Accredited Imaging</Text>
+              </View>
+              <Text style={styles.carePlanHeading}>High-Precision Diagnostic Imaging</Text>
+              <Text style={styles.carePlanSub}>
+                Certified Radiologist verification & digital DICOM image viewer included
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                <Ionicons name="shield-checkmark" size={14} color="#0284C7" />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#0369A1' }}>
+                  Zero Waiting Slot Booking at Partner Hospital Labs
+                </Text>
+              </View>
+            </View>
+
+            {/* Radiology Bill Summary */}
+            <View style={styles.billSummaryCard}>
+              <Text style={styles.billSummaryTitle}>Radiology Scans Bill Summary</Text>
+
+              <View style={styles.billRow}>
+                <Text style={styles.billLabel}>Scans Total (MRP)</Text>
+                <Text style={styles.billValue}>
+                  ₹{radiologyMrpTotal > 0 ? radiologyMrpTotal : Math.round(radiologyFinalTotal * 1.3)}
+                </Text>
+              </View>
+
+              {radiologySavings > 0 && (
+                <View style={styles.billRow}>
+                  <Text style={styles.billLabel}>Diagnostic Centre Discount</Text>
+                  <Text style={[styles.billValue, { color: '#16A34A', fontWeight: '700' }]}>
+                    -₹{radiologySavings}
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.billRow}>
+                <Text style={styles.billLabel}>Radiologist Consultation & Report</Text>
+                <Text style={[styles.billValue, { color: '#16A34A', fontWeight: '700' }]}>FREE</Text>
+              </View>
+
+              <View style={styles.billRow}>
+                <Text style={styles.billLabel}>Direct Slot Reservation</Text>
+                <Text style={[styles.billValue, { color: '#16A34A', fontWeight: '700' }]}>FREE</Text>
+              </View>
+
+              <View style={styles.billDivider} />
+
+              <View style={styles.billTotalRow}>
+                <Text style={styles.toPayLabel}>Total Payable</Text>
+                <Text style={[styles.toPayVal, { color: '#0284C7' }]}>₹{radiologyFinalTotal}</Text>
+              </View>
+            </View>
+
+            {/* Radiology Continue Checkout Button */}
+            <TouchableOpacity
+              style={[
+                styles.continueBtn,
+                { backgroundColor: '#0284C7' },
+                radiologyCart.length === 0 && { opacity: 0.5 },
+              ]}
+              onPress={() => {
+                if (radiologyCart.length === 0) {
+                  showAlert('Cart is Empty', 'Please add radiology scans to your cart first.');
+                  return;
+                }
+                setRadiologyCheckoutModalVisible(true);
+              }}
+              disabled={radiologyCart.length === 0}
+              activeOpacity={0.88}
+            >
+              <Text style={styles.continueBtnText}>
+                Proceed to Scan Booking ({radiologyCart.length}) • ₹{radiologyFinalTotal}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : activeCartTab === 'lab' ? (
+          <View style={[styles.rightColumn, !isDesktop && styles.rightColumnMobile]}>
+            {/* Collection mode preference card */}
+            <View style={styles.vitalOrgansCard}>
+              <View style={styles.vitalHeaderRow}>
+                <Text style={styles.vitalHeaderTitle}>Sample Collection Preference</Text>
+                <Ionicons name="information-circle-outline" size={16} color="#64748B" />
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                <TouchableOpacity
+                  style={[
+                    styles.labModeSelectBtn,
+                    labCollectionMode === 'HOME' && styles.labModeSelectBtnActive,
+                  ]}
+                  onPress={() => setLabCollectionMode('HOME')}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons
+                    name="home"
+                    size={16}
+                    color={labCollectionMode === 'HOME' ? '#00B894' : '#64748B'}
+                  />
+                  <Text
+                    style={[
+                      styles.labModeSelectBtnText,
+                      labCollectionMode === 'HOME' && styles.labModeSelectBtnTextActive,
+                    ]}
+                  >
+                    Doorstep Collection
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.labModeSelectBtn,
+                    labCollectionMode === 'CENTRE' && styles.labModeSelectBtnActive,
+                  ]}
+                  onPress={() => setLabCollectionMode('CENTRE')}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons
+                    name="business"
+                    size={16}
+                    color={labCollectionMode === 'CENTRE' ? '#00B894' : '#64748B'}
+                  />
+                  <Text
+                    style={[
+                      styles.labModeSelectBtnText,
+                      labCollectionMode === 'CENTRE' && styles.labModeSelectBtnTextActive,
+                    ]}
+                  >
+                    Lab Visit
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Lab Bill Summary */}
+            <View style={styles.billSummaryCard}>
+              <Text style={styles.billSummaryTitle}>Diagnostic Bill Summary</Text>
+
+              <View style={styles.billRow}>
+                <Text style={styles.billLabel}>Tests Total (MRP)</Text>
+                <Text style={styles.billValue}>
+                  ₹{labMrpTotal > 0 ? labMrpTotal : Math.round(labFinalTotal * 1.25)}
+                </Text>
+              </View>
+
+              {labSavings > 0 && (
+                <View style={styles.billRow}>
+                  <Text style={styles.billLabel}>Partner Discount</Text>
+                  <Text style={[styles.billValue, { color: '#16A34A', fontWeight: '700' }]}>
+                    -₹{labSavings}
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.billRow}>
+                <Text style={styles.billLabel}>Home Sample Collection</Text>
+                <Text style={[styles.billValue, { color: '#16A34A', fontWeight: '700' }]}>FREE</Text>
+              </View>
+
+              <View style={styles.billRow}>
+                <Text style={styles.billLabel}>Verified Digital Reports</Text>
+                <Text style={[styles.billValue, { color: '#16A34A', fontWeight: '700' }]}>FREE</Text>
+              </View>
+
+              <View style={styles.billDivider} />
+
+              <View style={styles.billTotalRow}>
+                <Text style={styles.toPayLabel}>Total Payable</Text>
+                <Text style={[styles.toPayVal, { color: '#00B894' }]}>₹{labFinalTotal}</Text>
+              </View>
+            </View>
+
+            {/* Lab Continue Checkout Button */}
+            <TouchableOpacity
+              style={[
+                styles.continueBtn,
+                { backgroundColor: '#00B894' },
+                labCart.length === 0 && { opacity: 0.5 },
+              ]}
+              onPress={() => {
+                if (labCart.length === 0) {
+                  showAlert('Cart is Empty', 'Please add diagnostic tests to your cart first.');
+                  return;
+                }
+                setLabCheckoutModalVisible(true);
+              }}
+              disabled={labCart.length === 0}
+              activeOpacity={0.88}
+            >
+              <Text style={styles.continueBtnText}>
+                Schedule & Book Tests ({labCart.length}) • ₹{labFinalTotal}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
           <View style={[styles.rightColumn, !isDesktop && styles.rightColumnMobile]}>
             {/* 1. CARE PLAN / VIP MEMBERSHIP CARD */}
             <View style={styles.carePlanCard}>
@@ -1056,6 +2047,7 @@ const CartScreen = ({ navigation, route }) => {
               <Text style={styles.continueBtnText}>Continue</Text>
             </TouchableOpacity>
           </View>
+        )}
         </View>
 
         {/* WEB FOOTER */}
@@ -1684,11 +2676,779 @@ const CartScreen = ({ navigation, route }) => {
           </View>
         </View>
       </Modal>
+
+      {/* ============================================================
+          LAB CHECKOUT MODAL
+      ============================================================ */}
+      <Modal
+        visible={labCheckoutModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setLabCheckoutModalVisible(false)}
+      >
+        <View style={styles.checkoutModalBackdrop}>
+          <View style={styles.checkoutModalCard}>
+            <View style={styles.checkoutModalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.checkoutModalTitle}>Schedule Diagnostic Tests</Text>
+                <Text style={styles.checkoutModalSubTitle}>
+                  {labCart.length} Test{labCart.length > 1 ? 's' : ''} • NABL Certified Partner Labs
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setLabCheckoutModalVisible(false)}
+                style={styles.checkoutModalCloseBtn}
+              >
+                <Ionicons name="close" size={22} color="#475569" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.checkoutModalScroll} showsVerticalScrollIndicator={false}>
+              {/* 1. Collection Mode */}
+              <View style={styles.checkoutSectionBlock}>
+                <Text style={styles.checkoutSectionTitle}>1. Collection Preference</Text>
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.labModeSelectBtn,
+                      labCollectionMode === 'HOME' && styles.labModeSelectBtnActive,
+                    ]}
+                    onPress={() => setLabCollectionMode('HOME')}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons
+                      name="home"
+                      size={16}
+                      color={labCollectionMode === 'HOME' ? '#00B894' : '#64748B'}
+                    />
+                    <Text
+                      style={[
+                        styles.labModeSelectBtnText,
+                        labCollectionMode === 'HOME' && styles.labModeSelectBtnTextActive,
+                      ]}
+                    >
+                      Home Doorstep (Free)
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.labModeSelectBtn,
+                      labCollectionMode === 'CENTRE' && styles.labModeSelectBtnActive,
+                    ]}
+                    onPress={() => setLabCollectionMode('CENTRE')}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons
+                      name="business"
+                      size={16}
+                      color={labCollectionMode === 'CENTRE' ? '#00B894' : '#64748B'}
+                    />
+                    <Text
+                      style={[
+                        styles.labModeSelectBtnText,
+                        labCollectionMode === 'CENTRE' && styles.labModeSelectBtnTextActive,
+                      ]}
+                    >
+                      Diagnostic Centre Visit
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* 2. Patient Details */}
+              <View style={styles.checkoutSectionBlock}>
+                <Text style={styles.checkoutSectionTitle}>2. Patient Details</Text>
+                <View style={{ gap: 10, marginTop: 8 }}>
+                  <TextInput
+                    style={styles.checkoutTextInput}
+                    placeholder="Patient Full Name"
+                    placeholderTextColor="#94A3B8"
+                    value={recipientName}
+                    onChangeText={setRecipientName}
+                  />
+                  <TextInput
+                    style={styles.checkoutTextInput}
+                    placeholder="Mobile Number"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="phone-pad"
+                    value={contactPhone}
+                    onChangeText={setContactPhone}
+                  />
+                </View>
+              </View>
+
+              {/* 3. Address (if home collection) */}
+              {labCollectionMode === 'HOME' && (
+                <View style={styles.checkoutSectionBlock}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={styles.checkoutSectionTitle}>3. Home Sample Collection Address</Text>
+                    <TouchableOpacity onPress={handleGpsAutofill} style={styles.gpsUseCurrentBtn}>
+                      {gpsLoading ? (
+                        <ActivityIndicator size="small" color="#00B894" />
+                      ) : (
+                        <>
+                          <Ionicons name="locate" size={13} color="#00B894" />
+                          <Text style={[styles.gpsUseCurrentText, { color: '#00B894' }]}>Use GPS</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                  <TextInput
+                    style={[styles.checkoutTextInput, { height: 60, textAlignVertical: 'top', marginTop: 8 }]}
+                    placeholder="Enter complete home address & landmark"
+                    placeholderTextColor="#94A3B8"
+                    value={deliveryAddress}
+                    onChangeText={setDeliveryAddress}
+                    multiline
+                  />
+                </View>
+              )}
+
+              {/* 4. Date & Slot */}
+              <View style={styles.checkoutSectionBlock}>
+                <Text style={styles.checkoutSectionTitle}>
+                  {labCollectionMode === 'HOME' ? '4. Select Date & Slot' : '3. Select Date & Slot'}
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                  {['Tomorrow', 'In 2 Days', 'In 3 Days'].map((d) => (
+                    <TouchableOpacity
+                      key={d}
+                      style={[
+                        styles.checkoutDateChip,
+                        labBookingDate === d && styles.checkoutDateChipActive,
+                      ]}
+                      onPress={() => setLabBookingDate(d)}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.checkoutDateChipText,
+                          labBookingDate === d && styles.checkoutDateChipTextActive,
+                        ]}
+                      >
+                        {d}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <View style={{ gap: 8, marginTop: 10 }}>
+                  {[
+                    '07:00 AM - 08:00 AM (Fasting Ideal)',
+                    '08:00 AM - 09:00 AM',
+                    '09:00 AM - 10:00 AM',
+                    '04:00 PM - 05:00 PM',
+                  ].map((slot) => (
+                    <TouchableOpacity
+                      key={slot}
+                      style={[
+                        styles.checkoutSlotRow,
+                        labBookingSlot === slot && styles.checkoutSlotRowActive,
+                      ]}
+                      onPress={() => setLabBookingSlot(slot)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons
+                        name={labBookingSlot === slot ? 'radio-button-on' : 'radio-button-off'}
+                        size={18}
+                        color={labBookingSlot === slot ? '#00B894' : '#94A3B8'}
+                      />
+                      <Text
+                        style={[
+                          styles.checkoutSlotText,
+                          labBookingSlot === slot && styles.checkoutSlotTextActive,
+                        ]}
+                      >
+                        {slot}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* 5. 100% Online Payment */}
+              <View style={styles.checkoutSectionBlock}>
+                <Text style={styles.checkoutSectionTitle}>
+                  {labCollectionMode === 'HOME' ? '5. Payment Method (100% Online)' : '4. Payment Method (100% Online)'}
+                </Text>
+                <View style={{ gap: 8, marginTop: 8 }}>
+                  {[
+                    { id: 'UPI', label: 'UPI / Google Pay / PhonePe', icon: 'phone-portrait-outline', color: '#7C3AED' },
+                    { id: 'CARD', label: 'Credit / Debit Card', icon: 'card-outline', color: '#FF5252' },
+                    { id: 'NETBANKING', label: 'Net Banking', icon: 'business-outline', color: '#0369A1' },
+                    { id: 'WALLET', label: 'Health Wallet Balance', icon: 'wallet-outline', color: '#059669' },
+                  ].map((pm) => (
+                    <TouchableOpacity
+                      key={pm.id}
+                      style={[
+                        styles.checkoutPaymentMethodCard,
+                        selectedPaymentMethod === pm.id && styles.checkoutPaymentMethodCardActive,
+                      ]}
+                      onPress={() => setSelectedPaymentMethod(pm.id)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name={pm.icon} size={18} color={pm.color} />
+                      <Text style={styles.checkoutPaymentMethodLabel}>{pm.label}</Text>
+                      {selectedPaymentMethod === pm.id && (
+                        <Ionicons name="checkmark-circle" size={18} color="#00B894" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Pricing breakdown summary */}
+              <View style={styles.checkoutPricingSummaryBox}>
+                <View style={styles.checkoutSummaryRow}>
+                  <Text style={styles.checkoutSummaryLabel}>Diagnostic Total Amount</Text>
+                  <Text style={[styles.checkoutSummaryValue, { color: '#00B894' }]}>
+                    ₹{labFinalTotal.toLocaleString('en-IN')}
+                  </Text>
+                </View>
+                <Text style={styles.checkoutSummaryNote}>
+                  ✓ Free doorstep collection • Digital verified reports • NABL accredited partner labs
+                </Text>
+              </View>
+            </ScrollView>
+
+            <View style={styles.checkoutModalFooter}>
+              <TouchableOpacity
+                style={[
+                  styles.checkoutConfirmBtn,
+                  { backgroundColor: '#00B894' },
+                  isSubmittingLabOrder && styles.checkoutConfirmBtnDisabled,
+                ]}
+                onPress={handleConfirmLabBooking}
+                activeOpacity={0.88}
+                disabled={isSubmittingLabOrder}
+              >
+                {isSubmittingLabOrder ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.checkoutConfirmBtnText}>
+                    Confirm & Pay ₹{labFinalTotal.toLocaleString('en-IN')}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* LAB PROCESSING MODAL */}
+      <Modal visible={isSubmittingLabOrder} transparent animationType="fade">
+        <View style={styles.procModalOverlay}>
+          <View style={styles.processModal}>
+            <ActivityIndicator size="large" color="#00B894" />
+            <Text style={styles.processTitle}>Confirming Diagnostic Booking...</Text>
+            <Text style={styles.processSub}>Scheduling lab appointment and processing payment</Text>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ============================================================
+          RADIOLOGY CHECKOUT MODAL (100% ONLINE PAYMENT)
+      ============================================================ */}
+      <Modal
+        visible={radiologyCheckoutModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setRadiologyCheckoutModalVisible(false)}
+      >
+        <View style={styles.checkoutModalBackdrop}>
+          <View style={styles.checkoutModalCard}>
+            <View style={styles.checkoutModalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.checkoutModalTitle}>Schedule Radiology Scan</Text>
+                <Text style={styles.checkoutModalSubTitle}>
+                  {radiologyCart.length} Scan{radiologyCart.length > 1 ? 's' : ''} • NABH & NABL Accredited Center
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setRadiologyCheckoutModalVisible(false)}
+                style={styles.checkoutModalCloseBtn}
+              >
+                <Ionicons name="close" size={22} color="#475569" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.checkoutModalScroll} showsVerticalScrollIndicator={false}>
+              {/* 1. Selected Scan Center Details */}
+              <View style={styles.checkoutSectionBlock}>
+                <Text style={styles.checkoutSectionTitle}>1. Diagnostic Scan Center</Text>
+                <View style={[styles.checkoutMethodDetailBox, { marginTop: 8, borderColor: '#BAE6FD', backgroundColor: '#F0F9FF' }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="business" size={20} color="#0284C7" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: '#0369A1' }}>
+                        {radiologyCart[0]?.labName || radiologyCart[0]?.centerName || 'MediUnify Imaging & Scan Centre'}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                        {radiologyCart[0]?.labAddress || radiologyCart[0]?.labArea || 'Kuvempunagar, Mysore'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {/* 2. Patient Details */}
+              <View style={styles.checkoutSectionBlock}>
+                <Text style={styles.checkoutSectionTitle}>2. Patient Details</Text>
+                <View style={{ gap: 10, marginTop: 8 }}>
+                  <TextInput
+                    style={styles.checkoutTextInput}
+                    placeholder="Patient Full Name"
+                    placeholderTextColor="#94A3B8"
+                    value={radiologyPatientName}
+                    onChangeText={setRadiologyPatientName}
+                  />
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TextInput
+                      style={[styles.checkoutTextInput, { flex: 1 }]}
+                      placeholder="Age (e.g. 28)"
+                      placeholderTextColor="#94A3B8"
+                      keyboardType="number-pad"
+                      value={radiologyPatientAge}
+                      onChangeText={setRadiologyPatientAge}
+                    />
+                    <View style={{ flexDirection: 'row', gap: 6, flex: 1.5 }}>
+                      {['Male', 'Female', 'Other'].map((g) => (
+                        <TouchableOpacity
+                          key={g}
+                          style={[
+                            styles.checkoutDateChip,
+                            { flex: 1, paddingHorizontal: 4 },
+                            radiologyPatientGender === g && { backgroundColor: '#0284C7', borderColor: '#0284C7' },
+                          ]}
+                          onPress={() => setRadiologyPatientGender(g)}
+                        >
+                          <Text
+                            style={[
+                              styles.checkoutDateChipText,
+                              radiologyPatientGender === g && { color: '#FFFFFF', fontWeight: '800' },
+                            ]}
+                          >
+                            {g}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                  <TextInput
+                    style={styles.checkoutTextInput}
+                    placeholder="Contact Mobile Number"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="phone-pad"
+                    value={radiologyPatientPhone}
+                    onChangeText={setRadiologyPatientPhone}
+                  />
+                </View>
+              </View>
+
+              {/* 3. Appointment Date & Slot */}
+              <View style={styles.checkoutSectionBlock}>
+                <Text style={styles.checkoutSectionTitle}>3. Appointment Date & Slot</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                  {['Today', 'Tomorrow', 'In 2 Days'].map((d) => (
+                    <TouchableOpacity
+                      key={d}
+                      style={[
+                        styles.checkoutDateChip,
+                        radiologyBookingDate === d && { backgroundColor: '#0284C7', borderColor: '#0284C7' },
+                      ]}
+                      onPress={() => setRadiologyBookingDate(d)}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.checkoutDateChipText,
+                          radiologyBookingDate === d && { color: '#FFFFFF', fontWeight: '800' },
+                        ]}
+                      >
+                        {d}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <View style={{ gap: 8, marginTop: 10 }}>
+                  {[
+                    '08:30 AM - 09:30 AM (Morning)',
+                    '10:30 AM - 11:30 AM (Peak Slot)',
+                    '01:30 PM - 02:30 PM (Afternoon)',
+                    '04:30 PM - 05:30 PM (Evening)',
+                  ].map((slot) => (
+                    <TouchableOpacity
+                      key={slot}
+                      style={[
+                        styles.checkoutSlotRow,
+                        radiologyBookingSlot === slot && { borderColor: '#0284C7', backgroundColor: '#F0F9FF' },
+                      ]}
+                      onPress={() => setRadiologyBookingSlot(slot)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons
+                        name={radiologyBookingSlot === slot ? 'radio-button-on' : 'radio-button-off'}
+                        size={18}
+                        color={radiologyBookingSlot === slot ? '#0284C7' : '#94A3B8'}
+                      />
+                      <Text
+                        style={[
+                          styles.checkoutSlotText,
+                          radiologyBookingSlot === slot && { color: '#0369A1', fontWeight: '700' },
+                        ]}
+                      >
+                        {slot}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* 4. Preparation & Fasting Acknowledgement */}
+              <View style={styles.checkoutSectionBlock}>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 }}
+                  onPress={() => setRadiologyPreparationAcknowledged(!radiologyPreparationAcknowledged)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name={radiologyPreparationAcknowledged ? 'checkbox' : 'square-outline'}
+                    size={22}
+                    color={radiologyPreparationAcknowledged ? '#0284C7' : '#94A3B8'}
+                  />
+                  <Text style={{ fontSize: 12, color: '#334155', flex: 1, lineHeight: 17 }}>
+                    I acknowledge that certain scans (Abdominal USG, Contrast MRI/CT) may require 4-6 hours prior fasting. I will carry prior medical reports.
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* 5. 100% Online Payment (Strictly Online, No COD) */}
+              <View style={styles.checkoutSectionBlock}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={styles.checkoutSectionTitle}>4. Payment Method</Text>
+                  <View style={{ backgroundColor: '#E0F2FE', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#0369A1' }}>100% ONLINE PAYMENT</Text>
+                  </View>
+                </View>
+                <View style={{ gap: 8, marginTop: 8 }}>
+                  {RADIOLOGY_PAYMENT_METHODS.map((pm) => (
+                    <TouchableOpacity
+                      key={pm.id}
+                      style={[
+                        styles.checkoutPaymentMethodCard,
+                        selectedRadiologyPaymentMethod === pm.id && { borderColor: '#0284C7', backgroundColor: '#F0F9FF' },
+                      ]}
+                      onPress={() => setSelectedRadiologyPaymentMethod(pm.id)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name={pm.icon} size={18} color={pm.iconColor} />
+                      <Text style={styles.checkoutPaymentMethodLabel}>{pm.label}</Text>
+                      {selectedRadiologyPaymentMethod === pm.id && (
+                        <Ionicons name="checkmark-circle" size={18} color="#0284C7" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Pricing breakdown summary */}
+              <View style={[styles.checkoutPricingSummaryBox, { borderColor: '#BAE6FD', backgroundColor: '#F8FAFC' }]}>
+                <View style={styles.checkoutSummaryRow}>
+                  <Text style={styles.checkoutSummaryLabel}>Radiology Scans Total</Text>
+                  <Text style={[styles.checkoutSummaryValue, { color: '#0284C7' }]}>
+                    ₹{radiologyFinalTotal.toLocaleString('en-IN')}
+                  </Text>
+                </View>
+                <Text style={styles.checkoutSummaryNote}>
+                  ✓ Verified Radiologist Reporting • Priority Slot Reservation • Digital DICOM Reports
+                </Text>
+              </View>
+            </ScrollView>
+
+            <View style={styles.checkoutModalFooter}>
+              <TouchableOpacity
+                style={[
+                  styles.checkoutConfirmBtn,
+                  { backgroundColor: '#0284C7' },
+                  isSubmittingRadiologyOrder && styles.checkoutConfirmBtnDisabled,
+                ]}
+                onPress={handleConfirmRadiologyBooking}
+                activeOpacity={0.88}
+                disabled={isSubmittingRadiologyOrder}
+              >
+                {isSubmittingRadiologyOrder ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.checkoutConfirmBtnText}>
+                    Confirm & Pay Online ₹{radiologyFinalTotal.toLocaleString('en-IN')}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* RADIOLOGY PROCESSING MODAL */}
+      <Modal visible={isSubmittingRadiologyOrder} transparent animationType="fade">
+        <View style={styles.procModalOverlay}>
+          <View style={styles.processModal}>
+            <ActivityIndicator size="large" color="#0284C7" />
+            <Text style={styles.processTitle}>Confirming Radiology Booking...</Text>
+            <Text style={styles.processSub}>Securing imaging slot & connecting to 100% online payment</Text>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  cartCategoryTabsWrap: {
+    width: '100%',
+    backgroundColor: '#F8FAFC',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  cartCategoryTabsInner: {
+    maxWidth: 1280,
+    width: '100%',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cartCategoryTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  cartCategoryTabActive: {
+    backgroundColor: '#FFF5F5',
+    borderColor: '#FF5252',
+  },
+  cartCategoryTabActiveLab: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#00B894',
+  },
+  cartCategoryTabActiveRad: {
+    backgroundColor: '#F0F9FF',
+    borderColor: '#0284C7',
+  },
+  cartCategoryTabText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  cartCategoryTabTextActive: {
+    color: '#FF5252',
+    fontWeight: '800',
+  },
+  cartCategoryTabTextActiveLab: {
+    color: '#00B894',
+    fontWeight: '800',
+  },
+  cartCategoryTabTextActiveRad: {
+    color: '#0284C7',
+    fontWeight: '800',
+  },
+  cartTabBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  cartTabBadgeActive: {
+    backgroundColor: '#FF5252',
+  },
+  cartTabBadgeActiveLab: {
+    backgroundColor: '#00B894',
+  },
+  cartTabBadgeActiveRad: {
+    backgroundColor: '#0284C7',
+  },
+  cartTabBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  cartTabBadgeTextActive: {
+    color: '#FFFFFF',
+  },
+  cartTabBadgeTextActiveLab: {
+    color: '#FFFFFF',
+  },
+  cartTabBadgeTextActiveRad: {
+    color: '#FFFFFF',
+  },
+  labCertifiedPillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 10,
+    marginBottom: 16,
+  },
+  labCertifiedPillText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#16A34A',
+    flex: 1,
+  },
+  labItemCardContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  labItemIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F0FDF4',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  labItemTitleText: {
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: '#0F172A',
+    flex: 1,
+  },
+  labItemCenterText: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  labItemBadgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  labBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  labBadgePillText: {
+    fontSize: 11,
+    color: '#475569',
+  },
+  labItemPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  labPriceVal: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  labMrpVal: {
+    fontSize: 12.5,
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  labDiscountVal: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#16A34A',
+  },
+  labRemoveItemBtn: {
+    padding: 4,
+  },
+  labModeSelectBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+  },
+  labModeSelectBtnActive: {
+    borderColor: '#00B894',
+    backgroundColor: '#F0FDF4',
+  },
+  labModeSelectBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  labModeSelectBtnTextActive: {
+    color: '#00B894',
+    fontWeight: '700',
+  },
+  checkoutDateChip: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+  },
+  checkoutDateChipActive: {
+    borderColor: '#00B894',
+    backgroundColor: '#F0FDF4',
+  },
+  checkoutDateChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  checkoutDateChipTextActive: {
+    color: '#00B894',
+    fontWeight: '700',
+  },
+  checkoutSlotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+  },
+  checkoutSlotRowActive: {
+    borderColor: '#00B894',
+    backgroundColor: '#F0FDF4',
+  },
+  checkoutSlotText: {
+    fontSize: 12.5,
+    color: '#334155',
+  },
+  checkoutSlotTextActive: {
+    color: '#00B894',
+    fontWeight: '700',
+  },
   safeArea: {
     flex: 1,
     backgroundColor: '#FFFFFF',
@@ -2502,6 +4262,130 @@ const styles = StyleSheet.create({
   },
   checkoutModalCloseBtn: {
     padding: 4,
+  },
+  checkoutModalSubTitle: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  checkoutModalScroll: {
+    paddingHorizontal: 18,
+    paddingVertical: 4,
+  },
+  checkoutSectionBlock: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  checkoutSectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 4,
+  },
+  checkoutDateChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkoutDateChipActive: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#00B894',
+  },
+  checkoutDateChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  checkoutDateChipTextActive: {
+    color: '#00B894',
+    fontWeight: '800',
+  },
+  checkoutSlotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+  },
+  checkoutSlotRowActive: {
+    borderColor: '#00B894',
+    backgroundColor: '#ECFDF5',
+  },
+  checkoutSlotText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#334155',
+    flex: 1,
+  },
+  checkoutSlotTextActive: {
+    color: '#065F46',
+    fontWeight: '700',
+  },
+  labModeSelectBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#F8FAFC',
+  },
+  labModeSelectBtnActive: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#00B894',
+  },
+  labModeSelectBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  labModeSelectBtnTextActive: {
+    color: '#00B894',
+    fontWeight: '800',
+  },
+  gpsUseCurrentBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  gpsUseCurrentText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  checkoutPaymentMethodCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+  },
+  checkoutPaymentMethodCardActive: {
+    borderColor: '#00B894',
+    backgroundColor: '#ECFDF5',
+  },
+  checkoutPaymentMethodLabel: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
   },
   checkoutModalForm: {
     paddingHorizontal: 18,

@@ -108,8 +108,8 @@ export const quickServices = [
 
   {
     id: '2',
-    title: 'Radiology Labs',
-    subtitle: '3T MRI & CT Scans',
+    title: 'Radiology & Cardiology',
+    subtitle: 'MRI, 2D Echo & CT Scans',
     icon: 'radio-outline',
     background: colors.lightTeal,
     iconColor: colors.primary,
@@ -144,8 +144,8 @@ export const quickServices = [
 export const moreServices = [
   {
     id: '2',
-    title: 'Radiology Labs & 3T MRI',
-    subtitle: 'Book 3T MRI, 128-Slice CT & Ultrasounds',
+    title: 'Radiology & Cardiology Scans',
+    subtitle: 'Book 3T MRI, 2D Echo, 12-Lead ECG & CT',
     icon: 'radio-outline',
     route: 'RadiologyLabs',
     color: colors.lightAqua,

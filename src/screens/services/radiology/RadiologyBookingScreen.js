@@ -773,8 +773,8 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
             activeOpacity={0.88}
             onPress={handleProceedToPayment}
           >
-            <Text style={styles.proceedButtonText}>Proceed to Payment</Text>
-            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+            <Text style={styles.proceedButtonText}>Proceed to Online Payment</Text>
+            <Ionicons name="lock-closed" size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
           </TouchableOpacity>
         </View>
       </View>

@@ -668,7 +668,7 @@ const ChatbotScreen = ({ navigation }) => {
         {
           title: '👨‍⚕️ Find Specialists',
           icon: 'people',
-          action: () => navigation.navigate('DoctorsList'),
+          action: () => navigation.navigate('DoctorList'),
         },
         {
           title: '📷 Scan Prescription',

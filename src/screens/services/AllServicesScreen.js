@@ -76,8 +76,8 @@ const ALL_SERVICES = [
   {
     id: 'radiology',
     category: 'care',
-    title: 'Radiology & Scans',
-    subtitle: 'X-Ray, MRI, CT Scan, Ultrasound & Mammography at accredited centers',
+    title: 'Radiology & Cardiology Scans',
+    subtitle: '2D Echo, 12-Lead ECG, MRI, CT Scan, Ultrasound & X-Ray at accredited labs',
     icon: 'scan',
     iconColor: '#7C3AED',
     iconBg: '#FAF5FF',

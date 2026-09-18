@@ -441,6 +441,7 @@ const MainNavigator = ({
             'LabTests',
             'Imaging',
             'RadiologyLabs',
+            'RadiologyLabDetails',
             'Pharmacy',
             'AyurvedaWellness',
             'FertilityIvf',
@@ -484,6 +485,7 @@ const MainNavigator = ({
             'Checkout',
             'Payment',
             'Bookings',
+            'Chatbot',
           ].includes(currentRoute) &&
           styles.desktopStackWrapper,
         ]}
@@ -970,6 +972,36 @@ const MainNavigator = ({
         />
       )}
 
+      {/* ==================================================
+          PERSISTENT DESKTOP FLOATING AI CHATBOT LAUNCHER
+      ================================================== */}
+      {isDesktopWeb && currentRoute !== 'Chatbot' && (
+        <TouchableOpacity
+          style={styles.floatingAiLauncher}
+          onPress={() => {
+            if (navigation?.navigate) {
+              navigation.navigate('MainApp', { screen: 'Chatbot' });
+            }
+          }}
+          activeOpacity={0.9}
+        >
+          <View style={styles.floatingAiGlowIcon}>
+            <Ionicons name="sparkles" size={20} color="#FFFFFF" />
+            <View style={styles.floatingAiPulseDot} />
+          </View>
+          <View style={styles.floatingAiTextCol}>
+            <View style={styles.floatingAiTitleRow}>
+              <Text style={styles.floatingAiTitle}>Ask MediUnify AI</Text>
+              <View style={styles.floatingAiOnlineBadge}>
+                <Text style={styles.floatingAiOnlineText}>24/7 LIVE</Text>
+              </View>
+            </View>
+            <Text style={styles.floatingAiSub}>Symptom triage, medicines & tests</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color="#99F6E4" />
+        </TouchableOpacity>
+      )}
+
     </View>
   );
 };
@@ -1178,6 +1210,83 @@ const styles = StyleSheet.create({
     shadowColor: '#00B894',
   },
 
+  floatingAiLauncher: {
+    position: Platform.OS === 'web' ? 'fixed' : 'absolute',
+    bottom: 28,
+    right: 28,
+    backgroundColor: '#0F766E',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 30,
+    borderWidth: 1.5,
+    borderColor: '#2DD4BF',
+    shadowColor: '#0F766E',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    elevation: 12,
+    zIndex: 99999,
+    gap: 12,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', userSelect: 'none' } : {}),
+  },
+  floatingAiGlowIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#115E59',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#5EEAD4',
+    position: 'relative',
+  },
+  floatingAiPulseDot: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10B981',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  floatingAiTextCol: {
+    justifyContent: 'center',
+  },
+  floatingAiTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  floatingAiTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  floatingAiOnlineBadge: {
+    backgroundColor: '#134E4A',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+    borderWidth: 0.8,
+    borderColor: '#2DD4BF',
+  },
+  floatingAiOnlineText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#5EEAD4',
+    letterSpacing: 0.5,
+  },
+  floatingAiSub: {
+    fontSize: 11,
+    color: '#CCFBF1',
+    fontWeight: '500',
+    marginTop: 1,
+  },
 });
 
 

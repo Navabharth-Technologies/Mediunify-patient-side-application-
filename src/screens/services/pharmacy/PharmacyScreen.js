@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -467,6 +467,28 @@ const PharmacyScreen = ({ navigation, route }) => {
   // Delivery Locality
   const [selectedLocality, setSelectedLocality] = useState(POPULAR_LOCALITIES[0]);
 
+  // Scroll ref & auto-scroll to catalog
+  const mainScrollRef = useRef(null);
+  const [catalogY, setCatalogY] = useState(0);
+
+  const scrollToCatalog = () => {
+    setTimeout(() => {
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        const el = document.getElementById('pharmacy-catalog-section');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+      }
+      if (mainScrollRef.current) {
+        mainScrollRef.current.scrollTo({
+          y: Math.max(0, catalogY - 10),
+          animated: true,
+        });
+      }
+    }, 80);
+  };
+
   // Filtered Products based on search, category, catalog tab, condition
   const filteredProducts = useMemo(() => {
     let list = EXTENDED_PRODUCTS;
@@ -647,6 +669,7 @@ const PharmacyScreen = ({ navigation, route }) => {
       </View>
 
       <ScrollView
+        ref={mainScrollRef}
         contentContainerStyle={[
           styles.scrollContent,
           pharmacyCartCount > 0 && { paddingBottom: 110 },
@@ -862,6 +885,7 @@ const PharmacyScreen = ({ navigation, route }) => {
                       } else {
                         setSelectedCategory('all');
                         setSelectedCondition(item.id);
+                        scrollToCatalog();
                       }
                     }}
                     activeOpacity={0.88}
@@ -916,6 +940,7 @@ const PharmacyScreen = ({ navigation, route }) => {
                     onPress={() => {
                       setSelectedCondition(null);
                       setSelectedCategory(item.categoryFilter);
+                      scrollToCatalog();
                     }}
                     activeOpacity={0.88}
                   >
@@ -945,7 +970,17 @@ const PharmacyScreen = ({ navigation, route }) => {
         {/* ============================================================
             6. PRODUCTS CATALOG WITH FILTER TABS
         ============================================================ */}
-        <View style={styles.catalogSection}>
+        <View
+          style={styles.catalogSection}
+          nativeID="pharmacy-catalog-section"
+          {...(Platform.OS === 'web' ? { id: 'pharmacy-catalog-section' } : {})}
+          onLayout={(event) => {
+            const layout = event.nativeEvent.layout;
+            if (layout && layout.y) {
+              setCatalogY(layout.y);
+            }
+          }}
+        >
           <View style={styles.catalogHeaderRow}>
             <Text style={styles.sectionTitle}>Medicines & Health Products</Text>
             <Text style={styles.catalogItemCount}>{filteredProducts.length} items</Text>

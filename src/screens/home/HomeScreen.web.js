@@ -9,6 +9,7 @@ import {
   Image,
   SafeAreaView,
   useWindowDimensions,
+  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -126,10 +127,10 @@ const HERO_PROMO_ADS = [
     pillColor: '#FFFFFF',
     tagText: 'NABL Accredited',
     tagIcon: 'radio',
-    title: 'Radiology & 3T MRI Scans',
+    title: 'Radiology & Cardiology Scans',
     priceText: 'Up to 40% OFF',
     priceColor: '#6366F1',
-    subTitle: 'Ultra High-Definition Imaging, CT, Ultrasound & X-Ray',
+    subTitle: '2D Echo, 12-Lead ECG, 3T MRI, CT & Ultrasound',
     badgeSale: 'Same Day Digital Reports',
     bgColor: '#EEF2FF',
     image: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=400',
@@ -511,6 +512,72 @@ const HomeScreenWeb = ({ navigation }) => {
                 />
               </TouchableOpacity>
             ))}
+          </View>
+        </View>
+
+        {/* ============================================================
+            1.2 MEDIUNIFY 24/7 AI HEALTH ASSISTANT HERO BANNER
+        ============================================================ */}
+        <View style={styles.aiHeroBannerWrap}>
+          <View style={styles.aiHeroBannerCard}>
+            <View style={styles.aiHeroLeft}>
+              <View style={styles.aiHeroBadgeRow}>
+                <View style={styles.aiHeroBadgePill}>
+                  <Ionicons name="sparkles" size={13} color="#0D9488" />
+                  <Text style={styles.aiHeroBadgeText}>24/7 AI CLINICAL HEALTH ASSISTANT</Text>
+                </View>
+                <View style={styles.aiHeroLiveDotWrap}>
+                  <View style={styles.aiHeroPulseDot} />
+                  <Text style={styles.aiHeroLiveText}>Live & Free</Text>
+                </View>
+              </View>
+
+              <Text style={styles.aiHeroTitle}>
+                Need Clinical Guidance or Help Choosing Care?
+              </Text>
+              <Text style={styles.aiHeroSubtitle}>
+                Ask MediUnify AI for symptom evaluations, instant prescription OCR decoding, certified doctor recommendations, and home diagnostic tests.
+              </Text>
+
+              {/* Quick Triggers */}
+              <View style={styles.aiHeroChipsRow}>
+                {[
+                  { label: '🤒 Fever & Body Pain' },
+                  { label: '❤️ Chest Pain & ECG' },
+                  { label: '📷 Scan Prescription' },
+                  { label: '🧪 Book Blood Test' },
+                  { label: '💊 Medicine Advice' },
+                  { label: '🦴 Joint Pain specialist' },
+                ].map((chip, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    style={styles.aiHeroChip}
+                    onPress={() => navigation?.navigate('MainApp', { screen: 'Chatbot' })}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.aiHeroChipText}>{chip.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Right Action CTA */}
+            <View style={styles.aiHeroRight}>
+              <TouchableOpacity
+                style={styles.aiHeroCtaBtn}
+                onPress={() => navigation?.navigate('MainApp', { screen: 'Chatbot' })}
+                activeOpacity={0.88}
+              >
+                <View style={styles.aiHeroCtaIconCircle}>
+                  <Ionicons name="chatbubble-ellipses" size={22} color="#0D9488" />
+                </View>
+                <View>
+                  <Text style={styles.aiHeroCtaTitle}>Chat with MediUnify AI</Text>
+                  <Text style={styles.aiHeroCtaSub}>Instant Triage • 100% Confidential</Text>
+                </View>
+                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -2276,6 +2343,143 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+
+  // AI HERO BANNER
+  aiHeroBannerWrap: {
+    maxWidth: 1320,
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+    marginTop: 20,
+  },
+  aiHeroBannerCard: {
+    backgroundColor: '#F0FDFA',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#99F6E4',
+    padding: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 20,
+    flexWrap: 'wrap',
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+  },
+  aiHeroLeft: {
+    flex: 1,
+    minWidth: 320,
+  },
+  aiHeroBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  aiHeroBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#CCFBF1',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#5EEAD4',
+    gap: 5,
+  },
+  aiHeroBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#0F766E',
+    letterSpacing: 0.5,
+  },
+  aiHeroLiveDotWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  aiHeroPulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+  },
+  aiHeroLiveText: {
+    fontSize: 11,
+    color: '#059669',
+    fontWeight: '700',
+  },
+  aiHeroTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 6,
+  },
+  aiHeroSubtitle: {
+    fontSize: 13,
+    color: '#475569',
+    lineHeight: 19,
+    marginBottom: 14,
+  },
+  aiHeroChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  aiHeroChip: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', transition: 'all 0.15s ease' } : {}),
+  },
+  aiHeroChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F766E',
+  },
+  aiHeroRight: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  aiHeroCtaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0D9488',
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    gap: 12,
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  aiHeroCtaIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiHeroCtaTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  aiHeroCtaSub: {
+    fontSize: 11,
+    color: '#CCFBF1',
+    fontWeight: '500',
+    marginTop: 1,
   },
 });
 

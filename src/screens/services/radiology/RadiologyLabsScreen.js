@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -27,7 +27,7 @@ const RadiologyLabsScreen = (props) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
 
-  const { labCartCount, labFinalTotal } = useCart();
+  const { radiologyCartCount, radiologyFinalTotal } = useCart();
   const [searchQuery, setSearchQuery] = useState(route?.params?.query || route?.params?.search || '');
 
   React.useEffect(() => {
@@ -38,8 +38,28 @@ const RadiologyLabsScreen = (props) => {
     }
   }, [route?.params?.query, route?.params?.search]);
 
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState(route?.params?.initialCategory || 'all');
   const [selectedFilter, setSelectedFilter] = useState('All');
+
+  const mobileScrollViewRef = useRef(null);
+  const labsListingY = useRef(0);
+
+  const scrollToResults = () => {
+    if (mobileScrollViewRef.current) {
+      const targetY = labsListingY.current > 100 ? labsListingY.current - 15 : 460;
+      mobileScrollViewRef.current.scrollTo({
+        y: targetY,
+        animated: true,
+      });
+    }
+  };
+
+  const handleSelectCategory = (catId) => {
+    setSelectedCategory(catId);
+    scrollToResults();
+    setTimeout(scrollToResults, 60);
+    setTimeout(scrollToResults, 160);
+  };
 
   const filterTabs = ['All', 'Top Rated (4.8+)', 'Open 24x7', 'Nearest', 'Special Offers'];
 
@@ -116,13 +136,25 @@ const RadiologyLabsScreen = (props) => {
 
         {/* LAB TITLE & LOCATION */}
         <View style={styles.labMainInfo}>
-          <View style={styles.labIconBox}>
-            <Ionicons name="radio-outline" size={26} color={colors.primary} />
+          <View style={[styles.labIconBox, selectedCategory === 'cardiology' && { backgroundColor: '#FFF1F2' }]}>
+            <Ionicons
+              name={selectedCategory === 'cardiology' ? 'heart-outline' : 'radio-outline'}
+              size={26}
+              color={selectedCategory === 'cardiology' ? '#E11D48' : colors.primary}
+            />
           </View>
           <View style={styles.labTitleContent}>
             <Text style={styles.labName} numberOfLines={2}>
               {lab.name}
             </Text>
+            {selectedCategory === 'cardiology' && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3, marginBottom: 3 }}>
+                <Ionicons name="heart" size={12} color="#E11D48" style={{ marginRight: 4 }} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#BE123C' }}>
+                  {lab.availableTests.filter((t) => t.category === 'cardiology').length} Cardiology Tests Available
+                </Text>
+              </View>
+            )}
             <View style={styles.locationRow}>
               <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
               <Text style={styles.labArea} numberOfLines={1}>
@@ -185,10 +217,12 @@ const RadiologyLabsScreen = (props) => {
         <View style={styles.cardFooter}>
           <View>
             <Text style={styles.testsAvailableCount}>
-              {lab.availableTests.length} Tests & Scans Available
+              {selectedCategory === 'cardiology'
+                ? `${lab.availableTests.filter((t) => t.category === 'cardiology').length} Cardiac Tests Available`
+                : `${lab.availableTests.length} Tests & Scans Available`}
             </Text>
             <Text style={styles.startingPriceText}>
-              From ₹{Math.min(...lab.availableTests.map((t) => t.price))}
+              From ₹{Math.min(...(selectedCategory === 'cardiology' && lab.availableTests.filter((t) => t.category === 'cardiology').length > 0 ? lab.availableTests.filter((t) => t.category === 'cardiology') : lab.availableTests).map((t) => t.price))}
             </Text>
           </View>
 
@@ -230,21 +264,21 @@ const RadiologyLabsScreen = (props) => {
 
           <View style={styles.headerCenter}>
             <View style={styles.headerTitleRow}>
-              <Text style={styles.headerTitle}>Radiology & Scans</Text>
+              <Text style={styles.headerTitle}>Radiology & Cardiology</Text>
               <View style={styles.headerLiveDot} />
             </View>
-            <Text style={styles.headerSubtitle}>Accredited Diagnostic Labs & Imaging</Text>
+            <Text style={styles.headerSubtitle}>Accredited Imaging & Cardiology Labs</Text>
           </View>
 
           <TouchableOpacity
             style={styles.cartHeaderButton}
             activeOpacity={0.8}
-            onPress={() => navigation.navigate('Cart', { initialTab: 'lab' })}
+            onPress={() => navigation.navigate('Cart', { initialTab: 'radiology' })}
           >
-            <Ionicons name="flask-outline" size={24} color={colors.secondary} />
-            {labCartCount > 0 && (
+            <Ionicons name="radio-outline" size={24} color={colors.secondary} />
+            {radiologyCartCount > 0 && (
               <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{labCartCount}</Text>
+                <Text style={styles.cartBadgeText}>{radiologyCartCount}</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -254,6 +288,7 @@ const RadiologyLabsScreen = (props) => {
 
 
       <ScrollView
+        ref={mobileScrollViewRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
@@ -264,7 +299,7 @@ const RadiologyLabsScreen = (props) => {
               <Ionicons name="search" size={20} color={colors.textSecondary} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search MRI, CT Scan, X-Ray, Lab name..."
+                placeholder="Search 2D Echo, ECG, MRI, CT, Lab..."
                 placeholderTextColor="#94A3B8"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -285,11 +320,11 @@ const RadiologyLabsScreen = (props) => {
           <View style={styles.heroContent}>
             <View style={styles.heroTag}>
               <Ionicons name="sparkles" size={12} color="#FFFFFF" />
-              <Text style={styles.heroTagText}>MEDIUNIFY RADIOLOGY NETWORK</Text>
+              <Text style={styles.heroTagText}>DIAGNOSTIC & CARDIOLOGY NETWORK</Text>
             </View>
-            <Text style={styles.heroTitle}>Book Scans with Top Diagnostic Centers</Text>
+            <Text style={styles.heroTitle}>Book Scans & Cardiology Tests</Text>
             <Text style={styles.heroDesc}>
-              3T MRI • 128-Slice CT • 4D Ultrasound • Digital X-Ray • Instant Digital Reports
+              2D Echo • 12-Lead ECG • 3T MRI • 128-Slice CT • TMT • Ultrasound • Instant Reports
             </Text>
           </View>
         </View>
@@ -314,7 +349,7 @@ const RadiologyLabsScreen = (props) => {
                     isSelected && styles.categoryChipActive,
                   ]}
                   activeOpacity={0.8}
-                  onPress={() => setSelectedCategory(cat.id)}
+                  onPress={() => handleSelectCategory(cat.id)}
                 >
                   <View
                     style={[
@@ -356,7 +391,7 @@ const RadiologyLabsScreen = (props) => {
                     isSelected && styles.categoryChipActive,
                   ]}
                   activeOpacity={0.8}
-                  onPress={() => setSelectedCategory(cat.id)}
+                  onPress={() => handleSelectCategory(cat.id)}
                 >
                   <View
                     style={[
@@ -446,8 +481,21 @@ const RadiologyLabsScreen = (props) => {
         {/* ==================================================
             LAB LISTINGS
         ================================================== */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Available Diagnostic Centers</Text>
+        <View
+          style={styles.sectionHeader}
+          onLayout={(e) => {
+            if (e?.nativeEvent?.layout?.y) {
+              labsListingY.current = e.nativeEvent.layout.y;
+            }
+          }}
+        >
+          <Text style={styles.sectionTitle}>
+            {selectedCategory === 'cardiology'
+              ? 'Cardiology Diagnostic Centers'
+              : selectedCategory === 'all'
+              ? 'Available Diagnostic Centers'
+              : `${selectedCategory.toUpperCase()} Diagnostic Centers`}
+          </Text>
           <Text style={styles.sectionCount}>{filteredLabs.length} Labs Near You</Text>
         </View>
 
@@ -483,25 +531,25 @@ const RadiologyLabsScreen = (props) => {
       {/* ==================================================
           FLOATING BOTTOM CART BAR
       ================================================== */}
-      {labCartCount > 0 && (
+      {radiologyCartCount > 0 && (
         <View style={styles.floatingCartBar}>
           <View style={styles.cartInfoSection}>
             <View style={styles.cartBadgeSmall}>
-              <Ionicons name="flask" size={16} color="#FFFFFF" />
-              <Text style={styles.cartBadgeSmallText}>{labCartCount}</Text>
+              <Ionicons name="radio" size={16} color="#FFFFFF" />
+              <Text style={styles.cartBadgeSmallText}>{radiologyCartCount}</Text>
             </View>
             <View style={styles.cartPriceCol}>
-              <Text style={styles.cartTotalLabel}>Lab Tests Total</Text>
-              <Text style={styles.cartTotalAmount}>₹{labFinalTotal}</Text>
+              <Text style={styles.cartTotalLabel}>Radiology Scans Total</Text>
+              <Text style={styles.cartTotalAmount}>₹{radiologyFinalTotal}</Text>
             </View>
           </View>
 
           <TouchableOpacity
             style={styles.cartProceedButton}
             activeOpacity={0.88}
-            onPress={() => navigation.navigate('Cart', { initialTab: 'lab' })}
+            onPress={() => navigation.navigate('Cart', { initialTab: 'radiology' })}
           >
-            <Text style={styles.cartProceedText}>View Lab Cart</Text>
+            <Text style={styles.cartProceedText}>View Radiology Cart</Text>
             <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
           </TouchableOpacity>
         </View>

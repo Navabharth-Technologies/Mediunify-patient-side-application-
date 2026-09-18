@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,3210 +7,4614 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Modal,
-  Alert,
-  StatusBar,
-  Linking,
-  ActivityIndicator,
-  Platform,
   Image,
+  Platform,
   useWindowDimensions,
 } from 'react-native';
-import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Location from 'expo-location';
-import { requestLocationPermissionWebSafe, getCurrentPositionWebSafe, reverseGeocodeWebSafe } from '../../../utils/locationHelper';
-import colors from '../../../theme/colors';
-import { certifiedNurses, nursingPurposes } from '../../../data/nurseCareData';
-import { pushAppointment } from '../../../services/dataSyncService';
-import WebFooter from '../../../components/web/WebFooter';
+import { showAlert } from '../../../utils/alert';
+import {
+  availableNursingServices,
+  howItWorksSteps,
+  careTimelineStages,
+  assignedNursesData,
+  initialNursingRequests,
+} from '../../../data/homeNursingData';
 
-// ==========================================
-// DATA & DEFINITIONS
-// ==========================================
+const ASYNC_KEY_NURSING_REQUESTS = '@unnathi_home_nursing_requests';
 
-const MONTH_NAMES = [
+// Extended pricing and duration metadata for services
+const SERVICE_METADATA = {
+  'ns-1': { price: '₹299', duration: '30 mins', shiftType: 'Per Visit', popular: true, tag: 'Most Booked' },
+  'ns-2': { price: '₹349', duration: '45 mins', shiftType: 'Per Visit', popular: false },
+  'ns-3': { price: '₹449', duration: '45 mins', shiftType: 'Per Visit', popular: true, tag: 'Post-Surgery Favorite' },
+  'ns-4': { price: '₹249', duration: '30 mins', shiftType: 'Per Visit', popular: false },
+  'ns-5': { price: '₹199', duration: '20 mins', shiftType: 'Per Visit', popular: false },
+  'ns-6': { price: '₹799', duration: '90 mins', shiftType: 'Per Visit / Shift', popular: true, tag: 'Doctor Recommended' },
+  'ns-7': { price: '₹549', duration: '45 mins', shiftType: 'Per Visit', popular: false },
+  'ns-8': { price: '₹1,199', duration: '8 Hours', shiftType: 'Day Shift', popular: false },
+  'ns-9': { price: '₹1,299', duration: '12 Hours', shiftType: 'Full Day / Night', popular: true, tag: 'Elderly Care' },
+  'ns-10': { price: '₹999', duration: '2 Hours', shiftType: 'Transition Care', popular: false },
+  'ns-11': { price: 'Custom Quote', duration: 'Flexible', shiftType: 'Tailored Scope', popular: false },
+};
+
+const SERVICE_NUMERIC_PRICES = {
+  'ns-1': 299,
+  'ns-2': 349,
+  'ns-3': 449,
+  'ns-4': 249,
+  'ns-5': 199,
+  'ns-6': 799,
+  'ns-7': 549,
+  'ns-8': 1199,
+  'ns-9': 1299,
+  'ns-10': 999,
+  'ns-11': 899,
+};
+
+const getServicePriceByName = (srvName) => {
+  const found = availableNursingServices.find((s) => s.name === srvName);
+  if (found && SERVICE_NUMERIC_PRICES[found.id]) {
+    return SERVICE_NUMERIC_PRICES[found.id];
+  }
+  return 299;
+};
+
+const CALENDAR_MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const SERVICE_CATEGORIES = [
+  'All Services',
+  'Post-Surgical',
+  'Wound & Dressing',
+  'Injections & IV',
+  'Geriatric Care',
+  'Monitoring',
+  'Intensive & Bedridden',
+];
 
-// 1. Staff Shift Options
-const STAFF_SHIFTS = [
+const PATIENT_TESTIMONIALS = [
   {
-    id: 'shift-12-day',
-    label: '12-Hr Day Shift',
-    timing: '08:00 AM - 08:00 PM',
-    dailyRate: 1499,
-    icon: 'sunny',
-    badge: 'POPULAR',
-    desc: 'Daytime medicine, meals, mobility assistance & vitals chart',
+    id: 't1',
+    patient: 'S. Venkataram (76 yrs)',
+    family: 'Booked by son Arun V.',
+    location: 'Saraswathipuram, Mysuru',
+    rating: 5,
+    service: 'Post-Op Hip Surgery & Dressing',
+    text: 'Nurse Anita was exceptionally gentle with my mother after her hip replacement. Sterile dressing, daily vitals, and very polite. Coordinator called in 10 mins. Truly hospital-grade care at home.',
+    date: '3 days ago',
   },
   {
-    id: 'shift-12-night',
-    label: '12-Hr Night Shift',
-    timing: '08:00 PM - 08:00 AM',
-    dailyRate: 1499,
-    icon: 'moon',
-    badge: 'NIGHT CARE',
-    desc: 'Nighttime vital monitoring, IV/catheter care & sleep comfort',
+    id: 't2',
+    patient: 'Savithri Devi (72 yrs)',
+    family: 'Booked by daughter Deepa M.',
+    location: 'Gokulam 3rd Stage, Mysuru',
+    rating: 5,
+    service: 'Daily Insulin & Vital Monitoring',
+    text: 'We were struggling with managing morning insulin injections and blood sugar spikes. MediUnify assigned a licensed B.Sc nurse who arrives exactly at 8 AM every day. Zero advance deposit needed.',
+    date: '1 week ago',
   },
   {
-    id: 'shift-24-round',
-    label: '24x7 Round-The-Clock',
-    timing: '24 Hours Bedside Care',
-    dailyRate: 2699,
-    icon: 'infinite',
-    badge: 'INTENSIVE',
-    desc: 'Dedicated nurse staying at home full-time for intensive care',
-  },
-  {
-    id: 'visit-2hr',
-    label: 'Short Procedure Visit (2 Hrs)',
-    timing: 'Custom 2-Hour Visit',
-    dailyRate: 599,
-    icon: 'medkit',
-    badge: 'QUICK VISIT',
-    desc: 'Wound dressing, injections, catheter change or nebulization',
+    id: 't3',
+    patient: 'Anand Murthy (68 yrs)',
+    family: 'Booked by spouse Lakshmi M.',
+    location: 'Jayalakshmipuram, Mysuru',
+    rating: 5,
+    service: '12-Hour Night Nursing Care',
+    text: 'Post-stroke night supervision was our biggest worry. Nurse Suresh is attentive, highly trained in catheter care and patient repositioning. Gives our family immense peace of mind.',
+    date: '2 weeks ago',
   },
 ];
 
-// 2. Curated Packages From Our Side
-const STAFF_PACKAGES = [
+const FAQS = [
   {
-    days: 1,
-    title: '1 Day',
-    subtitle: 'Standard daily rate',
-    discountPercent: 0,
-    tag: null,
+    q: 'How quickly can a certified nurse visit our home?',
+    a: 'For urgent requirements (injections, acute wound dressing, post-discharge catheter care), a verified nurse can arrive within 2 to 4 hours in Mysuru and Bengaluru. Routine shifts can be scheduled at your preferred time slot.',
   },
   {
-    days: 2,
-    title: '2 Days Deal',
-    subtitle: 'Save 10% on total cost',
-    discountPercent: 10,
-    tag: '10% OFF',
-    isHot: true,
+    q: 'Are the nurses qualified and background-verified?',
+    a: 'Yes, 100% of our nursing personnel are licensed GNM (General Nursing and Midwifery) or B.Sc Nursing degree holders registered with the Karnataka Nursing Council (KNC), with rigorous police verification and hospital experience.',
   },
   {
-    days: 3,
-    title: '3 Days Recovery',
-    subtitle: 'Save 15% on total cost',
-    discountPercent: 15,
-    tag: '15% OFF',
+    q: 'Do nurses bring their own sterile medical consumables?',
+    a: 'Yes! Nurses arrive equipped with sterile single-use medical kits including gloves, alcohol swabs, sterile gauze, betadine, disposable syringes, and digital vital instruments (BP, SpO2, thermometer).',
   },
   {
-    days: 7,
-    title: '7 Days (1 Week)',
-    subtitle: 'Save 25% • Best Value',
-    discountPercent: 25,
-    tag: '25% OFF',
-    isBest: true,
+    q: 'Do I need to make an advance payment before booking?',
+    a: 'No advance payment is required! You only pay after your care request is reviewed by our clinical coordinator and the visit is completed.',
   },
   {
-    days: 14,
-    title: '14 Days Fortnight',
-    subtitle: 'Save 30% on total cost',
-    discountPercent: 30,
-    tag: '30% OFF',
-  },
-  {
-    days: 30,
-    title: '30 Days (1 Month)',
-    subtitle: 'Save 40% • Max Savings',
-    discountPercent: 40,
-    tag: '40% OFF',
+    q: 'Can we request the same nurse for recurring daily visits?',
+    a: 'Absolutely. In Step 3 of our booking flow, you can choose "Prefer the Same Nurse for Future Visits" to ensure continuity of care with a familiar clinician.',
   },
 ];
 
-// 3. Clinical Purposes / Conditions
-const CLINICAL_PURPOSES = [
-  { id: 'all', label: 'All Nursing Needs', icon: 'shield-checkmark', color: '#0D9488', bg: '#F0FDFA' },
-  { id: 'postop', label: 'Post-Surgery Recovery', icon: 'medkit', color: '#2563EB', bg: '#EFF6FF', recommendedShift: 'shift-12-day' },
-  { id: 'elderly', label: 'Elderly & Bedridden Care', icon: 'heart', color: '#DB2777', bg: '#FFF1F2', recommendedShift: 'shift-24-round' },
-  { id: 'wound', label: 'Wound Dressing & Injections', icon: 'bandage', color: '#D97706', bg: '#FFFBEB', recommendedShift: 'visit-2hr' },
-  { id: 'night', label: 'Overnight Vital Monitoring', icon: 'moon', color: '#7C3AED', bg: '#FAF5FF', recommendedShift: 'shift-12-night' },
-  { id: 'icu', label: 'ICU at Home & Tracheostomy', icon: 'pulse', color: '#E11D48', bg: '#FFE4E6', recommendedShift: 'shift-24-round' },
-];
-
-const TIME_PRESETS = [
-  { label: '08:00 AM (Morning)', hour: '08', minute: '00', period: 'AM' },
-  { label: '09:30 AM (Standard)', hour: '09', minute: '30', period: 'AM' },
-  { label: '02:00 PM (Afternoon)', hour: '02', minute: '00', period: 'PM' },
-  { label: '08:00 PM (Night)', hour: '08', minute: '00', period: 'PM' },
-];
-
-const MYSORE_AREAS = [
-  'Kuvempunagar',
-  'Gokulam',
-  'Jayalakshmipuram',
-  'Saraswathipuram',
-  'Vijayanagar',
-  'Hebbal',
-];
-
-// Helpers
-const cleanDate = (d) => {
-  const c = new Date(d);
-  c.setHours(0, 0, 0, 0);
-  return c;
-};
-
-const formatFullDate = (d) => {
-  if (!d) return '';
-  return `${DAYS_SHORT[d.getDay()]}, ${d.getDate()} ${MONTH_NAMES[d.getMonth()].slice(0, 3)} ${d.getFullYear()}`;
-};
-
-const formatShortDate = (d) => {
-  if (!d) return '';
-  return `${d.getDate()} ${MONTH_NAMES[d.getMonth()].slice(0, 3)}`;
-};
-
-const isSameDay = (d1, d2) => {
-  if (!d1 || !d2) return false;
-  return (
-    d1.getFullYear() === d2.getFullYear() &&
-    d1.getMonth() === d2.getMonth() &&
-    d1.getDate() === d2.getDate()
-  );
-};
-
-// ==========================================
-// MAIN COMPONENT
-// ==========================================
-
-const NurseBookingScreen = ({ navigation }) => {
+const NurseBookingScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
 
-  // 3-Step Wizard: 1: Service & Package | 2: Dates & Time | 3: Review & Pay
-  const [currentStep, setCurrentStep] = useState(1);
+  // Active top-level view: 'LANDING' | 'REQUEST_FLOW' | 'MY_REQUESTS' | 'REQUEST_DETAILS'
+  const [currentView, setCurrentView] = useState('LANDING');
 
-  // Step 1: Selected Service & Duration
-  const [selectedShiftId, setSelectedShiftId] = useState('shift-12-day');
-  const [selectedPurposeId, setSelectedPurposeId] = useState('all');
-  const [daysCount, setDaysCount] = useState(2); // Default to 2 days to immediately highlight the deal!
+  // Multi-step request flow: 1: Services, 2: Patient, 3: Preferences, 4: Review, 5: Confirmation
+  const [flowStep, setFlowStep] = useState(1);
 
-  // Step 2: Calendar Starting & End Date
-  const today = useMemo(() => cleanDate(new Date()), []);
-  const [calMonth, setCalMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
-  const [startDate, setStartDate] = useState(today);
-  const [endDate, setEndDate] = useState(() => {
-    const d = new Date(today);
-    d.setDate(d.getDate() + 1);
-    return d;
+  // Filter & Search states on Landing
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState('All Services');
+  const [activeFaqIndex, setActiveFaqIndex] = useState(null);
+
+  // Form State: Step 1 Services
+  const [selectedServices, setSelectedServices] = useState(['Wound Dressing']);
+  const [showAllServices, setShowAllServices] = useState(false);
+  const [serviceError, setServiceError] = useState(null);
+
+  // Form State: Step 2 Patient Details
+  const [patientName, setPatientName] = useState('Ramesh Kumar');
+  const [patientAge, setPatientAge] = useState('58');
+  const [patientGender, setPatientGender] = useState('Male');
+  const [relationship, setRelationship] = useState('Self');
+  const [contactNumber, setContactNumber] = useState('+91 98450 12345');
+  const [address, setAddress] = useState('No. 44, 2nd Cross, Saraswathipuram, Mysuru - 570009');
+  const [careInfo, setCareInfo] = useState('Post-abdominal surgery stitch dressing and morning BP monitoring.');
+  const [formErrors, setFormErrors] = useState({});
+
+  // Form State: Step 3 Document Upload & Preferences
+  const [uploadedDoc, setUploadedDoc] = useState(null);
+  const [shiftDuration, setShiftDuration] = useState('Single Procedure Visit');
+  const [startDateOption, setStartDateOption] = useState('Today');
+  const [careDays, setCareDays] = useState(1);
+  const [languagePreference, setLanguagePreference] = useState('Kannada / English');
+  const [continuityPreference, setContinuityPreference] = useState('Prefer the Same Nurse for Future Visits');
+
+  // Interactive Calendar State for Custom Date
+  const [calMonth, setCalMonth] = useState(new Date().getMonth());
+  const [calYear, setCalYear] = useState(new Date().getFullYear());
+  const [selectedCalDate, setSelectedCalDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 2);
+    return { year: d.getFullYear(), month: d.getMonth(), day: d.getDate() };
+  });
+  const [customStartDate, setCustomStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 2);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   });
 
-  // Calendar Picking Mode: 'start' or 'end'
-  const [activeDateTarget, setActiveDateTarget] = useState('start');
+  const isCurrentMonthOrPast = useMemo(() => {
+    const today = new Date();
+    return calYear === today.getFullYear() && calMonth <= today.getMonth();
+  }, [calYear, calMonth]);
 
-  // Step 2: Manual Time Selection
-  const [selectedTimeStr, setSelectedTimeStr] = useState('09:00 AM');
-  const [manualHour, setManualHour] = useState('09');
-  const [manualMinute, setManualMinute] = useState('00');
-  const [manualPeriod, setManualPeriod] = useState('AM');
-  const [showCustomTime, setShowCustomTime] = useState(false);
-  const [timeNote, setTimeNote] = useState('');
-
-  // Step 2: Patient & Address
-  const [familyList, setFamilyList] = useState([]);
-  const [selectedFamilyId, setSelectedFamilyId] = useState('self');
-  const [patientName, setPatientName] = useState('Hemanth');
-  const [patientRelation, setPatientRelation] = useState('Self');
-  const [patientPhone, setPatientPhone] = useState('9876543210');
-  const [patientAddress, setPatientAddress] = useState('House #142, 5th Cross, Kuvempunagar, Mysore');
-  const [locationLoading, setLocationLoading] = useState(false);
-
-  // Step 3: Payment
-  const [paymentMethod, setPaymentMethod] = useState('WALLET');
-  const [walletBalance, setWalletBalance] = useState(1250);
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  // Success Modal
-  const [successModalVisible, setSuccessModalVisible] = useState(false);
-  const [confirmedBooking, setConfirmedBooking] = useState(null);
-
-  useEffect(() => {
-    loadSavedData();
-  }, []);
-
-  const loadSavedData = async () => {
-    try {
-      const storedPrimary = await AsyncStorage.getItem('@unnathi_primary_user');
-      const storedUser = await AsyncStorage.getItem('user');
-      const storedName = await AsyncStorage.getItem('userName');
-      const storedPhone = await AsyncStorage.getItem('userPhone');
-      let primaryName = 'Hemanth';
-      let primaryPhone = '9876543210';
-
-      if (storedPrimary) {
-        try {
-          const p = JSON.parse(storedPrimary);
-          if (p?.name && p.name.trim()) primaryName = p.name.trim();
-          if (p?.phone) primaryPhone = p.phone;
-        } catch (e) {}
-      }
-      if (!storedPrimary && storedUser) {
-        try {
-          const u = JSON.parse(storedUser);
-          if (u?.name && u.name.trim()) primaryName = u.name.trim();
-          if (u?.phone) primaryPhone = u.phone;
-        } catch (e) {}
-      }
-      if (storedName && storedName.trim()) {
-        primaryName = storedName.trim();
-      }
-      if (storedPhone && storedPhone.trim()) {
-        primaryPhone = storedPhone.trim();
-      }
-
-      const cleanFirst = primaryName.split(' ')[0];
-      setPatientName(primaryName);
-      setPatientPhone(primaryPhone);
-
-      // Account-specific family members isolation (Strictly True Family Members Only)
-      const storedEmail = await AsyncStorage.getItem('userEmail');
-      const userKey = (storedEmail || primaryPhone || primaryName).toLowerCase().replace(/[^a-z0-9]/g, '_');
-      const userFamKey = `@unnathi_family_members_${userKey}`;
-      const savedUserFam = await AsyncStorage.getItem(userFamKey);
-      let rawFamily = null;
-
-      if (savedUserFam) {
-        try {
-          const parsed = JSON.parse(savedUserFam);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            rawFamily = parsed;
-          }
-        } catch (e) {}
-      }
-
-      if (!rawFamily) {
-        const famStr = await AsyncStorage.getItem('@unnathi_family_members');
-        if (famStr) {
-          try {
-            const parsedFam = JSON.parse(famStr);
-            if (Array.isArray(parsedFam) && parsedFam.length > 0) {
-              rawFamily = parsedFam;
-            }
-          } catch (e) {}
-        }
-      }
-
-      // Strictly construct ONLY the logged-in user (Self) and authentic family members (exclude 'Other')
-      const trueFamily = [];
-      trueFamily.push({
-        id: 'self',
-        name: primaryName,
-        displayName: `${cleanFirst} (Self)`,
-        relation: 'Self',
-        phone: primaryPhone,
-        isPrimary: true,
-      });
-
-      if (Array.isArray(rawFamily)) {
-        rawFamily.forEach((m) => {
-          // Strictly exclude 'self', 'isPrimary', or relation 'Other' (only show actual family members)
-          if (
-            m &&
-            m.id !== 'self' &&
-            !m.isPrimary &&
-            m.relation !== 'Self' &&
-            m.relation !== 'Other' &&
-            m.name
-          ) {
-            const cleanName = m.name.replace(/\s*\([^)]*\)/g, '').trim();
-            if (
-              cleanName &&
-              !trueFamily.some((p) => p.name.toLowerCase() === cleanName.toLowerCase())
-            ) {
-              trueFamily.push({
-                id: m.id || `fam-${trueFamily.length}`,
-                name: cleanName,
-                displayName: m.displayName || `${cleanName} (${m.relation || 'Family'})`,
-                relation: m.relation || 'Family',
-                phone: m.phone || primaryPhone,
-              });
-            }
-          }
-        });
-      }
-
-      setFamilyList(trueFamily);
-      setSelectedFamilyId('self');
-
-      const wb = await AsyncStorage.getItem('@unnathi_wallet_balance');
-      if (wb !== null) setWalletBalance(Number(wb));
-    } catch (e) {}
-  };
-
-  const selectedShift = useMemo(() => {
-    return STAFF_SHIFTS.find((s) => s.id === selectedShiftId) || STAFF_SHIFTS[0];
-  }, [selectedShiftId]);
-
-  // Adjust Days Count and automatically update End Date
-  const applyDaysCount = (count) => {
-    const days = Math.max(1, Math.min(90, count));
-    setDaysCount(days);
-    const newEnd = new Date(startDate);
-    newEnd.setDate(newEnd.getDate() + (days - 1));
-    setEndDate(newEnd);
-  };
-
-  // Calendar Date Click: Dead simple logic
-  const handleCalendarDayClick = (clickedDate) => {
-    const c = cleanDate(clickedDate);
-    if (c < today) return; // Ignore past dates
-
-    if (activeDateTarget === 'start') {
-      setStartDate(c);
-      // Auto-set End Date based on current daysCount
-      const newEnd = new Date(c);
-      newEnd.setDate(newEnd.getDate() + (daysCount - 1));
-      setEndDate(newEnd);
-      // Switch target to end so next tap can change end date if desired
-      setActiveDateTarget('end');
+  const handlePrevCalMonth = () => {
+    const today = new Date();
+    if (calYear === today.getFullYear() && calMonth <= today.getMonth()) return;
+    if (calMonth === 0) {
+      setCalMonth(11);
+      setCalYear((y) => y - 1);
     } else {
-      // Setting End Date
-      if (c >= startDate) {
-        setEndDate(c);
-        const diffDays = Math.round((c.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-        setDaysCount(diffDays);
-      } else {
-        // If clicked earlier than start date, make this the new start date
-        setStartDate(c);
-        setEndDate(c);
-        setDaysCount(1);
-      }
+      setCalMonth((m) => m - 1);
     }
   };
 
-  // Manual Time Picker logic
-  const handleTimePresetClick = (preset) => {
-    setManualHour(preset.hour);
-    setManualMinute(preset.minute);
-    setManualPeriod(preset.period);
-    setSelectedTimeStr(`${preset.hour}:${preset.minute} ${preset.period}`);
-    setShowCustomTime(false);
-  };
-
-  const updateManualTimeParts = (h, m, p) => {
-    const hour = h !== undefined ? h : manualHour;
-    const min = m !== undefined ? m : manualMinute;
-    const period = p !== undefined ? p : manualPeriod;
-    if (h !== undefined) setManualHour(h);
-    if (m !== undefined) setManualMinute(m);
-    if (p !== undefined) setManualPeriod(p);
-    setSelectedTimeStr(`${hour}:${min} ${period}`);
-  };
-
-  // GPS auto-detect
-  const detectGPSLocation = async () => {
-    try {
-      setLocationLoading(true);
-      const perm = await requestLocationPermissionWebSafe();
-      if (!perm.granted && perm.status !== 'granted') {
-        setLocationLoading(false);
-        showAlert('Permission Denied', 'Location permission is required.');
-        return;
-      }
-      const pos = await getCurrentPositionWebSafe({ accuracy: Location.Accuracy.Balanced });
-      const addresses = await reverseGeocodeWebSafe({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-      if (addresses && addresses.length > 0) {
-        const item = addresses[0];
-        const formatted = item.formattedAddress || `${item.name || ''} ${item.street || ''}, ${item.district || 'Mysore'} - ${item.postalCode || '570023'}`.trim();
-        setPatientAddress(formatted);
-      }
-    } catch (e) {
-      showAlert('GPS Notice', 'Could not fetch live GPS position. Please enter your address manually.');
-    } finally {
-      setLocationLoading(false);
+  const handleNextCalMonth = () => {
+    if (calMonth === 11) {
+      setCalMonth(0);
+      setCalYear((y) => y + 1);
+    } else {
+      setCalMonth((m) => m + 1);
     }
   };
 
-  // Pricing Calculation (Transparent and 100% clear)
-  const priceCalculation = useMemo(() => {
-    const daily = selectedShift.dailyRate;
-    const days = daysCount;
-    const gross = daily * days;
-
-    let discountPercent = 0;
-    let dealName = `${days} Days Care`;
-
-    if (days === 2) {
-      discountPercent = 10;
-      dealName = '2-Day Special Package (10% Off)';
-    } else if (days === 3) {
-      discountPercent = 15;
-      dealName = '3-Day Healing Package (15% Off)';
-    } else if (days >= 7 && days < 14) {
-      discountPercent = 25;
-      dealName = '7-Day Weekly Package (25% Off)';
-    } else if (days >= 14 && days < 30) {
-      discountPercent = 30;
-      dealName = '14-Day Package (30% Off)';
-    } else if (days >= 30) {
-      discountPercent = 40;
-      dealName = '30-Day Monthly Package (40% Off)';
-    }
-
-    const discountAmt = Math.round((gross * discountPercent) / 100);
-    const netBase = gross - discountAmt;
-    const gst = Math.round(netBase * 0.18);
-    const total = netBase + gst;
-
-    return {
-      daily,
-      days,
-      gross,
-      discountPercent,
-      discountAmt,
-      netBase,
-      gst,
-      total,
-      dealName,
-      totalFormatted: `₹${total.toLocaleString('en-IN')}`,
-      grossFormatted: `₹${gross.toLocaleString('en-IN')}`,
-      discountFormatted: `₹${discountAmt.toLocaleString('en-IN')}`,
-      netBaseFormatted: `₹${netBase.toLocaleString('en-IN')}`,
-      gstFormatted: `₹${gst.toLocaleString('en-IN')}`,
-    };
-  }, [selectedShift, daysCount]);
-
-  const goToNextStep = () => {
-    if (currentStep === 1) {
-      setCurrentStep(2);
-    } else if (currentStep === 2) {
-      if (!patientName.trim()) {
-        showAlert('Name Required', 'Please enter patient name.');
-        return;
-      }
-      if (!patientPhone.trim() || patientPhone.length < 10) {
-        showAlert('Phone Required', 'Please enter a valid 10-digit phone number.');
-        return;
-      }
-      if (!patientAddress.trim()) {
-        showAlert('Address Required', 'Please enter your Mysore home address.');
-        return;
-      }
-      setCurrentStep(3);
-    }
+  const handleSelectCalendarDay = (day) => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const formatted = `${day} ${months[calMonth]} ${calYear}`;
+    setSelectedCalDate({ year: calYear, month: calMonth, day });
+    setCustomStartDate(formatted);
   };
 
-  const handleConfirmAndPay = async () => {
-    if (paymentMethod === 'WALLET') {
-      if (walletBalance < priceCalculation.total) {
-        showAlert(
-          'Insufficient Wallet Balance',
-          `Your wallet balance is ₹${walletBalance}, but this booking is ${priceCalculation.totalFormatted}.\n\nPlease choose Pay on Arrival or UPI.`,
-          [
-            { text: 'Top Up Wallet', onPress: () => navigation.navigate('Wallet') },
-            { text: 'OK', style: 'cancel' }
-          ]
-        );
-        return;
-      }
-
-      const newBal = walletBalance - priceCalculation.total;
-      await AsyncStorage.setItem('@unnathi_wallet_balance', String(newBal));
-      setWalletBalance(newBal);
-    }
-
-    setIsProcessing(true);
-
-    setTimeout(async () => {
-      try {
-        const bookingId = `NURSE-${Math.floor(100000 + Math.random() * 900000)}`;
-        const assignedNurse = certifiedNurses[Math.floor(Math.random() * certifiedNurses.length)];
-
-        const bookingRecord = {
-          id: bookingId,
-          bookingId,
-          serviceName: `Home Staff: ${selectedShift.label}`,
-          duration: `${daysCount} Days (${formatShortDate(startDate)} to ${formatShortDate(endDate)})`,
-          schedule: {
-            startDate: formatFullDate(startDate),
-            endDate: formatFullDate(endDate),
-            daysCount,
-            time: selectedTimeStr,
-          },
-          patient: {
-            name: patientName,
-            relation: patientRelation,
-            phone: patientPhone,
-            address: patientAddress,
-          },
-          assignedNurse: {
-            name: assignedNurse.name,
-            qualification: assignedNurse.qualification,
-            experience: assignedNurse.experience,
-          },
-          payment: {
-            method: paymentMethod === 'WALLET' ? 'MediUnify Wallet' : paymentMethod === 'PayOnArrival' ? 'Pay on Arrival' : 'UPI',
-            amount: priceCalculation.totalFormatted,
-          },
-          bookedAt: new Date().toLocaleString('en-IN'),
-        };
-
-        const existing = await AsyncStorage.getItem('@unnathi_nurse_bookings');
-        const list = existing ? JSON.parse(existing) : [];
-        list.unshift(bookingRecord);
-        await AsyncStorage.setItem('@unnathi_nurse_bookings', JSON.stringify(list));
-
-        // Also save to @unnathi_appointments for global visibility
-        const existingAppts = await AsyncStorage.getItem('@unnathi_appointments');
-        const apptList = existingAppts ? JSON.parse(existingAppts) : [];
-        await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify([bookingRecord, ...apptList]));
-
-        // Push to central server database
-        try {
-          await pushAppointment(bookingRecord);
-        } catch (pushErr) {
-          console.warn('Could not push nurse booking:', pushErr);
-        }
-
-        setIsProcessing(false);
-        setConfirmedBooking(bookingRecord);
-        setSuccessModalVisible(true);
-      } catch (e) {
-        setIsProcessing(false);
-        showAlert('Error', 'Could not complete booking.');
-      }
-    }, 700);
-  };
-
-  // Calendar Component
-  const renderCalendar = () => {
-    const year = calMonth.getFullYear();
-    const month = calMonth.getMonth();
-
-    const firstDayIndex = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const calendarDays = useMemo(() => {
+    const firstDayIndex = new Date(calYear, calMonth, 1).getDay();
+    const totalDays = new Date(calYear, calMonth + 1, 0).getDate();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     const cells = [];
     for (let i = 0; i < firstDayIndex; i++) {
-      cells.push(<View key={`empty-${i}`} style={styles.calCellEmpty} />);
+      cells.push({ type: 'empty', key: `empty-${i}` });
     }
 
-    for (let d = 1; d <= daysInMonth; d++) {
-      const cellDate = new Date(year, month, d);
+    for (let day = 1; day <= totalDays; day++) {
+      const cellDate = new Date(calYear, calMonth, day);
       cellDate.setHours(0, 0, 0, 0);
-
       const isPast = cellDate < today;
-      const isStart = isSameDay(cellDate, startDate);
-      const isEnd = isSameDay(cellDate, endDate);
-      const inRange = cellDate > startDate && cellDate < endDate;
+      const isToday =
+        today.getDate() === day &&
+        today.getMonth() === calMonth &&
+        today.getFullYear() === calYear;
+      const isSelected =
+        selectedCalDate.year === calYear &&
+        selectedCalDate.month === calMonth &&
+        selectedCalDate.day === day;
 
-      cells.push(
-        <TouchableOpacity
-          key={`day-${d}`}
-          style={[
-            styles.calCell,
-            inRange && styles.calCellInRange,
-            isStart && styles.calCellStart,
-            isEnd && styles.calCellEnd,
-            isPast && styles.calCellDisabled,
-          ]}
-          disabled={isPast}
-          onPress={() => handleCalendarDayClick(cellDate)}
-          activeOpacity={0.7}
-        >
-          <View
-            style={[
-              styles.calCircle,
-              (isStart || isEnd) && styles.calCircleActive,
-            ]}
-          >
-            <Text
-              style={[
-                styles.calDayText,
-                isPast && styles.calDayTextDisabled,
-                inRange && styles.calDayTextInRange,
-                (isStart || isEnd) && styles.calDayTextActive,
-              ]}
-            >
-              {d}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      );
+      cells.push({
+        type: 'day',
+        day,
+        isPast,
+        isToday,
+        isSelected,
+        key: `day-${day}`,
+      });
     }
 
-    return (
-      <View style={styles.calContainer}>
-        {/* Month Navigation */}
-        <View style={styles.calNavRow}>
-          <TouchableOpacity
-            style={styles.calArrowBtn}
-            onPress={() => {
-              const prev = new Date(year, month - 1, 1);
-              if (prev.getMonth() >= today.getMonth() || prev.getFullYear() > today.getFullYear()) {
-                setCalMonth(prev);
+    return cells;
+  }, [calYear, calMonth, selectedCalDate]);
+
+  // Confirmed Request after submission
+  const [newlyCreatedRequest, setNewlyCreatedRequest] = useState(null);
+
+  // Dynamic Pricing Details that vary as careDays or services change
+  const pricingDetails = useMemo(() => {
+    let dailyRate = 0;
+    if (selectedServices && selectedServices.length > 0) {
+      selectedServices.forEach((srvName) => {
+        dailyRate += getServicePriceByName(srvName);
+      });
+    } else {
+      dailyRate = 299;
+    }
+
+    if (shiftDuration === '4-Hour Care Shift') {
+      dailyRate = Math.max(dailyRate, 699);
+    } else if (shiftDuration === '12-Hour Day Shift') {
+      dailyRate = Math.max(dailyRate, 1299);
+    } else if (shiftDuration === '24-Hour Live-in Care') {
+      dailyRate = Math.max(dailyRate, 2499);
+    }
+
+    const days = Math.max(1, parseInt(careDays, 10) || 1);
+    const grossTotal = dailyRate * days;
+    let discountPercent = 0;
+    if (days >= 30) {
+      discountPercent = 15;
+    } else if (days >= 15) {
+      discountPercent = 10;
+    } else if (days >= 7) {
+      discountPercent = 5;
+    }
+
+    const discountAmount = Math.round((grossTotal * discountPercent) / 100);
+    const finalTotal = grossTotal - discountAmount;
+
+    return {
+      dailyRate,
+      days,
+      grossTotal,
+      discountPercent,
+      discountAmount,
+      finalTotal,
+    };
+  }, [selectedServices, shiftDuration, careDays]);
+
+  // Requests Data List
+  const [requestsList, setRequestsList] = useState(initialNursingRequests);
+  const [requestsTabFilter, setRequestsTabFilter] = useState('All');
+  const [selectedRequestDetail, setSelectedRequestDetail] = useState(null);
+
+  // Load stored requests from AsyncStorage on mount
+  useEffect(() => {
+    const loadStoredRequests = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(ASYNC_KEY_NURSING_REQUESTS);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const merged = [...parsed];
+            initialNursingRequests.forEach((initialItem) => {
+              if (!merged.some((m) => m.id === initialItem.id)) {
+                merged.push(initialItem);
               }
-            }}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="chevron-back" size={18} color={colors.secondary} />
-          </TouchableOpacity>
+            });
+            setRequestsList(merged);
+          }
+        }
+      } catch (err) {
+        console.log('Error reading stored nursing requests:', err);
+      }
+    };
+    loadStoredRequests();
+  }, []);
 
-          <Text style={styles.calMonthText}>
-            {MONTH_NAMES[month]} {year}
-          </Text>
+  const saveRequests = async (updated, singleNewReq = null) => {
+    try {
+      await AsyncStorage.setItem(ASYNC_KEY_NURSING_REQUESTS, JSON.stringify(updated));
 
-          <TouchableOpacity
-            style={styles.calArrowBtn}
-            onPress={() => setCalMonth(new Date(year, month + 1, 1))}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="chevron-forward" size={18} color={colors.secondary} />
-          </TouchableOpacity>
-        </View>
+      if (singleNewReq) {
+        // Also sync to @unnathi_nurse_bookings
+        try {
+          const rawNurseBookings = await AsyncStorage.getItem('@unnathi_nurse_bookings');
+          const nurseBookings = rawNurseBookings ? JSON.parse(rawNurseBookings) : [];
+          const updatedNurseBookings = [
+            singleNewReq,
+            ...(Array.isArray(nurseBookings) ? nurseBookings.filter((b) => b.id !== singleNewReq.id) : [])
+          ];
+          await AsyncStorage.setItem('@unnathi_nurse_bookings', JSON.stringify(updatedNurseBookings));
+        } catch (e1) {
+          console.log('Error syncing to @unnathi_nurse_bookings:', e1);
+        }
 
-        {/* Days Header */}
-        <View style={styles.calDayNamesRow}>
-          {DAYS_SHORT.map((d) => (
-            <Text key={d} style={styles.calDayNameText}>
-              {d}
-            </Text>
-          ))}
-        </View>
-
-        {/* Days Grid */}
-        <View style={styles.calGrid}>{cells}</View>
-      </View>
-    );
+        // Also sync to central @unnathi_appointments
+        try {
+          const rawAppts = await AsyncStorage.getItem('@unnathi_appointments');
+          const appts = rawAppts ? JSON.parse(rawAppts) : [];
+          const updatedAppts = [
+            singleNewReq,
+            ...(Array.isArray(appts) ? appts.filter((a) => a.id !== singleNewReq.id) : [])
+          ];
+          await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updatedAppts));
+        } catch (e2) {
+          console.log('Error syncing to @unnathi_appointments:', e2);
+        }
+      }
+    } catch (e) {
+      console.log('Error writing nursing requests:', e);
+    }
   };
 
-  // ==========================================
-  // STEP 1: SERVICE & PACKAGES (REDESIGNED)
-  // ==========================================
-  const renderStep1 = () => (
-    <View style={styles.stepWrap}>
-      {/* 1. CLINICAL TRUST HERO BANNER */}
-      <View style={styles.nurseHeroCardRedesigned}>
-        <View style={styles.nurseHeroTopTagRow}>
-          <View style={styles.nurseAccreditedBadge}>
-            <Ionicons name="shield-checkmark" size={12} color="#0D9488" />
-            <Text style={styles.nurseAccreditedBadgeText}>INC & KNC REGISTERED NURSES</Text>
-          </View>
-          <View style={styles.liveDutyBadge}>
-            <View style={styles.liveDutyPulseDot} />
-            <Text style={styles.liveDutyBadgeText}>14 ON DUTY IN MYSORE</Text>
-          </View>
-        </View>
+  // Toggle service selection
+  const handleToggleService = (serviceName) => {
+    if (serviceError) setServiceError(null);
+    if (selectedServices.includes(serviceName)) {
+      if (selectedServices.length === 1) {
+        showAlert('Requirement', 'Please keep at least one nursing service selected.');
+        return;
+      }
+      setSelectedServices(selectedServices.filter((s) => s !== serviceName));
+    } else {
+      setSelectedServices([...selectedServices, serviceName]);
+    }
+  };
 
-        <Text style={styles.nurseHeroHeading}>
-          Hospital-Grade Nursing Care in Your Home
-        </Text>
-        <Text style={styles.nurseHeroSubheading}>
-          Licensed GNM & B.Sc nurses providing 12hr/24hr bedside care, post-surgical recovery, IV administration, and vitals monitoring in Mysore.
-        </Text>
+  // Start booking with specific service
+  const handleStartBookingWithService = (serviceName) => {
+    setSelectedServices([serviceName]);
+    setShowAllServices(false);
+    setServiceError(null);
+    setFlowStep(1);
+    setCurrentView('REQUEST_FLOW');
+  };
 
-        {/* 3 Clinical Pillars */}
-        <View style={styles.nursePillarsRow}>
-          <View style={styles.nursePillarItem}>
-            <View style={styles.nursePillarIconBox}>
-              <Ionicons name="checkmark-done" size={14} color="#059669" />
-            </View>
-            <Text style={styles.nursePillarText}>100% Police Verified</Text>
-          </View>
-          <View style={styles.nursePillarItem}>
-            <View style={styles.nursePillarIconBox}>
-              <Ionicons name="pulse" size={14} color="#2563EB" />
-            </View>
-            <Text style={styles.nursePillarText}>Hospital Vitals Chart</Text>
-          </View>
-          <View style={styles.nursePillarItem}>
-            <View style={styles.nursePillarIconBox}>
-              <Ionicons name="sync" size={14} color="#7C3AED" />
-            </View>
-            <Text style={styles.nursePillarText}>2-Hr Free Replacement</Text>
-          </View>
-        </View>
+  // Validate step 1
+  const handleProceedFromServices = () => {
+    if (selectedServices.length === 0) {
+      setServiceError('Please select at least one nursing service to proceed.');
+      return;
+    }
+    setServiceError(null);
+    setFlowStep(2);
+  };
 
-        {/* Quick Call Action */}
-        <TouchableOpacity
-          style={styles.nurseHeroCallBanner}
-          onPress={() => Linking.openURL('tel:+918212568888')}
-          activeOpacity={0.88}
-        >
-          <View style={styles.nurseHeroCallLeft}>
-            <View style={styles.nurseHeroCallIconBox}>
-              <Ionicons name="headset" size={16} color="#FFFFFF" />
-            </View>
-            <View>
-              <Text style={styles.nurseHeroCallTitle}>Need help selecting a nurse?</Text>
-              <Text style={styles.nurseHeroCallSub}>Talk to our Clinical Nursing Supervisor (Free Consult)</Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color="#0D9488" />
-        </TouchableOpacity>
-      </View>
+  // Validate step 2
+  const handleProceedFromPatient = () => {
+    if (!patientName.trim()) {
+      showAlert('Required Field', 'Please enter patient name.');
+      return;
+    }
+    if (!contactNumber.trim() || contactNumber.trim().length < 10) {
+      showAlert('Invalid Phone', 'Please enter a valid 10-digit contact number.');
+      return;
+    }
+    if (!address.trim()) {
+      showAlert('Required Field', 'Please enter service location address in Mysore.');
+      return;
+    }
+    setFlowStep(3);
+  };
 
-      {/* 2. CLINICAL NEED / PURPOSE SELECTOR */}
-      <View style={styles.sectionCard}>
-        <View style={styles.sectionHeaderRow}>
-          <View style={[styles.sectionIconBox, { backgroundColor: '#EFF6FF' }]}>
-            <Ionicons name="medkit" size={16} color="#2563EB" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.sectionTitle}>1. What is the Patient's Primary Need?</Text>
-            <Text style={styles.sectionSub}>Select clinical condition to highlight recommended shift</Text>
-          </View>
-        </View>
+  // Validate step 3
+  const handleProceedFromPreferences = () => {
+    if (startDateOption === 'Custom') {
+      if (!customStartDate.trim()) {
+        showAlert('Required Field', 'Please select a custom start date from the calendar.');
+        return;
+      }
+    }
+    setFlowStep(4);
+  };
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.purposesScroll}
-        >
-          {CLINICAL_PURPOSES.map((purpose) => {
-            const isSelected = selectedPurposeId === purpose.id;
-            return (
-              <TouchableOpacity
-                key={purpose.id}
-                style={[
-                  styles.purposeChip,
-                  isSelected && styles.purposeChipActive,
-                ]}
-                onPress={() => {
-                  setSelectedPurposeId(purpose.id);
-                  if (purpose.recommendedShift) {
-                    setSelectedShiftId(purpose.recommendedShift);
-                  }
-                }}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.purposeIconWrap, { backgroundColor: isSelected ? '#0D9488' : purpose.bg }]}>
-                  <Ionicons
-                    name={purpose.icon}
-                    size={14}
-                    color={isSelected ? '#FFFFFF' : purpose.color}
-                  />
-                </View>
-                <Text
-                  style={[
-                    styles.purposeChipText,
-                    isSelected && styles.purposeChipTextActive,
-                  ]}
-                >
-                  {purpose.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
+  // Simulated Document Upload
+  const handleSimulateDocumentUpload = () => {
+    const mockFiles = [
+      { name: 'discharge_summary_columbia_asia.pdf', size: '1.4 MB', type: 'PDF' },
+      { name: 'doctor_prescription_dressing.jpg', size: '2.1 MB', type: 'Image' },
+      { name: 'post_op_wound_care_chart.pdf', size: '840 KB', type: 'PDF' },
+    ];
+    const picked = mockFiles[Math.floor(Math.random() * mockFiles.length)];
+    setUploadedDoc(picked);
+    showAlert('Document Attached 📄', `Attached "${picked.name}" to your care request.`);
+  };
 
-      {/* 3. CHOOSE NURSE DUTY SHIFT */}
-      <View style={styles.sectionCard}>
-        <View style={styles.sectionHeaderRow}>
-          <View style={[styles.sectionIconBox, { backgroundColor: '#F0FDF4' }]}>
-            <Ionicons name="time" size={16} color="#059669" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.sectionTitle}>2. Choose Nurse Shift & Timing</Text>
-            <Text style={styles.sectionSub}>Select required duty hours for your home</Text>
-          </View>
-        </View>
+  // Submit Care Request
+  const handleSubmitCareRequest = () => {
+    const newId = `HN-2026-${Math.floor(10000 + Math.random() * 90000).toString().slice(0, 5)}`;
+    const nowStr = 'Just now';
 
-        <View style={styles.modernShiftsGrid}>
-          {STAFF_SHIFTS.map((shift) => {
-            const isSelected = selectedShiftId === shift.id;
-            return (
-              <TouchableOpacity
-                key={shift.id}
-                style={[
-                  styles.modernShiftCard,
-                  isSelected && styles.modernShiftCardActive,
-                ]}
-                onPress={() => setSelectedShiftId(shift.id)}
-                activeOpacity={0.88}
-              >
-                <View style={styles.modernShiftTop}>
-                  <View style={[styles.modernShiftBadge, isSelected && styles.modernShiftBadgeActive]}>
-                    <Ionicons
-                      name={shift.icon}
-                      size={12}
-                      color={isSelected ? '#FFFFFF' : colors.primary}
-                    />
-                    <Text
-                      style={[
-                        styles.modernShiftBadgeText,
-                        isSelected && styles.modernShiftBadgeTextActive,
-                      ]}
-                    >
-                      {shift.badge}
-                    </Text>
-                  </View>
+    const startDt = startDateOption === 'Custom' ? (customStartDate.trim() || 'Custom Date') : startDateOption;
+    let formattedDate = startDt;
+    if (startDt === 'Today') {
+      formattedDate = new Date().toISOString().split('T')[0];
+    } else if (startDt === 'Tomorrow') {
+      formattedDate = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    }
 
-                  <View style={[styles.radioCircle, isSelected && styles.radioCircleActive]}>
-                    {isSelected && <View style={styles.radioDotInner} />}
-                  </View>
-                </View>
+    const newReq = {
+      id: newId,
+      bookingId: newId,
+      tokenNumber: newId,
+      type: 'Home Nurse Care',
+      serviceType: 'nurse',
+      serviceName: selectedServices.join(', '),
+      doctorName: 'Licensed Home Nurse',
+      specialty: 'Home Nursing & Clinical Care',
+      date: formattedDate,
+      time: 'Morning (8 AM - 12 PM)',
+      fee: pricingDetails.finalTotal,
+      paidAmount: pricingDetails.finalTotal,
+      hospitalName: 'MediUnify Home Care Network',
+      requestDate: nowStr,
+      patientName,
+      patientAge,
+      patientGender,
+      relationship,
+      contactNumber,
+      phone: contactNumber,
+      address,
+      selectedServices: [...selectedServices],
+      careInformation: careInfo || 'None specified',
+      uploadedDoc: uploadedDoc ? uploadedDoc.name : null,
+      preferences: {
+        shiftDuration,
+        startDate: startDt,
+        careDays: pricingDetails.days,
+        dailyRate: pricingDetails.dailyRate,
+        estimatedTotalCost: pricingDetails.finalTotal,
+        discountAmount: pricingDetails.discountAmount,
+        discountPercent: pricingDetails.discountPercent,
+        languagePreference,
+        continuityPreference,
+      },
+      status: 'Care Team Will Call You',
+      currentStageIndex: 0,
+      assignedNurse: null,
+      confirmedVisitDate: null,
+      confirmedVisitTime: null,
+      isRecurring: shiftDuration.includes('Shift') || shiftDuration.includes('Live-in'),
+      timeline: [
+        { stage: 'Request Received', completed: true, timestamp: 'Just now' },
+        { stage: 'Care Team Contacted', completed: false, timestamp: 'Pending call from Care Coordinator' },
+        { stage: 'Requirement Confirmed', completed: false, timestamp: 'Awaiting coordination' },
+        { stage: 'Nurse Assigned', completed: false, timestamp: 'Pending qualification match' },
+        { stage: 'Visit Confirmed', completed: false, timestamp: 'Care team will confirm timing' },
+        { stage: 'Nursing Visit', completed: false, timestamp: 'Scheduled post confirmation' },
+        { stage: 'Visit Completed', completed: false, timestamp: 'Pending visit' },
+      ],
+    };
 
-                <Text
-                  style={[
-                    styles.modernShiftName,
-                    isSelected && styles.modernShiftNameActive,
-                  ]}
-                >
-                  {shift.label}
-                </Text>
+    const updated = [newReq, ...requestsList];
+    setRequestsList(updated);
+    saveRequests(updated, newReq);
+    setNewlyCreatedRequest(newReq);
+    setFlowStep(5);
+  };
 
-                <View style={styles.modernShiftTimingRow}>
-                  <Ionicons name="alarm-outline" size={13} color="#64748B" />
-                  <Text style={styles.modernShiftTimingText}>{shift.timing}</Text>
-                </View>
+  // Filter services on landing
+  const filteredServices = useMemo(() => {
+    return availableNursingServices.filter((srv) => {
+      const matchesSearch =
+        searchQuery.trim() === '' ||
+        srv.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        srv.shortDesc.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        srv.equipmentProvided.toLowerCase().includes(searchQuery.toLowerCase());
 
-                <Text style={styles.modernShiftDesc} numberOfLines={2}>
-                  {shift.desc}
-                </Text>
+      if (!matchesSearch) return false;
 
-                <View style={styles.modernShiftPriceRow}>
-                  <Text style={styles.modernShiftRateText}>
-                    ₹{shift.dailyRate.toLocaleString('en-IN')}
-                  </Text>
-                  <Text style={styles.modernShiftRateSub}>/ day</Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
+      if (activeCategory === 'All Services') return true;
+      if (activeCategory === 'Post-Surgical' && (srv.name.includes('Post-Operative') || srv.name.includes('Wound') || srv.category === 'Specialized')) return true;
+      if (activeCategory === 'Wound & Dressing' && (srv.name.includes('Wound') || srv.name.includes('Dressing'))) return true;
+      if (activeCategory === 'Injections & IV' && (srv.name.includes('Injection') || srv.name.includes('Medication') || srv.category === 'Procedure')) return true;
+      if (activeCategory === 'Geriatric Care' && (srv.name.includes('Elderly') || srv.name.includes('Bedridden'))) return true;
+      if (activeCategory === 'Monitoring' && (srv.name.includes('Vital') || srv.name.includes('Blood Sugar') || srv.category === 'Monitoring')) return true;
+      if (activeCategory === 'Intensive & Bedridden' && (srv.name.includes('Bedridden') || srv.name.includes('Catheter') || srv.category === 'Intensive')) return true;
 
-      {/* 4. PACKAGE DEALS & DURATION */}
-      <View style={styles.sectionCard}>
-        <View style={styles.sectionHeaderRow}>
-          <View style={[styles.sectionIconBox, { backgroundColor: '#FFFBEB' }]}>
-            <Ionicons name="gift" size={16} color="#D97706" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={styles.sectionTitle}>3. Care Duration & Deals</Text>
-              <View style={styles.hotPillBadge}>
-                <Text style={styles.hotPillBadgeText}>SAVE UP TO 40%</Text>
-              </View>
-            </View>
-            <Text style={styles.sectionSub}>Book 2 or more days to unlock instant package savings</Text>
-          </View>
-        </View>
+      return srv.category === activeCategory;
+    });
+  }, [searchQuery, activeCategory]);
 
-        {/* 2-Day Deal Callout Banner */}
-        <View style={styles.dealCalloutBanner}>
-          <Ionicons name="sparkles" size={16} color="#E11D48" />
-          <Text style={styles.dealCalloutBannerText}>
-            <Text style={{ fontWeight: '900' }}>Special Deal:</Text> Book for 2 days and save 10% instantly!
-          </Text>
-        </View>
+  // Filter requests list
+  const filteredRequests = useMemo(() => {
+    if (requestsTabFilter === 'All') return requestsList;
+    if (requestsTabFilter === 'In Progress') {
+      return requestsList.filter((r) =>
+        ['Care Team Will Call You', 'Requirement Confirmed', 'Nurse Assigned'].includes(r.status)
+      );
+    }
+    if (requestsTabFilter === 'Confirmed') {
+      return requestsList.filter((r) =>
+        ['Visit Confirmed', 'Schedule Confirmed'].includes(r.status)
+      );
+    }
+    if (requestsTabFilter === 'Completed') {
+      return requestsList.filter((r) => r.status === 'Visit Completed');
+    }
+    return requestsList;
+  }, [requestsList, requestsTabFilter]);
 
-        {/* Package Duration Cards */}
-        <View style={styles.packageCardsList}>
-          {STAFF_PACKAGES.map((pkg) => {
-            const isSelected = daysCount === pkg.days;
-            const pkgGross = selectedShift.dailyRate * pkg.days;
-            const pkgDisc = Math.round((pkgGross * pkg.discountPercent) / 100);
-            const pkgNet = pkgGross - pkgDisc;
-
-            return (
-              <TouchableOpacity
-                key={pkg.days}
-                style={[
-                  styles.packageCardItem,
-                  isSelected && styles.packageCardItemActive,
-                ]}
-                onPress={() => applyDaysCount(pkg.days)}
-                activeOpacity={0.88}
-              >
-                <View style={[styles.radioCircle, isSelected && styles.radioCircleActive, { marginRight: 10 }]}>
-                  {isSelected && <View style={styles.radioDotInner} />}
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text
-                      style={[
-                        styles.packageCardTitle,
-                        isSelected && styles.packageCardTitleActive,
-                      ]}
-                    >
-                      {pkg.title}
-                    </Text>
-                    {pkg.tag && (
-                      <View style={[styles.packageDiscountTag, pkg.isHot && { backgroundColor: '#FFE4E6' }]}>
-                        <Text style={[styles.packageDiscountTagText, pkg.isHot && { color: '#E11D48' }]}>
-                          {pkg.tag}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.packageCardSubtitle}>{pkg.subtitle}</Text>
-                </View>
-
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text
-                    style={[
-                      styles.packageCardPrice,
-                      isSelected && styles.packageCardPriceActive,
-                    ]}
-                  >
-                    ₹{pkgNet.toLocaleString('en-IN')}
-                  </Text>
-                  {pkg.discountPercent > 0 && (
-                    <Text style={styles.packageSaveAmountBadge}>
-                      Save ₹{pkgDisc.toLocaleString('en-IN')}
-                    </Text>
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Custom Days Stepper */}
-        <View style={styles.stepperContainer}>
-          <View>
-            <Text style={styles.stepperPromptTitle}>Custom Days:</Text>
-            <Text style={styles.stepperPromptSub}>Set exact duration needed</Text>
-          </View>
-          <View style={styles.stepperRow}>
-            <TouchableOpacity
-              style={styles.stepperActionBtn}
-              onPress={() => applyDaysCount(daysCount - 1)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="remove" size={16} color="#0F172A" />
-            </TouchableOpacity>
-            <View style={styles.stepperNumberDisplay}>
-              <Text style={styles.stepperNumberText}>
-                {daysCount} {daysCount === 1 ? 'Day' : 'Days'}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.stepperActionBtn}
-              onPress={() => applyDaysCount(daysCount + 1)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="add" size={16} color="#0F172A" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-
-      {/* 5. VERIFIED NURSES SPOTLIGHT CAROUSEL */}
-      <View style={styles.sectionCard}>
-        <View style={styles.sectionHeaderRow}>
-          <View style={[styles.sectionIconBox, { backgroundColor: '#FAF5FF' }]}>
-            <Ionicons name="people" size={16} color="#7C3AED" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={styles.sectionTitle}>Featured Certified Nurses</Text>
-              <View style={[styles.hotPillBadge, { backgroundColor: '#F0FDF4' }]}>
-                <Text style={[styles.hotPillBadgeText, { color: '#059669' }]}>MYSORE ON-DUTY</Text>
-              </View>
-            </View>
-            <Text style={styles.sectionSub}>All staff verified with police check and Karnataka Nursing Council</Text>
-          </View>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.nursesCarouselScroll}
-        >
-          {certifiedNurses.map((nurse, index) => {
-            const avatarUrl = index === 0
-              ? 'https://images.unsplash.com/photo-1594824813576-92f70b79873a?auto=format&fit=crop&q=80&w=250'
-              : index === 1
-              ? 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=250'
-              : 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=250';
-
-            return (
-              <View key={nurse.id} style={styles.nurseProfileCard}>
-                <View style={styles.nurseProfileHeader}>
-                  <Image source={{ uri: avatarUrl }} style={styles.nurseAvatarImg} />
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Text style={styles.nurseProfileName} numberOfLines={1}>
-                        {nurse.name}
-                      </Text>
-                      <Ionicons name="checkmark-circle" size={14} color="#0D9488" />
-                    </View>
-                    <Text style={styles.nurseProfileDegree} numberOfLines={1}>
-                      {nurse.qualification}
-                    </Text>
-                    <View style={styles.nurseRatingRow}>
-                      <Ionicons name="star" size={12} color="#F59E0B" />
-                      <Text style={styles.nurseRatingText}>{nurse.rating}</Text>
-                    </View>
-                  </View>
-                </View>
-
-                <View style={styles.nurseProfileDivider} />
-
-                <View style={styles.nurseMetaLine}>
-                  <Ionicons name="briefcase-outline" size={12} color="#64748B" />
-                  <Text style={styles.nurseMetaText}>{nurse.experience}</Text>
-                </View>
-                <View style={styles.nurseMetaLine}>
-                  <Ionicons name="medkit-outline" size={12} color="#0D9488" />
-                  <Text style={styles.nurseMetaText} numberOfLines={1}>{nurse.specialties}</Text>
-                </View>
-                <View style={styles.nurseMetaLine}>
-                  <Ionicons name="chatbubbles-outline" size={12} color="#64748B" />
-                  <Text style={styles.nurseMetaText}>{nurse.languages}</Text>
-                </View>
-              </View>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* 6. CLINICAL SAFETY GUARANTEE */}
-      <View style={styles.clinicalAssuranceCard}>
-        <Ionicons name="shield-checkmark" size={24} color="#059669" />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.clinicalAssuranceTitle}>Unnathi Clinical Guarantee</Text>
-          <Text style={styles.clinicalAssuranceBody}>
-            Hospital-grade sterile PPE kits, daily vital charting, medication verification, and guaranteed free nurse replacement within 2 hours if required.
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-
-  // ==========================================
-  // STEP 2: DATES, TIME & ADDRESS
-  // ==========================================
-  const renderStep2 = () => (
-    <View style={styles.stepWrap}>
-      {/* 1. Date Selection with Calendar */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={styles.cardHeaderIcon}>
-            <Ionicons name="calendar" size={16} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>1. Starting Date & End Date</Text>
-            <Text style={styles.cardSub}>Tap below to change Start Date or End Date on calendar</Text>
-          </View>
-        </View>
-
-        {/* Interactive Start Date & End Date Tabs */}
-        <View style={styles.dateTabsRow}>
+  // =========================================================================
+  // VIEW 1: PREMIUM MOBILE LANDING PAGE
+  // =========================================================================
+  const renderLandingView = () => (
+    <ScrollView
+      style={styles.scrollContainer}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Top Header Bar */}
+      <View style={styles.topBarRow}>
+        <View style={styles.headerLeftGroup}>
           <TouchableOpacity
-            style={[styles.dateTab, activeDateTarget === 'start' && styles.dateTabActive]}
-            onPress={() => setActiveDateTarget('start')}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.dateTabLabel}>🟢 STARTING DATE</Text>
-            <Text style={styles.dateTabVal}>{formatShortDate(startDate)}</Text>
-            <Text style={styles.dateTabSub}>{DAYS_SHORT[startDate.getDay()]}</Text>
-          </TouchableOpacity>
-
-          <View style={styles.dateTabArrow}>
-            <Ionicons name="arrow-forward" size={16} color={colors.primary} />
-            <Text style={styles.dateTabDaysText}>{daysCount} Days</Text>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.dateTab, activeDateTarget === 'end' && styles.dateTabActive]}
-            onPress={() => setActiveDateTarget('end')}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.dateTabLabel}>🏁 END DATE</Text>
-            <Text style={styles.dateTabVal}>{formatShortDate(endDate)}</Text>
-            <Text style={styles.dateTabSub}>{DAYS_SHORT[endDate.getDay()]}</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.calHintText}>
-          {activeDateTarget === 'start'
-            ? '👉 Tap a date below to set STARTING DATE'
-            : '👉 Tap a date below to set END DATE'}
-        </Text>
-
-        {/* Calendar */}
-        {renderCalendar()}
-      </View>
-
-      {/* 2. Manual Time Selection */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={styles.cardHeaderIcon}>
-            <Ionicons name="time" size={16} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>2. Staff Daily Arrival Time</Text>
-            <Text style={styles.cardSub}>What time should the staff report at your home?</Text>
-          </View>
-        </View>
-
-        {/* Selected Time Banner */}
-        <View style={styles.timePreviewStrip}>
-          <Ionicons name="alarm" size={18} color={colors.primary} />
-          <Text style={styles.timePreviewText}>
-            Reporting Daily at: <Text style={{ fontWeight: '900', color: colors.secondary }}>{selectedTimeStr}</Text>
-          </Text>
-        </View>
-
-        {/* Quick Time Presets */}
-        <Text style={styles.fieldLabel}>Select standard reporting time:</Text>
-        <View style={styles.timePresetsGrid}>
-          {TIME_PRESETS.map((preset) => {
-            const isMatch = selectedTimeStr === `${preset.hour}:${preset.minute} ${preset.period}`;
-            return (
-              <TouchableOpacity
-                key={preset.label}
-                style={[styles.timePresetBtn, isMatch && styles.timePresetBtnActive]}
-                onPress={() => handleTimePresetClick(preset)}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name={isMatch ? 'checkmark-circle' : 'time-outline'}
-                  size={13}
-                  color={isMatch ? '#FFF' : colors.primary}
-                />
-                <Text style={[styles.timePresetBtnText, isMatch && styles.timePresetBtnTextActive]}>
-                  {preset.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Toggle Custom Time */}
-        <TouchableOpacity
-          style={styles.customTimeToggleBtn}
-          onPress={() => setShowCustomTime(!showCustomTime)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name={showCustomTime ? 'chevron-up' : 'create-outline'} size={14} color={colors.primary} />
-          <Text style={styles.customTimeToggleText}>
-            {showCustomTime ? 'Hide Custom Time Controls' : 'Or Set Custom Hour & Minute...'}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Custom Time Selector */}
-        {showCustomTime && (
-          <View style={styles.customTimeBox}>
-            <Text style={styles.fieldLabel}>Select Hour:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginBottom: 10 }}>
-              {['06', '07', '08', '09', '10', '11', '12', '01', '02', '03', '04', '05'].map((h) => {
-                const isH = manualHour === h;
-                return (
-                  <TouchableOpacity
-                    key={h}
-                    style={[styles.hourPill, isH && styles.hourPillActive]}
-                    onPress={() => updateManualTimeParts(h, undefined, undefined)}
-                  >
-                    <Text style={[styles.hourPillText, isH && styles.hourPillTextActive]}>{h}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.fieldLabel}>Minute:</Text>
-                <View style={{ flexDirection: 'row', gap: 6 }}>
-                  {['00', '15', '30', '45'].map((m) => {
-                    const isM = manualMinute === m;
-                    return (
-                      <TouchableOpacity
-                        key={m}
-                        style={[styles.hourPill, isM && styles.hourPillActive, { flex: 1 }]}
-                        onPress={() => updateManualTimeParts(undefined, m, undefined)}
-                      >
-                        <Text style={[styles.hourPillText, isM && styles.hourPillTextActive]}>:{m}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              <View style={{ width: 100 }}>
-                <Text style={styles.fieldLabel}>AM / PM:</Text>
-                <View style={styles.ampmWrap}>
-                  {['AM', 'PM'].map((p) => {
-                    const isP = manualPeriod === p;
-                    return (
-                      <TouchableOpacity
-                        key={p}
-                        style={[styles.ampmBtn, isP && styles.ampmBtnActive]}
-                        onPress={() => updateManualTimeParts(undefined, undefined, p)}
-                      >
-                        <Text style={[styles.ampmBtnText, isP && styles.ampmBtnTextActive]}>{p}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Timing Note */}
-        <TextInput
-          style={styles.textInput}
-          placeholder="Arrival instruction (e.g. Ring bell twice, patient wakes at 8am)"
-          placeholderTextColor={colors.textMuted}
-          value={timeNote}
-          onChangeText={setTimeNote}
-        />
-      </View>
-
-      {/* 3. Patient & Mysore Address */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={styles.cardHeaderIcon}>
-            <Ionicons name="location" size={16} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>3. Patient & Mysore Address</Text>
-            <Text style={styles.cardSub}>Where should the verified nurse arrive?</Text>
-          </View>
-        </View>
-
-        {/* Quick Family Member Chips (Strictly Family Members Only) */}
-        <Text style={styles.fieldLabel}>Who is this booking for? (Family Members):</Text>
-        <View style={styles.familyRow}>
-          {familyList.map((m) => {
-            const isSelected = selectedFamilyId === m.id;
-            return (
-              <TouchableOpacity
-                key={m.id}
-                style={[styles.familyChip, isSelected && styles.familyChipActive]}
-                onPress={() => {
-                  setSelectedFamilyId(m.id);
-                  setPatientName(m.name);
-                  setPatientRelation(m.relation);
-                  if (m.phone) setPatientPhone(m.phone);
-                }}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name="person"
-                  size={12}
-                  color={isSelected ? '#FFFFFF' : colors.primary}
-                />
-                <Text style={[styles.familyChipText, isSelected && styles.familyChipTextActive]}>
-                  {m.displayName || (m.relation === 'Self' ? `${m.name} (Self)` : `${m.name} (${m.relation})`)}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-
-          <TouchableOpacity
-            style={styles.addFamilyChip}
-            onPress={() => navigation?.navigate('FamilyProfiles')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="add-circle-outline" size={13} color={colors.primary} />
-            <Text style={styles.addFamilyChipText}>+ Add Member</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.fieldLabel}>Patient Full Name:</Text>
-        <TextInput
-          style={styles.textInput}
-          value={patientName}
-          onChangeText={setPatientName}
-          placeholder="Patient Full Name"
-          placeholderTextColor={colors.textMuted}
-        />
-
-        <Text style={styles.fieldLabel}>Contact Mobile (10 Digits):</Text>
-        <TextInput
-          style={styles.textInput}
-          keyboardType="phone-pad"
-          maxLength={10}
-          value={patientPhone}
-          onChangeText={setPatientPhone}
-          placeholder="10-digit phone number"
-          placeholderTextColor={colors.textMuted}
-        />
-
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={styles.fieldLabel}>Mysore Address:</Text>
-          <TouchableOpacity
-            style={styles.gpsButton}
-            onPress={detectGPSLocation}
-            activeOpacity={0.8}
-          >
-            {locationLoading ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <>
-                <Ionicons name="navigate" size={12} color={colors.primary} />
-                <Text style={styles.gpsButtonText}>Auto GPS</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-        <TextInput
-          style={[styles.textInput, { height: 50 }]}
-          multiline
-          value={patientAddress}
-          onChangeText={setPatientAddress}
-          placeholder="House/flat number, landmark, Mysore"
-          placeholderTextColor={colors.textMuted}
-        />
-
-        {/* Quick Mysore Chips */}
-        <View style={styles.quickAreaRow}>
-          {MYSORE_AREAS.map((area) => (
-            <TouchableOpacity
-              key={area}
-              style={styles.areaChip}
-              onPress={() => {
-                if (!patientAddress.includes(area)) {
-                  setPatientAddress(patientAddress ? `${patientAddress}, ${area}` : `${area}, Mysore`);
-                }
-              }}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="add" size={10} color={colors.primary} />
-              <Text style={styles.areaChipText}>{area}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-    </View>
-  );
-
-  // ==========================================
-  // STEP 3: REVIEW & PAY
-  // ==========================================
-  const renderStep3 = () => (
-    <View style={styles.stepWrap}>
-      {/* 1. Summary Card */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={styles.cardHeaderIcon}>
-            <Ionicons name="document-text" size={16} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>Review Booking Summary</Text>
-            <Text style={styles.cardSub}>Confirm all details before assigning certified staff</Text>
-          </View>
-        </View>
-
-        <View style={styles.summaryBox}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Staff Service:</Text>
-            <Text style={styles.summaryVal}>{selectedShift.label}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Package Selected:</Text>
-            <Text style={[styles.summaryVal, { color: colors.primary, fontWeight: '800' }]}>
-              {priceCalculation.dealName}
-            </Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Dates:</Text>
-            <Text style={styles.summaryVal}>
-              {daysCount} Days ({formatShortDate(startDate)} to {formatShortDate(endDate)})
-            </Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Daily Arrival:</Text>
-            <Text style={styles.summaryVal}>{selectedTimeStr}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Patient:</Text>
-            <Text style={styles.summaryVal}>{patientName} ({patientRelation})</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Address:</Text>
-            <Text style={styles.summaryVal} numberOfLines={2}>{patientAddress}</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* 2. Payment Selector */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={styles.cardHeaderIcon}>
-            <Ionicons name="card" size={16} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>Payment Method</Text>
-            <Text style={styles.cardSub}>Choose how you would like to pay</Text>
-          </View>
-        </View>
-
-        {/* Health Wallet */}
-        <TouchableOpacity
-          style={[styles.payRow, paymentMethod === 'WALLET' && styles.payRowActive]}
-          onPress={() => setPaymentMethod('WALLET')}
-          activeOpacity={0.85}
-        >
-          <View style={styles.payIconCircle}>
-            <Ionicons name="wallet" size={16} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={styles.payTitle}>MediUnify Health Wallet</Text>
-            <Text style={[styles.paySub, { color: walletBalance >= priceCalculation.total ? colors.freshGreen : colors.coral }]}>
-              Balance: ₹{walletBalance.toLocaleString('en-IN')} {walletBalance >= priceCalculation.total ? '• Sufficient' : '• Needs Top Up'}
-            </Text>
-          </View>
-          <View style={[styles.radio, paymentMethod === 'WALLET' && styles.radioActive]}>
-            {paymentMethod === 'WALLET' && <View style={styles.radioDot} />}
-          </View>
-        </TouchableOpacity>
-
-        {/* Pay on Arrival */}
-        <TouchableOpacity
-          style={[styles.payRow, paymentMethod === 'PayOnArrival' && styles.payRowActive]}
-          onPress={() => setPaymentMethod('PayOnArrival')}
-          activeOpacity={0.85}
-        >
-          <View style={styles.payIconCircle}>
-            <Ionicons name="cash" size={16} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={styles.payTitle}>Pay on Nurse Arrival</Text>
-            <Text style={styles.paySub}>Pay via Cash or UPI when the nurse reaches your home</Text>
-          </View>
-          <View style={[styles.radio, paymentMethod === 'PayOnArrival' && styles.radioActive]}>
-            {paymentMethod === 'PayOnArrival' && <View style={styles.radioDot} />}
-          </View>
-        </TouchableOpacity>
-
-        {/* Instant UPI */}
-        <TouchableOpacity
-          style={[styles.payRow, paymentMethod === 'UPI' && styles.payRowActive]}
-          onPress={() => setPaymentMethod('UPI')}
-          activeOpacity={0.85}
-        >
-          <View style={styles.payIconCircle}>
-            <Ionicons name="phone-portrait" size={16} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={styles.payTitle}>Instant UPI (GPay / PhonePe / Paytm)</Text>
-            <Text style={styles.paySub}>Pay online via UPI gateway</Text>
-          </View>
-          <View style={[styles.radio, paymentMethod === 'UPI' && styles.radioActive]}>
-            {paymentMethod === 'UPI' && <View style={styles.radioDot} />}
-          </View>
-        </TouchableOpacity>
-
-        {/* Invoice Breakdown */}
-        <View style={styles.invoiceCard}>
-          <Text style={styles.invoiceTitle}>Transparent Price Breakdown</Text>
-          <View style={styles.invoiceRow}>
-            <Text style={styles.invoiceLabel}>
-              {selectedShift.label} (₹{selectedShift.dailyRate}/day × {daysCount} Days):
-            </Text>
-            <Text style={styles.invoiceVal}>{priceCalculation.grossFormatted}</Text>
-          </View>
-
-          {priceCalculation.discountAmt > 0 && (
-            <View style={styles.invoiceRow}>
-              <Text style={[styles.invoiceLabel, { color: '#059669', fontWeight: '800' }]}>
-                {priceCalculation.dealName}:
-              </Text>
-              <Text style={[styles.invoiceVal, { color: '#059669', fontWeight: '900' }]}>
-                -{priceCalculation.discountFormatted}
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.invoiceRow}>
-            <Text style={styles.invoiceLabel}>Sterile PPE Kit & Travel to Mysore Home:</Text>
-            <Text style={[styles.invoiceVal, { color: colors.freshGreen, fontWeight: '800' }]}>FREE</Text>
-          </View>
-
-          <View style={styles.invoiceRow}>
-            <Text style={styles.invoiceLabel}>GST & Service Tax (18%):</Text>
-            <Text style={styles.invoiceVal}>{priceCalculation.gstFormatted}</Text>
-          </View>
-
-          <View style={styles.invoiceDivider} />
-
-          <View style={styles.invoiceTotalRow}>
-            <View>
-              <Text style={styles.invoiceTotalLabel}>Net Amount Payable</Text>
-              <Text style={styles.invoiceTotalSub}>All taxes & nurse PPE kit included</Text>
-            </View>
-            <Text style={styles.invoiceTotalVal}>{priceCalculation.totalFormatted}</Text>
-          </View>
-        </View>
-
-        {/* UNIFIED PRIVACY & CLINICAL ASSURANCE BOX */}
-        <View style={styles.privacyAssuranceBoxUnified}>
-          <Ionicons name="shield-checkmark" size={17} color="#059669" />
-          <Text style={styles.privacyAssuranceTextUnified}>
-            100% verified & background-checked GNM/B.Sc nurses. Hospital-grade clinical protocols, bedside vital chart monitoring, and guaranteed free replacement within 2 hours if required.
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-
-      {/* HEADER (MOBILE ONLY) */}
-      {!isDesktopWeb && (
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backBtn}
+            style={styles.backCircleBtn}
             onPress={() => {
-              if (currentStep > 1) {
-                setCurrentStep(currentStep - 1);
-              } else {
+              if (navigation?.canGoBack && navigation.canGoBack()) {
                 navigation.goBack();
+              } else {
+                navigation?.navigate('Home');
               }
             }}
-            activeOpacity={0.8}
+            activeOpacity={0.7}
           >
-            <Ionicons name="arrow-back" size={20} color={colors.secondary} />
+            <Ionicons name="arrow-back" size={20} color="#0F172A" />
           </TouchableOpacity>
 
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerStepBadge}>
-              {currentStep === 1
-                ? 'STEP 1 OF 3 • SERVICE & PACKAGES'
-                : currentStep === 2
-                ? 'STEP 2 OF 3 • DATES & TIME'
-                : 'STEP 3 OF 3 • REVIEW & PAY'}
-            </Text>
-            <Text style={styles.headerTitle}>Home Nursing</Text>
-          </View>
-
-          <TouchableOpacity
-            style={styles.helplineBtn}
-            activeOpacity={0.85}
-            onPress={() => Linking.openURL('tel:+918212568888')}
-          >
-            <Ionicons name="call" size={13} color="#FFFFFF" />
-            <Text style={styles.helplineBtnText}>24x7</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* DESKTOP BREADCRUMB */}
-      {isDesktopWeb && (
-        <View style={styles.desktopBreadcrumbWrap}>
-          <View style={styles.desktopBreadcrumbInner}>
-            <TouchableOpacity onPress={() => navigation.navigate('Home')} activeOpacity={0.7}>
-              <Text style={styles.breadcrumbLink}>Home</Text>
-            </TouchableOpacity>
-            <Ionicons name="chevron-forward" size={14} color="#94A3B8" />
-            <Text style={styles.breadcrumbCurrent}>Services</Text>
-            <Ionicons name="chevron-forward" size={14} color="#94A3B8" />
-            <Text style={styles.breadcrumbActive}>24/7 Verified Home Nursing & Care</Text>
-
-            <View style={{ flex: 1 }} />
-
-            <View style={styles.nurseVerifiedBadge}>
-              <Ionicons name="shield-checkmark" size={14} color="#059669" />
-              <Text style={styles.nurseVerifiedBadgeText}>INC / KNC Certified Nurses</Text>
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.headerTitle} numberOfLines={1}>Home Care & Nursing</Text>
+            <View style={styles.liveVerifiedPill}>
+              <View style={styles.livePulseDot} />
+              <Text style={styles.liveVerifiedPillText}>24/7 Verified Care</Text>
             </View>
           </View>
         </View>
-      )}
 
-      {/* 3-STEP PROGRESS STRIP */}
-      <View style={styles.stepStrip}>
-        {[
-          { num: 1, label: '1. Service & Deal' },
-          { num: 2, label: '2. Dates & Time' },
-          { num: 3, label: '3. Review & Pay' },
-        ].map((s, idx) => {
-          const isActive = currentStep === s.num;
-          const isPassed = currentStep > s.num;
+        <TouchableOpacity
+          style={styles.helplineBtn}
+          onPress={() => showAlert('Care Helpline', 'Connecting to 24/7 Clinical Support: 1800-425-0099')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="call" size={12} color="#0D9488" />
+          <Text style={styles.helplineBtnText}>1800-425-0099</Text>
+        </TouchableOpacity>
+      </View>
 
-          return (
-            <React.Fragment key={s.num}>
+      {/* Hero Banner Card */}
+      <View style={styles.heroBannerCard}>
+        <View style={styles.heroBadgePill}>
+          <Ionicons name="shield-checkmark" size={13} color="#5EEAD4" />
+          <Text style={styles.heroBadgePillText}>NABH & KNC Certified Nurses</Text>
+        </View>
+
+        <Text style={styles.heroHeadline}>
+          Hospital-Grade Nursing Care, <Text style={styles.heroHeadlineAccent}>In Your Home</Text>
+        </Text>
+
+        <Text style={styles.heroSubheadline}>
+          Post-surgical recovery, sterile wound dressing, IV therapy, geriatric care, and vitals monitoring by verified nursing professionals.
+        </Text>
+
+        {/* Guarantees */}
+        <View style={styles.heroValuePropsRow}>
+          <View style={styles.heroValueItem}>
+            <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+            <Text style={styles.heroValueText}>100% Background Verified</Text>
+          </View>
+          <View style={styles.heroValueItem}>
+            <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+            <Text style={styles.heroValueText}>Sterile Care Kits Included</Text>
+          </View>
+          <View style={styles.heroValueItem}>
+            <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+            <Text style={styles.heroValueText}>24/7 Coordinator Support</Text>
+          </View>
+        </View>
+
+        {/* Hero Actions (Stacked for clear mobile readability and touch targets) */}
+        <View style={styles.heroActionsRow}>
+          <TouchableOpacity
+            style={styles.heroPrimaryBtn}
+            onPress={() => {
+              setShowAllServices(false);
+              setFlowStep(1);
+              setCurrentView('REQUEST_FLOW');
+            }}
+            activeOpacity={0.88}
+          >
+            <Ionicons name="calendar" size={17} color="#FFFFFF" style={{ marginRight: 8 }} />
+            <Text style={styles.heroPrimaryBtnText}>Request Home Nursing</Text>
+            <Ionicons name="arrow-forward" size={15} color="#FFFFFF" style={{ marginLeft: 'auto' }} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.heroSecondaryBtn}
+            onPress={() => setCurrentView('MY_REQUESTS')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="time-outline" size={16} color="#CBD5E1" style={{ marginRight: 8 }} />
+            <Text style={styles.heroSecondaryBtnText}>Track Existing Requests ({requestsList.length})</Text>
+            <Ionicons name="chevron-forward" size={14} color="#94A3B8" style={{ marginLeft: 'auto' }} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Quick Match Floating Chips Box */}
+        <View style={styles.quickMatchCard}>
+          <View style={styles.quickMatchHeader}>
+            <Ionicons name="flash" size={15} color="#F59E0B" />
+            <Text style={styles.quickMatchTitle}>Need Quick Nursing?</Text>
+            <Text style={styles.quickMatchSub}>• Coordinator calls in 15 mins</Text>
+          </View>
+
+          <View style={styles.quickMatchChipsRow}>
+            {['Wound Dressing', 'Injection Administration', 'Vital Monitoring', 'Elderly Care'].map((srvName) => (
               <TouchableOpacity
-                style={styles.stepStripItem}
-                onPress={() => {
-                  if (s.num < currentStep) setCurrentStep(s.num);
-                }}
-                disabled={s.num >= currentStep}
+                key={srvName}
+                style={styles.quickChip}
+                onPress={() => handleStartBookingWithService(srvName)}
+                activeOpacity={0.75}
               >
-                <View
-                  style={[
-                    styles.stepStripCircle,
-                    isActive && styles.stepStripCircleActive,
-                    isPassed && styles.stepStripCirclePassed,
-                  ]}
-                >
-                  {isPassed ? (
-                    <Ionicons name="checkmark" size={11} color="#FFFFFF" />
-                  ) : (
-                    <Text style={[styles.stepStripNum, isActive && styles.stepStripNumActive]}>
-                      {s.num}
-                    </Text>
-                  )}
-                </View>
-                <Text style={[styles.stepStripLabel, isActive && styles.stepStripLabelActive]}>
-                  {s.label}
+                <Text style={styles.quickChipText}>{srvName}</Text>
+                <Ionicons name="arrow-forward" size={11} color="#0D9488" />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </View>
+
+      {/* Trust & Stats Grid */}
+      <View style={styles.statsGrid}>
+        <View style={styles.statBox}>
+          <Text style={styles.statValue}>15,000+</Text>
+          <Text style={styles.statLabel}>Visits Completed</Text>
+        </View>
+        <View style={styles.statBox}>
+          <Text style={styles.statValue}>4.9 ★</Text>
+          <Text style={styles.statLabel}>Family Rating</Text>
+        </View>
+        <View style={styles.statBox}>
+          <Text style={styles.statValue}>100%</Text>
+          <Text style={styles.statLabel}>KNC Verified Nurses</Text>
+        </View>
+        <View style={styles.statBox}>
+          <Text style={styles.statValue}>&lt; 15m</Text>
+          <Text style={styles.statLabel}>Coordinator Callback</Text>
+        </View>
+      </View>
+
+      {/* Search & Category Filter Section */}
+      <View style={styles.searchSectionWrap}>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionHeading}>Available Nursing Services</Text>
+          <Text style={styles.sectionSubheading}>Select any procedure to request a certified nurse</Text>
+        </View>
+
+        {/* Search Input */}
+        <View style={styles.searchInputRow}>
+          <Ionicons name="search" size={18} color="#64748B" style={{ marginLeft: 12 }} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search dressing, injection, post-op, catheter..."
+            placeholderTextColor="#94A3B8"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 8 }}>
+              <Ionicons name="close-circle" size={17} color="#94A3B8" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Horizontal Category Filter Pills */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryPillsScroll}
+        >
+          {SERVICE_CATEGORIES.map((cat) => {
+            const isSelected = activeCategory === cat;
+            return (
+              <TouchableOpacity
+                key={cat}
+                style={[styles.categoryPillBtn, isSelected && styles.categoryPillBtnActive]}
+                onPress={() => setActiveCategory(cat)}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.categoryPillBtnText, isSelected && styles.categoryPillBtnTextActive]}>
+                  {cat}
                 </Text>
               </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
 
-              {idx < 2 && (
-                <View style={[styles.stepStripLine, currentStep > s.num && styles.stepStripLineActive]} />
-              )}
-            </React.Fragment>
+      {/* Services Cards List */}
+      <View style={styles.servicesGrid}>
+        {filteredServices.map((srv) => {
+          const meta = SERVICE_METADATA[srv.id] || { price: 'From ₹299', duration: '30 mins', shiftType: 'Per Visit' };
+          const isSelected = selectedServices.includes(srv.name);
+
+          return (
+            <View
+              key={srv.id}
+              style={[
+                styles.serviceElevatedCard,
+                isSelected && styles.serviceElevatedCardSelected,
+              ]}
+            >
+              {/* Card Top Row: Category + Popular Tag */}
+              <View style={styles.cardHeaderRow}>
+                <View style={[styles.categoryBadge, { backgroundColor: srv.bgColor }]}>
+                  <Text style={[styles.categoryBadgeText, { color: srv.color }]}>{srv.category}</Text>
+                </View>
+
+                {meta.tag && (
+                  <View style={styles.tagBadge}>
+                    <Ionicons name="sparkles" size={10} color="#0D9488" />
+                    <Text style={styles.tagBadgeText}>{meta.tag}</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Service Icon & Title */}
+              <View style={styles.serviceTitleRow}>
+                <View style={[styles.serviceIconContainer, { backgroundColor: srv.bgColor }]}>
+                  <Ionicons name={srv.icon} size={22} color={srv.color} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.serviceCardTitle}>{srv.name}</Text>
+                  <Text style={styles.serviceCardDuration}>
+                    <Ionicons name="time-outline" size={11} color="#64748B" /> {meta.duration} • {meta.shiftType}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Description */}
+              <Text style={styles.serviceCardDesc} numberOfLines={2}>
+                {srv.shortDesc}
+              </Text>
+
+              {/* Equipment Kit Included Pill */}
+              <View style={styles.consumablesPill}>
+                <Ionicons name="medkit-outline" size={13} color="#00B894" />
+                <Text style={styles.consumablesText} numberOfLines={1}>
+                  <Text style={{ fontWeight: '700' }}>Kit:</Text> {srv.equipmentProvided}
+                </Text>
+              </View>
+
+              {/* Footer: Indicative Pricing + Book CTA */}
+              <View style={styles.serviceCardFooter}>
+                <View style={styles.pricingCol}>
+                  <Text style={styles.priceSub}>Starting from</Text>
+                  <Text style={styles.priceValue}>{meta.price}</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.bookServiceBtn}
+                  onPress={() => handleStartBookingWithService(srv.name)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.bookServiceBtnText}>Book Visit</Text>
+                  <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
           );
         })}
       </View>
 
-      {/* MAIN SCROLL CONTENT */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
-        {currentStep === 1 && renderStep1()}
-        {currentStep === 2 && renderStep2()}
-        {currentStep === 3 && renderStep3()}
-        <View style={{ height: 110 }} />
-        {isDesktopWeb && <WebFooter navigation={navigation} />}
-      </ScrollView>
+      {/* Staff Showcase */}
+      <View style={styles.nursesSection}>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionHeading}>Meet Our Home Care Nurses</Text>
+          <Text style={styles.sectionSubheading}>
+            Verified professionals registered with Karnataka Nursing Council (KNC)
+          </Text>
+        </View>
 
-      {/* STICKY BOTTOM ACTION BAR (Clean & Un-confusing) */}
-      <View style={styles.bottomBar}>
-        <View style={styles.bottomBarInner}>
-          <View>
-            <Text style={styles.bottomBarLabel}>
-              Total ({daysCount} {daysCount === 1 ? 'Day' : 'Days'})
-            </Text>
-            <Text style={styles.bottomBarPrice}>{priceCalculation.totalFormatted}</Text>
-            {priceCalculation.discountPercent > 0 ? (
-              <Text style={styles.bottomBarDealText}>
-                🎉 {priceCalculation.discountPercent}% Package Deal Applied
-              </Text>
-            ) : (
-              <Text style={styles.bottomBarSubText}>
-                {selectedShift.label}
-              </Text>
-            )}
-          </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.nursesScrollRow}>
+          {Object.values(assignedNursesData).map((nurse) => (
+            <View key={nurse.id} style={styles.nurseCard}>
+              <View style={styles.nursePhotoWrapper}>
+                <Image source={{ uri: nurse.photo }} style={styles.nursePhoto} />
+                <View style={styles.nurseVerifiedCheck}>
+                  <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                </View>
+              </View>
 
-          {currentStep < 3 ? (
-            <TouchableOpacity
-              style={styles.bottomCtaBtn}
-              onPress={goToNextStep}
-              activeOpacity={0.88}
-            >
-              <Text style={styles.bottomCtaText}>
-                {currentStep === 1 ? 'Next: Dates & Time' : 'Next: Review & Pay'}
-              </Text>
-              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.bottomCtaBtn, isProcessing && { opacity: 0.7 }]}
-              onPress={handleConfirmAndPay}
-              disabled={isProcessing}
-              activeOpacity={0.88}
-            >
-              {isProcessing ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <>
-                  <Text style={styles.bottomCtaText}>
-                    {paymentMethod === 'PayOnArrival' ? 'Confirm Booking' : 'Pay & Book Staff'}
+              <View style={styles.nurseInfoCol}>
+                <View style={styles.nurseNameRow}>
+                  <Text style={styles.nurseName}>{nurse.name}</Text>
+                  <View style={styles.nurseRatingPill}>
+                    <Ionicons name="star" size={11} color="#D97706" />
+                    <Text style={styles.nurseRatingText}>{nurse.rating}</Text>
+                  </View>
+                </View>
+
+                <Text style={styles.nurseQualification}>{nurse.qualification} • {nurse.experience}</Text>
+                <Text style={styles.nurseRegId}>Reg: {nurse.councilReg || nurse.regNumber || 'KNC Verified'}</Text>
+
+                {nurse.specialization ? (
+                  <View style={styles.nurseSpecializationRow}>
+                    <Ionicons name="medical" size={11} color="#00B894" />
+                    <Text style={styles.nurseSpecializationText} numberOfLines={1}>
+                      {nurse.specialization}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {Array.isArray(nurse.languages) && (
+                  <Text style={styles.nurseLanguagesText}>
+                    🗣 {nurse.languages.join(', ')}
                   </Text>
-                  <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
-                </>
-              )}
-            </TouchableOpacity>
-          )}
+                )}
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* 4-Step How It Works */}
+      <View style={styles.howItWorksSection}>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionHeading}>How Home Care Works</Text>
+          <Text style={styles.sectionSubheading}>Simple, safe, and hospital-grade care at home</Text>
+        </View>
+
+        <View style={styles.stepsList}>
+          {howItWorksSteps.map((step, idx) => (
+            <View key={step.step || step.id || idx} style={styles.stepCard}>
+              <View style={styles.stepNumberBadge}>
+                <Text style={styles.stepNumberText}>{step.step || step.stepNumber || (idx + 1)}</Text>
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.stepTitle}>{step.title}</Text>
+                <Text style={styles.stepDesc}>{step.desc || step.description}</Text>
+              </View>
+            </View>
+          ))}
         </View>
       </View>
 
-      {/* SUCCESS CONFIRMATION MODAL */}
-      <Modal
-        visible={successModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSuccessModalVisible(false)}
+      {/* Patient Testimonials */}
+      <View style={styles.testimonialsSection}>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionHeading}>Patient & Family Stories</Text>
+          <Text style={styles.sectionSubheading}>Trusted by 15,000+ families across Karnataka</Text>
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.testimonialsScrollRow}>
+          {PATIENT_TESTIMONIALS.map((item) => (
+            <View key={item.id} style={styles.testimonialCard}>
+              <View style={styles.testimonialStarsRow}>
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <Ionicons key={s} name="star" size={13} color="#F59E0B" style={{ marginRight: 2 }} />
+                ))}
+                <View style={styles.testimonialVerifiedPill}>
+                  <Ionicons name="checkmark-circle" size={11} color="#059669" />
+                  <Text style={styles.testimonialVerifiedText}>Verified Visit</Text>
+                </View>
+              </View>
+
+              <Text style={styles.testimonialQuote}>"{item.text}"</Text>
+
+              <View style={styles.testimonialAuthorRow}>
+                <View style={styles.authorAvatarCircle}>
+                  <Text style={styles.authorAvatarText}>{item.patient.charAt(0)}</Text>
+                </View>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={styles.authorName}>{item.patient}</Text>
+                  <Text style={styles.authorFamily}>{item.family} • {item.location}</Text>
+                  <Text style={styles.authorServiceTag}>{item.service}</Text>
+                </View>
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Interactive FAQ Accordion */}
+      <View style={styles.faqSection}>
+        <View style={styles.faqHeader}>
+          <Text style={styles.faqTitle}>Frequently Asked Questions</Text>
+          <Text style={styles.faqSub}>Clear answers regarding home nursing safety and bookings</Text>
+        </View>
+
+        <View style={styles.faqList}>
+          {FAQS.map((faq, index) => {
+            const isOpen = activeFaqIndex === index;
+            return (
+              <TouchableOpacity
+                key={index}
+                style={[styles.faqItemCard, isOpen && styles.faqItemCardOpen]}
+                onPress={() => setActiveFaqIndex(isOpen ? null : index)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.faqQuestionRow}>
+                  <Text style={[styles.faqQuestionText, isOpen && styles.faqQuestionTextActive]}>
+                    {faq.q}
+                  </Text>
+                  <Ionicons
+                    name={isOpen ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color={isOpen ? '#00B894' : '#64748B'}
+                  />
+                </View>
+
+                {isOpen && (
+                  <View style={styles.faqAnswerWrap}>
+                    <Text style={styles.faqAnswerText}>{faq.a}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Emergency Strip */}
+      <View style={styles.emergencyStrip}>
+        <View style={styles.emergencyIconWrap}>
+          <Ionicons name="call" size={22} color="#FFFFFF" />
+        </View>
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.emergencyTitle}>Have Questions or Need Urgent Care?</Text>
+          <Text style={styles.emergencySub}>
+            24/7 Clinical desk: <Text style={{ fontWeight: '800', color: '#FFFFFF' }}>1800-425-0099</Text>
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.emergencyCallNowBtn}
+          onPress={() => showAlert('Calling Coordinator', 'Dialing MediUnify Home Care Desk: 1800-425-0099')}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.emergencyCallNowBtnText}>Call Now</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+
+  // =========================================================================
+  // VIEW 2: STEP-BY-STEP CARE REQUEST FLOW
+  // =========================================================================
+  const renderRequestFlowView = () => (
+    <View style={styles.flowRoot}>
+      {/* Top Flow Header */}
+      <View style={styles.flowHeader}>
+        <TouchableOpacity
+          style={styles.flowBackBtn}
+          onPress={() => {
+            if (flowStep > 1 && flowStep < 5) {
+              setFlowStep(flowStep - 1);
+            } else {
+              setCurrentView('LANDING');
+            }
+          }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={20} color="#0F172A" />
+        </TouchableOpacity>
+
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.flowHeaderTitle}>
+            {flowStep === 1 && 'Step 1: Care Requirement'}
+            {flowStep === 2 && 'Step 2: Patient & Address'}
+            {flowStep === 3 && 'Step 3: Shift & Preferences'}
+            {flowStep === 4 && 'Step 4: Review Request'}
+            {flowStep === 5 && 'Request Submitted'}
+          </Text>
+          <Text style={styles.flowHeaderSub}>
+            {flowStep < 5 ? `Step ${flowStep} of 4 • Zero Advance Deposit Required` : 'MediUnify Care Coordination'}
+          </Text>
+        </View>
+
+        {flowStep < 5 && (
+          <TouchableOpacity
+            style={styles.flowCloseBtn}
+            onPress={() => setCurrentView('LANDING')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="close" size={20} color="#64748B" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Stepper Progress Bar */}
+      {flowStep < 5 && (
+        <View style={styles.stepperContainer}>
+          {[1, 2, 3, 4].map((stepNum) => {
+            const isDone = flowStep > stepNum;
+            const isCurrent = flowStep === stepNum;
+            return (
+              <View key={stepNum} style={styles.stepItemWrapper}>
+                <View
+                  style={[
+                    styles.stepperCircle,
+                    isDone && styles.stepperCircleDone,
+                    isCurrent && styles.stepperCircleCurrent,
+                  ]}
+                >
+                  {isDone ? (
+                    <Ionicons name="checkmark" size={11} color="#FFFFFF" />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.stepperCircleText,
+                        isCurrent && styles.stepperCircleTextCurrent,
+                      ]}
+                    >
+                      {stepNum}
+                    </Text>
+                  )}
+                </View>
+                <Text
+                  style={[
+                    styles.stepperLabelText,
+                    isCurrent && styles.stepperLabelTextCurrent,
+                  ]}
+                >
+                  {stepNum === 1 && 'Services'}
+                  {stepNum === 2 && 'Patient'}
+                  {stepNum === 3 && 'Schedule'}
+                  {stepNum === 4 && 'Confirm'}
+                </Text>
+                {stepNum < 4 && (
+                  <View
+                    style={[
+                      styles.stepperConnectingLine,
+                      flowStep > stepNum && styles.stepperConnectingLineActive,
+                    ]}
+                  />
+                )}
+              </View>
+            );
+          })}
+        </View>
+      )}
+
+      {/* Form Content Area */}
+      <ScrollView
+        style={styles.flowScroll}
+        contentContainerStyle={styles.flowScrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalIconBox}>
-              <Ionicons name="checkmark-circle" size={40} color="#FFFFFF" />
+        {/* STEP 1: SELECT CARE SERVICES */}
+        {flowStep === 1 && (
+          <View>
+            <View style={styles.stepTitleBox}>
+              <Text style={styles.stepMainHeading}>
+                {selectedServices.length > 0 && !showAllServices
+                  ? 'Selected Home Care Service'
+                  : 'What care do you need at home?'}
+              </Text>
+              <Text style={styles.stepSubHeading}>
+                {selectedServices.length > 0 && !showAllServices
+                  ? 'Review your selected nursing procedure below before entering patient details:'
+                  : 'Select one or multiple nursing procedures required for the patient:'}
+              </Text>
             </View>
 
-            <Text style={styles.modalTitle}>Staff Care Confirmed!</Text>
-            <Text style={styles.modalSub}>
-              A certified hospital-trained nurse has been assigned to your address.
-            </Text>
+            {serviceError && (
+              <View style={styles.errorAlertBox}>
+                <Ionicons name="alert-circle" size={16} color="#EF4444" style={{ marginRight: 6 }} />
+                <Text style={styles.errorAlertText}>{serviceError}</Text>
+              </View>
+            )}
 
-            {confirmedBooking && (
-              <View style={styles.modalSummary}>
-                <View style={styles.modalRow}>
-                  <Text style={styles.modalRowLabel}>Booking ID:</Text>
-                  <Text style={styles.modalRowVal}>{confirmedBooking.bookingId}</Text>
+            {/* When a service is selected and not expanding, show ONLY the selected service(s) */}
+            {selectedServices.length > 0 && !showAllServices ? (
+              <View style={styles.selectedConfirmedWrap}>
+                {selectedServices.map((srvName) => {
+                  const item = availableNursingServices.find((s) => s.name === srvName) || {
+                    id: 'srv-default',
+                    name: srvName,
+                    shortDesc: 'Professional nursing procedure administered at home by certified nurse.',
+                    equipmentProvided: 'Sterile syringes, gloves, antiseptic kit',
+                    icon: 'medkit-outline',
+                    color: '#00B894',
+                    bgColor: '#E6F9F4',
+                  };
+                  const meta = SERVICE_METADATA[item.id] || { price: '₹299', duration: '30 mins', shiftType: 'Per Visit' };
+
+                  return (
+                    <View key={srvName} style={styles.singleSelectedCard}>
+                      <View style={styles.singleSelectedTopRow}>
+                        <View style={[styles.selectCardIconWrap, { backgroundColor: item.bgColor, width: 42, height: 42, marginLeft: 0 }]}>
+                          <Ionicons name={item.icon} size={20} color={item.color} />
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <View style={styles.selectCardHeaderRow}>
+                            <Text style={styles.singleSelectedTitle}>{item.name}</Text>
+                            <Text style={styles.singleSelectedPrice}>{meta.price}</Text>
+                          </View>
+                          <View style={styles.singleSelectedMetaRow}>
+                            <View style={styles.greenCheckBadge}>
+                              <Ionicons name="checkmark-circle" size={12} color="#00B894" />
+                              <Text style={styles.greenCheckBadgeText}>Selected for Booking</Text>
+                            </View>
+                            <Text style={styles.singleSelectedDuration}>
+                              • {meta.duration} • {meta.shiftType}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      <Text style={styles.singleSelectedDesc}>{item.shortDesc}</Text>
+
+                      <View style={styles.singleSelectedKitRow}>
+                        <Ionicons name="shield-checkmark" size={14} color="#0D9488" />
+                        <Text style={styles.singleSelectedKitText}>
+                          <Text style={{ fontWeight: '700' }}>Kit Provided:</Text> {item.equipmentProvided}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+
+                {/* Button to add another procedure or change */}
+                <TouchableOpacity
+                  style={styles.addMoreServicesBtn}
+                  onPress={() => setShowAllServices(true)}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons name="add-circle-outline" size={17} color="#0D9488" />
+                  <Text style={styles.addMoreServicesBtnText}>+ Add another procedure or change service</Text>
+                </TouchableOpacity>
+
+                {/* Trust & Pricing Guarantee Banner */}
+                <View style={styles.bookingSelectedTrustBanner}>
+                  <Ionicons name="shield-checkmark" size={17} color="#00B894" />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.bookingSelectedTrustTitle}>Zero Advance Deposit • Pay Post-Procedure</Text>
+                    <Text style={styles.bookingSelectedTrustSub}>
+                      KNC registered nurse assigned in 15 mins. Standard sterile care kit included.
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.modalRow}>
-                  <Text style={styles.modalRowLabel}>Duration:</Text>
-                  <Text style={styles.modalRowVal}>{confirmedBooking.duration}</Text>
-                </View>
-                <View style={styles.modalRow}>
-                  <Text style={styles.modalRowLabel}>Daily Arrival:</Text>
-                  <Text style={styles.modalRowVal}>{confirmedBooking.schedule.time}</Text>
-                </View>
-                <View style={styles.modalRow}>
-                  <Text style={styles.modalRowLabel}>Assigned Staff:</Text>
-                  <Text style={[styles.modalRowVal, { color: colors.primary }]}>
-                    {confirmedBooking.assignedNurse.name}
-                  </Text>
-                </View>
-                <View style={styles.modalRow}>
-                  <Text style={styles.modalRowLabel}>Total Amount:</Text>
-                  <Text style={[styles.modalRowVal, { color: colors.freshGreen }]}>
-                    {confirmedBooking.payment.amount} ({confirmedBooking.payment.method})
-                  </Text>
+              </View>
+            ) : (
+              /* Full Services List */
+              <View>
+                {selectedServices.length > 0 && (
+                  <View style={styles.selectedCountBanner}>
+                    <Ionicons name="checkbox" size={16} color="#00B894" />
+                    <Text style={styles.selectedCountBannerText}>
+                      <Text style={{ fontWeight: '800' }}>{selectedServices.length}</Text> service
+                      {selectedServices.length === 1 ? '' : 's'} selected
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setShowAllServices(false)}
+                      style={styles.doneAddingPill}
+                    >
+                      <Text style={styles.doneAddingPillText}>Done Selecting ✓</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                <View style={styles.servicesSelectList}>
+                  {availableNursingServices.map((item) => {
+                    const isChecked = selectedServices.includes(item.name);
+                    const meta = SERVICE_METADATA[item.id] || { price: '₹299', duration: '30 mins' };
+
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        style={[
+                          styles.serviceSelectCard,
+                          isChecked && styles.serviceSelectCardChecked,
+                        ]}
+                        onPress={() => handleToggleService(item.name)}
+                        activeOpacity={0.7}
+                      >
+                        <View
+                          style={[
+                            styles.customCheckbox,
+                            isChecked && styles.customCheckboxChecked,
+                          ]}
+                        >
+                          {isChecked && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
+                        </View>
+
+                        <View style={[styles.selectCardIconWrap, { backgroundColor: item.bgColor }]}>
+                          <Ionicons name={item.icon} size={18} color={item.color} />
+                        </View>
+
+                        <View style={{ flex: 1, marginLeft: 10 }}>
+                          <View style={styles.selectCardHeaderRow}>
+                            <Text style={styles.selectCardTitle}>{item.name}</Text>
+                            <Text style={styles.selectCardPrice}>{meta.price}</Text>
+                          </View>
+                          <Text style={styles.selectCardDesc}>{item.shortDesc}</Text>
+                          <Text style={styles.selectCardKit}>
+                            🩺 <Text style={{ fontWeight: '600' }}>Kit:</Text> {item.equipmentProvided}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </View>
             )}
 
+            {/* Step 1 Footer Action */}
+            <View style={styles.stepActionFooter}>
+              <TouchableOpacity
+                style={styles.primaryProceedBtn}
+                onPress={handleProceedFromServices}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.primaryProceedBtnText}>Continue to Patient Details</Text>
+                <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* STEP 2: PATIENT & VISIT ADDRESS DETAILS */}
+        {flowStep === 2 && (
+          <View>
+            <View style={styles.stepTitleBox}>
+              <Text style={styles.stepMainHeading}>Patient & Visit Details</Text>
+              <Text style={styles.stepSubHeading}>
+                Tell us who will be receiving care so our coordinator can plan appropriately:
+              </Text>
+            </View>
+
+            {/* Patient Name */}
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Patient Full Name *</Text>
+              <TextInput
+                style={[styles.formInput, formErrors.name && styles.formInputError]}
+                value={patientName}
+                onChangeText={(t) => {
+                  setPatientName(t);
+                  if (formErrors.name) setFormErrors({ ...formErrors, name: null });
+                }}
+                placeholder="e.g. Ramesh Kumar"
+                placeholderTextColor="#94A3B8"
+              />
+              {formErrors.name && <Text style={styles.formErrorText}>{formErrors.name}</Text>}
+            </View>
+
+            {/* Age & Gender Row */}
+            <View style={styles.formRow}>
+              <View style={[styles.formGroup, { flex: 1, marginRight: 10 }]}>
+                <Text style={styles.formLabel}>Age *</Text>
+                <TextInput
+                  style={[styles.formInput, formErrors.age && styles.formInputError]}
+                  value={patientAge}
+                  onChangeText={(t) => {
+                    setPatientAge(t);
+                    if (formErrors.age) setFormErrors({ ...formErrors, age: null });
+                  }}
+                  placeholder="e.g. 58"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="numeric"
+                />
+                {formErrors.age && <Text style={styles.formErrorText}>{formErrors.age}</Text>}
+              </View>
+
+              <View style={[styles.formGroup, { flex: 1.5 }]}>
+                <Text style={styles.formLabel}>Gender *</Text>
+                <View style={styles.pillsRow}>
+                  {['Male', 'Female', 'Other'].map((g) => (
+                    <TouchableOpacity
+                      key={g}
+                      style={[styles.choicePill, patientGender === g && styles.choicePillActive]}
+                      onPress={() => setPatientGender(g)}
+                    >
+                      <Text style={[styles.choicePillText, patientGender === g && styles.choicePillTextActive]}>
+                        {g}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            {/* Relationship */}
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Relationship to Patient *</Text>
+              <View style={styles.pillsRow}>
+                {['Self', 'Mother', 'Father', 'Spouse', 'Child', 'Relative'].map((r) => (
+                  <TouchableOpacity
+                    key={r}
+                    style={[styles.choicePill, relationship === r && styles.choicePillActive]}
+                    onPress={() => setRelationship(r)}
+                  >
+                    <Text style={[styles.choicePillText, relationship === r && styles.choicePillTextActive]}>
+                      {r}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Contact Number */}
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Contact Number for Coordinator *</Text>
+              <TextInput
+                style={[styles.formInput, formErrors.phone && styles.formInputError]}
+                value={contactNumber}
+                onChangeText={(t) => {
+                  setContactNumber(t);
+                  if (formErrors.phone) setFormErrors({ ...formErrors, phone: null });
+                }}
+                placeholder="+91 98450 XXXXX"
+                placeholderTextColor="#94A3B8"
+                keyboardType="phone-pad"
+              />
+              {formErrors.phone && <Text style={styles.formErrorText}>{formErrors.phone}</Text>}
+            </View>
+
+            {/* Address */}
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Complete Home Visit Address *</Text>
+              <TextInput
+                style={[styles.formInput, { height: 70, textAlignVertical: 'top' }, formErrors.address && styles.formInputError]}
+                value={address}
+                onChangeText={(t) => {
+                  setAddress(t);
+                  if (formErrors.address) setFormErrors({ ...formErrors, address: null });
+                }}
+                placeholder="House/flat number, building name, street, locality, Mysuru / Bengaluru..."
+                placeholderTextColor="#94A3B8"
+                multiline={true}
+              />
+              {formErrors.address && <Text style={styles.formErrorText}>{formErrors.address}</Text>}
+            </View>
+
+            {/* Clinical Background Info */}
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>
+                Patient Condition & History <Text style={{ fontWeight: '400', color: '#94A3B8' }}>(Optional)</Text>
+              </Text>
+              <TextInput
+                style={[styles.formInput, { height: 65, textAlignVertical: 'top' }]}
+                value={careInfo}
+                onChangeText={setCareInfo}
+                placeholder="e.g. Post-surgery dressing, diabetic, needs morning vitals check..."
+                placeholderTextColor="#94A3B8"
+                multiline={true}
+              />
+            </View>
+
+            {/* Actions */}
+            <View style={styles.stepDualActionsRow}>
+              <TouchableOpacity
+                style={styles.stepBackOutlineBtn}
+                onPress={() => setFlowStep(1)}
+              >
+                <Text style={styles.stepBackOutlineBtnText}>← Back</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.primaryProceedBtn, { flex: 1 }]}
+                onPress={handleProceedFromPatientDetails}
+              >
+                <Text style={styles.primaryProceedBtnText}>Continue to Schedule</Text>
+                <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* STEP 3: SHIFT TIMING & PREFERENCES */}
+        {flowStep === 3 && (
+          <View>
+            <View style={styles.stepTitleBox}>
+              <Text style={styles.stepMainHeading}>Visit Schedule & Preferences</Text>
+              <Text style={styles.stepSubHeading}>
+                Configure your preferred duration and language to match the best nurse:
+              </Text>
+            </View>
+
+            {/* Shift Duration Type */}
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Required Shift Duration *</Text>
+              <View style={styles.shiftDurationGrid}>
+                {[
+                  { title: 'Single Procedure Visit', desc: '30-45 mins for dressing or injection', icon: 'flash-outline' },
+                  { title: '4-Hour Care Shift', desc: 'Half-day assistance & vitals', icon: 'time-outline' },
+                  { title: '12-Hour Day Shift', desc: 'Daytime monitoring & medication', icon: 'sunny-outline' },
+                  { title: '24-Hour Live-in Care', desc: 'Continuous round-the-clock bedside nursing', icon: 'moon-outline' },
+                ].map((s) => (
+                  <TouchableOpacity
+                    key={s.title}
+                    style={[styles.shiftCard, shiftDuration === s.title && styles.shiftCardActive]}
+                    onPress={() => setShiftDuration(s.title)}
+                    activeOpacity={0.75}
+                  >
+                    <View style={styles.shiftCardTop}>
+                      <Ionicons
+                        name={s.icon}
+                        size={16}
+                        color={shiftDuration === s.title ? '#00B894' : '#64748B'}
+                      />
+                      <Text style={[styles.shiftCardTitle, shiftDuration === s.title && styles.shiftCardTitleActive]}>
+                        {s.title}
+                      </Text>
+                    </View>
+                    <Text style={styles.shiftCardDesc}>{s.desc}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Care Start Date */}
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Care Start Date *</Text>
+              <View style={styles.dateOptionRow}>
+                {[
+                  { id: 'Today', label: 'Today', sub: 'Immediate / Urgent', icon: 'flash-outline' },
+                  { id: 'Tomorrow', label: 'Tomorrow', sub: 'Next Day Planned', icon: 'calendar-outline' },
+                  { id: 'Custom', label: 'Custom Date', sub: 'Choose Date', icon: 'calendar-number-outline' },
+                ].map((d) => {
+                  const isSelected = startDateOption === d.id;
+                  return (
+                    <TouchableOpacity
+                      key={d.id}
+                      style={[styles.dateOptionCard, isSelected && styles.dateOptionCardActive]}
+                      onPress={() => setStartDateOption(d.id)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.dateOptionTop}>
+                        <Ionicons
+                          name={d.icon}
+                          size={15}
+                          color={isSelected ? '#00B894' : '#64748B'}
+                        />
+                        <View style={[styles.dateRadioCircle, isSelected && styles.dateRadioCircleActive]}>
+                          {isSelected && <View style={styles.dateRadioInnerCircle} />}
+                        </View>
+                      </View>
+                      <Text style={[styles.dateOptionLabel, isSelected && styles.dateOptionLabelActive]}>
+                        {d.label}
+                      </Text>
+                      <Text style={styles.dateOptionSub}>{d.sub}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {startDateOption === 'Custom' && (
+                <View style={styles.calendarContainer}>
+                  {/* Calendar Month Navigation Header */}
+                  <View style={styles.calNavHeader}>
+                    <TouchableOpacity
+                      style={[styles.calNavBtn, isCurrentMonthOrPast && styles.calNavBtnDisabled]}
+                      onPress={handlePrevCalMonth}
+                      disabled={isCurrentMonthOrPast}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name="chevron-back"
+                        size={17}
+                        color={isCurrentMonthOrPast ? '#CBD5E1' : '#0F172A'}
+                      />
+                    </TouchableOpacity>
+
+                    <View style={styles.calMonthYearBox}>
+                      <Ionicons name="calendar-outline" size={15} color="#00B894" style={{ marginRight: 5 }} />
+                      <Text style={styles.calMonthYearText}>
+                        {CALENDAR_MONTH_NAMES[calMonth]} {calYear}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.calNavBtn}
+                      onPress={handleNextCalMonth}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="chevron-forward" size={17} color="#0F172A" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Weekdays Row */}
+                  <View style={styles.calWeekdaysRow}>
+                    {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                      <View key={d} style={styles.calWeekdayCell}>
+                        <Text style={styles.calWeekdayText}>{d}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* Calendar Days Grid */}
+                  <View style={styles.calGrid}>
+                    {calendarDays.map((cell) => {
+                      if (cell.type === 'empty') {
+                        return <View key={cell.key} style={styles.calDayCell} />;
+                      }
+
+                      return (
+                        <TouchableOpacity
+                          key={cell.key}
+                          style={[
+                            styles.calDayCell,
+                            cell.isSelected && styles.calDayCellSelected,
+                            cell.isToday && !cell.isSelected && styles.calDayCellToday,
+                          ]}
+                          onPress={() => !cell.isPast && handleSelectCalendarDay(cell.day)}
+                          disabled={cell.isPast}
+                          activeOpacity={0.75}
+                        >
+                          <Text
+                            style={[
+                              styles.calDayText,
+                              cell.isPast && styles.calDayTextPast,
+                              cell.isToday && !cell.isSelected && styles.calDayTextToday,
+                              cell.isSelected && styles.calDayTextSelected,
+                            ]}
+                          >
+                            {cell.day}
+                          </Text>
+                          {cell.isToday && !cell.isSelected && <View style={styles.calTodayDot} />}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* Calendar Footer: Selected Date Banner */}
+                  <View style={styles.calFooterBar}>
+                    <View style={styles.calFooterLeft}>
+                      <Ionicons name="checkmark-circle" size={15} color="#00B894" />
+                      <Text style={styles.calFooterText}>
+                        Selected Date: <Text style={{ fontWeight: '800', color: '#0F172A' }}>{customStartDate}</Text>
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.calQuickTodayBtn}
+                      onPress={() => {
+                        const now = new Date();
+                        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        setCalMonth(now.getMonth());
+                        setCalYear(now.getFullYear());
+                        setSelectedCalDate({ year: now.getFullYear(), month: now.getMonth(), day: now.getDate() });
+                        setCustomStartDate(`${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`);
+                      }}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={styles.calQuickTodayText}>Today</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* Duration of Care - How Many Days */}
+            <View style={styles.formGroup}>
+              <View style={styles.labelWithOptional}>
+                <Text style={styles.formLabel}>How Many Days is Care Required? *</Text>
+                <View style={styles.daysBadge}>
+                  <Ionicons name="time-outline" size={12} color="#0D9488" />
+                  <Text style={styles.daysBadgeText}>
+                    {careDays} {careDays === 1 ? 'Day (Single Visit)' : `Days (${careDays} Daily Visits)`}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Quick Preset Days Pills */}
+              <View style={styles.daysPresetsRow}>
+                {[
+                  { days: 1, label: '1 Day' },
+                  { days: 3, label: '3 Days' },
+                  { days: 7, label: '7 Days (1 Wk)' },
+                  { days: 15, label: '15 Days' },
+                  { days: 30, label: '30 Days' },
+                ].map((preset) => {
+                  const isSelected = careDays === preset.days;
+                  return (
+                    <TouchableOpacity
+                      key={preset.days}
+                      style={[styles.presetDayPill, isSelected && styles.presetDayPillActive]}
+                      onPress={() => setCareDays(preset.days)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.presetDayText, isSelected && styles.presetDayTextActive]}>
+                        {preset.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Interactive Counter Stepper */}
+              <View style={styles.daysCounterContainer}>
+                <Text style={styles.daysCounterTitle}>Adjust Exact Days:</Text>
+                <View style={styles.daysCounterBox}>
+                  <TouchableOpacity
+                    style={[styles.daysCounterBtn, careDays <= 1 && styles.daysCounterBtnDisabled]}
+                    onPress={() => setCareDays(Math.max(1, careDays - 1))}
+                    disabled={careDays <= 1}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="remove" size={17} color={careDays <= 1 ? '#CBD5E1' : '#0F172A'} />
+                  </TouchableOpacity>
+
+                  <View style={styles.daysCounterCenter}>
+                    <Text style={styles.daysCounterNumber}>{careDays}</Text>
+                    <Text style={styles.daysCounterUnit}>{careDays === 1 ? 'Day' : 'Days'}</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.daysCounterBtn, careDays >= 90 && styles.daysCounterBtnDisabled]}
+                    onPress={() => setCareDays(Math.min(90, careDays + 1))}
+                    disabled={careDays >= 90}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="add" size={17} color={careDays >= 90 ? '#CBD5E1' : '#0F172A'} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Dynamic Estimated Pricing Card */}
+              <View style={styles.pricingSummaryCard}>
+                <View style={styles.pricingTopRow}>
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <View style={styles.pricingTagRow}>
+                      <Ionicons name="calculator" size={15} color="#00B894" />
+                      <Text style={styles.pricingTagText}>
+                        Estimated Cost ({pricingDetails.days} {pricingDetails.days === 1 ? 'Day' : 'Days'})
+                      </Text>
+                      {pricingDetails.discountPercent > 0 && (
+                        <View style={styles.discountBadge}>
+                          <Text style={styles.discountBadgeText}>
+                            {pricingDetails.discountPercent}% Off
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.pricingCalcSubtitle}>
+                      ₹{pricingDetails.dailyRate.toLocaleString('en-IN')} / day × {pricingDetails.days} {pricingDetails.days === 1 ? 'visit' : 'daily visits'}
+                    </Text>
+                  </View>
+
+                  <View style={styles.pricingAmountWrap}>
+                    {pricingDetails.discountAmount > 0 && (
+                      <Text style={styles.pricingStrikePrice}>
+                        ₹{pricingDetails.grossTotal.toLocaleString('en-IN')}
+                      </Text>
+                    )}
+                    <Text style={styles.pricingFinalAmount}>
+                      ₹{pricingDetails.finalTotal.toLocaleString('en-IN')}
+                    </Text>
+                    <Text style={styles.pricingPerVisitNote}>Total for {pricingDetails.days} {pricingDetails.days === 1 ? 'Day' : 'Days'}</Text>
+                  </View>
+                </View>
+
+                {pricingDetails.discountAmount > 0 && (
+                  <View style={styles.pricingSavingsRow}>
+                    <Ionicons name="sparkles" size={12} color="#059669" />
+                    <Text style={styles.pricingSavingsText}>
+                      Multi-day package discount: -₹{pricingDetails.discountAmount.toLocaleString('en-IN')} ({pricingDetails.discountPercent}% off)
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.pricingDivider} />
+
+                <View style={styles.pricingGuaranteeRow}>
+                  <Ionicons name="shield-checkmark" size={13} color="#0D9488" />
+                  <Text style={styles.pricingGuaranteeText}>
+                    Zero advance deposit • Pay after visit completion
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Document Upload */}
+            <View style={styles.formGroup}>
+              <View style={styles.labelWithOptional}>
+                <Text style={styles.formLabel}>Prescription or Discharge Summary</Text>
+                <View style={styles.optionalTag}>
+                  <Text style={styles.optionalTagText}>Optional</Text>
+                </View>
+              </View>
+
+              {uploadedDoc ? (
+                <View style={styles.uploadedDocCard}>
+                  <Ionicons name="document-text" size={22} color="#00B894" />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.uploadedDocName} numberOfLines={1}>{uploadedDoc.name}</Text>
+                    <Text style={styles.uploadedDocSize}>{uploadedDoc.type} • {uploadedDoc.size}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setUploadedDoc(null)} style={{ padding: 6 }}>
+                    <Ionicons name="trash-outline" size={17} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.uploadDropZone}
+                  onPress={handleSimulateDocumentUpload}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="cloud-upload-outline" size={26} color="#00B894" />
+                  <Text style={styles.uploadDropTitle}>Attach Prescription / Doctor Notes</Text>
+                  <Text style={styles.uploadDropSub}>PDF, JPG, PNG up to 10 MB</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Nurse Language Preference */}
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Nurse Language Preference</Text>
+              <View style={styles.pillsRow}>
+                {['Kannada / English', 'Kannada', 'English', 'Hindi', 'No Preference'].map((lang) => (
+                  <TouchableOpacity
+                    key={lang}
+                    style={[styles.choicePill, languagePreference === lang && styles.choicePillActive]}
+                    onPress={() => setLanguagePreference(lang)}
+                  >
+                    <Text style={[styles.choicePillText, languagePreference === lang && styles.choicePillTextActive]}>
+                      {lang}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Actions */}
+            <View style={styles.stepDualActionsRow}>
+              <TouchableOpacity
+                style={styles.stepBackOutlineBtn}
+                onPress={() => setFlowStep(2)}
+              >
+                <Text style={styles.stepBackOutlineBtnText}>← Back</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.primaryProceedBtn, { flex: 1 }]}
+                onPress={() => setFlowStep(4)}
+              >
+                <Text style={styles.primaryProceedBtnText}>Review & Confirm</Text>
+                <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* STEP 4: REVIEW & CONFIRM */}
+        {flowStep === 4 && (
+          <View>
+            <View style={styles.stepTitleBox}>
+              <Text style={styles.stepMainHeading}>Review Your Care Request</Text>
+              <Text style={styles.stepSubHeading}>
+                Please confirm details before our care coordinator contacts you:
+              </Text>
+            </View>
+
+            {/* Summary Card */}
+            <View style={styles.reviewCard}>
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewSectionTitle}>Selected Nursing Procedures</Text>
+                <View style={styles.reviewPillsWrap}>
+                  {selectedServices.map((s) => (
+                    <View key={s} style={styles.reviewServicePill}>
+                      <Ionicons name="checkmark-circle" size={13} color="#00B894" />
+                      <Text style={styles.reviewServicePillText}>{s}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.reviewDivider} />
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewSectionTitle}>Patient Information</Text>
+                <View style={styles.reviewGrid}>
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Patient Name:</Text>
+                    <Text style={styles.reviewValue}>{patientName} ({patientAge} yrs, {patientGender})</Text>
+                  </View>
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Relationship:</Text>
+                    <Text style={styles.reviewValue}>{relationship}</Text>
+                  </View>
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Phone:</Text>
+                    <Text style={styles.reviewValue}>{contactNumber}</Text>
+                  </View>
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Address:</Text>
+                    <Text style={styles.reviewValue}>{address}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.reviewDivider} />
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewSectionTitle}>Shift & Schedule</Text>
+                <View style={styles.reviewGrid}>
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Duration:</Text>
+                    <Text style={styles.reviewValue}>{shiftDuration}</Text>
+                  </View>
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Start Date:</Text>
+                    <Text style={styles.reviewValue}>
+                      {startDateOption === 'Custom' ? (customStartDate.trim() || 'Custom Date') : (startDateOption === 'Today' ? 'Today (Immediate)' : 'Tomorrow')}
+                    </Text>
+                  </View>
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Care Duration:</Text>
+                    <Text style={styles.reviewValue}>
+                      {careDays} {careDays === 1 ? 'Day (Single Visit)' : `Days (${careDays} Daily Visits)`}
+                    </Text>
+                  </View>
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Language:</Text>
+                    <Text style={styles.reviewValue}>{languagePreference}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.reviewDivider} />
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewSectionTitle}>Estimated Pricing & Payment</Text>
+                <View style={styles.reviewGrid}>
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Daily Base Rate:</Text>
+                    <Text style={styles.reviewValue}>₹{pricingDetails.dailyRate.toLocaleString('en-IN')} / day</Text>
+                  </View>
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Care Duration:</Text>
+                    <Text style={styles.reviewValue}>{pricingDetails.days} {pricingDetails.days === 1 ? 'Day (Single Visit)' : `Days (${pricingDetails.days} Daily Visits)`}</Text>
+                  </View>
+                  {pricingDetails.discountAmount > 0 && (
+                    <View style={styles.reviewRow}>
+                      <Text style={[styles.reviewLabel, { color: '#059669' }]}>Multi-Day Package Savings ({pricingDetails.discountPercent}%):</Text>
+                      <Text style={[styles.reviewValue, { color: '#059669', fontWeight: '700' }]}>-₹{pricingDetails.discountAmount.toLocaleString('en-IN')}</Text>
+                    </View>
+                  )}
+                  <View style={styles.reviewRow}>
+                    <Text style={[styles.reviewLabel, { fontWeight: '800', color: '#0F172A' }]}>Estimated Total Cost:</Text>
+                    <Text style={[styles.reviewValue, { fontWeight: '800', color: '#00B894', fontSize: 15 }]}>
+                      ₹{pricingDetails.finalTotal.toLocaleString('en-IN')}
+                    </Text>
+                  </View>
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Payment Terms:</Text>
+                    <Text style={styles.reviewValue}>Zero advance • Pay post visit</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Zero Deposit Promise */}
+              <View style={styles.zeroDepositNotice}>
+                <Ionicons name="shield-checkmark" size={17} color="#00B894" />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={styles.zeroDepositTitle}>Zero Advance Payment Needed</Text>
+                  <Text style={styles.zeroDepositSub}>
+                    Our clinical care coordinator will call your registered number within 15 minutes to confirm nurse availability and exact schedule. Payment is due only after care delivery.
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Step 4 Actions */}
+            <View style={styles.stepDualActionsRow}>
+              <TouchableOpacity
+                style={styles.stepBackOutlineBtn}
+                onPress={() => setFlowStep(3)}
+              >
+                <Text style={styles.stepBackOutlineBtnText}>← Edit</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.confirmFinalSubmitBtn, { flex: 1 }]}
+                onPress={handleSubmitCareRequest}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="checkmark-circle" size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.confirmFinalSubmitBtnText}>Submit Care Request</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* STEP 5: SUCCESS STATE */}
+        {flowStep === 5 && newlyCreatedRequest && (
+          <View style={styles.successStateBox}>
+            <View style={styles.successIconOuter}>
+              <View style={styles.successIconInner}>
+                <Ionicons name="checkmark" size={32} color="#FFFFFF" />
+              </View>
+            </View>
+
+            <Text style={styles.successTitle}>Care Request Submitted!</Text>
+            <Text style={styles.successSub}>
+              Your request ID is <Text style={{ fontWeight: '800', color: '#0F172A' }}>{newlyCreatedRequest.id}</Text>
+            </Text>
+
+            <View style={styles.successPricingPill}>
+              <Ionicons name="pricetag" size={15} color="#00B894" />
+              <Text style={styles.successPricingPillText}>
+                Estimated Total: <Text style={{ fontWeight: '800', color: '#0F172A' }}>₹{(newlyCreatedRequest.preferences?.estimatedTotalCost || pricingDetails.finalTotal).toLocaleString('en-IN')}</Text> ({newlyCreatedRequest.preferences?.careDays || pricingDetails.days} {newlyCreatedRequest.preferences?.careDays === 1 ? 'Day' : 'Days'}) • Pay after visit
+              </Text>
+            </View>
+
+            <View style={styles.nextStepsCard}>
+              <Text style={styles.nextStepsHeader}>What happens next?</Text>
+              <View style={styles.nextStepItem}>
+                <Text style={styles.nextStepNum}>1</Text>
+                <Text style={styles.nextStepText}>
+                  MediUnify clinical coordinator calls you at {newlyCreatedRequest.contactNumber} within 15 minutes.
+                </Text>
+              </View>
+              <View style={styles.nextStepItem}>
+                <Text style={styles.nextStepNum}>2</Text>
+                <Text style={styles.nextStepText}>
+                  A suitable licensed nurse (GNM / B.Sc) is assigned with sterile procedure kit.
+                </Text>
+              </View>
+              <View style={styles.nextStepItem}>
+                <Text style={styles.nextStepNum}>3</Text>
+                <Text style={styles.nextStepText}>
+                  Visit schedule and arrival time are confirmed via SMS and live notifications.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.successActionsRow}>
+              <TouchableOpacity
+                style={[styles.trackRequestBtn, { backgroundColor: '#10B981' }]}
+                onPress={() => {
+                  if (navigation?.navigate) {
+                    navigation.navigate('Bookings', { initialTab: 'upcoming', newAppointment: newlyCreatedRequest });
+                  } else {
+                    setSelectedRequestDetail(newlyCreatedRequest);
+                    setCurrentView('MY_REQUESTS');
+                  }
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="calendar-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.trackRequestBtnText}>View in My Bookings</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.trackRequestBtn}
+                onPress={() => {
+                  setSelectedRequestDetail(newlyCreatedRequest);
+                  setCurrentView('MY_REQUESTS');
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="receipt-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.trackRequestBtnText}>Track My Request</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.backToHomeBtn}
+                onPress={() => setCurrentView('LANDING')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.backToHomeBtnText}>Back to Home Care</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+
+  // =========================================================================
+  // VIEW 3: MY REQUESTS & LIVE TRACKING
+  // =========================================================================
+  const renderMyRequestsView = () => (
+    <ScrollView
+      style={styles.scrollContainer}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Top Header */}
+      <View style={styles.myRequestsHeaderRow}>
+        <TouchableOpacity
+          style={styles.flowBackBtn}
+          onPress={() => setCurrentView('LANDING')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={20} color="#0F172A" />
+        </TouchableOpacity>
+
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.myRequestsMainTitle}>My Home Care Requests</Text>
+          <Text style={styles.myRequestsSub}>
+            Track coordinator status and assigned nurse credentials
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={styles.newRequestBtn}
+          onPress={() => {
+            setShowAllServices(false);
+            setFlowStep(1);
+            setCurrentView('REQUEST_FLOW');
+          }}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="add" size={15} color="#FFFFFF" />
+          <Text style={styles.newRequestBtnText}>New Request</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Filter Tabs */}
+      <View style={styles.requestFilterTabsRow}>
+        {['All', 'In Progress', 'Confirmed', 'Completed'].map((tab) => {
+          const isSelected = requestsTabFilter === tab;
+          return (
             <TouchableOpacity
-              style={styles.modalDoneBtn}
-              onPress={() => {
-                setSuccessModalVisible(false);
-                navigation.navigate('Bookings', {
-                  newAppointment: confirmedBooking,
-                  initialTab: 'Home Care',
-                  timestamp: Date.now(),
-                });
-              }}
-              activeOpacity={0.88}
+              key={tab}
+              style={[styles.requestFilterTab, isSelected && styles.requestFilterTabActive]}
+              onPress={() => setRequestsTabFilter(tab)}
+              activeOpacity={0.75}
             >
-              <Text style={styles.modalDoneBtnText}>Go to My Bookings</Text>
+              <Text style={[styles.requestFilterTabText, isSelected && styles.requestFilterTabTextActive]}>
+                {tab}
+              </Text>
             </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* Requests Cards List */}
+      {filteredRequests.length === 0 ? (
+        <View style={styles.emptyRequestsBox}>
+          <Ionicons name="clipboard-outline" size={44} color="#94A3B8" />
+          <Text style={styles.emptyRequestsTitle}>No requests found in "{requestsTabFilter}"</Text>
+          <Text style={styles.emptyRequestsSub}>
+            Need professional nursing care at home? Submit a new request in 2 minutes.
+          </Text>
+          <TouchableOpacity
+            style={styles.emptyStartBtn}
+            onPress={() => {
+              setShowAllServices(false);
+              setFlowStep(1);
+              setCurrentView('REQUEST_FLOW');
+            }}
+          >
+            <Text style={styles.emptyStartBtnText}>Request a Nurse Now</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.requestsCardsList}>
+          {filteredRequests.map((req) => (
+            <View key={req.id} style={styles.requestItemCard}>
+              <View style={styles.reqCardHeader}>
+                <View>
+                  <View style={styles.reqIdRow}>
+                    <Text style={styles.reqIdText}>{req.id}</Text>
+                    <View style={styles.reqStatusPill}>
+                      <Text style={styles.reqStatusText}>{req.status}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.reqDateText}>Requested: {req.requestDate}</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.viewTimelineBtn}
+                  onPress={() => {
+                    setSelectedRequestDetail(req);
+                    setCurrentView('REQUEST_DETAILS');
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.viewTimelineBtnText}>Timeline →</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.reqPatientRow}>
+                <Ionicons name="person-outline" size={15} color="#64748B" />
+                <Text style={styles.reqPatientText}>
+                  Patient: <Text style={{ fontWeight: '700', color: '#0F172A' }}>{req.patientName}</Text> ({req.patientAge} yrs, {req.patientGender})
+                </Text>
+              </View>
+
+              <View style={styles.reqAddressRow}>
+                <Ionicons name="location-outline" size={15} color="#64748B" />
+                <Text style={styles.reqAddressText} numberOfLines={1}>
+                  {req.address}
+                </Text>
+              </View>
+
+              {/* Services tags */}
+              <View style={styles.reqServicesRow}>
+                {req.selectedServices.map((s) => (
+                  <View key={s} style={styles.reqServiceChip}>
+                    <Text style={styles.reqServiceChipText}>{s}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Assigned Nurse Preview if available */}
+              {req.assignedNurse && assignedNursesData[req.assignedNurse] && (
+                <View style={styles.assignedNurseMiniCard}>
+                  <Image
+                    source={{ uri: assignedNursesData[req.assignedNurse].photo }}
+                    style={styles.assignedNurseMiniPhoto}
+                  />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.assignedNurseMiniTitle}>
+                      Assigned: {assignedNursesData[req.assignedNurse].name} ({assignedNursesData[req.assignedNurse].qualification})
+                    </Text>
+                    <Text style={styles.assignedNurseMiniSub}>
+                      Visit: {req.confirmedVisitDate || 'Today'} at {req.confirmedVisitTime || '11:00 AM'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.callNurseBtn}
+                    onPress={() => showAlert('Contact Coordinator', 'Call Care Desk at 1800-425-0099 to coordinate with your nurse.')}
+                  >
+                    <Ionicons name="call" size={14} color="#00B894" />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          ))}
+        </View>
+      )}
+    </ScrollView>
+  );
+
+  // =========================================================================
+  // VIEW 4: DETAILED REQUEST & STAGE TIMELINE
+  // =========================================================================
+  const renderRequestDetailsView = () => {
+    if (!selectedRequestDetail) return null;
+    const req = selectedRequestDetail;
+    const assignedNurse = req.assignedNurse ? assignedNursesData[req.assignedNurse] : null;
+
+    return (
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.detailHeaderRow}>
+          <TouchableOpacity
+            style={styles.flowBackBtn}
+            onPress={() => setCurrentView('MY_REQUESTS')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={20} color="#0F172A" />
+          </TouchableOpacity>
+
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.detailMainTitle}>Care Request Details</Text>
+            <Text style={styles.detailSub}>ID: {req.id} • {req.status}</Text>
           </View>
         </View>
-      </Modal>
+
+        {/* Status Card */}
+        <View style={styles.detailStatusCard}>
+          <View style={styles.detailStatusTop}>
+            <View style={styles.detailPulseWrap}>
+              <View style={styles.detailLiveDot} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.detailStatusTitle}>{req.status}</Text>
+              <Text style={styles.detailStatusDesc}>
+                {req.status === 'Care Team Will Call You' && 'A clinical care coordinator is reviewing your request and will call within 15 minutes.'}
+                {req.status === 'Visit Confirmed' && 'Visit timing confirmed. The assigned nurse will arrive with sterile supplies.'}
+                {req.status === 'Visit Completed' && 'Care delivery completed and signed off.'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Timeline Stages */}
+          <View style={styles.timelineList}>
+            {careTimelineStages.map((stage, idx) => {
+              const isPast = idx <= req.currentStageIndex;
+              const isCurrent = idx === req.currentStageIndex;
+
+              return (
+                <View key={stage.id} style={styles.timelineRow}>
+                  <View style={styles.timelineLeftCol}>
+                    <View
+                      style={[
+                        styles.timelineBullet,
+                        isPast && styles.timelineBulletPast,
+                        isCurrent && styles.timelineBulletCurrent,
+                      ]}
+                    >
+                      {isPast ? (
+                        <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                      ) : (
+                        <View style={styles.timelineBulletFuture} />
+                      )}
+                    </View>
+                    {idx < careTimelineStages.length - 1 && (
+                      <View
+                        style={[
+                          styles.timelineConnectingLine,
+                          isPast && styles.timelineConnectingLinePast,
+                        ]}
+                      />
+                    )}
+                  </View>
+
+                  <View style={styles.timelineContentCol}>
+                    <Text style={[styles.timelineStageLabel, (isPast || isCurrent) && styles.timelineStageLabelActive]}>
+                      {stage.label}
+                    </Text>
+                    <Text style={styles.timelineStageDesc}>{stage.description}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Assigned Nurse Card if available */}
+        {assignedNurse && (
+          <View style={styles.assignedNurseCard}>
+            <Text style={styles.assignedCardHeader}>Assigned Clinical Nurse</Text>
+            <View style={styles.assignedCardBody}>
+              <Image source={{ uri: assignedNurse.photo }} style={styles.assignedPhotoLarge} />
+              <View style={{ flex: 1, marginLeft: 14 }}>
+                <Text style={styles.assignedNameLarge}>{assignedNurse.name}</Text>
+                <Text style={styles.assignedQualLarge}>{assignedNurse.qualification} • {assignedNurse.experience} exp</Text>
+                <Text style={styles.assignedSpecLarge}>
+                  Specialty: {assignedNurse.specialization || (Array.isArray(assignedNurse.specialties) ? assignedNurse.specialties.join(', ') : 'General Nursing')}
+                </Text>
+                <Text style={styles.assignedRegLarge}>Council Reg: {assignedNurse.councilReg || assignedNurse.regNumber || 'KNC Verified'}</Text>
+              </View>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.rootContainer}>
+      {currentView === 'LANDING' && renderLandingView()}
+      {currentView === 'REQUEST_FLOW' && renderRequestFlowView()}
+      {currentView === 'MY_REQUESTS' && renderMyRequestsView()}
+      {currentView === 'REQUEST_DETAILS' && renderRequestDetailsView()}
     </SafeAreaView>
   );
 };
 
-// ==========================================
-// STYLES
-// ==========================================
-
 const styles = StyleSheet.create({
-  safeArea: {
+  rootContainer: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#F8FAFC',
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 40,
   },
 
-  // DESKTOP BREADCRUMB
-  desktopBreadcrumbWrap: {
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  desktopBreadcrumbInner: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  breadcrumbLink: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1E3A8A',
-  },
-  breadcrumbCurrent: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  breadcrumbActive: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  nurseVerifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#F0FDF4',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-  },
-  nurseVerifiedBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#059669',
-  },
-
-  // HEADER (ELEVATED MOBILE HEADER)
-  header: {
+  // Top Bar Row
+  topBarRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    paddingTop: Platform.OS === 'ios' ? 4 : 8,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
+    borderBottomColor: '#E2E8F0',
+    marginBottom: 16,
+    gap: 8,
   },
-  backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
-    justifyContent: 'center',
+  headerLeftGroup: {
+    flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+  },
+  headerTitleWrap: {
+    marginLeft: 8,
+    flex: 1,
+  },
+  backCircleBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-  },
-  headerCenter: {
-    flex: 1,
-    marginLeft: 12,
-    marginRight: 8,
-  },
-  headerStepBadge: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#0D9488',
-    letterSpacing: 0.5,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 16,
-    fontWeight: '900',
+    fontSize: 15.5,
+    fontWeight: '800',
     color: '#0F172A',
+  },
+  liveVerifiedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    gap: 4,
+    marginTop: 2,
+    alignSelf: 'flex-start',
+  },
+  livePulseDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#10B981',
+  },
+  liveVerifiedPillText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#047857',
   },
   helplineBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F766E',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
     gap: 4,
   },
   helplineBtnText: {
-    color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '800',
+    color: '#0D9488',
   },
 
-  // 3-STEP PROGRESS STRIP (ELEVATED)
-  stepStrip: {
+  // Hero Banner Card
+  heroBannerCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 6,
+  },
+  heroBadgePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    backgroundColor: 'rgba(94, 234, 212, 0.12)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(94, 234, 212, 0.25)',
+    gap: 5,
+    marginBottom: 12,
   },
-  stepStripItem: {
+  heroBadgePillText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#5EEAD4',
+  },
+  heroHeadline: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    lineHeight: 28,
+    letterSpacing: -0.4,
+    marginBottom: 8,
+  },
+  heroHeadlineAccent: {
+    color: '#2DD4BF',
+  },
+  heroSubheadline: {
+    fontSize: 13,
+    color: '#CBD5E1',
+    lineHeight: 19,
+    marginBottom: 16,
+  },
+  heroValuePropsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 18,
+  },
+  heroValueItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  heroValueText: {
+    fontSize: 11,
+    color: '#E2E8F0',
+    fontWeight: '600',
+  },
+  heroActionsRow: {
+    flexDirection: 'column',
+    gap: 10,
+    marginBottom: 16,
+  },
+  heroPrimaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00B894',
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  heroPrimaryBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  heroSecondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+  },
+  heroSecondaryBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#E2E8F0',
+  },
+
+  // Quick Match Box inside Hero
+  quickMatchCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  quickMatchHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    marginBottom: 8,
   },
-  stepStripCircle: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#F1F5F9',
+  quickMatchTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  quickMatchSub: {
+    fontSize: 11,
+    color: '#94A3B8',
+  },
+  quickMatchChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+  },
+  quickChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(13, 148, 136, 0.22)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(45, 212, 191, 0.35)',
+    gap: 5,
+  },
+  quickChipText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#5EEAD4',
+  },
+
+  // Stats Grid (2x2 on Mobile with clean card items)
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 24,
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  statBox: {
+    width: '48%',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#00B894',
+    letterSpacing: -0.5,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+    marginTop: 3,
+    textAlign: 'center',
+  },
+
+  // Search & Filters
+  searchSectionWrap: {
+    marginBottom: 16,
+  },
+  sectionHeaderRow: {
+    marginBottom: 12,
+  },
+  sectionHeading: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -0.3,
+  },
+  sectionSubheading: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  searchInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
+    height: 44,
+  },
+  searchInput: {
+    flex: 1,
+    paddingHorizontal: 10,
+    fontSize: 13,
+    color: '#0F172A',
+  },
+  categoryPillsScroll: {
+    paddingVertical: 2,
+    gap: 8,
+  },
+  categoryPillBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#CBD5E1',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
-  stepStripCircleActive: {
-    backgroundColor: '#0D9488',
-    borderColor: '#0D9488',
-  },
-  stepStripCirclePassed: {
+  categoryPillBtnActive: {
     backgroundColor: '#0F172A',
     borderColor: '#0F172A',
   },
-  stepStripNum: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#64748B',
-  },
-  stepStripNumActive: {
-    color: '#FFFFFF',
-  },
-  stepStripLabel: {
-    fontSize: 11,
+  categoryPillBtnText: {
+    fontSize: 12,
     fontWeight: '600',
-    color: '#64748B',
+    color: '#475569',
   },
-  stepStripLabelActive: {
-    color: '#0D9488',
+  categoryPillBtnTextActive: {
+    color: '#FFFFFF',
     fontWeight: '800',
   },
-  stepStripLine: {
-    flex: 1,
-    height: 2,
-    backgroundColor: '#E2E8F0',
-    marginHorizontal: 4,
-  },
-  stepStripLineActive: {
-    backgroundColor: '#0D9488',
-  },
 
-  scrollContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
+  // Services Grid
+  servicesGrid: {
+    gap: 14,
+    marginBottom: 28,
   },
-  stepWrap: {
-    width: '100%',
-    gap: 12,
-  },
-
-  // 1. CLINICAL TRUST HERO BANNER (REDESIGNED)
-  nurseHeroCardRedesigned: {
-    backgroundColor: '#F0FDFA',
-    borderRadius: 20,
+  serviceElevatedCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1.5,
-    borderColor: '#99F6E4',
-    shadowColor: '#0D9488',
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 10,
-    elevation: 3,
-    marginBottom: 4,
+    elevation: 2,
   },
-  nurseHeroTopTagRow: {
+  serviceElevatedCardSelected: {
+    borderColor: '#00B894',
+    backgroundColor: '#F0FDFA',
+  },
+  cardHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 10,
-    flexWrap: 'wrap',
-    gap: 6,
   },
-  nurseAccreditedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#CCFBF1',
+  categoryBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 3.5,
-    borderRadius: 12,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
-  nurseAccreditedBadgeText: {
-    fontSize: 9.5,
+  categoryBadgeText: {
+    fontSize: 10.5,
     fontWeight: '800',
-    color: '#0F766E',
-    letterSpacing: 0.4,
   },
-  liveDutyBadge: {
+  tagBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 8,
-    paddingVertical: 3.5,
-    borderRadius: 12,
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#99F6E4',
+    gap: 3,
   },
-  liveDutyPulseDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: '#10B981',
+  tagBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#0D9488',
   },
-  liveDutyBadgeText: {
-    fontSize: 9.5,
-    fontWeight: '900',
-    color: '#047857',
-    letterSpacing: 0.4,
+  serviceTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
   },
-  nurseHeroHeading: {
-    fontSize: 17,
-    fontWeight: '900',
+  serviceIconContainer: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  serviceCardTitle: {
+    fontSize: 15,
+    fontWeight: '800',
     color: '#0F172A',
-    lineHeight: 23,
-    marginBottom: 6,
   },
-  nurseHeroSubheading: {
-    fontSize: 12,
+  serviceCardDuration: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  serviceCardDesc: {
+    fontSize: 12.5,
     color: '#475569',
     lineHeight: 18,
-    marginBottom: 14,
+    marginBottom: 10,
   },
-  nursePillarsRow: {
+  consumablesPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginBottom: 14,
+    gap: 6,
+    marginBottom: 12,
   },
-  nursePillarItem: {
+  consumablesText: {
+    fontSize: 11,
+    color: '#475569',
     flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 2,
   },
-  nursePillarIconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#F8FAFC',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  nursePillarText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#1E293B',
-    textAlign: 'center',
-    lineHeight: 13,
-  },
-  nurseHeroCallBanner: {
+  serviceCardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#0F766E',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
   },
-  nurseHeroCallLeft: {
+  pricingCol: {},
+  priceSub: {
+    fontSize: 10,
+    color: '#94A3B8',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  priceValue: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#00B894',
+  },
+  bookServiceBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    flex: 1,
+    backgroundColor: '#0F172A',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 10,
+    gap: 5,
   },
-  nurseHeroCallIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  nurseHeroCallTitle: {
+  bookServiceBtnText: {
     fontSize: 12.5,
     fontWeight: '800',
     color: '#FFFFFF',
   },
-  nurseHeroCallSub: {
-    fontSize: 10.5,
-    color: '#CCFBF1',
-    marginTop: 1,
-  },
 
-  // COMMON SECTION CARD STYLES
-  sectionCard: {
+  // Nurses Section
+  nursesSection: {
+    marginBottom: 28,
+  },
+  nursesScrollRow: {
+    gap: 12,
+    paddingVertical: 4,
+  },
+  nurseCard: {
+    width: 260,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 16,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
-  },
-  sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    marginBottom: 14,
   },
-  sectionIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+  nursePhotoWrapper: {
+    position: 'relative',
+  },
+  nursePhoto: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#E2E8F0',
+  },
+  nurseVerifiedCheck: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 17,
+    height: 17,
+    borderRadius: 8.5,
+    backgroundColor: '#00B894',
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sectionTitle: {
-    fontSize: 14.5,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  sectionSub: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
-  },
-
-  // 2. CLINICAL NEED CHIPS
-  purposesScroll: {
-    gap: 8,
-    paddingVertical: 2,
-  },
-  purposeChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    borderColor: '#FFFFFF',
   },
-  purposeChipActive: {
-    backgroundColor: '#F0FDFA',
-    borderColor: '#0D9488',
+  nurseInfoCol: {
+    flex: 1,
+    marginLeft: 10,
   },
-  purposeIconWrap: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  purposeChipText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  purposeChipTextActive: {
-    color: '#0F766E',
-    fontWeight: '800',
-  },
-
-  // 3. MODERN SHIFT CARDS
-  modernShiftsGrid: {
-    gap: 10,
-  },
-  modernShiftCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    padding: 14,
-  },
-  modernShiftCardActive: {
-    borderColor: '#0D9488',
-    backgroundColor: '#F0FDFA',
-    shadowColor: '#0D9488',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  modernShiftTop: {
+  nurseNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
   },
-  modernShiftBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  modernShiftBadgeActive: {
-    backgroundColor: '#0D9488',
-  },
-  modernShiftBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#475569',
-  },
-  modernShiftBadgeTextActive: {
-    color: '#FFFFFF',
-  },
-  radioCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#CBD5E1',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  radioCircleActive: {
-    borderColor: '#0D9488',
-  },
-  radioDotInner: {
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
-    backgroundColor: '#0D9488',
-  },
-  modernShiftName: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 4,
-  },
-  modernShiftNameActive: {
-    color: '#0F766E',
-  },
-  modernShiftTimingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginBottom: 5,
-  },
-  modernShiftTimingText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  modernShiftDesc: {
-    fontSize: 11,
-    color: '#64748B',
-    lineHeight: 16,
-    marginBottom: 8,
-  },
-  modernShiftPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'flex-end',
-    gap: 2,
-  },
-  modernShiftRateText: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  modernShiftRateSub: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-
-  // 4. PACKAGE DEALS & STEPPER
-  hotPillBadge: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  hotPillBadgeText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: '#B45309',
-  },
-  dealCalloutBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF1F2',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    marginBottom: 12,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#FECDD3',
-  },
-  dealCalloutBannerText: {
-    fontSize: 11.5,
-    color: '#9F1239',
-    flex: 1,
-    lineHeight: 16,
-  },
-  packageCardsList: {
-    gap: 8,
-  },
-  packageCardItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    padding: 12,
-  },
-  packageCardItemActive: {
-    borderColor: '#0D9488',
-    backgroundColor: '#F0FDFA',
-  },
-  packageCardTitle: {
+  nurseName: {
     fontSize: 13.5,
     fontWeight: '800',
     color: '#0F172A',
   },
-  packageCardTitleActive: {
-    color: '#0F766E',
-  },
-  packageDiscountTag: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  packageDiscountTagText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#15803D',
-  },
-  packageCardSubtitle: {
-    fontSize: 10.5,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  packageCardPrice: {
-    fontSize: 14.5,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  packageCardPriceActive: {
-    color: '#0F766E',
-  },
-  packageSaveAmountBadge: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#15803D',
-    marginTop: 1,
-  },
-  stepperContainer: {
+  nurseRatingPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
-    padding: 12,
-    borderRadius: 10,
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  stepperPromptTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  stepperPromptSub: {
-    fontSize: 10,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  stepperRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-    overflow: 'hidden',
-  },
-  stepperActionBtn: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-  },
-  stepperNumberDisplay: {
-    paddingHorizontal: 12,
-    minWidth: 70,
-    alignItems: 'center',
-  },
-  stepperNumberText: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-
-  // 5. VERIFIED NURSES SPOTLIGHT CAROUSEL
-  nursesCarouselScroll: {
-    gap: 12,
-    paddingVertical: 4,
-  },
-  nurseProfileCard: {
-    width: 250,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 12,
-  },
-  nurseProfileHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  nurseAvatarImg: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    borderWidth: 1.5,
-    borderColor: '#0D9488',
-  },
-  nurseProfileName: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  nurseProfileDegree: {
-    fontSize: 10.5,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  nurseRatingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    marginTop: 2,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 5,
+    gap: 2,
   },
   nurseRatingText: {
     fontSize: 10.5,
     fontWeight: '800',
     color: '#B45309',
   },
-  nurseProfileDivider: {
-    height: 1,
-    backgroundColor: '#E2E8F0',
-    marginVertical: 8,
+  nurseQualification: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
   },
-  nurseMetaLine: {
+  nurseRegId: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginTop: 1,
+  },
+  nurseSpecializationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 3,
+    gap: 4,
+    marginTop: 4,
   },
-  nurseMetaText: {
+  nurseSpecializationText: {
     fontSize: 10.5,
-    color: '#475569',
+    color: '#0F766E',
+    fontWeight: '600',
     flex: 1,
   },
+  nurseLanguagesText: {
+    fontSize: 10,
+    color: '#64748B',
+    marginTop: 3,
+  },
 
-  // 6. CLINICAL SAFETY GUARANTEE
-  clinicalAssuranceCard: {
+  // How It Works
+  howItWorksSection: {
+    marginBottom: 28,
+  },
+  stepsList: {
+    gap: 10,
+  },
+  stepCard: {
     flexDirection: 'row',
-    gap: 12,
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    padding: 14,
+    backgroundColor: '#FFFFFF',
     borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  stepNumberBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#A7F3D0',
-    marginBottom: 4,
   },
-  clinicalAssuranceTitle: {
-    fontSize: 13,
+  stepNumberText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#00B894',
+  },
+  stepTitle: {
+    fontSize: 13.5,
     fontWeight: '800',
-    color: '#065F46',
-    marginBottom: 2,
+    color: '#0F172A',
   },
-  clinicalAssuranceBody: {
-    fontSize: 11,
-    color: '#047857',
+  stepDesc: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2,
     lineHeight: 16,
   },
 
-  // SHARED CARDS & RADIO (FOR STEPS 2 & 3)
-  card: {
-    backgroundColor: colors.cardBg,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
+  // Testimonials
+  testimonialsSection: {
+    marginBottom: 28,
   },
-  cardHeader: {
+  testimonialsScrollRow: {
+    gap: 12,
+    paddingVertical: 4,
+  },
+  testimonialCard: {
+    width: 270,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    justifyContent: 'space-between',
+  },
+  testimonialStarsRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 8,
+  },
+  testimonialVerifiedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 5,
+    marginLeft: 'auto',
+    gap: 2,
+  },
+  testimonialVerifiedText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  testimonialQuote: {
+    fontSize: 12,
+    color: '#334155',
+    lineHeight: 17,
+    fontStyle: 'italic',
     marginBottom: 12,
+  },
+  testimonialAuthorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  authorAvatarCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#00B894',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  authorAvatarText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  authorName: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  authorFamily: {
+    fontSize: 10,
+    color: '#64748B',
+  },
+  authorServiceTag: {
+    fontSize: 10,
+    color: '#00B894',
+    fontWeight: '700',
+  },
+
+  // FAQ
+  faqSection: {
+    marginBottom: 28,
+  },
+  faqHeader: {
+    marginBottom: 12,
+  },
+  faqTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  faqSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  faqList: {
+    gap: 8,
+  },
+  faqItemCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  faqItemCardOpen: {
+    borderColor: '#00B894',
+    backgroundColor: '#FCFDFE',
+  },
+  faqQuestionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  faqQuestionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+    flex: 1,
+  },
+  faqQuestionTextActive: {
+    color: '#00B894',
+  },
+  faqAnswerWrap: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  faqAnswerText: {
+    fontSize: 12,
+    color: '#475569',
+    lineHeight: 18,
+  },
+
+  // Emergency Strip
+  emergencyStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0D9488',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
     gap: 10,
   },
-  cardHeaderIcon: {
+  emergencyIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emergencyTitle: {
+    fontSize: 13.5,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  emergencySub: {
+    fontSize: 11.5,
+    color: '#CCFBF1',
+    marginTop: 1,
+  },
+  emergencyCallNowBtn: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  emergencyCallNowBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F766E',
+  },
+
+  // =========================================================================
+  // REQUEST FLOW WIZARD STYLES
+  // =========================================================================
+  flowRoot: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  flowHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  flowBackBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  flowHeaderTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  flowHeaderSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  flowCloseBtn: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: colors.lightTeal,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  cardTitle: {
-    fontSize: 14,
+
+  // Stepper Container
+  stepperContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  stepItemWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  stepperCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+  },
+  stepperCircleDone: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
+  },
+  stepperCircleCurrent: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
+  },
+  stepperCircleText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  stepperCircleTextCurrent: {
+    color: '#FFFFFF',
+  },
+  stepperLabelText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  stepperLabelTextCurrent: {
+    color: '#00B894',
+    fontWeight: '800',
+  },
+  stepperConnectingLine: {
+    width: 10,
+    height: 2,
+    backgroundColor: '#E2E8F0',
+    marginLeft: 3,
+  },
+  stepperConnectingLineActive: {
+    backgroundColor: '#00B894',
+  },
+
+  flowScroll: {
+    flex: 1,
+  },
+  flowScrollContent: {
+    padding: 16,
+    paddingBottom: 50,
+  },
+  stepTitleBox: {
+    marginBottom: 14,
+  },
+  stepMainHeading: {
+    fontSize: 18,
     fontWeight: '900',
-    color: colors.secondary,
+    color: '#0F172A',
   },
-  cardSub: {
+  stepSubHeading: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+
+  // Selected Confirmed Card Styles
+  selectedConfirmedWrap: {
+    marginBottom: 16,
+  },
+  singleSelectedCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#00B894',
+    marginBottom: 12,
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  singleSelectedTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  singleSelectedTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  singleSelectedPrice: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#00B894',
+  },
+  singleSelectedMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 3,
+  },
+  greenCheckBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    gap: 3,
+  },
+  greenCheckBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#047857',
+  },
+  singleSelectedDuration: {
     fontSize: 11,
-    color: colors.textSecondary,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  singleSelectedDesc: {
+    fontSize: 12,
+    color: '#475569',
+    lineHeight: 17,
+    marginBottom: 10,
+  },
+  singleSelectedKitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    gap: 6,
+  },
+  singleSelectedKitText: {
+    fontSize: 11,
+    color: '#0F766E',
+    flex: 1,
+  },
+  addMoreServicesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#0D9488',
+    backgroundColor: '#F0FDFA',
+    gap: 6,
+    marginBottom: 12,
+  },
+  addMoreServicesBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#0D9488',
+  },
+  bookingSelectedTrustBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  bookingSelectedTrustTitle: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  bookingSelectedTrustSub: {
+    fontSize: 10.5,
+    color: '#64748B',
     marginTop: 1,
   },
-  radio: {
+  doneAddingPill: {
+    marginLeft: 'auto',
+    backgroundColor: '#00B894',
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  doneAddingPillText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  selectedCountBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    gap: 6,
+    marginBottom: 12,
+  },
+  selectedCountBannerText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  errorAlertBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    marginBottom: 10,
+  },
+  errorAlertText: {
+    fontSize: 11.5,
+    color: '#DC2626',
+    fontWeight: '600',
+  },
+
+  servicesSelectList: {
+    gap: 8,
+    marginBottom: 16,
+  },
+  serviceSelectCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+  },
+  serviceSelectCardChecked: {
+    borderColor: '#00B894',
+    backgroundColor: '#F0FDFA',
+  },
+  customCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+    backgroundColor: '#FFFFFF',
+  },
+  customCheckboxChecked: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
+  },
+  selectCardIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  selectCardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectCardTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  selectCardPrice: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#00B894',
+  },
+  selectCardDesc: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  selectCardKit: {
+    fontSize: 10.5,
+    color: '#475569',
+    marginTop: 3,
+  },
+
+  // Form Controls
+  formGroup: {
+    marginBottom: 14,
+  },
+  formLabel: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 5,
+  },
+  formInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 13,
+    color: '#0F172A',
+  },
+  formInputError: {
+    borderColor: '#EF4444',
+  },
+  formErrorText: {
+    fontSize: 10.5,
+    color: '#EF4444',
+    marginTop: 3,
+    fontWeight: '600',
+  },
+  formRow: {
+    flexDirection: 'row',
+  },
+  pillsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  choicePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+  },
+  choicePillActive: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
+  },
+  choicePillText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  choicePillTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+
+  // Shift Cards
+  shiftDurationGrid: {
+    gap: 8,
+  },
+  shiftCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+  },
+  shiftCardActive: {
+    borderColor: '#00B894',
+    backgroundColor: '#F0FDFA',
+  },
+  shiftCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  shiftCardTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  shiftCardTitleActive: {
+    color: '#0D9488',
+  },
+  shiftCardDesc: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+    marginLeft: 24,
+  },
+
+  labelWithOptional: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 5,
+  },
+  optionalTag: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  optionalTagText: {
+    fontSize: 9.5,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+
+  uploadDropZone: {
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#0D9488',
+    borderRadius: 10,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadDropTitle: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#0F766E',
+    marginTop: 4,
+  },
+  uploadDropSub: {
+    fontSize: 10.5,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  uploadedDocCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  uploadedDocName: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  uploadedDocSize: {
+    fontSize: 10.5,
+    color: '#047857',
+  },
+
+  // Action Footers
+  stepActionFooter: {
+    marginTop: 10,
+  },
+  stepDualActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 14,
+  },
+  stepBackOutlineBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+  },
+  stepBackOutlineBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  primaryProceedBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00B894',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    gap: 6,
+  },
+  primaryProceedBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  confirmFinalSubmitBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00B894',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+  confirmFinalSubmitBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  // Review Screen
+  reviewCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 16,
+  },
+  reviewSection: {
+    marginVertical: 4,
+  },
+  reviewSectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  reviewPillsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  reviewServicePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  reviewServicePillText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  reviewDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 10,
+  },
+  reviewGrid: {
+    gap: 5,
+  },
+  reviewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  reviewLabel: {
+    fontSize: 11.5,
+    color: '#64748B',
+    fontWeight: '600',
+    width: 100,
+  },
+  reviewValue: {
+    fontSize: 11.5,
+    color: '#0F172A',
+    fontWeight: '700',
+    flex: 1,
+    textAlign: 'right',
+  },
+  zeroDepositNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#F0FDFA',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    marginTop: 12,
+  },
+  zeroDepositTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F766E',
+  },
+  zeroDepositSub: {
+    fontSize: 11,
+    color: '#115E59',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+
+  // Success Box
+  successStateBox: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  successIconOuter: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  successIconInner: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#00B894',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  successTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+  successSub: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  nextStepsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    width: '100%',
+    marginVertical: 18,
+  },
+  nextStepsHeader: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 10,
+  },
+  nextStepItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  nextStepNum: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#ECFDF5',
+    color: '#00B894',
+    fontWeight: '800',
+    fontSize: 11,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginRight: 8,
+  },
+  nextStepText: {
+    fontSize: 12,
+    color: '#475569',
+    flex: 1,
+    lineHeight: 17,
+  },
+  successActionsRow: {
+    width: '100%',
+    gap: 10,
+  },
+  trackRequestBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00B894',
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  trackRequestBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  backToHomeBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 11,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+  },
+  backToHomeBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+
+  // My Requests View
+  myRequestsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  myRequestsMainTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  myRequestsSub: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  newRequestBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#00B894',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 3,
+  },
+  newRequestBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  requestFilterTabsRow: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 14,
+  },
+  requestFilterTab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  requestFilterTabActive: {
+    backgroundColor: '#0F172A',
+  },
+  requestFilterTabText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  requestFilterTabTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  emptyRequestsBox: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  emptyRequestsTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 8,
+  },
+  emptyRequestsSub: {
+    fontSize: 11.5,
+    color: '#64748B',
+    textAlign: 'center',
+    paddingHorizontal: 20,
+    marginTop: 4,
+    marginBottom: 14,
+  },
+  emptyStartBtn: {
+    backgroundColor: '#00B894',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+  emptyStartBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  requestsCardsList: {
+    gap: 12,
+  },
+  requestItemCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  reqCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  reqIdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  reqIdText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  reqStatusPill: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 5,
+  },
+  reqStatusText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  reqDateText: {
+    fontSize: 10.5,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  viewTimelineBtn: {
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  viewTimelineBtnText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#0D9488',
+  },
+  reqPatientRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  reqPatientText: {
+    fontSize: 11.5,
+    color: '#475569',
+  },
+  reqAddressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+  },
+  reqAddressText: {
+    fontSize: 11,
+    color: '#64748B',
+    flex: 1,
+  },
+  reqServicesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5,
+  },
+  reqServiceChip: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 5,
+  },
+  reqServiceChipText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  assignedNurseMiniCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    marginTop: 10,
+  },
+  assignedNurseMiniPhoto: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  assignedNurseMiniTitle: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#0F766E',
+  },
+  assignedNurseMiniSub: {
+    fontSize: 10,
+    color: '#14B8A6',
+    marginTop: 1,
+  },
+  callNurseBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+  },
+
+  // Details & Timeline View
+  detailHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  detailMainTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  detailSub: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  detailStatusCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 16,
+  },
+  detailStatusTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 16,
+  },
+  detailPulseWrap: {
     width: 18,
     height: 18,
     borderRadius: 9,
-    borderWidth: 2,
-    borderColor: colors.border,
-    justifyContent: 'center',
+    backgroundColor: '#DCFCE7',
     alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
   },
-  radioActive: {
-    borderColor: colors.primary,
-  },
-  radioDot: {
+  detailLiveDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.primary,
+    backgroundColor: '#16A34A',
   },
-
-  // STEP 2: DATES & CALENDAR
-  dateTabsRow: {
+  detailStatusTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  detailStatusDesc: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  timelineList: {
+    paddingLeft: 6,
+  },
+  timelineRow: {
+    flexDirection: 'row',
+    minHeight: 50,
+  },
+  timelineLeftCol: {
+    alignItems: 'center',
+    width: 20,
+  },
+  timelineBullet: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  timelineBulletPast: {
+    backgroundColor: '#00B894',
+  },
+  timelineBulletCurrent: {
+    backgroundColor: '#0F172A',
+  },
+  timelineBulletFuture: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#94A3B8',
+  },
+  timelineConnectingLine: {
+    width: 2,
+    flex: 1,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 2,
+  },
+  timelineConnectingLinePast: {
+    backgroundColor: '#00B894',
+  },
+  timelineContentCol: {
+    flex: 1,
+    marginLeft: 12,
+    paddingBottom: 14,
+  },
+  timelineStageLabel: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  timelineStageLabelActive: {
+    color: '#0F172A',
+    fontWeight: '800',
+  },
+  timelineStageDesc: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 1,
+  },
+  assignedNurseCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 20,
+  },
+  assignedCardHeader: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 10,
+  },
+  assignedCardBody: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-    gap: 8,
   },
-  dateTab: {
-    flex: 1,
-    backgroundColor: colors.white,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    padding: 10,
-    alignItems: 'center',
+  assignedPhotoLarge: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
   },
-  dateTabActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.lightTeal,
-  },
-  dateTabLabel: {
-    fontSize: 9,
+  assignedNameLarge: {
+    fontSize: 13.5,
     fontWeight: '800',
-    color: colors.textSecondary,
-    marginBottom: 2,
+    color: '#0F172A',
   },
-  dateTabVal: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: colors.secondary,
+  assignedQualLarge: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
   },
-  dateTabSub: {
-    fontSize: 10,
-    color: colors.textMuted,
-  },
-  dateTabArrow: {
-    alignItems: 'center',
-  },
-  dateTabDaysText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: colors.primary,
+  assignedSpecLarge: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#00B894',
     marginTop: 2,
   },
-  calHintText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: colors.primary,
-    textAlign: 'center',
-    marginBottom: 8,
+  assignedRegLarge: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginTop: 1,
   },
-  calContainer: {
-    backgroundColor: colors.white,
+  // Date Option Styles
+  dateOptionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  dateOptionCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: 10,
   },
-  calNavRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+  dateOptionCardActive: {
+    borderColor: '#00B894',
+    backgroundColor: '#F0FDF4',
   },
-  calArrowBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    backgroundColor: colors.lightSlate,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  calMonthText: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: colors.secondary,
-  },
-  calDayNamesRow: {
+  dateOptionTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingBottom: 4,
+    alignItems: 'center',
     marginBottom: 4,
   },
-  calDayNameText: {
-    width: `${100 / 7}%`,
-    textAlign: 'center',
+  dateRadioCircle: {
+    width: 15,
+    height: 15,
+    borderRadius: 7.5,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateRadioCircleActive: {
+    borderColor: '#00B894',
+  },
+  dateRadioInnerCircle: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#00B894',
+  },
+  dateOptionLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  dateOptionLabelActive: {
+    color: '#00B894',
+  },
+  dateOptionSub: {
     fontSize: 10,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  customDateInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#00B894',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginTop: 8,
+  },
+  customDateInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
+  },
+  // Days Duration Styles
+  daysBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    gap: 4,
+  },
+  daysBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0D9488',
+  },
+  daysPresetsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  presetDayPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+  },
+  presetDayPillActive: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
+  },
+  presetDayText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  presetDayTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  daysCounterContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  daysCounterTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  daysCounterBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    padding: 2,
+  },
+  daysCounterBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 7,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  daysCounterBtnDisabled: {
+    opacity: 0.4,
+  },
+  daysCounterCenter: {
+    minWidth: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  daysCounterNumber: {
+    fontSize: 15,
     fontWeight: '800',
-    color: colors.textSecondary,
+    color: '#0F172A',
+  },
+  daysCounterUnit: {
+    fontSize: 9.5,
+    fontWeight: '600',
+    color: '#64748B',
+    textTransform: 'uppercase',
+  },
+  // Dynamic Pricing Card Styles
+  pricingSummaryCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#CCFBF1',
+    padding: 12,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  pricingTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  pricingTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 3,
+    flexWrap: 'wrap',
+  },
+  pricingTagText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  discountBadge: {
+    backgroundColor: '#ECFDF5',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  discountBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  pricingCalcSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  pricingAmountWrap: {
+    alignItems: 'flex-end',
+  },
+  pricingStrikePrice: {
+    fontSize: 11,
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+    fontWeight: '600',
+  },
+  pricingFinalAmount: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: '#00B894',
+  },
+  pricingPerVisitNote: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  pricingSavingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+    marginTop: 8,
+    gap: 5,
+  },
+  pricingSavingsText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  pricingDivider: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 10,
+  },
+  pricingGuaranteeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  pricingGuaranteeText: {
+    fontSize: 10.5,
+    color: '#0D9488',
+    fontWeight: '600',
+    flex: 1,
+  },
+  successPricingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 18,
+    marginTop: 10,
+    gap: 6,
+  },
+  successPricingPillText: {
+    fontSize: 12,
+    color: '#1E293B',
+    fontWeight: '600',
+  },
+  // Mobile Calendar Widget Styles
+  calendarContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    marginTop: 8,
+  },
+  calNavHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  calNavBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calNavBtnDisabled: {
+    opacity: 0.35,
+  },
+  calMonthYearBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  calMonthYearText: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  calWeekdaysRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 5,
+    marginBottom: 3,
+  },
+  calWeekdayCell: {
+    width: '14.28%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calWeekdayText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94A3B8',
   },
   calGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
-  calCellEmpty: {
-    width: `${100 / 7}%`,
-    height: 36,
-  },
-  calCell: {
-    width: `${100 / 7}%`,
-    height: 36,
-    justifyContent: 'center',
+  calDayCell: {
+    width: '14.28%',
+    height: 35,
     alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    borderRadius: 8,
     marginVertical: 1,
   },
-  calCellInRange: {
-    backgroundColor: '#E0F2FE',
+  calDayCellSelected: {
+    backgroundColor: '#00B894',
   },
-  calCellStart: {
-    backgroundColor: '#E0F2FE',
-    borderTopLeftRadius: 14,
-    borderBottomLeftRadius: 14,
-  },
-  calCellEnd: {
-    backgroundColor: '#E0F2FE',
-    borderTopRightRadius: 14,
-    borderBottomRightRadius: 14,
-  },
-  calCellDisabled: {
-    opacity: 0.3,
-  },
-  calCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  calCircleActive: {
-    backgroundColor: colors.primary,
-  },
-  calDayText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: colors.secondary,
-  },
-  calDayTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-  },
-  calDayTextInRange: {
-    color: colors.secondary,
-    fontWeight: '800',
-  },
-  calDayTextDisabled: {
-    color: colors.textMuted,
-  },
-
-  // TIME SELECTION
-  timePreviewStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.lightTeal,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 8,
-    gap: 8,
-    marginBottom: 10,
-  },
-  timePreviewText: {
-    fontSize: 11.5,
-    color: colors.textDark,
-  },
-  timePresetsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 8,
-  },
-  timePresetBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.white,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 5,
-  },
-  timePresetBtnActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  timePresetBtnText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: colors.textDark,
-  },
-  timePresetBtnTextActive: {
-    color: '#FFFFFF',
-  },
-  customTimeToggleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 4,
-    gap: 4,
-    marginBottom: 6,
-  },
-  customTimeToggleText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  customTimeBox: {
-    backgroundColor: colors.white,
-    padding: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 8,
-  },
-  hourPill: {
-    backgroundColor: colors.background,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-  },
-  hourPillActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  hourPillText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.secondary,
-  },
-  hourPillTextActive: {
-    color: '#FFFFFF',
-  },
-  ampmWrap: {
-    flexDirection: 'row',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 6,
-    overflow: 'hidden',
-  },
-  ampmBtn: {
-    flex: 1,
-    paddingVertical: 6,
-    alignItems: 'center',
-    backgroundColor: colors.white,
-  },
-  ampmBtnActive: {
-    backgroundColor: colors.secondary,
-  },
-  ampmBtnText: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: colors.secondary,
-  },
-  ampmBtnTextActive: {
-    color: '#FFFFFF',
-  },
-
-  // FORM INPUTS
-  fieldLabel: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: colors.secondary,
-    marginBottom: 4,
-    marginTop: 4,
-  },
-  textInput: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    height: 38,
-    fontSize: 11.5,
-    color: colors.textDark,
-    marginBottom: 6,
-  },
-  familyRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 8,
-  },
-  familyChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.white,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 4,
-  },
-  familyChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  familyChipText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  familyChipTextActive: {
-    color: '#FFFFFF',
-  },
-  addFamilyChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDFA',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#99F6E4',
-    borderStyle: 'dashed',
-    gap: 4,
-  },
-  addFamilyChipText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  gpsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.lightTeal,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 5,
-    gap: 3,
-  },
-  gpsButtonText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  quickAreaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-    marginTop: 2,
-  },
-  areaChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.lightSlate,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 5,
-    gap: 2,
-  },
-  areaChipText: {
-    fontSize: 10,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-
-  // STEP 3: REVIEW & PAY
-  summaryBox: {
-    backgroundColor: colors.white,
-    borderRadius: 10,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 6,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  summaryLabel: {
-    fontSize: 10.5,
-    color: colors.textSecondary,
-  },
-  summaryVal: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.secondary,
-    maxWidth: '65%',
-    textAlign: 'right',
-  },
-  payRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.white,
-    borderRadius: 10,
+  calDayCellToday: {
     borderWidth: 1.5,
-    borderColor: colors.border,
-    padding: 10,
-    marginBottom: 8,
-  },
-  payRowActive: {
-    borderColor: colors.primary,
+    borderColor: '#00B894',
     backgroundColor: '#F0FDF4',
   },
-  payIconCircle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: colors.lightTeal,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  payTitle: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: colors.secondary,
-  },
-  paySub: {
-    fontSize: 9.5,
-    color: colors.textSecondary,
-    marginTop: 1,
-  },
-
-  // INVOICE
-  invoiceCard: {
-    backgroundColor: colors.white,
-    borderRadius: 10,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginTop: 4,
-  },
-  invoiceTitle: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: colors.secondary,
-    marginBottom: 6,
-  },
-  invoiceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 5,
-  },
-  invoiceLabel: {
-    fontSize: 10.5,
-    color: colors.textSecondary,
-  },
-  invoiceVal: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.secondary,
-  },
-  invoiceDivider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: 6,
-  },
-  invoiceTotalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  invoiceTotalLabel: {
+  calDayText: {
     fontSize: 12.5,
-    fontWeight: '900',
-    color: colors.secondary,
-  },
-  invoiceTotalSub: {
-    fontSize: 9,
-    color: colors.textMuted,
-  },
-  invoiceTotalVal: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: colors.primary,
-  },
-
-  // BOTTOM STICKY BAR
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.white,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 5,
-  },
-  bottomBarInner: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  bottomBarLabel: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  bottomBarPrice: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: colors.primary,
-  },
-  bottomBarDealText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#059669',
-  },
-  bottomBarSubText: {
-    fontSize: 9.5,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: '#1E293B',
   },
-  bottomCtaBtn: {
+  calDayTextPast: {
+    color: '#CBD5E1',
+  },
+  calDayTextToday: {
+    color: '#00B894',
+    fontWeight: '800',
+  },
+  calDayTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  calTodayDot: {
+    position: 'absolute',
+    bottom: 2.5,
+    width: 3.5,
+    height: 3.5,
+    borderRadius: 1.75,
+    backgroundColor: '#00B894',
+  },
+  calFooterBar: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    marginTop: 8,
+    paddingTop: 8,
+    flexWrap: 'wrap',
     gap: 6,
   },
-  bottomCtaText: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-
-  // MODAL
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: colors.white,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 16,
-    paddingBottom: 28,
-    maxWidth: 550,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  modalIconBox: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: colors.freshGreen,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'center',
-    marginBottom: 6,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: colors.secondary,
-    textAlign: 'center',
-  },
-  modalSub: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 2,
-    marginBottom: 10,
-  },
-  modalSummary: {
-    backgroundColor: colors.background,
-    borderRadius: 8,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 4,
-    marginBottom: 10,
-  },
-  modalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  modalRowLabel: {
-    fontSize: 10,
-    color: colors.textSecondary,
-  },
-  modalRowVal: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: colors.secondary,
-  },
-  modalDoneBtn: {
-    backgroundColor: colors.primary,
-    paddingVertical: 11,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  modalDoneBtnText: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-
-  // UNIFIED REFERENCE DESIGN STYLES
-  confidentialBadgePill: {
+  calFooterLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#F0FDFA',
+    gap: 5,
+  },
+  calFooterText: {
+    fontSize: 11.5,
+    color: '#475569',
+  },
+  calQuickTodayBtn: {
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    alignSelf: 'flex-start',
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#CCFBF1',
+    paddingVertical: 3.5,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
   },
-  confidentialBadgePillText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#0D9488',
-    letterSpacing: 0.5,
-  },
-  privacyAssuranceBoxUnified: {
-    flexDirection: 'row',
-    gap: 8,
-    backgroundColor: '#ECFDF5',
-    padding: 12,
-    borderRadius: 12,
-    marginTop: 14,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  privacyAssuranceTextUnified: {
+  calQuickTodayText: {
     fontSize: 11,
-    color: '#065F46',
-    flex: 1,
-    lineHeight: 16,
+    fontWeight: '600',
+    color: '#00B894',
   },
 });
 

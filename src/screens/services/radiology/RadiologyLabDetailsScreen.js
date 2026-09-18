@@ -21,7 +21,7 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
   const { labId, initialCategory } = route.params || {};
   const lab = getLabById(labId);
 
-  const { labCart, addToCart, removeFromCart, labCartCount, labFinalTotal } = useCart();
+  const { radiologyCart, addToCart, removeFromCart, radiologyCartCount, radiologyFinalTotal } = useCart();
 
   const [selectedCategory, setSelectedCategory] = useState(initialCategory || 'all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,7 +54,7 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
     const cartItem = {
       id: test.id,
       name: test.name,
-      category: 'Diagnostic Scan',
+      category: 'Radiology',
       categoryLabel: test.categoryLabel || 'Radiology',
       modality: test.categoryLabel,
       modalityCode: test.modalityCode,
@@ -71,11 +71,11 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
       labArea: lab.area,
       labAddress: lab.address,
       labPhone: lab.phone,
-      itemType: 'diagnostic',
+      itemType: 'radiology',
       quantity: 1,
     };
-    addToCart(cartItem, 1, 'lab');
-    showToast(`Added "${test.name}" to Lab Cart`);
+    addToCart(cartItem, 1, 'radiology');
+    showToast(`Added "${test.name}" to Radiology Cart`);
   };
 
   // Handle Direct Instant Booking
@@ -89,7 +89,7 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
 
   // Check if test is already in cart
   const isItemInCart = (testId) => {
-    return labCart.some((item) => item.id === testId);
+    return radiologyCart.some((item) => item.id === testId);
   };
 
   const toggleExpand = (testId) => {
@@ -120,12 +120,12 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
         <TouchableOpacity
           style={styles.cartHeaderButton}
           activeOpacity={0.8}
-          onPress={() => navigation.navigate('Cart', { initialTab: 'lab' })}
+          onPress={() => navigation.navigate('Cart', { initialTab: 'radiology' })}
         >
-          <Ionicons name="flask-outline" size={24} color={colors.secondary} />
-          {labCartCount > 0 && (
+          <Ionicons name="radio-outline" size={24} color={colors.secondary} />
+          {radiologyCartCount > 0 && (
             <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{labCartCount}</Text>
+              <Text style={styles.cartBadgeText}>{radiologyCartCount}</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -140,8 +140,10 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
       )}
 
       <ScrollView
-        showsVerticalScrollIndicator={false}
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={true}
         contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
       >
         {/* ==================================================
             LAB PROFILE CARD
@@ -534,25 +536,25 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
       {/* ==================================================
           FLOATING BOTTOM CART BAR
       ================================================== */}
-      {labCartCount > 0 && (
+      {radiologyCartCount > 0 && (
         <View style={styles.floatingCartBar}>
           <View style={styles.cartInfoSection}>
             <View style={styles.cartBadgeSmall}>
-              <Ionicons name="flask" size={16} color="#FFFFFF" />
-              <Text style={styles.cartBadgeSmallText}>{labCartCount}</Text>
+              <Ionicons name="radio" size={16} color="#FFFFFF" />
+              <Text style={styles.cartBadgeSmallText}>{radiologyCartCount}</Text>
             </View>
             <View style={styles.cartPriceCol}>
-              <Text style={styles.cartTotalLabel}>Lab Tests Total</Text>
-              <Text style={styles.cartTotalAmount}>₹{labFinalTotal}</Text>
+              <Text style={styles.cartTotalLabel}>Radiology Scans Total</Text>
+              <Text style={styles.cartTotalAmount}>₹{radiologyFinalTotal}</Text>
             </View>
           </View>
 
           <TouchableOpacity
             style={styles.cartProceedButton}
             activeOpacity={0.88}
-            onPress={() => navigation.navigate('Cart', { initialTab: 'lab' })}
+            onPress={() => navigation.navigate('Cart', { initialTab: 'radiology' })}
           >
-            <Text style={styles.cartProceedText}>View Lab Cart</Text>
+            <Text style={styles.cartProceedText}>View Radiology Cart</Text>
             <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
@@ -566,9 +568,30 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
 // ==================================================
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    width: '100%',
+    ...(Platform.OS === 'web'
+      ? {
+          height: '100%',
+          maxHeight: '100%',
+        }
+      : {}),
+  },
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  scrollView: {
+    flex: 1,
+    width: '100%',
+    ...(Platform.OS === 'web'
+      ? {
+          height: '100%',
+          overflowY: 'auto',
+        }
+      : {}),
   },
 
   // HEADER
@@ -581,6 +604,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
+    maxWidth: Platform.OS === 'web' ? 1080 : undefined,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  headerTitleContainer: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 10,
   },
   backButton: {
     width: 40,
@@ -660,7 +691,11 @@ const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    paddingBottom: 110,
+    flexGrow: 1,
+    paddingBottom: 140,
+    maxWidth: Platform.OS === 'web' ? 1080 : undefined,
+    width: '100%',
+    alignSelf: 'center',
   },
 
   // LAB PROFILE CARD

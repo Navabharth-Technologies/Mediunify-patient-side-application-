@@ -103,7 +103,7 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
       if (walletBalance < finalPayable) {
         showAlert(
           'Insufficient Wallet Balance 💳',
-          `Your MediUnify Wallet has ₹${walletBalance.toLocaleString('en-IN')}, but the test fee is ₹${finalPayable.toLocaleString('en-IN')}.\n\nPlease top up or select UPI / Cards / Pay at Lab.`,
+          `Your MediUnify Wallet has ₹${walletBalance.toLocaleString('en-IN')}, but the test fee is ₹${finalPayable.toLocaleString('en-IN')}.\n\nPlease top up or select Instant UPI / Credit or Debit Card / Net Banking.`,
           [
             { text: 'Top Up Wallet', onPress: () => navigation.navigate('Wallet') },
             { text: 'Change Method', style: 'cancel' },
@@ -145,6 +145,17 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
         }
       }
 
+      const onlineMethodName =
+        paymentMethod === 'WALLET'
+          ? 'MediUnify Health Wallet'
+          : paymentMethod === 'UPI'
+          ? `Instant UPI (${selectedUpiApp.toUpperCase()})`
+          : paymentMethod === 'CARD'
+          ? 'Credit / Debit Card'
+          : paymentMethod === 'NET_BANKING'
+          ? `Net Banking (${selectedBank})`
+          : 'Online Payment';
+
       const confirmedBooking = {
         id: bookingId,
         bookingType: 'Radiology',
@@ -174,23 +185,13 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
         })),
         patient,
         payment: {
-          method:
-            paymentMethod === 'WALLET'
-              ? 'MediUnify Health Wallet'
-              : paymentMethod === 'LAB_COUNTER'
-              ? 'Pay at Lab Counter'
-              : paymentMethod,
-          status:
-            paymentMethod === 'WALLET'
-              ? 'Paid Online (MediUnify Wallet)'
-              : paymentMethod === 'LAB_COUNTER'
-              ? 'Pay on Visit'
-              : 'Paid Online',
+          method: onlineMethodName,
+          status: 'Paid Online',
           paidAmount: finalPayable,
           mrpTotal: pricing?.mrpTotal || basePayable,
           savings: (pricing?.totalSavings || 0) + couponDiscount,
           couponCode: appliedCoupon ? appliedCoupon.code : null,
-          transactionId: paymentMethod === 'LAB_COUNTER' ? null : `TXN${Date.now()}`,
+          transactionId: `TXN${Date.now()}`,
         },
         status: 'Confirmed',
       };
@@ -215,6 +216,8 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
         time: timeSlot,
         status: 'Confirmed',
         type: 'Radiology',
+        paidAmount: finalPayable,
+        paymentStatus: 'Paid Online',
         details: confirmedBooking,
       };
 
@@ -379,12 +382,18 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
         </View>
 
         {/* ==================================================
-            PAYMENT METHODS SELECTOR
+            PAYMENT METHODS SELECTOR (ONLINE ONLY)
         ================================================== */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
-            <Ionicons name="card-outline" size={18} color={colors.secondary} />
-            <Text style={styles.sectionTitle}>Select Payment Method</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+              <Ionicons name="card-outline" size={18} color={colors.secondary} />
+              <Text style={styles.sectionTitle}>Select Online Payment Method</Text>
+            </View>
+            <View style={styles.onlineOnlyBadge}>
+              <Ionicons name="shield-checkmark" size={12} color="#059669" style={{ marginRight: 3 }} />
+              <Text style={styles.onlineOnlyBadgeText}>Online Only</Text>
+            </View>
           </View>
 
           {/* OPTION 0: MEDIUNIFY WALLET */}
@@ -410,39 +419,45 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
             </View>
 
             {paymentMethod === 'WALLET' && (
-              <View style={styles.walletDetailsWrap}>
-                <View style={styles.walletBalRow}>
-                  <Text style={styles.walletBalText}>
-                    Available Balance: <Text style={{ fontWeight: '900', color: '#059669' }}>₹{walletBalance.toLocaleString('en-IN')}</Text>
+              <View style={styles.walletDetailsBox}>
+                <View style={styles.walletBalanceRow}>
+                  <Text style={styles.walletBalanceLabel}>Available Balance:</Text>
+                  <Text
+                    style={[
+                      styles.walletBalanceAmount,
+                      walletBalance < finalPayable && { color: colors.error },
+                    ]}
+                  >
+                    ₹{walletBalance.toLocaleString('en-IN')}
                   </Text>
-                  {walletBalance >= finalPayable ? (
-                    <View style={styles.sufficientBadge}>
-                      <Ionicons name="checkmark-circle" size={14} color="#059669" />
-                      <Text style={styles.sufficientText}>Sufficient</Text>
-                    </View>
-                  ) : (
+                </View>
+
+                {walletBalance < finalPayable ? (
+                  <View style={styles.walletShortfallBanner}>
+                    <Ionicons name="alert-circle" size={16} color="#DC2626" />
+                    <Text style={styles.walletShortfallText}>
+                      Shortfall of ₹{(finalPayable - walletBalance).toLocaleString('en-IN')}. Please top up or choose UPI / Cards.
+                    </Text>
                     <TouchableOpacity
                       style={styles.topUpBtn}
                       onPress={() => navigation.navigate('Wallet')}
                     >
-                      <Text style={styles.topUpBtnText}>+ Top Up</Text>
+                      <Text style={styles.topUpBtnText}>Top Up</Text>
                     </TouchableOpacity>
-                  )}
-                </View>
-                {walletBalance >= finalPayable ? (
-                  <Text style={styles.walletPerkNote}>
-                    ✓ Instant Confirmation: ₹{finalPayable} will be debited with zero OTP hassle.
-                  </Text>
+                  </View>
                 ) : (
-                  <Text style={styles.walletLowBalNote}>
-                    ⚠️ Low Balance (Need ₹{finalPayable - walletBalance} more). Please top up or select UPI/Card.
-                  </Text>
+                  <View style={styles.walletSufficientBanner}>
+                    <Ionicons name="checkmark-circle" size={15} color="#059669" />
+                    <Text style={styles.walletSufficientText}>
+                      Instant debit • ₹{(walletBalance - finalPayable).toLocaleString('en-IN')} balance remaining
+                    </Text>
+                  </View>
                 )}
               </View>
             )}
           </TouchableOpacity>
 
-          {/* OPTION 1: UPI */}
+          {/* OPTION 1: INSTANT UPI */}
           <TouchableOpacity
             style={[
               styles.paymentOptionCard,
@@ -459,45 +474,54 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
                 <Text style={styles.paymentMethodTitle}>Instant UPI (Google Pay, PhonePe, Paytm)</Text>
                 <Text style={styles.paymentMethodSubtitle}>Instant zero-convenience fee payment</Text>
               </View>
-              <View style={styles.fastTag}>
-                <Text style={styles.fastTagText}>INSTANT</Text>
-              </View>
+              <Ionicons name="flash-outline" size={18} color="#2563EB" />
             </View>
 
             {paymentMethod === 'UPI' && (
-              <View style={styles.upiAppsContainer}>
-                <View style={styles.upiAppsGrid}>
-                  {UPI_APPS.map((app) => {
-                    const isAppSelected = selectedUpiApp === app.id;
+              <View style={styles.upiDetailsBox}>
+                <Text style={styles.upiAppsLabel}>Select Preferred UPI App:</Text>
+                <View style={styles.upiAppsRow}>
+                  {[
+                    { id: 'gpay', label: 'Google Pay', icon: 'logo-google' },
+                    { id: 'phonepe', label: 'PhonePe', icon: 'phone-portrait' },
+                    { id: 'paytm', label: 'Paytm', icon: 'wallet' },
+                    { id: 'bhim', label: 'BHIM UPI', icon: 'qr-code' },
+                  ].map((app) => {
+                    const isSelected = selectedUpiApp === app.id;
                     return (
                       <TouchableOpacity
                         key={app.id}
-                        style={[
-                          styles.upiAppBtn,
-                          isAppSelected && styles.upiAppBtnActive,
-                        ]}
+                        style={[styles.upiAppPill, isSelected && styles.upiAppPillActive]}
                         onPress={() => setSelectedUpiApp(app.id)}
+                        activeOpacity={0.8}
                       >
-                        <Ionicons name={app.icon} size={20} color={app.color} />
+                        <Ionicons
+                          name={app.icon}
+                          size={15}
+                          color={isSelected ? '#2563EB' : '#64748B'}
+                        />
                         <Text
                           style={[
-                            styles.upiAppBtnText,
-                            isAppSelected && styles.upiAppBtnTextActive,
+                            styles.upiAppPillText,
+                            isSelected && styles.upiAppPillTextActive,
                           ]}
                         >
-                          {app.name}
+                          {app.label}
                         </Text>
                       </TouchableOpacity>
                     );
                   })}
                 </View>
 
-                <View style={styles.upiIdInputWrap}>
+                <View style={styles.upiInputWrap}>
+                  <Text style={styles.upiOrText}>Or enter your VPA / UPI ID:</Text>
                   <TextInput
-                    style={styles.upiIdInput}
-                    placeholder="Or enter UPI ID (e.g. name@okhdfcbank)"
+                    style={styles.upiTextInput}
+                    placeholder="e.g. mobileNumber@upi"
+                    placeholderTextColor="#94A3B8"
                     value={upiIdInput}
                     onChangeText={setUpiIdInput}
+                    autoCapitalize="none"
                   />
                 </View>
               </View>
@@ -521,30 +545,44 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
                 <Text style={styles.paymentMethodTitle}>Credit / Debit Card</Text>
                 <Text style={styles.paymentMethodSubtitle}>Visa, MasterCard, RuPay, Maestro</Text>
               </View>
-              <Ionicons name="card" size={20} color={colors.secondary} />
+              <Ionicons name="card" size={18} color="#D97706" />
             </View>
 
             {paymentMethod === 'CARD' && (
-              <View style={styles.cardInputContainer}>
+              <View style={styles.cardInputBox}>
                 <TextInput
-                  style={styles.textInput}
-                  placeholder="Card Number (e.g. 4532 8920 1284 9012)"
+                  style={styles.cardInputField}
+                  placeholder="Card Number (16 Digits)"
+                  placeholderTextColor="#94A3B8"
                   keyboardType="numeric"
                   maxLength={19}
                   value={cardNumber}
-                  onChangeText={setCardNumber}
+                  onChangeText={(val) => {
+                    const cleaned = val.replace(/\D/g, '').slice(0, 16);
+                    const formatted = cleaned.match(/.{1,4}/g)?.join(' ') || cleaned;
+                    setCardNumber(formatted);
+                  }}
                 />
                 <View style={styles.cardRow}>
                   <TextInput
-                    style={[styles.textInput, { flex: 1, marginRight: 8 }]}
+                    style={[styles.cardInputField, { flex: 1, marginRight: 8 }]}
                     placeholder="MM / YY"
+                    placeholderTextColor="#94A3B8"
                     maxLength={5}
                     value={cardExpiry}
-                    onChangeText={setCardExpiry}
+                    onChangeText={(val) => {
+                      const cleaned = val.replace(/\D/g, '').slice(0, 4);
+                      if (cleaned.length > 2) {
+                        setCardExpiry(`${cleaned.slice(0, 2)}/${cleaned.slice(2)}`);
+                      } else {
+                        setCardExpiry(cleaned);
+                      }
+                    }}
                   />
                   <TextInput
-                    style={[styles.textInput, { flex: 1 }]}
+                    style={[styles.cardInputField, { flex: 1 }]}
                     placeholder="CVV"
+                    placeholderTextColor="#94A3B8"
                     keyboardType="numeric"
                     maxLength={4}
                     secureTextEntry
@@ -573,21 +611,19 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
                 <Text style={styles.paymentMethodTitle}>Net Banking</Text>
                 <Text style={styles.paymentMethodSubtitle}>All Indian major banks supported</Text>
               </View>
-              <Ionicons name="globe-outline" size={20} color={colors.secondary} />
+              <Ionicons name="business-outline" size={18} color="#4F46E5" />
             </View>
 
             {paymentMethod === 'NET_BANKING' && (
-              <View style={styles.bankPillsRow}>
+              <View style={styles.banksGrid}>
                 {NET_BANKS.map((bank) => {
                   const isBankSelected = selectedBank === bank;
                   return (
                     <TouchableOpacity
                       key={bank}
-                      style={[
-                        styles.bankPill,
-                        isBankSelected && styles.bankPillActive,
-                      ]}
+                      style={[styles.bankPill, isBankSelected && styles.bankPillActive]}
                       onPress={() => setSelectedBank(bank)}
+                      activeOpacity={0.8}
                     >
                       <Text
                         style={[
@@ -603,27 +639,6 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
               </View>
             )}
           </TouchableOpacity>
-
-          {/* OPTION 4: PAY AT LAB COUNTER */}
-          <TouchableOpacity
-            style={[
-              styles.paymentOptionCard,
-              paymentMethod === 'LAB_COUNTER' && styles.paymentOptionActive,
-            ]}
-            activeOpacity={0.88}
-            onPress={() => setPaymentMethod('LAB_COUNTER')}
-          >
-            <View style={styles.paymentOptionHeader}>
-              <View style={styles.radioCircle}>
-                {paymentMethod === 'LAB_COUNTER' && <View style={styles.radioSelected} />}
-              </View>
-              <View style={styles.paymentOptionTitleCol}>
-                <Text style={styles.paymentMethodTitle}>Pay at Diagnostic Center Counter</Text>
-                <Text style={styles.paymentMethodSubtitle}>Pay via Cash or Card on your appointment visit</Text>
-              </View>
-              <Ionicons name="cash-outline" size={20} color="#059669" />
-            </View>
-          </TouchableOpacity>
         </View>
 
         {/* ==================================================
@@ -631,17 +646,17 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
         ================================================== */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
-            <Ionicons name="receipt" size={18} color={colors.secondary} />
-            <Text style={styles.sectionTitle}>Invoice & Tax Summary</Text>
+            <Ionicons name="receipt-outline" size={18} color={colors.secondary} />
+            <Text style={styles.sectionTitle}>Payment Details & Summary</Text>
           </View>
 
           <View style={styles.invoiceRow}>
-            <Text style={styles.invoiceLabel}>Test(s) Standard MRP Rate</Text>
+            <Text style={styles.invoiceLabel}>Test(s) Standard MRP Total</Text>
             <Text style={styles.invoiceValue}>₹{pricing?.mrpTotal || basePayable}</Text>
           </View>
 
           <View style={styles.invoiceRow}>
-            <Text style={[styles.invoiceLabel, { color: '#059669' }]}>Diagnostic Lab Discount</Text>
+            <Text style={[styles.invoiceLabel, { color: '#059669' }]}>Diagnostic Partner Discount</Text>
             <Text style={[styles.invoiceValue, { color: '#059669', fontWeight: '700' }]}>
               - ₹{pricing?.totalSavings || 0}
             </Text>
@@ -649,44 +664,40 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
 
           {couponDiscount > 0 && (
             <View style={styles.invoiceRow}>
-              <Text style={[styles.invoiceLabel, { color: '#059669' }]}>
-                Promo Voucher ({appliedCoupon?.code})
+              <Text style={[styles.invoiceLabel, { color: '#2563EB' }]}>
+                Coupon ({appliedCoupon?.code})
               </Text>
-              <Text style={[styles.invoiceValue, { color: '#059669', fontWeight: '700' }]}>
+              <Text style={[styles.invoiceValue, { color: '#2563EB', fontWeight: '700' }]}>
                 - ₹{couponDiscount}
               </Text>
             </View>
           )}
 
           <View style={styles.invoiceRow}>
-            <Text style={styles.invoiceLabel}>Lab Facility & Sanitization Fee</Text>
-            <Text style={[styles.invoiceValue, { color: '#059669' }]}>FREE</Text>
-          </View>
-
-          <View style={styles.invoiceRow}>
-            <Text style={styles.invoiceLabel}>GST / Healthcare Tax</Text>
-            <Text style={styles.invoiceValue}>₹0 (Exempted)</Text>
+            <Text style={styles.invoiceLabel}>Sample Handling / Clinical Disposables</Text>
+            <Text style={[styles.invoiceValue, { color: '#059669', fontWeight: '700' }]}>FREE</Text>
           </View>
 
           <View style={styles.invoiceDivider} />
 
-          <View style={styles.invoiceTotalRow}>
+          <View style={styles.invoiceRow}>
             <View>
-              <Text style={styles.invoiceTotalLabel}>Net Payable Amount</Text>
-              <Text style={styles.invoiceSavingsText}>
-                Total Saved: ₹{(pricing?.totalSavings || 0) + couponDiscount}
-              </Text>
+              <Text style={styles.finalTotalLabel}>Total Amount Payable</Text>
+              <Text style={styles.finalTotalSub}>Inclusive of all GST & digital report delivery</Text>
             </View>
-            <Text style={styles.invoiceTotalAmount}>₹{finalPayable}</Text>
+            <Text style={styles.finalTotalValue}>₹{finalPayable}</Text>
           </View>
         </View>
 
-        {/* TRUST BADGE */}
-        <View style={styles.trustBadgeRow}>
-          <Ionicons name="shield-checkmark" size={16} color={colors.primary} />
-          <Text style={styles.trustBadgeText}>
-            100% Safe & Secure 256-Bit SSL Encrypted Healthcare Checkout
-          </Text>
+        {/* TRUST BANNER */}
+        <View style={styles.trustBanner}>
+          <Ionicons name="shield-checkmark" size={20} color="#059669" />
+          <View style={styles.trustTextCol}>
+            <Text style={styles.trustTitle}>100% Secure Encrypted Online Payment</Text>
+            <Text style={styles.trustSub}>
+              256-Bit SSL protection. Instant slot reservation with official NABL diagnostic centers.
+            </Text>
+          </View>
         </View>
       </ScrollView>
 
@@ -696,9 +707,7 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
       <View style={styles.bottomBar}>
         <View style={styles.bottomBarInner}>
           <View style={styles.bottomPriceCol}>
-            <Text style={styles.bottomTotalLabel}>
-              {paymentMethod === 'LAB_COUNTER' ? 'Pay on Visit' : 'Pay Online'}
-            </Text>
+            <Text style={styles.bottomTotalLabel}>Pay Online</Text>
             <Text style={styles.bottomTotalValue}>₹{finalPayable}</Text>
           </View>
 
@@ -712,10 +721,8 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <>
-                <Text style={styles.payButtonText}>
-                  {paymentMethod === 'LAB_COUNTER' ? 'Confirm Appointment' : `Pay ₹${finalPayable}`}
-                </Text>
-                <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+                <Text style={styles.payButtonText}>Pay ₹{finalPayable}</Text>
+                <Ionicons name="lock-closed" size={16} color="#FFFFFF" />
               </>
             )}
           </TouchableOpacity>
@@ -1218,6 +1225,211 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
   },
+  onlineOnlyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  onlineOnlyBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  walletDetailsBox: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  walletBalanceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  walletBalanceLabel: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  walletBalanceAmount: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  walletShortfallBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    padding: 10,
+    borderRadius: 8,
+    gap: 8,
+    marginTop: 6,
+  },
+  walletShortfallText: {
+    flex: 1,
+    fontSize: 11.5,
+    color: '#DC2626',
+    fontWeight: '600',
+  },
+  walletSufficientBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    padding: 8,
+    borderRadius: 8,
+    gap: 6,
+    marginTop: 4,
+  },
+  walletSufficientText: {
+    fontSize: 12,
+    color: '#059669',
+    fontWeight: '600',
+  },
+  topUpBtn: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  topUpBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  upiDetailsBox: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  upiAppsLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  upiAppsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  upiAppPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  upiAppPillActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#2563EB',
+  },
+  upiAppPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  upiAppPillTextActive: {
+    color: '#2563EB',
+    fontWeight: '700',
+  },
+  upiInputWrap: {
+    marginTop: 12,
+  },
+  upiOrText: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginBottom: 6,
+    fontWeight: '500',
+  },
+  upiTextInput: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    height: 42,
+    fontSize: 13,
+    color: colors.text,
+  },
+  cardInputBox: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    gap: 8,
+  },
+  cardInputField: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    height: 42,
+    fontSize: 13,
+    color: colors.text,
+  },
+  banksGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  finalTotalLabel: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.secondary,
+  },
+  finalTotalSub: {
+    fontSize: 10.5,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  finalTotalValue: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: colors.secondary,
+  },
+  trustBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 24,
+    gap: 10,
+  },
+  trustTextCol: {
+    flex: 1,
+  },
+  trustTitle: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#166534',
+  },
+  trustSub: {
+    fontSize: 11,
+    color: '#15803D',
+    marginTop: 2,
+    lineHeight: 15,
+  },
   walletDetailsWrap: {
     marginTop: 12,
     paddingTop: 10,
@@ -1250,17 +1462,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: '#059669',
-  },
-  topUpBtn: {
-    backgroundColor: '#059669',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  topUpBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#FFFFFF',
   },
   walletPerkNote: {
     fontSize: 11,
