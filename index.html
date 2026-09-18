@@ -26,11 +26,36 @@
   <link rel="icon" href="/Mediunify-patient-side-application-/favicon.ico"/>
   <script>
     (function() {
+      var BASE = '/Mediunify-patient-side-application-';
+
+      // ── A: Restore path from 404.html redirect ──
       var redirect = sessionStorage.redirect;
       delete sessionStorage.redirect;
       if (redirect && redirect !== location.href) {
         history.replaceState(null, null, redirect);
       }
+
+      // ── B: Fix React Navigation stripping base path ──
+      // Intercept pushState & replaceState so /login becomes /BASE/login
+      function fixPath(url) {
+        if (!url) return url;
+        var s = String(url);
+        // Only fix root-relative paths that are missing the base
+        if (s.charAt(0) === '/' && s.indexOf(BASE) !== 0) {
+          return BASE + s;
+        }
+        return s;
+      }
+
+      var _push    = history.pushState.bind(history);
+      var _replace = history.replaceState.bind(history);
+
+      history.pushState = function(state, title, url) {
+        return _push(state, title, fixPath(url));
+      };
+      history.replaceState = function(state, title, url) {
+        return _replace(state, title, fixPath(url));
+      };
     })();
   </script>
   </head>
