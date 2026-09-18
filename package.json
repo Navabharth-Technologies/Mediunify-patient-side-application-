@@ -6,7 +6,7 @@
     "start": "expo start",
     "server": "node server/syncServer.js",
     "web": "expo start --web",
-    "predeploy": "npx expo export -p web && node -e \"require('fs').writeFileSync('dist/.nojekyll', '')\"",
+    "predeploy": "npx expo export -p web && node scripts/patchGhPages.js && node -e \"require('fs').writeFileSync('dist/.nojekyll', '')\"",
     "deploy": "gh-pages -d dist -t",
     "postinstall": "node scripts/patchExpoAsset.js"
   },
