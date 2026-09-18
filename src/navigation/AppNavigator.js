@@ -11,8 +11,24 @@ import MainNavigator from './MainNavigator';
 
 const Stack = createNativeStackNavigator();
 
+const BASE_URL = 'https://navabharth-technologies.github.io/Mediunify-patient-side-application-';
+const BASE_PATH = '/Mediunify-patient-side-application-';
+
 const linking = {
-  prefixes: ['/', 'http://localhost:8081', 'http://localhost:19006', 'https://hemanthgowdatn2003.github.io/mediunify-patient'],
+  prefixes: [
+    BASE_URL,
+    'http://localhost:8081',
+    'http://localhost:19006',
+    'exp://',
+  ],
+  getInitialURL: async () => {
+    if (typeof window !== 'undefined') {
+      const url = window.location.href;
+      // Strip the base path so React Navigation can parse the route correctly
+      return url;
+    }
+    return null;
+  },
   config: {
     screens: {
       Auth: {
@@ -70,6 +86,7 @@ const linking = {
     },
   },
 };
+
 
 const AppNavigator = () => {
   return (
