@@ -84,6 +84,10 @@ if (fs.existsSync(jsBundleDir)) {
     content = content.replace(/"\/_expo\//g,          `"${BASE_PATH}/_expo/`);
     content = content.replace(/'\/_expo\//g,          `'${BASE_PATH}/_expo/`);
 
+    // Font assets: bundle references /node_modules/... but files are at /assets/node_modules/...
+    content = content.replace(/\"\/node_modules\//g,  `"${BASE_PATH}/assets/node_modules/`);
+    content = content.replace(/\'\/node_modules\//g,  `'${BASE_PATH}/assets/node_modules/`);
+
     fs.writeFileSync(filePath, content, 'utf8');
     console.log(`✅ Patched JS bundle: ${file}`);
   });
