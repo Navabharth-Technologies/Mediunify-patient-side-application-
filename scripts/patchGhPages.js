@@ -228,6 +228,12 @@ if (fs.existsSync(jsBundleDir)) {
       `"${BASE_PATH}/assets/$1"`
     );
 
+    // Patch any root redirects so they preserve GitHub Pages repository base path
+    content = content.replace(/window\.location\.href\s*=\s*['"]\/['"]/g, `window.location.href="${BASE_PATH}/"`);
+    content = content.replace(/location\.href\s*=\s*['"]\/['"]/g, `location.href="${BASE_PATH}/"`);
+    content = content.replace(/location\.replace\(['"]\/['"]\)/g, `location.replace("${BASE_PATH}/")`);
+    content = content.replace(/location\.assign\(['"]\/['"]\)/g, `location.assign("${BASE_PATH}/")`);
+
     fs.writeFileSync(filePath, content, 'utf8');
     console.log(`✅ Patched JS bundle: ${file}`);
   });

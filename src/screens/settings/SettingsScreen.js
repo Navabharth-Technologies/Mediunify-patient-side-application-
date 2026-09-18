@@ -216,12 +216,11 @@ const SettingsScreen = ({ navigation }) => {
         } catch (e) {}
       }
 
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        setTimeout(() => {
-          if (window.location) {
-            window.location.href = '/';
-          }
-        }, 150);
+      if (!navigated && Platform.OS === 'web' && typeof window !== 'undefined') {
+        const basePath = window.location.pathname.includes('Mediunify-patient-side-application-')
+          ? '/Mediunify-patient-side-application-/'
+          : '/';
+        window.location.href = basePath;
       }
     };
 
