@@ -3,7 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="theme-color" content="#0F766E" />
     <title>MediUnify</title>
     <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
     <style id="expo-reset">
@@ -140,6 +144,18 @@
            url('/Mediunify-patient-side-application-/fonts/Zocial.1681f34aaca71b8dfb70756bca331eb2.ttf') format('truetype');
       font-display: auto;
     }
+    /* Mobile web application native feel optimizations */
+    html, body {
+      overscroll-behavior-y: none;
+      -webkit-overflow-scrolling: touch;
+      touch-action: manipulation;
+    }
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
+    input, textarea, select {
+      font-size: 16px !important;
+    }
   </style>
   <script data-gh-patch="true">
     (function() {
@@ -182,6 +198,6 @@
     </noscript>
     <!-- The root element for your Expo app. -->
     <div id="root"></div>
-  <script src="/Mediunify-patient-side-application-/_expo/static/js/web/AppEntry-97bf03aff925c568d9351a74f1df383d.js" defer></script>
+  <script src="/Mediunify-patient-side-application-/_expo/static/js/web/AppEntry-390bd90483f17496d944015a8b02e4d1.js" defer></script>
 </body>
 </html>
