@@ -23,7 +23,18 @@
         flex: 1;
       }
     </style>
-  <link rel="icon" href="/Mediunify-patient-side-application-/favicon.ico"/></head>
+  <link rel="icon" href="/Mediunify-patient-side-application-/favicon.ico"/>
+  <script>
+    // GitHub Pages SPA redirect — restore path from 404.html redirect
+    (function() {
+      var redirect = sessionStorage.redirect;
+      delete sessionStorage.redirect;
+      if (redirect && redirect !== location.href) {
+        history.replaceState(null, null, redirect);
+      }
+    })();
+  </script>
+  </head>
 
   <body>
     <!-- Use static rendering with Expo Router to support running without JavaScript. -->
@@ -32,6 +43,6 @@
     </noscript>
     <!-- The root element for your Expo app. -->
     <div id="root"></div>
-  <script src="/Mediunify-patient-side-application-/_expo/static/js/web/AppEntry-137cdeaedc440b00ebea24f9fd5b248d.js" defer></script>
+  <script src="/Mediunify-patient-side-application-/_expo/static/js/web/AppEntry-97bf03aff925c568d9351a74f1df383d.js" defer></script>
 </body>
 </html>

@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>MediUnify</title>
+  <script>
+    // GitHub Pages SPA 404 redirect hack
+    // Saves the current URL to sessionStorage and redirects to index.html
+    var base = '/Mediunify-patient-side-application-';
+    sessionStorage.redirect = location.href;
+    window.location.replace(base + '/?' + Date.now());
+  </script>
+</head>
+<body>
+  Redirecting...
+</body>
+</html>
