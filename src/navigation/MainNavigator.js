@@ -283,19 +283,21 @@ const BottomNavigation = ({
         </Text>
       </TouchableOpacity>
 
-      {/* 3. CENTER AI ASSISTANT BUTTON */}
-      <TouchableOpacity
-        style={styles.centerAiTabBtn}
-        activeOpacity={0.85}
-        onPress={() => goTo('Chatbot')}
-      >
-        <View style={[styles.centerAiCircle, currentRoute === 'Chatbot' && styles.centerAiCircleActive]}>
-          <Ionicons name="chatbubble-ellipses" size={24} color="#FFFFFF" />
-        </View>
-        <Text style={[styles.bottomText, currentRoute === 'Chatbot' && styles.activeBottomText, { marginTop: 2 }]}>
-          AI
-        </Text>
-      </TouchableOpacity>
+      {/* 3. CENTER AI ASSISTANT BUTTON (MOBILE NATIVE ONLY - REMOVED FROM WEB) */}
+      {Platform.OS !== 'web' && (
+        <TouchableOpacity
+          style={styles.centerAiTabBtn}
+          activeOpacity={0.85}
+          onPress={() => goTo('Chatbot')}
+        >
+          <View style={[styles.centerAiCircle, currentRoute === 'Chatbot' && styles.centerAiCircleActive]}>
+            <Ionicons name="chatbubble-ellipses" size={24} color="#FFFFFF" />
+          </View>
+          <Text style={[styles.bottomText, currentRoute === 'Chatbot' && styles.activeBottomText, { marginTop: 2 }]}>
+            AI
+          </Text>
+        </TouchableOpacity>
+      )}
 
       {/* 4. MY HEALTH */}
       <TouchableOpacity
@@ -883,12 +885,17 @@ const MainNavigator = ({
 
         <Stack.Screen
           name="RadiologistList"
-          component={RadiologyLabsScreen}
+          component={RadiologistListScreen}
         />
 
         <Stack.Screen
           name="RadiologistBooking"
-          component={RadiologyBookingScreen}
+          component={RadiologistBookingScreen}
+        />
+
+        <Stack.Screen
+          name="RadiologyReportUpload"
+          component={RadiologyReportUploadScreen}
         />
 
 

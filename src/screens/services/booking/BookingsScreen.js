@@ -2309,7 +2309,7 @@ const BookingsScreen = ({ navigation, route }) => {
 
                     <TouchableOpacity
                       style={styles.quickCareBtn}
-                      onPress={() => navigation.navigate('VideoDoctorList')}
+                      onPress={() => navigation.navigate('VideoConsultation')}
                       activeOpacity={0.8}
                     >
                       <Ionicons name="videocam" size={13} color="#7C3AED" />
@@ -2327,7 +2327,7 @@ const BookingsScreen = ({ navigation, route }) => {
 
                     <TouchableOpacity
                       style={styles.quickCareBtn}
-                      onPress={() => navigation.navigate('PharmacyHome')}
+                      onPress={() => navigation.navigate('Pharmacy')}
                       activeOpacity={0.8}
                     >
                       <Ionicons name="cart" size={13} color="#D97706" />
@@ -2413,7 +2413,7 @@ const BookingsScreen = ({ navigation, route }) => {
 
                     <TouchableOpacity
                       style={styles.emptySecondaryBtn}
-                      onPress={() => navigation.navigate('VideoDoctorList')}
+                      onPress={() => navigation.navigate('VideoConsultation')}
                       activeOpacity={0.88}
                     >
                       <Ionicons name="videocam" size={16} color="#0D9488" />
