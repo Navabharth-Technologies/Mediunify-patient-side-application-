@@ -699,27 +699,15 @@ const ProfileScreenWeb = ({ navigation, route }) => {
           </View>
 
           {/* ============================================================
-              6. WEB SIGN OUT ACTION CARD (MATCHING DESIGN)
+              6. WEB SIGN OUT ACTION (SINGLE BUTTON MATCHING DESIGN)
           ============================================================ */}
-          <View style={styles.webLogoutCard}>
-            <View style={styles.webLogoutCardLeft}>
-              <View style={styles.webLogoutIconCircle}>
-                <Ionicons name="log-out-outline" size={22} color="#DC2626" />
-              </View>
-              <View style={styles.webLogoutTextCol}>
-                <Text style={styles.webLogoutCardTitle}>Sign Out of Your Account</Text>
-                <Text style={styles.webLogoutCardSub}>
-                  Securely terminate your current session on this device. You can log back in anytime.
-                </Text>
-              </View>
-            </View>
-
+          <View style={styles.webLogoutSection}>
             <TouchableOpacity
               style={styles.webLogoutBtn}
               onPress={handleLogout}
               activeOpacity={0.88}
             >
-              <Ionicons name="log-out-outline" size={17} color="#DC2626" />
+              <Ionicons name="log-out-outline" size={19} color="#DC2626" />
               <Text style={styles.webLogoutBtnText}>Log Out of Account</Text>
             </TouchableOpacity>
           </View>
@@ -1426,71 +1414,37 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
 
-  // WEB SIGN OUT ACTION CARD (MATCHING DESIGN)
-  webLogoutCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 24,
-    flexWrap: 'wrap',
-    gap: 16,
-    shadowColor: '#1E3A8A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  webLogoutCardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    flex: 1,
-    minWidth: 260,
-  },
-  webLogoutIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#FEE2E2',
+  // WEB SIGN OUT ACTION (SINGLE BUTTON MATCHING DESIGN)
+  webLogoutSection: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  webLogoutTextCol: {
-    flex: 1,
-  },
-  webLogoutCardTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#1E3A8A',
-    marginBottom: 3,
-  },
-  webLogoutCardSub: {
-    fontSize: 12,
-    color: '#64748B',
-    lineHeight: 18,
+    paddingVertical: 14,
+    marginBottom: 26,
   },
   webLogoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#FEF2F2',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: '#FECACA',
-    paddingHorizontal: 20,
-    paddingVertical: 11,
-    borderRadius: 10,
+    borderRadius: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 36,
+    minWidth: 260,
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
     cursor: 'pointer',
-    alignSelf: 'center',
   },
   webLogoutBtnText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
     color: '#DC2626',
+    letterSpacing: 0.2,
   },
 });
 
