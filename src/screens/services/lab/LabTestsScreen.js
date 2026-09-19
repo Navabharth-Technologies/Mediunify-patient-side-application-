@@ -427,7 +427,10 @@ const LabTestsScreen = (props) => {
       <ScrollView
         ref={mainScrollRef}
         style={styles.scrollContainer}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          width >= 600 && { maxWidth: 960, width: '100%', alignSelf: 'center' },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Banner / Trust Header */}
@@ -732,7 +735,13 @@ const LabTestsScreen = (props) => {
   // ===========================================================================
   const renderBookingsView = () => {
     return (
-      <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={[
+          styles.scrollContent,
+          width >= 600 && { maxWidth: 960, width: '100%', alignSelf: 'center' },
+        ]}
+      >
         {/* Sub filter tabs */}
         <View style={styles.tabFiltersRow}>
           {['ALL', 'UPCOMING', 'COMPLETED', 'CANCELLED'].map((tab) => (
@@ -862,7 +871,13 @@ const LabTestsScreen = (props) => {
   // ===========================================================================
   const renderReportsView = () => {
     return (
-      <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={[
+          styles.scrollContent,
+          width >= 600 && { maxWidth: 960, width: '100%', alignSelf: 'center' },
+        ]}
+      >
         <View style={styles.reportsHeaderBanner}>
           <Ionicons name="document-attach" size={24} color="#00B894" />
           <View style={{ flex: 1, marginLeft: 10 }}>
@@ -1758,7 +1773,7 @@ const LabTestsScreen = (props) => {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Top Header Bar */}
-      <View style={styles.topNavBar}>
+      <View style={[styles.topNavBar, width >= 600 && { maxWidth: 960, width: '100%', alignSelf: 'center' }]}>
         <TouchableOpacity
           style={styles.headerBackBtn}
           onPress={() => (activeTab !== 'BROWSE' ? setActiveTab('BROWSE') : navigation.goBack())}

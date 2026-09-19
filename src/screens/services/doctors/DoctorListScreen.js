@@ -70,7 +70,8 @@ const calculateDistanceKm = (lat1, lon1, lat2, lon2) => {
 
 const DoctorListScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const isDesktopWeb = Platform.OS === 'web' && width >= 600;
+  const isWideScreen = width >= 768;
 
   const [search, setSearch] = useState(route?.params?.query || route?.params?.search || '');
   const [selectedSpecialty, setSelectedSpecialty] = useState('all');
@@ -780,16 +781,16 @@ const DoctorListScreen = ({ navigation, route }) => {
         {/* ==================================================
             MAIN CONTENT AREA: DESKTOP 2-COLUMN (VISIBLE FILTER SIDEBAR + DOCTORS LIST)
         ================================================== */}
-        <View style={[styles.mainLayoutWrap, isDesktopWeb && styles.mainLayoutWrapDesktop]}>
-          {/* Left Filter Sidebar - Visible on Desktop! */}
-          {isDesktopWeb && (
+        <View style={[styles.mainLayoutWrap, isWideScreen && styles.mainLayoutWrapDesktop]}>
+          {/* Left Filter Sidebar - Visible on Desktop & Tablets! */}
+          {isWideScreen && (
             <View style={styles.desktopSidebarCol}>
               {renderDesktopSidebar()}
             </View>
           )}
 
           {/* Right Content Column: Results count & Doctors Cards */}
-          <View style={[styles.doctorsColWrap, isDesktopWeb && styles.doctorsColWrapDesktop]}>
+          <View style={[styles.doctorsColWrap, isWideScreen && styles.doctorsColWrapDesktop]}>
             <View style={styles.resultsHeaderRow}>
               <View>
                 <Text style={styles.sectionHeadingTitle}>Top Doctors Near You</Text>

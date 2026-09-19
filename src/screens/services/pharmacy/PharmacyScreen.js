@@ -1014,13 +1014,19 @@ const PharmacyScreen = ({ navigation, route }) => {
           </View>
 
           {/* Product Cards Grid */}
-          <View style={styles.productsGrid}>
+          <View style={[styles.productsGrid, width >= 600 && { maxWidth: 1100, width: '100%', alignSelf: 'center' }]}>
             {filteredProducts.map((prod) => {
               const inCartItem = pharmacyCart?.find((ci) => ci.id === prod.id);
               const qty = inCartItem?.quantity || 0;
 
               return (
-                <View key={prod.id} style={styles.productCard}>
+                <View
+                  key={prod.id}
+                  style={[
+                    styles.productCard,
+                    width >= 960 ? { width: '23.5%' } : (width >= 640 ? { width: '31.8%' } : null),
+                  ]}
+                >
                   {/* Discount Pill */}
                   {prod.discount && (
                     <View style={styles.productDiscountBadge}>

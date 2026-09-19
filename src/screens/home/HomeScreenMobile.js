@@ -267,6 +267,15 @@ const MOBILE_HERO_ADS = [
 const HomeScreen = ({ navigation }) => {
   const { totalCartCount } = useCart();
   const { width } = useWindowDimensions();
+  const isTablet = width >= 600;
+  const isLargeTablet = width >= 900;
+  const maxContentWidth = 880;
+  const adCardWidth = isLargeTablet
+    ? (Math.min(width, maxContentWidth) - 48) / 3
+    : isTablet
+    ? (Math.min(width, maxContentWidth) - 36) / 2
+    : width - 32;
+  const adCardInterval = adCardWidth + (isTablet ? 12 : 0);
 
   // Auto-scrolling ads state & ref
   const [activeMobileAdIndex, setActiveMobileAdIndex] = useState(0);
@@ -558,14 +567,14 @@ const HomeScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
-          width >= 600 && { maxWidth: 960, width: '100%', alignSelf: 'center' },
+          isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center' },
         ]}
       >
 
         {/* ============================================================
             MOCKUP 1: GREETING BLOCK
         ============================================================ */}
-        <View style={styles.mockupGreetingBlock}>
+        <View style={[styles.mockupGreetingBlock, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center' }]}>
           <Text style={styles.mockupGreetingTitle}>Good Morning,</Text>
           <Text style={styles.mockupGreetingSub}>Your health matters. We're here for you.</Text>
         </View>
@@ -573,7 +582,7 @@ const HomeScreen = ({ navigation }) => {
         {/* ============================================================
             MOCKUP 1: ASK MEDIUNIFY AI BANNER
         ============================================================ */}
-        <View style={styles.mockupAiCard}>
+        <View style={[styles.mockupAiCard, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center', paddingHorizontal: 24, paddingVertical: 18 }]}>
           <View style={styles.mockupAiLeft}>
             <Text style={styles.mockupAiTitle}>Ask MediUnify AI</Text>
             <Text style={styles.mockupAiSub}>Tell us what you're experiencing.</Text>
@@ -591,7 +600,7 @@ const HomeScreen = ({ navigation }) => {
         </View>
 
         {/* HOMESCREEN SEARCH BAR (BELOW CHAT NOW) */}
-        <View style={styles.homeSearchBarContainer}>
+        <View style={[styles.homeSearchBarContainer, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center' }]}>
           <TouchableOpacity
             style={styles.homeSearchBox}
             activeOpacity={0.88}
@@ -608,45 +617,48 @@ const HomeScreen = ({ navigation }) => {
         </View>
 
         {/* QUICK SYMPTOM CHIPS */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.mockupSymptomChipsRow}
-        >
-          {['e.g. fever', 'knee pain', 'diabetes', 'skin problem'].map((chip, idx) => (
-            <TouchableOpacity
-              key={idx}
-              style={styles.mockupSymptomChip}
-              onPress={() => navigation.navigate('Chatbot', { initialQuery: chip.replace('e.g. ', '') })}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.mockupSymptomChipText}>{chip}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        <View style={[isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center' }]}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.mockupSymptomChipsRow}
+          >
+            {['e.g. fever', 'knee pain', 'diabetes', 'skin problem'].map((chip, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={styles.mockupSymptomChip}
+                onPress={() => navigation.navigate('Chatbot', { initialQuery: chip.replace('e.g. ', '') })}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.mockupSymptomChipText}>{chip}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
 
         {/* ============================================================
             AUTO-MOVING PROMOTIONAL ADS CAROUSEL
         ============================================================ */}
-        <View style={styles.mobileAdSection}>
+        <View style={[styles.mobileAdSection, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center' }]}>
           <FlatList
             ref={mobileAdScrollRef}
             data={MOBILE_HERO_ADS}
             keyExtractor={(item) => item.id}
             horizontal
             showsHorizontalScrollIndicator={false}
-            pagingEnabled
-            snapToInterval={width - 32}
+            pagingEnabled={!isTablet}
+            snapToInterval={adCardInterval}
             decelerationRate="fast"
+            contentContainerStyle={isTablet && { paddingHorizontal: 0 }}
             onMomentumScrollEnd={(e) => {
-              const idx = Math.round(e.nativeEvent.contentOffset.x / (width - 32));
+              const idx = Math.round(e.nativeEvent.contentOffset.x / adCardInterval);
               if (idx >= 0 && idx < MOBILE_HERO_ADS.length) {
                 setActiveMobileAdIndex(idx);
               }
             }}
             getItemLayout={(data, index) => ({
-              length: width - 32,
-              offset: (width - 32) * index,
+              length: adCardInterval,
+              offset: adCardInterval * index,
               index,
             })}
             renderItem={({ item }) => (
@@ -654,8 +666,9 @@ const HomeScreen = ({ navigation }) => {
                 style={[
                   styles.mobileAdCard,
                   {
-                    width: width - 32,
+                    width: adCardWidth,
                     backgroundColor: item.bgColor,
+                    marginRight: isTablet ? 12 : 0,
                   },
                 ]}
                 onPress={() => navigation.navigate(item.route)}
@@ -704,7 +717,7 @@ const HomeScreen = ({ navigation }) => {
                   setActiveMobileAdIndex(i);
                   try {
                     mobileAdScrollRef.current?.scrollToIndex({ index: i, animated: true });
-                  } catch (err) {}
+                  } catch (e) {}
                 }}
                 activeOpacity={0.7}
               >
@@ -720,10 +733,10 @@ const HomeScreen = ({ navigation }) => {
         </View>
 
         {/* ============================================================
-            CARE+ VIP MEMBERSHIP MOBILE BANNER
+            MOBILE CARE+ VIP MEMBERSHIP BANNER
         ============================================================ */}
         <TouchableOpacity
-          style={styles.mobileVipBanner}
+          style={[styles.mobileVipBanner, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center', padding: 18 }]}
           onPress={() => navigation.navigate('Membership')}
           activeOpacity={0.88}
         >
@@ -751,12 +764,12 @@ const HomeScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         {/* ============================================================
-            MOCKUP 1: 3x3 QUICK SERVICES GRID
+            MOCKUP 1: 3x3 QUICK SERVICES GRID (RESPONSIVE TABLET 4-6 COLUMNS)
         ============================================================ */}
-        <View style={styles.mockupServicesGrid}>
+        <View style={[styles.mockupServicesGrid, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center', justifyContent: 'flex-start', gap: 12 }]}>
           {/* 1. Consult a Doctor */}
           <TouchableOpacity
-            style={styles.mockupServiceTile}
+            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '15.2%' : '23%', marginBottom: 12, paddingVertical: 14 }]}
             onPress={() => navigation.navigate('DoctorList')}
             activeOpacity={0.8}
           >
@@ -768,7 +781,7 @@ const HomeScreen = ({ navigation }) => {
 
           {/* 2. Book a Lab Test */}
           <TouchableOpacity
-            style={styles.mockupServiceTile}
+            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '15.2%' : '23%', marginBottom: 12, paddingVertical: 14 }]}
             onPress={() => navigation.navigate('LabTests')}
             activeOpacity={0.8}
           >
@@ -780,7 +793,7 @@ const HomeScreen = ({ navigation }) => {
 
           {/* 3. Order Medicines */}
           <TouchableOpacity
-            style={styles.mockupServiceTile}
+            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '15.2%' : '23%', marginBottom: 12, paddingVertical: 14 }]}
             onPress={() => navigation.navigate('Pharmacy')}
             activeOpacity={0.8}
           >
@@ -792,7 +805,7 @@ const HomeScreen = ({ navigation }) => {
 
           {/* 4. Video Call */}
           <TouchableOpacity
-            style={styles.mockupServiceTile}
+            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '15.2%' : '23%', marginBottom: 12, paddingVertical: 14 }]}
             onPress={() => navigation.navigate('VideoConsultation')}
             activeOpacity={0.8}
           >
@@ -804,7 +817,7 @@ const HomeScreen = ({ navigation }) => {
 
           {/* 5. Home Nursing */}
           <TouchableOpacity
-            style={styles.mockupServiceTile}
+            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '15.2%' : '23%', marginBottom: 12, paddingVertical: 14 }]}
             onPress={() => navigation.navigate('NurseBooking')}
             activeOpacity={0.8}
           >
@@ -816,7 +829,7 @@ const HomeScreen = ({ navigation }) => {
 
           {/* 6. Equipment Rental */}
           <TouchableOpacity
-            style={styles.mockupServiceTile}
+            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '15.2%' : '23%', marginBottom: 12, paddingVertical: 14 }]}
             onPress={() => navigation.navigate('EquipmentRental')}
             activeOpacity={0.8}
           >
@@ -828,7 +841,7 @@ const HomeScreen = ({ navigation }) => {
 
           {/* 7. Fertility & IVF */}
           <TouchableOpacity
-            style={styles.mockupServiceTile}
+            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '15.2%' : '23%', marginBottom: 12, paddingVertical: 14 }]}
             onPress={() => navigation.navigate('FertilityIvf')}
             activeOpacity={0.8}
           >
@@ -840,7 +853,7 @@ const HomeScreen = ({ navigation }) => {
 
           {/* 8. Ayurveda & Wellness */}
           <TouchableOpacity
-            style={styles.mockupServiceTile}
+            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '15.2%' : '23%', marginBottom: 12, paddingVertical: 14 }]}
             onPress={() => navigation.navigate('AyurvedaWellness')}
             activeOpacity={0.8}
           >
@@ -852,7 +865,7 @@ const HomeScreen = ({ navigation }) => {
 
           {/* 9. View All Services */}
           <TouchableOpacity
-            style={styles.mockupServiceTile}
+            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '15.2%' : '23%', marginBottom: 12, paddingVertical: 14 }]}
             onPress={() => navigation.navigate('AllServices')}
             activeOpacity={0.8}
           >
