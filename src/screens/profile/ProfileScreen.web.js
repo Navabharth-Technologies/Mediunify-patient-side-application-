@@ -699,36 +699,19 @@ const ProfileScreenWeb = ({ navigation, route }) => {
           </View>
 
           {/* ============================================================
-              6. WEB SETTINGS & SIGN OUT ROW
+              6. WEB SIGN OUT ACTION CARD (MATCHING DESIGN)
           ============================================================ */}
-          <View style={styles.settingsAndLogoutRow}>
-            <View style={styles.settingsPillsWrap}>
-              <TouchableOpacity
-                style={styles.settingPillBtn}
-                onPress={() => navigation?.navigate('Settings')}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="globe-outline" size={16} color="#00B894" />
-                <Text style={styles.settingPillText}>Language: {currentLang?.name || 'English'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.settingPillBtn}
-                onPress={() => navigation?.navigate('Notifications')}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="notifications-outline" size={16} color="#2563EB" />
-                <Text style={styles.settingPillText}>Notification Preferences</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.settingPillBtn}
-                onPress={() => navigation?.navigate('EditProfile', { user, openPassword: true })}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="lock-closed-outline" size={16} color="#475569" />
-                <Text style={styles.settingPillText}>Change Password</Text>
-              </TouchableOpacity>
+          <View style={styles.webLogoutCard}>
+            <View style={styles.webLogoutCardLeft}>
+              <View style={styles.webLogoutIconCircle}>
+                <Ionicons name="log-out-outline" size={22} color="#DC2626" />
+              </View>
+              <View style={styles.webLogoutTextCol}>
+                <Text style={styles.webLogoutCardTitle}>Sign Out of Your Account</Text>
+                <Text style={styles.webLogoutCardSub}>
+                  Securely terminate your current session on this device. You can log back in anytime.
+                </Text>
+              </View>
             </View>
 
             <TouchableOpacity
@@ -736,7 +719,7 @@ const ProfileScreenWeb = ({ navigation, route }) => {
               onPress={handleLogout}
               activeOpacity={0.88}
             >
-              <Ionicons name="log-out-outline" size={18} color="#DC2626" />
+              <Ionicons name="log-out-outline" size={17} color="#DC2626" />
               <Text style={styles.webLogoutBtnText}>Log Out of Account</Text>
             </TouchableOpacity>
           </View>
@@ -1443,51 +1426,66 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
 
-  // SETTINGS AND LOGOUT ROW
-  settingsAndLogoutRow: {
+  // WEB SIGN OUT ACTION CARD (MATCHING DESIGN)
+  webLogoutCard: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 14,
-    paddingVertical: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-  },
-  settingsPillsWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 10,
-  },
-  settingPillBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
     backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 18,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 8,
-    cursor: 'pointer',
+    marginBottom: 24,
+    flexWrap: 'wrap',
+    gap: 16,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  settingPillText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#334155',
+  webLogoutCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    flex: 1,
+    minWidth: 260,
+  },
+  webLogoutIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  webLogoutTextCol: {
+    flex: 1,
+  },
+  webLogoutCardTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#1E3A8A',
+    marginBottom: 3,
+  },
+  webLogoutCardSub: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 18,
   },
   webLogoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     backgroundColor: '#FEF2F2',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#FECACA',
-    paddingHorizontal: 18,
-    paddingVertical: 9,
-    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 10,
     cursor: 'pointer',
+    alignSelf: 'center',
   },
   webLogoutBtnText: {
     fontSize: 13,
