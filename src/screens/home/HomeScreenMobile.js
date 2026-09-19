@@ -491,7 +491,7 @@ const HomeScreen = ({ navigation }) => {
       {/* ==========================================
           TOP APP BAR (LOGO, NAME, LOCATION, WALLET, NOTIFS, CART)
       ========================================== */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, width >= 600 && { maxWidth: 960, width: '100%', alignSelf: 'center' }]}>
         {/* BRAND LOGO & LOCATION SELECTOR (LEFT) */}
         <View style={styles.brandHeaderLeft}>
           <Image
@@ -556,7 +556,10 @@ const HomeScreen = ({ navigation }) => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          width >= 600 && { maxWidth: 960, width: '100%', alignSelf: 'center' },
+        ]}
       >
 
         {/* ============================================================

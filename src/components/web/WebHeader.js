@@ -136,7 +136,7 @@ const CITIES = ['Mysuru', 'Bengaluru', 'Mangaluru', 'Hubballi', 'Belagavi'];
 const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
-  const isTablet = width >= 768 && width < 1024;
+  const isTablet = width >= 600 && width < 1024;
   const isCompactDesktop = width >= 1024 && width < 1340;
 
   const [selectedCity, setSelectedCity] = useState('Mysuru');
@@ -148,6 +148,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
   const [userName, setUserName] = useState('');
   const [isVipMember, setIsVipMember] = useState(false);
   const [notificationsList, setNotificationsList] = useState(INITIAL_NOTIFICATIONS);
+  const [isTabletDrawerOpen, setIsTabletDrawerOpen] = useState(false);
 
   const { pharmacyCartCount = 0, pharmacyFinalTotal = 0, labCartCount = 0, radiologyCartCount = 0 } = useCart() || {};
   const totalCartCount = (pharmacyCartCount || 0) + (labCartCount || 0) + (radiologyCartCount || 0);
@@ -340,6 +341,18 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
             </View>
           </View>
         </TouchableOpacity>
+
+        {/* TABLET MENU TRIGGER (iPad & Android Tablets) */}
+        {isTablet && (
+          <TouchableOpacity
+            style={styles.tabletMenuBtn}
+            onPress={() => setIsTabletDrawerOpen(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="menu" size={20} color="#0D9488" />
+            <Text style={styles.tabletMenuBtnText}>Services</Text>
+          </TouchableOpacity>
+        )}
 
         {/* ============================================================
             CENTER: NAVIGATION LINKS (Desktop only)
@@ -692,6 +705,54 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
       </View>
 
       {/* ============================================================
+          TABLET HORIZONTAL TOUCH NAVIGATION STRIP (iPad & Android Tablets)
+      ============================================================ */}
+      {isTablet && (
+        <View style={styles.tabletNavStrip}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabletNavScrollContent}
+          >
+            {NAV_LINKS.map((item) => {
+              const active = isTabActive(item);
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.tabletNavPill, active && styles.tabletNavPillActive]}
+                  onPress={() => {
+                    if (item.hasDropdown) {
+                      setIsTabletDrawerOpen(true);
+                    } else if (item.route) {
+                      handleNavigate(item.route);
+                    }
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.tabletNavPillText, active && styles.tabletNavPillTextActive]}>
+                    {item.shortLabel || item.label}
+                  </Text>
+                  {item.isAi && (
+                    <View style={{ backgroundColor: active ? '#0D9488' : '#CCFBF1', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 5, marginLeft: 4 }}>
+                      <Ionicons name="sparkles" size={9} color={active ? '#FFFFFF' : '#0D9488'} />
+                    </View>
+                  )}
+                  {item.isVip && (
+                    <View style={{ backgroundColor: active ? '#D97706' : '#FEF3C7', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 5, marginLeft: 4 }}>
+                      <Text style={{ fontSize: 8.5, fontWeight: '900', color: active ? '#FFFFFF' : '#B45309' }}>VIP</Text>
+                    </View>
+                  )}
+                  {item.hasDropdown && (
+                    <Ionicons name="chevron-down" size={10} color={active ? '#0D9488' : '#64748B'} style={{ marginLeft: 3 }} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* ============================================================
           CONTINUOUS AUTO-SCROLLING ADS TICKER (ON SCREEN)
       ============================================================ */}
       <View style={styles.tickerRoot}>
@@ -895,6 +956,207 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
               </View>
             </View>
           </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ============================================================
+          TABLET NAVIGATION DRAWER MODAL (iPad & Android Tablets)
+      ============================================================ */}
+      <Modal
+        visible={isTabletDrawerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsTabletDrawerOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setIsTabletDrawerOpen(false)}
+        >
+          <TouchableOpacity
+            style={styles.tabletDrawerCard}
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Drawer Header */}
+            <View style={styles.tabletDrawerHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Image
+                  source={require('../../../assets/logo.png')}
+                  style={{ width: 34, height: 34 }}
+                  resizeMode="contain"
+                />
+                <View>
+                  <Text style={styles.tabletDrawerTitle}>MediUnify Healthcare</Text>
+                  <Text style={styles.tabletDrawerSub}>All Services & Quick Navigation</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.tabletDrawerCloseBtn}
+                onPress={() => setIsTabletDrawerOpen(false)}
+              >
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Service Grid/Sections ScrollView */}
+            <ScrollView style={styles.tabletDrawerScroll} showsVerticalScrollIndicator={false}>
+              {/* Doctors & Clinical Care */}
+              <Text style={styles.tabletDrawerSectionTitle}>DOCTORS & CONSULTATIONS</Text>
+              <View style={styles.tabletDrawerGrid}>
+                {FIND_CARE_ITEMS.map((item, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    style={styles.tabletDrawerTile}
+                    onPress={() => {
+                      setIsTabletDrawerOpen(false);
+                      handleNavigate(item.route, item.params);
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <View style={styles.tabletDrawerTileIconBox}>
+                      <Ionicons name={item.icon} size={20} color="#0D9488" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.tabletDrawerTileTitle}>{item.label}</Text>
+                      <Text style={styles.tabletDrawerTileDesc}>{item.desc}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Pharmacy, Labs & Diagnostics */}
+              <Text style={styles.tabletDrawerSectionTitle}>PHARMACY & DIAGNOSTICS</Text>
+              <View style={styles.tabletDrawerGrid}>
+                <TouchableOpacity
+                  style={styles.tabletDrawerTile}
+                  onPress={() => {
+                    setIsTabletDrawerOpen(false);
+                    handleNavigate('Pharmacy');
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.tabletDrawerTileIconBox, { backgroundColor: '#FEF3C7' }]}>
+                    <Ionicons name="medkit" size={20} color="#D97706" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.tabletDrawerTileTitle}>Online Pharmacy</Text>
+                    <Text style={styles.tabletDrawerTileDesc}>Flat 20% OFF on Medicines</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.tabletDrawerTile}
+                  onPress={() => {
+                    setIsTabletDrawerOpen(false);
+                    handleNavigate('LabTests');
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.tabletDrawerTileIconBox, { backgroundColor: '#E0F2FE' }]}>
+                    <Ionicons name="flask" size={20} color="#0284C7" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.tabletDrawerTileTitle}>Lab Tests & Checkups</Text>
+                    <Text style={styles.tabletDrawerTileDesc}>NABL Certified Home Pickup</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.tabletDrawerTile}
+                  onPress={() => {
+                    setIsTabletDrawerOpen(false);
+                    handleNavigate('RadiologyLabs');
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.tabletDrawerTileIconBox, { backgroundColor: '#F3E8FF' }]}>
+                    <Ionicons name="radio" size={20} color="#7E22CE" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.tabletDrawerTileTitle}>Radiology & Scans</Text>
+                    <Text style={styles.tabletDrawerTileDesc}>3T MRI, CT & Ultrasound</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.tabletDrawerTile}
+                  onPress={() => {
+                    setIsTabletDrawerOpen(false);
+                    handleNavigate('Emergency');
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.tabletDrawerTileIconBox, { backgroundColor: '#FEE2E2' }]}>
+                    <Ionicons name="car" size={20} color="#DC2626" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.tabletDrawerTileTitle, { color: '#DC2626' }]}>Emergency 24/7 SOS</Text>
+                    <Text style={styles.tabletDrawerTileDesc}>Immediate Ambulance Dispatch</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {/* Hospitals & Insurance */}
+              <Text style={styles.tabletDrawerSectionTitle}>HOSPITALS & INSURANCE</Text>
+              <View style={styles.tabletDrawerGrid}>
+                <TouchableOpacity
+                  style={styles.tabletDrawerTile}
+                  onPress={() => {
+                    setIsTabletDrawerOpen(false);
+                    handleNavigate('HospitalCare');
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.tabletDrawerTileIconBox, { backgroundColor: '#E0E7FF' }]}>
+                    <Ionicons name="business" size={20} color="#4338CA" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.tabletDrawerTileTitle}>Hospitals & Surgeries</Text>
+                    <Text style={styles.tabletDrawerTileDesc}>Top NABH Partner Centers</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.tabletDrawerTile}
+                  onPress={() => {
+                    setIsTabletDrawerOpen(false);
+                    handleNavigate('HealthInsurance');
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.tabletDrawerTileIconBox, { backgroundColor: '#DCFCE7' }]}>
+                    <Ionicons name="card" size={20} color="#15803D" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.tabletDrawerTileTitle}>Health Insurance</Text>
+                    <Text style={styles.tabletDrawerTileDesc}>100% Cashless Approvals</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {/* Specialized Care */}
+              <Text style={styles.tabletDrawerSectionTitle}>SPECIALIZED HEALTHCARE</Text>
+              <View style={styles.tabletDrawerGrid}>
+                {MORE_ITEMS.map((item, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    style={styles.tabletDrawerTile}
+                    onPress={() => {
+                      setIsTabletDrawerOpen(false);
+                      handleNavigate(item.route);
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <View style={styles.tabletDrawerTileIconBox}>
+                      <Ionicons name={item.icon} size={18} color="#0D9488" />
+                    </View>
+                    <Text style={styles.tabletDrawerTileTitle}>{item.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
     </View>
@@ -1667,6 +1929,154 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     marginLeft: 16,
     marginRight: 4,
+  },
+
+  // TABLET RESPONSIVE NAVIGATION STYLES (iPad & Android Tablets)
+  tabletMenuBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1.2,
+    borderColor: '#99F6E4',
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 20,
+    marginLeft: 10,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', transition: 'all 0.15s ease' } : {}),
+  },
+  tabletMenuBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0F766E',
+  },
+  tabletNavStrip: {
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingVertical: 7,
+    width: '100%',
+  },
+  tabletNavScrollContent: {
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  tabletNavPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6.5,
+    borderRadius: 20,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', transition: 'all 0.15s ease', whiteSpace: 'nowrap' } : {}),
+  },
+  tabletNavPillActive: {
+    backgroundColor: '#F0FDFA',
+    borderColor: '#00B894',
+  },
+  tabletNavPillText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  tabletNavPillTextActive: {
+    color: '#0D9488',
+    fontWeight: '800',
+  },
+
+  // TABLET DRAWER MODAL STYLES
+  tabletDrawerCard: {
+    width: '92%',
+    maxWidth: 640,
+    maxHeight: '85%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.2,
+    shadowRadius: 28,
+    elevation: 24,
+  },
+  tabletDrawerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  tabletDrawerTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#1E293B',
+  },
+  tabletDrawerSub: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  tabletDrawerCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabletDrawerScroll: {
+    marginTop: 12,
+  },
+  tabletDrawerSectionTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 0.8,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  tabletDrawerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  tabletDrawerTile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    width: '48.5%',
+    gap: 10,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', transition: 'all 0.15s ease' } : {}),
+  },
+  tabletDrawerTileIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#F0FDFA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabletDrawerTileTitle: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  tabletDrawerTileDesc: {
+    fontSize: 10.5,
+    color: '#64748B',
+    marginTop: 1,
   },
 });
 

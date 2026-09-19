@@ -200,6 +200,8 @@ const BottomNavigation = ({
   navigation,
   currentRoute,
 }) => {
+  const { width } = useWindowDimensions();
+  const isTabletDevice = width >= 600;
 
   // ==================================================
   // NAVIGATE
@@ -224,7 +226,14 @@ const BottomNavigation = ({
   return (
 
     <View
-      style={styles.bottomNavigation}
+      style={[
+        styles.bottomNavigation,
+        isTabletDevice && {
+          left: (width - Math.min(width * 0.9, 540)) / 2,
+          right: 'auto',
+          width: Math.min(width * 0.9, 540),
+        },
+      ]}
     >
 
       {/* 1. HOME */}
@@ -368,7 +377,7 @@ const MainNavigator = ({
   navigation,
 }) => {
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const isDesktopWeb = Platform.OS === 'web' && width >= 600;
 
   const [
     currentRoute,
@@ -453,7 +462,7 @@ const MainNavigator = ({
       <View
         style={[
           styles.stackWrapper,
-          isDesktopWeb &&
+          (isDesktopWeb || (Platform.OS !== 'web' && width >= 768)) &&
           ![
             'Home',
             'LabTests',

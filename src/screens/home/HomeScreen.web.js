@@ -284,7 +284,7 @@ const HomeScreenWeb = ({ navigation }) => {
   const [isHovered, setIsHovered] = useState(false);
 
   const isDesktop = width >= 960;
-  const isTablet = width >= 640 && width < 960;
+  const isTablet = width >= 600 && width < 960;
   const visibleCardsCount = isDesktop ? 3 : isTablet ? 2 : 1;
   const containerMaxWidth = 1320;
   const availableWidth = Math.min(width, containerMaxWidth) - 48;
@@ -2646,9 +2646,9 @@ const styles = StyleSheet.create({
 
 const HomeScreenResponsive = (props) => {
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 768;
+  const isTabletOrDesktop = width >= 600;
 
-  if (!isDesktop) {
+  if (!isTabletOrDesktop) {
     return <HomeScreenMobile {...props} />;
   }
 
