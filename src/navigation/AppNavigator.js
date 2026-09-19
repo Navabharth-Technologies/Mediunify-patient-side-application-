@@ -33,8 +33,8 @@ const linking = {
     screens: {
       Auth: {
         screens: {
+          Login: '',
           Splash: 'splash',
-          Login: 'login',
           Register: 'register',
           OTP: 'otp',
           ForgotPassword: 'forgot-password',
@@ -42,7 +42,7 @@ const linking = {
       },
       MainApp: {
         screens: {
-          Home: '',
+          Home: 'home',
           LabTests: 'lab-tests',
           Imaging: 'radiology',
           RadiologyLabs: 'radiology-labs',
