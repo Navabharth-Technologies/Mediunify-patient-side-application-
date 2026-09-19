@@ -1,0 +1,170 @@
+// ============================================================
+// MediUnify Care+ VIP Membership Data & Tiers
+// ============================================================
+
+export const MEMBERSHIP_PLANS = [
+  {
+    id: 'silver',
+    title: 'Care Silver',
+    tagline: 'Ideal for individuals & basic monthly medicine refills',
+    duration: '3 Months',
+    price: 165,
+    originalPrice: 299,
+    savingsText: 'Save approx. ₹1,200/yr',
+    badge: null,
+    badgeBg: '#F1F5F9',
+    badgeColor: '#475569',
+    themeColor: '#64748B',
+    bgGradient: ['#F8FAFC', '#E2E8F0'],
+    cardBorder: '#CBD5E1',
+    perks: [
+      '5% Extra Discount on all Medicines & Jan Aushadhi',
+      '1 Free Online Doctor Video Consultation (General Physician)',
+      'Free Standard Medicine Delivery on orders above ₹199',
+      '5% OFF on NABL Diagnostic Blood Tests',
+      '24/7 Priority AI Symptom Checker & Health Support',
+    ],
+    vouchers: [
+      { id: 'v-sil-1', title: '1 Free GP Video Consultation', value: '₹299', code: 'SILVERDOC' },
+      { id: 'v-sil-2', title: 'Flat ₹50 OFF First Medicine Order', value: '₹50', code: 'SILVERMED50' },
+    ],
+  },
+  {
+    id: 'gold',
+    title: 'Care Gold',
+    tagline: 'Most Popular • Comprehensive care for individual health',
+    duration: '12 Months (1 Year)',
+    price: 499,
+    originalPrice: 1199,
+    savingsText: 'Save approx. ₹4,500/yr',
+    badge: 'MOST POPULAR',
+    badgeBg: '#FEF3C7',
+    badgeColor: '#B45309',
+    themeColor: '#D97706',
+    bgGradient: ['#FFFBEB', '#FEF3C7'],
+    cardBorder: '#F59E0B',
+    isPopular: true,
+    perks: [
+      'Flat 10% Extra OFF across Pharmacy, Lab Tests & Radiology',
+      '4 Free Specialist Doctor Video Consultations (Cardio, Derma, Pedia, Gynae)',
+      'Free Home Sample Collection on ALL Lab Tests (Zero minimum)',
+      'Free Express 60-min Medicine Delivery across Karnataka',
+      '1 Free Comprehensive Full Body Screening voucher (worth ₹999)',
+      'Personal Dedicated Health Concierge & Priority Clinic Token Slot',
+    ],
+    vouchers: [
+      { id: 'v-gold-1', title: '1 Free Annual Full Body Health Checkup (68 Tests)', value: '₹999', code: 'GOLDFULLCHECK' },
+      { id: 'v-gold-2', title: '4 Free Specialist Doctor Video Consults', value: '₹1,596', code: 'GOLDSPECIAL4' },
+      { id: 'v-gold-3', title: '₹200 OFF First 3T MRI or CT Radiology Scan', value: '₹200', code: 'GOLDSCAN200' },
+    ],
+  },
+  {
+    id: 'platinum',
+    title: 'Family Platinum',
+    tagline: 'All-inclusive VIP healthcare coverage for up to 4 family members',
+    duration: '12 Months (1 Year)',
+    price: 999,
+    originalPrice: 2499,
+    savingsText: 'Save approx. ₹9,800/yr',
+    badge: 'BEST VALUE FOR FAMILY',
+    badgeBg: '#F3E8FF',
+    badgeColor: '#7E22CE',
+    themeColor: '#7C3AED',
+    bgGradient: ['#FAF5FF', '#F3E8FF'],
+    cardBorder: '#A855F7',
+    isFamily: true,
+    maxMembers: 4,
+    perks: [
+      'Covers Self + Spouse + 2 Children or Elderly Parents',
+      'Flat 15% Extra OFF on all Medicines, Lab Tests & Surgery quotes',
+      'Unlimited Free GP Consultations + 6 Specialist Doctor Calls',
+      '2 Free Comprehensive Full Body Health Packages (worth ₹1,999 each)',
+      'Free Doorstep Certified Home Nurse Visit (2 sessions)',
+      'Free Emergency Ambulance Service & Cashless Insurance Desk Support',
+      '0% EMI assistance for IVF treatments & Planned Hospitalization',
+    ],
+    vouchers: [
+      { id: 'v-plat-1', title: '2 Free Master Full Body Health Packages', value: '₹3,998', code: 'PLATFAMILYCHECK' },
+      { id: 'v-plat-2', title: 'Unlimited GP + 6 Free Specialist Calls', value: '₹2,999', code: 'PLATDOCS' },
+      { id: 'v-plat-3', title: '2 Free In-Home Nursing Care Sessions', value: '₹1,200', code: 'PLATNURSE2' },
+    ],
+  },
+];
+
+export const MEMBERSHIP_COMPARISON_ROWS = [
+  {
+    feature: 'Extra Discount on Medicines',
+    free: '0%',
+    silver: '5% Extra',
+    gold: '10% Extra',
+    platinum: '15% Extra',
+  },
+  {
+    feature: 'Extra Discount on Lab Tests & Scans',
+    free: 'Standard Rates',
+    silver: '5% Extra',
+    gold: '10% Extra',
+    platinum: '15% Extra',
+  },
+  {
+    feature: 'Free Doctor Video Consultations',
+    free: 'Paid (₹299+)',
+    silver: '1 Call / Quarter',
+    gold: '4 Specialist Calls',
+    platinum: 'Unlimited GP + 6 Specialist',
+  },
+  {
+    feature: 'Medicine Home Delivery',
+    free: '₹49 fee below ₹499',
+    silver: 'Free on orders > ₹199',
+    gold: 'Zero Delivery Fee Always',
+    platinum: 'Zero Delivery Fee Always',
+  },
+  {
+    feature: 'Lab Sample Pickup from Home',
+    free: '₹150 Pickup Fee',
+    silver: '₹50 Pickup Fee',
+    gold: 'Free Everywhere',
+    platinum: 'Free Everywhere',
+  },
+  {
+    feature: 'Free Full Body Checkup Vouchers',
+    free: 'None',
+    silver: 'None',
+    gold: '1 Checkup (worth ₹999)',
+    platinum: '2 Checkups (worth ₹3,998)',
+  },
+  {
+    feature: 'Emergency & Nurse Support',
+    free: 'Standard Hotline',
+    silver: 'Standard Hotline',
+    gold: 'VIP Fast Response',
+    platinum: 'Free Ambulance + 2 Nurse Visits',
+  },
+  {
+    feature: 'Family Members Covered',
+    free: '1 Person',
+    silver: '1 Person',
+    gold: '1 Person',
+    platinum: 'Up to 4 Family Members',
+  },
+];
+
+export const MEMBERSHIP_FAQS = [
+  {
+    q: 'How does the MediUnify Care+ VIP discount apply?',
+    a: 'Discounts are automatically calculated at checkout! As soon as your membership is activated, all medicines, lab test packages, and diagnostic radiology scans in your cart will show your exclusive extra membership discount.',
+  },
+  {
+    q: 'Can I use my free doctor consultations immediately?',
+    a: 'Yes! Instant consultation vouchers are credited to your account as soon as your membership is active. You can book an online video consultation with qualified MBBS general physicians or specialists with zero payment.',
+  },
+  {
+    q: 'How does the Family Platinum plan cover other members?',
+    a: 'Under Family Platinum, you can add up to 3 additional family members from your Profile -> Family Profiles section. All added family profiles will enjoy the same 15% discount and benefits under your account.',
+  },
+  {
+    q: 'Is there any commitment or auto-debit?',
+    a: 'No hidden auto-debit! When your membership term nears completion, you will receive a friendly renewal reminder and can choose to renew with your preferred payment method.',
+  },
+];

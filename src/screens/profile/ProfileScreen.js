@@ -38,6 +38,7 @@ const ProfileScreen = ({ navigation, route }) => {
   const [walletBalance, setWalletBalance] = useState(1250);
   const [carePoints, setCarePoints] = useState(500);
   const [familyCount, setFamilyCount] = useState(1);
+  const [membershipData, setMembershipData] = useState(null);
 
   // Load Saved Data on Mount & Screen Focus
   useEffect(() => {
@@ -71,6 +72,13 @@ const ProfileScreen = ({ navigation, route }) => {
       const storedEmail = await AsyncStorage.getItem('userEmail');
       const storedPhone = await AsyncStorage.getItem('userPhone');
       const savedWallet = await AsyncStorage.getItem('@unnathi_wallet_balance');
+      if (savedWallet) setWalletBalance(parseInt(savedWallet, 10) || 1250);
+      const memStr = await AsyncStorage.getItem('@mediunify_membership');
+      if (memStr) {
+        try {
+          setMembershipData(JSON.parse(memStr));
+        } catch (e) {}
+      }
 
       let parsedUser = null;
       if (storedPrimary) {
@@ -360,6 +368,39 @@ const ProfileScreen = ({ navigation, route }) => {
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* ============================================================
+              1.5 MEDIUNIFY CARE+ VIP MEMBERSHIP STATUS / UPGRADE
+          ============================================================ */}
+          <TouchableOpacity
+            style={styles.profileVipCard}
+            onPress={() => navigation.navigate('Membership')}
+            activeOpacity={0.88}
+          >
+            <View style={styles.profileVipLeft}>
+              <View style={styles.profileVipIconCircle}>
+                <Ionicons name="ribbon" size={22} color="#D97706" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.profileVipTitle}>
+                    {membershipData?.status === 'active' ? `${membershipData.tierName} VIP Member` : 'MediUnify Care+ VIP'}
+                  </Text>
+                  <View style={styles.profileVipBadge}>
+                    <Text style={styles.profileVipBadgeText}>
+                      {membershipData?.status === 'active' ? 'ACTIVE' : 'SAVE 15%'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.profileVipSub}>
+                  {membershipData?.status === 'active'
+                    ? `Saved ₹${membershipData.savingsToDate?.toLocaleString('en-IN') || '1,850'} • Tap to view perks & vouchers`
+                    : 'Free doctor calls, 15% discount & ₹0 delivery'}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#D97706" />
+          </TouchableOpacity>
 
           {/* ============================================================
               2. 3-TILE SUMMARY METRICS (HOMESCREEN 3x3 STYLE)
@@ -729,7 +770,59 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 6,
     elevation: 2,
+    marginBottom: 10,
+  },
+  // VIP MEMBERSHIP PROFILE CARD
+  profileVipCard: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 14,
+    shadowColor: '#D97706',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  profileVipLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  profileVipIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileVipTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  profileVipBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  profileVipBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: '#B45309',
+  },
+  profileVipSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
   },
   profileHeaderRow: {
     flexDirection: 'row',

@@ -583,6 +583,52 @@ const HomeScreenWeb = ({ navigation }) => {
         </View>
 
         {/* ============================================================
+            1.4 MEDIUNIFY CARE+ VIP MEMBERSHIP BANNER
+        ============================================================ */}
+        <View style={styles.vipBannerWrap}>
+          <View style={styles.vipBannerCard}>
+            <View style={styles.vipBannerLeft}>
+              <View style={styles.vipBadgePill}>
+                <Ionicons name="ribbon" size={13} color="#B45309" />
+                <Text style={styles.vipBadgeText}>MEDIUNIFY CARE+ VIP MEMBERSHIP</Text>
+              </View>
+              <Text style={styles.vipBannerTitle}>
+                Save Up to ₹10,000 Yearly on Healthcare for You & Your Family
+              </Text>
+              <Text style={styles.vipBannerSub}>
+                Flat 15% Extra OFF on Medicines & Tests • Free Specialist Video Consultations • Free 60-min Express Delivery.
+              </Text>
+              <View style={styles.vipPerksRow}>
+                <View style={styles.vipPerkPill}>
+                  <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                  <Text style={styles.vipPerkText}>4 Free Consults</Text>
+                </View>
+                <View style={styles.vipPerkPill}>
+                  <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                  <Text style={styles.vipPerkText}>₹0 Delivery Fee</Text>
+                </View>
+                <View style={styles.vipPerkPill}>
+                  <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                  <Text style={styles.vipPerkText}>Free Health Checkup</Text>
+                </View>
+              </View>
+            </View>
+            <View style={styles.vipBannerRight}>
+              <Text style={styles.vipPriceStarting}>Plans Starting @</Text>
+              <Text style={styles.vipPriceTag}>₹165 <Text style={{ fontSize: 13, color: '#64748B', fontWeight: '500' }}>/ 3 mos</Text></Text>
+              <TouchableOpacity
+                style={styles.vipJoinBtn}
+                onPress={() => navigation?.navigate('Membership')}
+                activeOpacity={0.88}
+              >
+                <Text style={styles.vipJoinBtnText}>Explore VIP Plans</Text>
+                <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* ============================================================
             1.5 MEDIUNIFY HEALTH WALLET & CARE POINTS BANNER
         ============================================================ */}
         <View style={styles.walletHomeSectionWrap}>
@@ -2067,6 +2113,120 @@ const styles = StyleSheet.create({
   appFeatureSub: {
     fontSize: 11,
     color: '#94A3B8',
+  },
+
+  // MEDIUNIFY CARE+ VIP BANNER
+  vipBannerWrap: {
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+  },
+  vipBannerCard: {
+    maxWidth: 1320,
+    width: '100%',
+    alignSelf: 'center',
+    backgroundColor: '#FFFBEB',
+    borderRadius: 16,
+    padding: 22,
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 20,
+    shadowColor: '#D97706',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+  },
+  vipBannerLeft: {
+    flex: 2,
+    minWidth: 320,
+  },
+  vipBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#FEF3C7',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  vipBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '900',
+    color: '#B45309',
+    letterSpacing: 0.3,
+  },
+  vipBannerTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -0.3,
+    marginBottom: 6,
+  },
+  vipBannerSub: {
+    fontSize: 12.5,
+    color: '#64748B',
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  vipPerksRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  vipPerkPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  vipPerkText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#064E3B',
+  },
+  vipBannerRight: {
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  vipPriceStarting: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  vipPriceTag: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#B45309',
+    marginBottom: 10,
+  },
+  vipJoinBtn: {
+    backgroundColor: '#D97706',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 10,
+  },
+  vipJoinBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 
   // MEDIUNIFY HEALTH WALLET CARD

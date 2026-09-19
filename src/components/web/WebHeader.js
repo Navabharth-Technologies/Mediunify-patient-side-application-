@@ -24,6 +24,7 @@ const NAV_LINKS = [
   { id: 'pharmacy', label: 'Pharmacy', route: 'Pharmacy' },
   { id: 'hospitals', label: 'Hospital & Surgery', shortLabel: 'Hospitals', route: 'HospitalCare' },
   { id: 'insurance', label: 'Insurance', route: 'HealthInsurance' },
+  { id: 'membership', label: 'Care+ VIP', shortLabel: 'VIP', route: 'Membership', isVip: true },
   { id: 'more', label: 'More', hasDropdown: true },
 ];
 
@@ -75,6 +76,7 @@ const INITIAL_NOTIFICATIONS = [
 ];
 
 const SCROLLING_ADS = [
+  { id: 'ad-vip', badge: 'CARE+ VIP', text: 'Join MediUnify Care+ VIP • Extra 15% OFF on Tests & Medicines + Free Doctor Calls', icon: 'ribbon', route: 'Membership' },
   { id: 'ad-ai', badge: '24/7 AI HEALTHCARE', text: 'Instant Health Guidance, Doctor Recommendations & Prescription OCR Scanner • Free MediUnify AI', icon: 'sparkles', route: 'Chatbot' },
   { id: 'ad-med', badge: 'FLAT 20% OFF', text: 'Doorstep Medicines & Jan Aushadhi in 60 mins • Code: MEDI20', icon: 'medkit', route: 'Pharmacy' },
   { id: 'ad-ayu', badge: 'AYURVEDA & WELLNESS', text: 'Authentic Nadi Pariksha & Classical Panchakarma Starting @ ₹999 • AYUSH Certified Vaidyas', icon: 'leaf', route: 'AyurvedaWellness' },
@@ -125,6 +127,7 @@ const MORE_ITEMS = [
   { label: 'Digital Health Records', route: 'HealthRecords', icon: 'document-text-outline' },
   { label: 'My Bookings', route: 'Bookings', icon: 'calendar-outline' },
   { label: 'Health Wallet', route: 'Wallet', icon: 'wallet-outline' },
+  { label: 'MediUnify Care+ VIP', route: 'Membership', icon: 'ribbon-outline' },
   { label: 'Help & Support', route: 'HelpSupport', icon: 'help-circle-outline' },
 ];
 
@@ -143,6 +146,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('');
+  const [isVipMember, setIsVipMember] = useState(false);
   const [notificationsList, setNotificationsList] = useState(INITIAL_NOTIFICATIONS);
 
   const { pharmacyCartCount = 0, pharmacyFinalTotal = 0, labCartCount = 0, radiologyCartCount = 0 } = useCart() || {};
@@ -236,6 +240,13 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
         if (name) setUserName(name);
         const city = (await AsyncStorage.getItem('@mediunify_selected_city')) || (await AsyncStorage.getItem('@unnathi_user_location'));
         if (city && CITIES.includes(city)) setSelectedCity(city);
+        const memStr = await AsyncStorage.getItem('@mediunify_membership');
+        if (memStr) {
+          try {
+            const mem = JSON.parse(memStr);
+            setIsVipMember(mem?.status === 'active');
+          } catch (e) {}
+        }
       } catch (e) {}
     };
     checkAuth();
@@ -370,6 +381,12 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                     {item.isAi && (
                       <View style={{ backgroundColor: active ? '#0D9488' : '#CCFBF1', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 6, marginLeft: 4 }}>
                         <Ionicons name="sparkles" size={10} color={active ? '#FFFFFF' : '#0D9488'} />
+                      </View>
+                    )}
+                    {item.isVip && (
+                      <View style={{ backgroundColor: active ? '#D97706' : '#FEF3C7', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 6, marginLeft: 4, flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                        <Ionicons name="ribbon" size={10} color={active ? '#FFFFFF' : '#B45309'} />
+                        <Text style={{ fontSize: 9, fontWeight: '900', color: active ? '#FFFFFF' : '#B45309' }}>VIP</Text>
                       </View>
                     )}
                     {item.hasDropdown && (
@@ -638,8 +655,17 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                   {userName ? userName.trim().split(' ')[0] : 'My Account'}
                 </Text>
                 <View style={styles.userRoleTag}>
-                  <Ionicons name="shield-checkmark" size={10} color="#00B894" />
-                  <Text style={styles.userRoleText}>Verified</Text>
+                  {isVipMember ? (
+                    <>
+                      <Ionicons name="ribbon" size={10} color="#D97706" />
+                      <Text style={[styles.userRoleText, { color: '#D97706' }]}>Care+ VIP</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Ionicons name="shield-checkmark" size={10} color="#00B894" />
+                      <Text style={styles.userRoleText}>Verified</Text>
+                    </>
+                  )}
                 </View>
               </View>
             </TouchableOpacity>

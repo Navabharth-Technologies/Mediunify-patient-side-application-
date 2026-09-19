@@ -88,6 +88,7 @@ const linking = {
           EquipmentRental: 'equipment-rental',
           Chatbot: 'chatbot',
           Profile: 'profile',
+          Membership: 'membership',
         },
       },
     },

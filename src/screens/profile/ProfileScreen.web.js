@@ -41,6 +41,7 @@ const ProfileScreenWeb = ({ navigation, route }) => {
   const [walletBalance, setWalletBalance] = useState(1250);
   const [carePoints, setCarePoints] = useState(500);
   const [familyCount, setFamilyCount] = useState(1);
+  const [membershipData, setMembershipData] = useState(null);
 
   // Load Saved Data on Mount & Screen Focus
   useEffect(() => {
@@ -141,6 +142,13 @@ const ProfileScreenWeb = ({ navigation, route }) => {
           }
         }
       } catch (e) {}
+
+      const memStr = await AsyncStorage.getItem('@mediunify_membership');
+      if (memStr) {
+        try {
+          setMembershipData(JSON.parse(memStr));
+        } catch (e) {}
+      }
 
       try {
         syncActiveUser().then((latest) => {
@@ -403,6 +411,47 @@ const ProfileScreenWeb = ({ navigation, route }) => {
                 </TouchableOpacity>
               </View>
             </View>
+          </View>
+
+          {/* ============================================================
+              2.5 MEDIUNIFY CARE+ VIP MEMBERSHIP BANNER CARD
+          ============================================================ */}
+          <View style={styles.webVipMembershipBanner}>
+            <View style={styles.webVipBannerLeft}>
+              <View style={styles.webVipBadgeRow}>
+                <View style={styles.webVipCrownCircle}>
+                  <Ionicons name="ribbon" size={22} color="#D97706" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={styles.webVipTitle}>
+                      {membershipData?.status === 'active' ? `${membershipData.tierName} VIP Member` : 'MediUnify Care+ VIP Membership'}
+                    </Text>
+                    <View style={[styles.webVipBadgePill, membershipData?.status === 'active' && { backgroundColor: '#DCFCE7' }]}>
+                      <Text style={[styles.webVipBadgeText, membershipData?.status === 'active' && { color: '#15803D' }]}>
+                        {membershipData?.status === 'active' ? 'ACTIVE VIP' : 'UPGRADE NOW'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.webVipSub}>
+                    {membershipData?.status === 'active'
+                      ? `Valid until ${new Date(membershipData.expiresAt).toLocaleDateString()} • Total Saved: ₹${membershipData.savingsToDate?.toLocaleString('en-IN') || '1,850'}`
+                      : 'Flat 15% Extra OFF on Pharmacy & Lab Tests • 4 Free Specialist Doctor Calls • Free 60m Delivery'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.webVipCtaBtn}
+              onPress={() => navigation?.navigate('Membership')}
+              activeOpacity={0.88}
+            >
+              <Text style={styles.webVipCtaBtnText}>
+                {membershipData?.status === 'active' ? 'View VIP Perks & Vouchers' : 'Explore VIP Plans'}
+              </Text>
+              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+            </TouchableOpacity>
           </View>
 
           {/* ============================================================
@@ -774,11 +823,82 @@ const styles = StyleSheet.create({
   heroDualRow: {
     flexDirection: 'column',
     gap: 18,
-    marginBottom: 26,
+    marginBottom: 16,
   },
   heroDualRowDesktop: {
     flexDirection: 'row',
     alignItems: 'stretch',
+  },
+
+  // VIP MEMBERSHIP BANNER
+  webVipMembershipBanner: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginBottom: 26,
+    shadowColor: '#D97706',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+  },
+  webVipBannerLeft: {
+    flex: 2,
+    minWidth: 320,
+  },
+  webVipBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  webVipCrownCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  webVipTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  webVipBadgePill: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  webVipBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#B45309',
+  },
+  webVipSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 3,
+  },
+  webVipCtaBtn: {
+    backgroundColor: '#D97706',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  webVipCtaBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 
   // PATIENT DIGITAL HEALTH CARD

@@ -717,6 +717,37 @@ const HomeScreen = ({ navigation }) => {
         </View>
 
         {/* ============================================================
+            CARE+ VIP MEMBERSHIP MOBILE BANNER
+        ============================================================ */}
+        <TouchableOpacity
+          style={styles.mobileVipBanner}
+          onPress={() => navigation.navigate('Membership')}
+          activeOpacity={0.88}
+        >
+          <View style={styles.mobileVipLeft}>
+            <View style={styles.mobileVipBadgeRow}>
+              <View style={styles.mobileVipCrownPill}>
+                <Ionicons name="ribbon" size={12} color="#B45309" />
+                <Text style={styles.mobileVipCrownText}>CARE+ VIP</Text>
+              </View>
+              <Text style={styles.mobileVipSavingsNotice}>Save up to ₹10,000/yr</Text>
+            </View>
+            <Text style={styles.mobileVipTitle}>
+              Extra 15% OFF + Free Doctor Calls
+            </Text>
+            <Text style={styles.mobileVipSub}>
+              Free 60m medicine delivery & lab checkup vouchers
+            </Text>
+          </View>
+          <View style={styles.mobileVipRight}>
+            <View style={styles.mobileVipCtaCircle}>
+              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+            </View>
+            <Text style={styles.mobileVipStartingPrice}>From ₹165</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* ============================================================
             MOCKUP 1: 3x3 QUICK SERVICES GRID
         ============================================================ */}
         <View style={styles.mockupServicesGrid}>
@@ -2670,6 +2701,85 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#475569',
   },
+  // MOBILE CARE+ VIP BANNER
+  mobileVipBanner: {
+    backgroundColor: '#FFFBEB',
+    marginHorizontal: 16,
+    marginTop: 6,
+    marginBottom: 4,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#D97706',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  mobileVipLeft: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  mobileVipBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  mobileVipCrownPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  mobileVipCrownText: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: '#B45309',
+    letterSpacing: 0.3,
+  },
+  mobileVipSavingsNotice: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#15803D',
+  },
+  mobileVipTitle: {
+    fontSize: 13.5,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -0.2,
+  },
+  mobileVipSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  mobileVipRight: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  mobileVipCtaCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#D97706',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mobileVipStartingPrice: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+
   mockupServicesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

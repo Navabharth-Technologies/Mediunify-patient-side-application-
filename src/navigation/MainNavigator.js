@@ -174,6 +174,7 @@ import WalletScreen from '../screens/profile/WalletScreen';
 import ReferEarnScreen from '../screens/profile/ReferEarnScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import HelpSupportScreen from '../screens/settings/HelpSupportScreen';
+import MembershipScreen from '../screens/services/membership/MembershipScreen';
 
 // ==================================================
 // AUTH SCREENS
@@ -501,6 +502,7 @@ const MainNavigator = ({
             'Payment',
             'Bookings',
             'Chatbot',
+            'Membership',
           ].includes(currentRoute) &&
           styles.desktopStackWrapper,
         ]}
@@ -947,6 +949,11 @@ const MainNavigator = ({
         <Stack.Screen
           name="HelpSupport"
           component={HelpSupportScreen}
+        />
+
+        <Stack.Screen
+          name="Membership"
+          component={MembershipScreen}
         />
 
         {/* ==================================================
