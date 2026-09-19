@@ -223,8 +223,8 @@ const ProfileScreenWeb = ({ navigation, route }) => {
         } catch (e) {}
       }
 
-      if (!navigated && Platform.OS === 'web' && typeof window !== 'undefined') {
-        const basePath = window.location.pathname.includes('Mediunify-patient-side-application-')
+      if (!navigated && Platform.OS === 'web' && typeof window !== 'undefined' && window?.location) {
+        const basePath = (window.location.pathname || '').includes('Mediunify-patient-side-application-')
           ? '/Mediunify-patient-side-application-/'
           : '/';
         window.location.href = basePath;

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Platform } from 'react-native';
 import {
   NavigationContainer,
 } from '@react-navigation/native';
@@ -22,12 +23,18 @@ const linking = {
     'exp://',
   ],
   getInitialURL: async () => {
-    if (typeof window !== 'undefined') {
-      const url = window.location.href;
-      // Strip the base path so React Navigation can parse the route correctly
-      return url;
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window?.location?.href) {
+        return window.location.href;
+      }
+      return null;
     }
-    return null;
+    try {
+      const { Linking } = require('react-native');
+      return await Linking.getInitialURL();
+    } catch (e) {
+      return null;
+    }
   },
   config: {
     screens: {

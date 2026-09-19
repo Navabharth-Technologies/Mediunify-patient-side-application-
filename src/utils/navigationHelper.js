@@ -3,7 +3,7 @@ import { CommonActions } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const getAppBasePath = () => {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window?.location) {
     const pathname = window.location.pathname || '';
     if (pathname.includes('/Mediunify-patient-side-application-')) {
       return '/Mediunify-patient-side-application-/';
@@ -73,7 +73,7 @@ export const safeNavigateToMain = async (navigation) => {
   }
 
   // 5. Web fallback: force route to app base path if React Navigation could not navigate
-  if (!navigated && Platform.OS === 'web' && typeof window !== 'undefined') {
+  if (!navigated && Platform.OS === 'web' && typeof window !== 'undefined' && window?.location) {
     window.location.href = getAppBasePath();
   }
 };
@@ -135,7 +135,7 @@ export const safeNavigateToAuth = async (navigation, targetScreen = 'Login') => 
     } catch (e) {}
   }
 
-  if (!navigated && Platform.OS === 'web' && typeof window !== 'undefined') {
+  if (!navigated && Platform.OS === 'web' && typeof window !== 'undefined' && window?.location) {
     window.location.href = getAppBasePath();
   }
 };
