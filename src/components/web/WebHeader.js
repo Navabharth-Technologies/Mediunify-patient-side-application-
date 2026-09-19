@@ -234,6 +234,8 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
         setIsLoggedIn(stored === 'true');
         const name = await AsyncStorage.getItem('userName');
         if (name) setUserName(name);
+        const city = (await AsyncStorage.getItem('@mediunify_selected_city')) || (await AsyncStorage.getItem('@unnathi_user_location'));
+        if (city && CITIES.includes(city)) setSelectedCity(city);
       } catch (e) {}
     };
     checkAuth();
@@ -776,8 +778,12 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                 <TouchableOpacity
                   key={city}
                   style={[styles.cityItem, selectedCity === city && styles.cityItemActive]}
-                  onPress={() => {
+                  onPress={async () => {
                     setSelectedCity(city);
+                    try {
+                      await AsyncStorage.setItem('@mediunify_selected_city', city);
+                      await AsyncStorage.setItem('@unnathi_user_location', city);
+                    } catch (e) {}
                     setIsCityModalOpen(false);
                   }}
                   activeOpacity={0.75}
