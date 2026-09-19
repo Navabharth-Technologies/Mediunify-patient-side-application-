@@ -994,34 +994,6 @@ const MainNavigator = ({
         />
       )}
 
-      {/* ==================================================
-          PERSISTENT DESKTOP FLOATING AI CHATBOT LAUNCHER
-      ================================================== */}
-      {isDesktopWeb && currentRoute !== 'Chatbot' && (
-        <TouchableOpacity
-          style={[
-            styles.floatingAiLauncher,
-            hasBottomBar && styles.floatingAiLauncherLifted,
-          ]}
-          onPress={() => {
-            if (navigation?.navigate) {
-              navigation.navigate('MainApp', { screen: 'Chatbot' });
-            }
-          }}
-          activeOpacity={0.9}
-        >
-          <View style={styles.floatingAiGlowIcon}>
-            <Ionicons name="sparkles" size={14} color="#FFFFFF" />
-            <View style={styles.floatingAiPulseDot} />
-          </View>
-          <Text style={styles.floatingAiTitle}>Ask MediUnify AI</Text>
-          <View style={styles.floatingAiOnlineBadge}>
-            <Text style={styles.floatingAiOnlineText}>24/7</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={12} color="#99F6E4" />
-        </TouchableOpacity>
-      )}
-
     </View>
   );
 };
