@@ -20,6 +20,7 @@ import {
 } from '@expo/vector-icons';
 
 import colors from '../theme/colors';
+import { useCart } from '../context/CartContext';
 
 
 // ==================================================
@@ -374,6 +375,20 @@ const MainNavigator = ({
     currentParams,
     setCurrentParams,
   ] = React.useState({});
+
+  const cartCtx = useCart();
+  const radiologyCartCount = cartCtx?.radiologyCartCount || 0;
+  const labCartCount = cartCtx?.labCartCount || 0;
+  const pharmacyCartCount = cartCtx?.pharmacyCartCount || 0;
+  const totalCartCount = cartCtx?.totalCartCount || 0;
+
+  const hasBottomBar = (
+    (['RadiologyLabDetails', 'RadiologyLabs', 'Imaging'].includes(currentRoute) && radiologyCartCount > 0) ||
+    (['LabTests'].includes(currentRoute) && labCartCount > 0) ||
+    (['Pharmacy', 'PharmacyStoreDetail'].includes(currentRoute) && pharmacyCartCount > 0) ||
+    (['Cart', 'Checkout', 'Payment'].includes(currentRoute)) ||
+    (['DoctorList', 'DoctorDetails', 'HospitalList'].includes(currentRoute) && totalCartCount > 0)
+  );
 
 
   // ==================================================
@@ -977,7 +992,10 @@ const MainNavigator = ({
       ================================================== */}
       {isDesktopWeb && currentRoute !== 'Chatbot' && (
         <TouchableOpacity
-          style={styles.floatingAiLauncher}
+          style={[
+            styles.floatingAiLauncher,
+            hasBottomBar && styles.floatingAiLauncherLifted,
+          ]}
           onPress={() => {
             if (navigation?.navigate) {
               navigation.navigate('MainApp', { screen: 'Chatbot' });
@@ -1233,7 +1251,11 @@ const styles = StyleSheet.create({
     elevation: 12,
     zIndex: 99999,
     gap: 12,
+    transition: 'bottom 0.25s ease',
     ...(Platform.OS === 'web' ? { cursor: 'pointer', userSelect: 'none' } : {}),
+  },
+  floatingAiLauncherLifted: {
+    bottom: 84,
   },
   floatingAiGlowIcon: {
     width: 38,

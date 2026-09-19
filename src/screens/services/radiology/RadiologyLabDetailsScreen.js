@@ -554,6 +554,7 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
             activeOpacity={0.88}
             onPress={() => navigation.navigate('Cart', { initialTab: 'radiology' })}
           >
+            <Ionicons name="cart" size={16} color="#FFFFFF" />
             <Text style={styles.cartProceedText}>View Radiology Cart</Text>
             <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
           </TouchableOpacity>
@@ -1236,8 +1237,19 @@ const styles = StyleSheet.create({
     elevation: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    zIndex: 1000,
+    ...(Platform.OS === 'web'
+      ? {
+          position: 'fixed',
+          bottom: 14,
+          left: 14,
+          right: 14,
+          maxWidth: 1100,
+          marginHorizontal: 'auto',
+        }
+      : {}),
   },
   cartInfoSection: {
     flexDirection: 'row',
@@ -1272,16 +1284,23 @@ const styles = StyleSheet.create({
   cartProceedButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 10,
-    gap: 5,
+    backgroundColor: '#0D9488',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 6,
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   cartProceedText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '800',
+    letterSpacing: 0.2,
   },
 });
 
