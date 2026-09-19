@@ -1011,19 +1011,14 @@ const MainNavigator = ({
           activeOpacity={0.9}
         >
           <View style={styles.floatingAiGlowIcon}>
-            <Ionicons name="sparkles" size={20} color="#FFFFFF" />
+            <Ionicons name="sparkles" size={14} color="#FFFFFF" />
             <View style={styles.floatingAiPulseDot} />
           </View>
-          <View style={styles.floatingAiTextCol}>
-            <View style={styles.floatingAiTitleRow}>
-              <Text style={styles.floatingAiTitle}>Ask MediUnify AI</Text>
-              <View style={styles.floatingAiOnlineBadge}>
-                <Text style={styles.floatingAiOnlineText}>24/7 LIVE</Text>
-              </View>
-            </View>
-            <Text style={styles.floatingAiSub}>Symptom triage, medicines & tests</Text>
+          <Text style={styles.floatingAiTitle}>Ask MediUnify AI</Text>
+          <View style={styles.floatingAiOnlineBadge}>
+            <Text style={styles.floatingAiOnlineText}>24/7</Text>
           </View>
-          <Ionicons name="chevron-forward" size={16} color="#99F6E4" />
+          <Ionicons name="chevron-forward" size={12} color="#99F6E4" />
         </TouchableOpacity>
       )}
 
@@ -1241,23 +1236,23 @@ const styles = StyleSheet.create({
 
   floatingAiLauncher: {
     position: Platform.OS === 'web' ? 'fixed' : 'absolute',
-    bottom: 28,
-    right: 28,
+    bottom: 20,
+    right: 20,
     backgroundColor: '#0F766E',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 30,
-    borderWidth: 1.5,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 22,
+    borderWidth: 1,
     borderColor: '#2DD4BF',
     shadowColor: '#0F766E',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 8,
     zIndex: 99999,
-    gap: 12,
+    gap: 7,
     transition: 'bottom 0.25s ease',
     ...(Platform.OS === 'web' ? { cursor: 'pointer', userSelect: 'none' } : {}),
   },
@@ -1265,9 +1260,9 @@ const styles = StyleSheet.create({
     bottom: 84,
   },
   floatingAiGlowIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: '#115E59',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1277,48 +1272,34 @@ const styles = StyleSheet.create({
   },
   floatingAiPulseDot: {
     position: 'absolute',
-    top: 2,
-    right: 2,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 0,
+    right: 0,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: '#10B981',
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: '#FFFFFF',
   },
-  floatingAiTextCol: {
-    justifyContent: 'center',
-  },
-  floatingAiTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
   floatingAiTitle: {
-    fontSize: 13.5,
+    fontSize: 12,
     fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
   floatingAiOnlineBadge: {
     backgroundColor: '#134E4A',
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
     borderWidth: 0.8,
     borderColor: '#2DD4BF',
   },
   floatingAiOnlineText: {
-    fontSize: 9,
+    fontSize: 8.5,
     fontWeight: '800',
     color: '#5EEAD4',
-    letterSpacing: 0.5,
-  },
-  floatingAiSub: {
-    fontSize: 11,
-    color: '#CCFBF1',
-    fontWeight: '500',
-    marginTop: 1,
+    letterSpacing: 0.3,
   },
 });
 
