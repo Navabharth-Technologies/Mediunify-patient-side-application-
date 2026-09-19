@@ -65,8 +65,18 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   const { lab, test, selectedTests = [] } = route.params || {};
 
-  const activeLab = lab || getLabById('lab-unnathi-main');
-  const defaultTest = activeLab.availableTests ? activeLab.availableTests[0] : null;
+  const activeLab =
+    lab ||
+    (selectedTests.length > 0 && selectedTests[0]?.labId
+      ? getLabById(selectedTests[0].labId) || {
+          id: selectedTests[0].labId,
+          name: selectedTests[0].labName || 'Diagnostic Center',
+          area: selectedTests[0].labArea || 'Mysore',
+          address: selectedTests[0].labAddress || '',
+          phone: selectedTests[0].labPhone || '',
+        }
+      : getLabById('lab-unnathi-main'));
+  const defaultTest = activeLab?.availableTests ? activeLab.availableTests[0] : null;
 
   // All tests to be booked (reactive state)
   const [testsToBook, setTestsToBook] = useState(
@@ -78,6 +88,14 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
       ? [defaultTest]
       : []
   );
+
+  useEffect(() => {
+    if (selectedTests && selectedTests.length > 0) {
+      setTestsToBook(selectedTests);
+    } else if (test) {
+      setTestsToBook([test]);
+    }
+  }, [selectedTests, test]);
 
   const availableDates = generateDates();
   const [selectedDate, setSelectedDate] = useState(availableDates[0]);
@@ -319,8 +337,8 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
               <Ionicons name="business" size={20} color={colors.primary} />
             </View>
             <View style={styles.summaryLabInfo}>
-              <Text style={styles.summaryLabName}>{lab?.name || 'Diagnostic Center'}</Text>
-              <Text style={styles.summaryLabArea}>{lab?.area || 'Mysore'}</Text>
+              <Text style={styles.summaryLabName}>{activeLab?.name || lab?.name || 'Diagnostic Center'}</Text>
+              <Text style={styles.summaryLabArea}>{activeLab?.area || lab?.area || 'Mysore'}</Text>
             </View>
           </View>
 

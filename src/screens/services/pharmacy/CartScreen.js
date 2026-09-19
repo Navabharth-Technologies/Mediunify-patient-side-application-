@@ -1774,14 +1774,26 @@ const CartScreen = ({ navigation, route }) => {
                   showAlert('Cart is Empty', 'Please add radiology scans to your cart first.');
                   return;
                 }
-                setRadiologyCheckoutModalVisible(true);
+                const firstItem = radiologyCart[0];
+                navigation.navigate('RadiologyBooking', {
+                  selectedTests: radiologyCart,
+                  lab: firstItem?.labId ? {
+                    id: firstItem.labId,
+                    name: firstItem.labName || 'Diagnostic Center',
+                    area: firstItem.labArea || 'Mysore',
+                    address: firstItem.labAddress || '',
+                    phone: firstItem.labPhone || '',
+                  } : null,
+                });
               }}
               disabled={radiologyCart.length === 0}
               activeOpacity={0.88}
             >
+              <Ionicons name="calendar-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
               <Text style={styles.continueBtnText}>
-                Proceed to Scan Booking ({radiologyCart.length}) • ₹{radiologyFinalTotal}
+                Fill Booking Details & Pay ({radiologyCart.length}) • ₹{radiologyFinalTotal}
               </Text>
+              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
             </TouchableOpacity>
           </View>
         ) : activeCartTab === 'lab' ? (

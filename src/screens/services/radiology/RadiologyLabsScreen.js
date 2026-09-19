@@ -273,7 +273,23 @@ const RadiologyLabsScreen = (props) => {
           <TouchableOpacity
             style={styles.cartHeaderButton}
             activeOpacity={0.8}
-            onPress={() => navigation.navigate('Cart', { initialTab: 'radiology' })}
+            onPress={() => {
+              if (radiologyCartCount > 0) {
+                const firstItem = radiologyCart[0];
+                navigation.navigate('RadiologyBooking', {
+                  selectedTests: radiologyCart,
+                  lab: firstItem?.labId ? {
+                    id: firstItem.labId,
+                    name: firstItem.labName || 'Diagnostic Center',
+                    area: firstItem.labArea || 'Mysore',
+                    address: firstItem.labAddress || '',
+                    phone: firstItem.labPhone || '',
+                  } : null,
+                });
+              } else {
+                navigation.navigate('Cart', { initialTab: 'radiology' });
+              }
+            }}
           >
             <Ionicons name="radio-outline" size={24} color={colors.secondary} />
             {radiologyCartCount > 0 && (
@@ -547,10 +563,24 @@ const RadiologyLabsScreen = (props) => {
           <TouchableOpacity
             style={styles.cartProceedButton}
             activeOpacity={0.88}
-            onPress={() => navigation.navigate('Cart', { initialTab: 'radiology' })}
+            onPress={() => {
+              const firstItem = radiologyCart[0];
+              navigation.navigate('RadiologyBooking', {
+                selectedTests: radiologyCart,
+                lab: firstItem?.labId ? {
+                  id: firstItem.labId,
+                  name: firstItem.labName || 'Diagnostic Center',
+                  area: firstItem.labArea || 'Mysore',
+                  address: firstItem.labAddress || '',
+                  phone: firstItem.labPhone || '',
+                } : null,
+              });
+            }}
           >
-            <Ionicons name="cart" size={16} color="#FFFFFF" />
-            <Text style={styles.cartProceedText}>View Radiology Cart</Text>
+            <Ionicons name="calendar-outline" size={16} color="#FFFFFF" />
+            <Text style={styles.cartProceedText}>
+              Book Scans ({radiologyCartCount}) • Fill Details
+            </Text>
             <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
           </TouchableOpacity>
         </View>

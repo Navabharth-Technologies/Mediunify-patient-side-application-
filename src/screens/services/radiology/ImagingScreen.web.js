@@ -1561,10 +1561,25 @@ const ImagingScreenWeb = ({ navigation, route }) => {
           </View>
           <TouchableOpacity
             style={styles.floatingCartBtn}
-            onPress={() => navigation.navigate('Cart', { initialTab: 'radiology' })}
+            onPress={() => {
+              const firstItem = radiologyCart[0];
+              navigation.navigate('RadiologyBooking', {
+                selectedTests: radiologyCart,
+                lab: firstItem?.labId ? {
+                  id: firstItem.labId,
+                  name: firstItem.labName || 'Diagnostic Center',
+                  area: firstItem.labArea || 'Mysore',
+                  address: firstItem.labAddress || '',
+                  phone: firstItem.labPhone || '',
+                } : null,
+              });
+            }}
             activeOpacity={0.88}
           >
-            <Text style={styles.floatingCartBtnText}>View Radiology Cart</Text>
+            <Ionicons name="calendar-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Text style={styles.floatingCartBtnText}>
+              Book Scans ({radiologyCartCount}) • Fill Details
+            </Text>
             <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
