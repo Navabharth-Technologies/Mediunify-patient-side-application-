@@ -1,4 +1,7 @@
 import React from 'react';
+import { LogBox } from 'react-native';
+
+LogBox.ignoreLogs(['[DataSync]']);
 
 import AppNavigator from './src/navigation/AppNavigator';
 import { CartProvider } from './src/context/CartContext';

@@ -500,44 +500,44 @@ const HomeScreen = ({ navigation }) => {
       {/* ==========================================
           TOP APP BAR (LOGO, NAME, LOCATION, WALLET, NOTIFS, CART)
       ========================================== */}
-      <View style={[styles.topBar, width >= 600 && { maxWidth: 960, width: '100%', alignSelf: 'center' }]}>
+      <View style={[styles.topBar, width >= 600 && { maxWidth: 960, width: '100%', alignSelf: 'center', paddingTop: Platform.OS === 'android' ? 8 : 6, paddingBottom: 6 }]}>
         {/* BRAND LOGO & LOCATION SELECTOR (LEFT) */}
         <View style={styles.brandHeaderLeft}>
           <Image
             source={require('../../../assets/logo.png')}
-            style={styles.brandLogoImg}
+            style={[styles.brandLogoImg, isTablet && { width: 32, height: 32 }]}
             resizeMode="contain"
           />
           <TouchableOpacity
-            style={styles.mockupLocationPill}
+            style={[styles.mockupLocationPill, isTablet && { paddingVertical: 3, paddingHorizontal: 8 }]}
             onPress={() => setLocationModalVisible(true)}
             activeOpacity={0.8}
           >
-            <Ionicons name="location" size={13} color="#0D9488" />
-            <Text style={styles.mockupLocationText} numberOfLines={1}>
+            <Ionicons name="location" size={isTablet ? 12 : 13} color="#0D9488" />
+            <Text style={[styles.mockupLocationText, isTablet && { fontSize: 11 }]} numberOfLines={1}>
               {selectedCity || locationName || 'Mysuru'}
             </Text>
-            <Ionicons name="chevron-down" size={11} color="#64748B" />
+            <Ionicons name="chevron-down" size={isTablet ? 10 : 11} color="#64748B" />
           </TouchableOpacity>
         </View>
 
         {/* RIGHT ACTIONS: WALLET, NOTIFICATION BELL & USER AVATAR */}
         <View style={styles.topBarRight}>
           <TouchableOpacity
-            style={styles.walletPill}
+            style={[styles.walletPill, isTablet && { paddingVertical: 4, paddingHorizontal: 8 }]}
             onPress={() => setWalletModalVisible(true)}
             activeOpacity={0.85}
           >
-            <Ionicons name="wallet-outline" size={15} color={colors.primary} />
-            <Text style={styles.walletPillText}>₹{walletBalance}</Text>
+            <Ionicons name="wallet-outline" size={isTablet ? 13 : 15} color={colors.primary} />
+            <Text style={[styles.walletPillText, isTablet && { fontSize: 11 }]}>₹{walletBalance}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.iconCircle}
+            style={[styles.iconCircle, isTablet && { width: 32, height: 32, borderRadius: 16 }]}
             onPress={() => navigation.navigate('Notifications')}
             activeOpacity={0.85}
           >
-            <Ionicons name="notifications-outline" size={20} color="#1E293B" />
+            <Ionicons name="notifications-outline" size={isTablet ? 17 : 20} color="#1E293B" />
             <View style={styles.notifBadgeDot} />
           </TouchableOpacity>
 
@@ -546,8 +546,8 @@ const HomeScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('Profile')}
             activeOpacity={0.85}
           >
-            <View style={styles.homeUserAvatarCircle}>
-              <Text style={styles.homeUserAvatarLetter}>
+            <View style={[styles.homeUserAvatarCircle, isTablet && { width: 32, height: 32, borderRadius: 16 }]}>
+              <Text style={[styles.homeUserAvatarLetter, isTablet && { fontSize: 12 }]}>
                 {userName?.trim()?.charAt(0)?.toUpperCase() || 'U'}
               </Text>
             </View>
@@ -574,44 +574,44 @@ const HomeScreen = ({ navigation }) => {
         {/* ============================================================
             MOCKUP 1: GREETING BLOCK
         ============================================================ */}
-        <View style={[styles.mockupGreetingBlock, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center' }]}>
-          <Text style={styles.mockupGreetingTitle}>Good Morning,</Text>
-          <Text style={styles.mockupGreetingSub}>Your health matters. We're here for you.</Text>
+        <View style={[styles.mockupGreetingBlock, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center', paddingTop: 4, paddingBottom: 2 }]}>
+          <Text style={[styles.mockupGreetingTitle, isTablet && { fontSize: 18, lineHeight: 22 }]}>Good Morning,</Text>
+          <Text style={[styles.mockupGreetingSub, isTablet && { fontSize: 11, lineHeight: 14, marginTop: 1 }]}>Your health matters. We're here for you.</Text>
         </View>
 
         {/* ============================================================
             MOCKUP 1: ASK MEDIUNIFY AI BANNER
         ============================================================ */}
-        <View style={[styles.mockupAiCard, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center', paddingHorizontal: 24, paddingVertical: 18 }]}>
+        <View style={[styles.mockupAiCard, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 8, marginTop: 4, borderRadius: 14 }]}>
           <View style={styles.mockupAiLeft}>
-            <Text style={styles.mockupAiTitle}>Ask MediUnify AI</Text>
-            <Text style={styles.mockupAiSub}>Tell us what you're experiencing.</Text>
+            <Text style={[styles.mockupAiTitle, isTablet && { fontSize: 13.5 }]}>Ask MediUnify AI</Text>
+            <Text style={[styles.mockupAiSub, isTablet && { fontSize: 10.5, marginTop: 1 }]}>Tell us what you're experiencing.</Text>
             <TouchableOpacity
-              style={styles.mockupAiChatBtn}
+              style={[styles.mockupAiChatBtn, isTablet && { marginTop: 4, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8 }]}
               onPress={() => navigation.navigate('Chatbot')}
               activeOpacity={0.85}
             >
-              <Text style={styles.mockupAiChatBtnText}>Chat Now →</Text>
+              <Text style={[styles.mockupAiChatBtnText, isTablet && { fontSize: 10.5 }]}>Chat Now →</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.mockupAiRobotCircle}>
-            <Ionicons name="chatbubble-ellipses" size={38} color="#0D9488" />
+          <View style={[styles.mockupAiRobotCircle, isTablet && { width: 40, height: 40, borderRadius: 20 }]}>
+            <Ionicons name="chatbubble-ellipses" size={isTablet ? 22 : 38} color="#0D9488" />
           </View>
         </View>
 
         {/* HOMESCREEN SEARCH BAR (BELOW CHAT NOW) */}
-        <View style={[styles.homeSearchBarContainer, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center' }]}>
+        <View style={[styles.homeSearchBarContainer, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center', marginTop: 4, marginBottom: 4 }]}>
           <TouchableOpacity
-            style={styles.homeSearchBox}
+            style={[styles.homeSearchBox, isTablet && { height: 38, borderRadius: 10, paddingHorizontal: 12 }]}
             activeOpacity={0.88}
             onPress={() => navigation.navigate('GlobalSearch')}
           >
-            <Ionicons name="search-outline" size={20} color="#64748B" />
-            <Text style={styles.homeSearchPlaceholder}>
+            <Ionicons name="search-outline" size={isTablet ? 17 : 20} color="#64748B" />
+            <Text style={[styles.homeSearchPlaceholder, isTablet && { fontSize: 12, marginLeft: 6 }]}>
               Search doctors, medicines, tests, clinics...
             </Text>
-            <View style={styles.homeSearchMicBtn}>
-              <Ionicons name="mic-outline" size={17} color="#0D9488" />
+            <View style={[styles.homeSearchMicBtn, isTablet && { width: 26, height: 26, borderRadius: 13 }]}>
+              <Ionicons name="mic-outline" size={isTablet ? 14 : 17} color="#0D9488" />
             </View>
           </TouchableOpacity>
         </View>
@@ -621,16 +621,16 @@ const HomeScreen = ({ navigation }) => {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.mockupSymptomChipsRow}
+            contentContainerStyle={[styles.mockupSymptomChipsRow, isTablet && { marginTop: 2, marginBottom: 3 }]}
           >
             {['e.g. fever', 'knee pain', 'diabetes', 'skin problem'].map((chip, idx) => (
               <TouchableOpacity
                 key={idx}
-                style={styles.mockupSymptomChip}
+                style={[styles.mockupSymptomChip, isTablet && { paddingVertical: 2.5, paddingHorizontal: 8, borderRadius: 12 }]}
                 onPress={() => navigation.navigate('Chatbot', { initialQuery: chip.replace('e.g. ', '') })}
                 activeOpacity={0.8}
               >
-                <Text style={styles.mockupSymptomChipText}>{chip}</Text>
+                <Text style={[styles.mockupSymptomChipText, isTablet && { fontSize: 10 }]}>{chip}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -639,7 +639,7 @@ const HomeScreen = ({ navigation }) => {
         {/* ============================================================
             AUTO-MOVING PROMOTIONAL ADS CAROUSEL
         ============================================================ */}
-        <View style={[styles.mobileAdSection, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center' }]}>
+        <View style={[styles.mobileAdSection, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center', marginTop: 4, marginBottom: 6 }]}>
           <FlatList
             ref={mobileAdScrollRef}
             data={MOBILE_HERO_ADS}
@@ -670,38 +670,39 @@ const HomeScreen = ({ navigation }) => {
                     backgroundColor: item.bgColor,
                     marginRight: isTablet ? 12 : 0,
                   },
+                  isTablet && { minHeight: 102, padding: 10, borderRadius: 12 },
                 ]}
                 onPress={() => navigation.navigate(item.route)}
                 activeOpacity={0.92}
               >
-                <View style={styles.mobileAdBadgeRow}>
-                  <View style={[styles.mobileAdPill, { backgroundColor: item.pillBg }]}>
-                    <Text style={[styles.mobileAdPillText, { color: item.pillColor }]}>{item.pillText}</Text>
+                <View style={[styles.mobileAdBadgeRow, isTablet && { marginBottom: 3 }]}>
+                  <View style={[styles.mobileAdPill, { backgroundColor: item.pillBg }, isTablet && { paddingVertical: 2, paddingHorizontal: 5, borderRadius: 4 }]}>
+                    <Text style={[styles.mobileAdPillText, { color: item.pillColor }, isTablet && { fontSize: 8.5 }]}>{item.pillText}</Text>
                   </View>
-                  <Text style={styles.mobileAdNotice}>AD</Text>
+                  <Text style={[styles.mobileAdNotice, isTablet && { fontSize: 8 }]}>AD</Text>
                 </View>
 
-                <Text style={[styles.mobileAdTitle, item.titleColor ? { color: item.titleColor } : null]}>
+                <Text style={[styles.mobileAdTitle, item.titleColor ? { color: item.titleColor } : null, isTablet && { fontSize: 12.5, lineHeight: 16 }]}>
                   {item.title}{'\n'}
                   <Text style={{ color: item.priceColor }}>{item.priceText}</Text>
                 </Text>
 
                 <Text
-                  style={[styles.mobileAdSub, item.subColor ? { color: item.subColor } : null]}
-                  numberOfLines={2}
+                  style={[styles.mobileAdSub, item.subColor ? { color: item.subColor } : null, isTablet && { fontSize: 9.5, marginTop: 1 }]}
+                  numberOfLines={isTablet ? 1 : 2}
                 >
                   {item.subTitle}
                 </Text>
 
-                <View style={styles.mobileAdCtaRow}>
-                  <Text style={[styles.mobileAdCtaBadge, { color: item.priceColor }]}>
+                <View style={[styles.mobileAdCtaRow, isTablet && { marginTop: 3 }]}>
+                  <Text style={[styles.mobileAdCtaBadge, { color: item.priceColor }, isTablet && { fontSize: 10 }]}>
                     {item.badgeText} →
                   </Text>
                 </View>
 
                 <Image
                   source={{ uri: item.image }}
-                  style={styles.mobileAdImg}
+                  style={[styles.mobileAdImg, isTablet && { width: 80, height: 90, right: -6, bottom: -6 }]}
                   resizeMode="cover"
                 />
               </TouchableOpacity>
@@ -709,7 +710,7 @@ const HomeScreen = ({ navigation }) => {
           />
 
           {/* Carousel Pagination Dots */}
-          <View style={styles.mobileAdDotsRow}>
+          <View style={[styles.mobileAdDotsRow, isTablet && { marginTop: 4, gap: 4 }]}>
             {MOBILE_HERO_ADS.map((_, i) => (
               <TouchableOpacity
                 key={i}
@@ -724,7 +725,8 @@ const HomeScreen = ({ navigation }) => {
                 <View
                   style={[
                     styles.mobileAdDot,
-                    activeMobileAdIndex === i && styles.mobileAdDotActive,
+                    isTablet && { width: 5, height: 5, borderRadius: 2.5 },
+                    activeMobileAdIndex === i && (isTablet ? { width: 14, backgroundColor: colors.primary } : styles.mobileAdDotActive),
                   ]}
                 />
               </TouchableOpacity>
@@ -736,147 +738,147 @@ const HomeScreen = ({ navigation }) => {
             MOBILE CARE+ VIP MEMBERSHIP BANNER
         ============================================================ */}
         <TouchableOpacity
-          style={[styles.mobileVipBanner, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center', padding: 18 }]}
+          style={[styles.mobileVipBanner, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center', paddingVertical: 7, paddingHorizontal: 12, marginTop: 4, marginBottom: 4, borderRadius: 12 }]}
           onPress={() => navigation.navigate('Membership')}
           activeOpacity={0.88}
         >
           <View style={styles.mobileVipLeft}>
-            <View style={styles.mobileVipBadgeRow}>
-              <View style={styles.mobileVipCrownPill}>
-                <Ionicons name="ribbon" size={12} color="#B45309" />
-                <Text style={styles.mobileVipCrownText}>CARE+ VIP</Text>
+            <View style={[styles.mobileVipBadgeRow, isTablet && { gap: 6, marginBottom: 2 }]}>
+              <View style={[styles.mobileVipCrownPill, isTablet && { paddingHorizontal: 6, paddingVertical: 1.5, borderRadius: 6 }]}>
+                <Ionicons name="ribbon" size={isTablet ? 10 : 12} color="#B45309" />
+                <Text style={[styles.mobileVipCrownText, isTablet && { fontSize: 8.5 }]}>CARE+ VIP</Text>
               </View>
-              <Text style={styles.mobileVipSavingsNotice}>Save up to ₹10,000/yr</Text>
+              <Text style={[styles.mobileVipSavingsNotice, isTablet && { fontSize: 9.5 }]}>Save up to ₹10,000/yr</Text>
             </View>
-            <Text style={styles.mobileVipTitle}>
+            <Text style={[styles.mobileVipTitle, isTablet && { fontSize: 12 }]}>
               Extra 15% OFF + Free Doctor Calls
             </Text>
-            <Text style={styles.mobileVipSub}>
+            <Text style={[styles.mobileVipSub, isTablet && { fontSize: 9.5, marginTop: 1 }]}>
               Free 60m medicine delivery & lab checkup vouchers
             </Text>
           </View>
           <View style={styles.mobileVipRight}>
-            <View style={styles.mobileVipCtaCircle}>
-              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+            <View style={[styles.mobileVipCtaCircle, isTablet && { width: 28, height: 28, borderRadius: 14 }]}>
+              <Ionicons name="arrow-forward" size={isTablet ? 14 : 18} color="#FFFFFF" />
             </View>
-            <Text style={styles.mobileVipStartingPrice}>From ₹165</Text>
+            <Text style={[styles.mobileVipStartingPrice, isTablet && { fontSize: 8 }]}>From ₹165</Text>
           </View>
         </TouchableOpacity>
 
         {/* ============================================================
-            MOCKUP 1: 3x3 QUICK SERVICES GRID (RESPONSIVE TABLET 4-6 COLUMNS)
+            MOCKUP 1: 3x3 QUICK SERVICES GRID (RESPONSIVE TABLET 5 COLUMNS x 2 ROWS)
         ============================================================ */}
-        <View style={[styles.mockupServicesGrid, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center', justifyContent: 'flex-start', gap: 12 }]}>
+        <View style={[styles.mockupServicesGrid, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center', justifyContent: 'flex-start', gap: 8, marginTop: 6 }]}>
           {/* 1. Consult a Doctor */}
           <TouchableOpacity
-            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '15.2%' : '23%', marginBottom: 12, paddingVertical: 14 }]}
+            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '10%' : '18.4%', marginBottom: 6, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 }]}
             onPress={() => navigation.navigate('DoctorList')}
             activeOpacity={0.8}
           >
-            <View style={[styles.mockupServiceIconBox, { backgroundColor: '#E0F2FE' }]}>
-              <Ionicons name="person" size={24} color="#0284C7" />
+            <View style={[styles.mockupServiceIconBox, isTablet && { width: 34, height: 34, borderRadius: 10, marginBottom: 4 }, { backgroundColor: '#E0F2FE' }]}>
+              <Ionicons name="person" size={isTablet ? 18 : 24} color="#0284C7" />
             </View>
-            <Text style={styles.mockupServiceLabel}>Consult a{'\n'}Doctor</Text>
+            <Text style={[styles.mockupServiceLabel, isTablet && { fontSize: 9.5, lineHeight: 12 }]}>Consult a{'\n'}Doctor</Text>
           </TouchableOpacity>
 
           {/* 2. Book a Lab Test */}
           <TouchableOpacity
-            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '15.2%' : '23%', marginBottom: 12, paddingVertical: 14 }]}
+            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '10%' : '18.4%', marginBottom: 6, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 }]}
             onPress={() => navigation.navigate('LabTests')}
             activeOpacity={0.8}
           >
-            <View style={[styles.mockupServiceIconBox, { backgroundColor: '#F0FDF4' }]}>
-              <Ionicons name="flask" size={24} color="#16A34A" />
+            <View style={[styles.mockupServiceIconBox, isTablet && { width: 34, height: 34, borderRadius: 10, marginBottom: 4 }, { backgroundColor: '#F0FDF4' }]}>
+              <Ionicons name="flask" size={isTablet ? 18 : 24} color="#16A34A" />
             </View>
-            <Text style={styles.mockupServiceLabel}>Book{'\n'}a Lab Test</Text>
+            <Text style={[styles.mockupServiceLabel, isTablet && { fontSize: 9.5, lineHeight: 12 }]}>Book{'\n'}a Lab Test</Text>
           </TouchableOpacity>
 
           {/* 3. Order Medicines */}
           <TouchableOpacity
-            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '15.2%' : '23%', marginBottom: 12, paddingVertical: 14 }]}
+            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '10%' : '18.4%', marginBottom: 6, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 }]}
             onPress={() => navigation.navigate('Pharmacy')}
             activeOpacity={0.8}
           >
-            <View style={[styles.mockupServiceIconBox, { backgroundColor: '#FFF7ED' }]}>
-              <Ionicons name="medkit" size={24} color="#EA580C" />
+            <View style={[styles.mockupServiceIconBox, isTablet && { width: 34, height: 34, borderRadius: 10, marginBottom: 4 }, { backgroundColor: '#FFF7ED' }]}>
+              <Ionicons name="medkit" size={isTablet ? 18 : 24} color="#EA580C" />
             </View>
-            <Text style={styles.mockupServiceLabel}>Order{'\n'}Medicines</Text>
+            <Text style={[styles.mockupServiceLabel, isTablet && { fontSize: 9.5, lineHeight: 12 }]}>Order{'\n'}Medicines</Text>
           </TouchableOpacity>
 
           {/* 4. Video Call */}
           <TouchableOpacity
-            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '15.2%' : '23%', marginBottom: 12, paddingVertical: 14 }]}
+            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '10%' : '18.4%', marginBottom: 6, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 }]}
             onPress={() => navigation.navigate('VideoConsultation')}
             activeOpacity={0.8}
           >
-            <View style={[styles.mockupServiceIconBox, { backgroundColor: '#EFF6FF' }]}>
-              <Ionicons name="videocam" size={24} color="#2563EB" />
+            <View style={[styles.mockupServiceIconBox, isTablet && { width: 34, height: 34, borderRadius: 10, marginBottom: 4 }, { backgroundColor: '#EFF6FF' }]}>
+              <Ionicons name="videocam" size={isTablet ? 18 : 24} color="#2563EB" />
             </View>
-            <Text style={styles.mockupServiceLabel}>Video{'\n'}Call</Text>
+            <Text style={[styles.mockupServiceLabel, isTablet && { fontSize: 9.5, lineHeight: 12 }]}>Video{'\n'}Call</Text>
           </TouchableOpacity>
 
           {/* 5. Home Nursing */}
           <TouchableOpacity
-            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '15.2%' : '23%', marginBottom: 12, paddingVertical: 14 }]}
+            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '10%' : '18.4%', marginBottom: 6, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 }]}
             onPress={() => navigation.navigate('NurseBooking')}
             activeOpacity={0.8}
           >
-            <View style={[styles.mockupServiceIconBox, { backgroundColor: '#F0FDFA' }]}>
-              <Ionicons name="home" size={24} color="#0D9488" />
+            <View style={[styles.mockupServiceIconBox, isTablet && { width: 34, height: 34, borderRadius: 10, marginBottom: 4 }, { backgroundColor: '#F0FDFA' }]}>
+              <Ionicons name="home" size={isTablet ? 18 : 24} color="#0D9488" />
             </View>
-            <Text style={styles.mockupServiceLabel}>Home{'\n'}Nursing</Text>
+            <Text style={[styles.mockupServiceLabel, isTablet && { fontSize: 9.5, lineHeight: 12 }]}>Home{'\n'}Nursing</Text>
           </TouchableOpacity>
 
           {/* 6. Equipment Rental */}
           <TouchableOpacity
-            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '15.2%' : '23%', marginBottom: 12, paddingVertical: 14 }]}
+            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '10%' : '18.4%', marginBottom: 6, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 }]}
             onPress={() => navigation.navigate('EquipmentRental')}
             activeOpacity={0.8}
           >
-            <View style={[styles.mockupServiceIconBox, { backgroundColor: '#FAF5FF' }]}>
-              <Ionicons name="fitness" size={24} color="#7C3AED" />
+            <View style={[styles.mockupServiceIconBox, isTablet && { width: 34, height: 34, borderRadius: 10, marginBottom: 4 }, { backgroundColor: '#FAF5FF' }]}>
+              <Ionicons name="fitness" size={isTablet ? 18 : 24} color="#7C3AED" />
             </View>
-            <Text style={styles.mockupServiceLabel}>Equipment{'\n'}Rental</Text>
+            <Text style={[styles.mockupServiceLabel, isTablet && { fontSize: 9.5, lineHeight: 12 }]}>Equipment{'\n'}Rental</Text>
           </TouchableOpacity>
 
           {/* 7. Fertility & IVF */}
           <TouchableOpacity
-            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '15.2%' : '23%', marginBottom: 12, paddingVertical: 14 }]}
+            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '10%' : '18.4%', marginBottom: 6, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 }]}
             onPress={() => navigation.navigate('FertilityIvf')}
             activeOpacity={0.8}
           >
-            <View style={[styles.mockupServiceIconBox, { backgroundColor: '#FDF2F8' }]}>
-              <Ionicons name="heart" size={24} color="#DB2777" />
+            <View style={[styles.mockupServiceIconBox, isTablet && { width: 34, height: 34, borderRadius: 10, marginBottom: 4 }, { backgroundColor: '#FDF2F8' }]}>
+              <Ionicons name="heart" size={isTablet ? 18 : 24} color="#DB2777" />
             </View>
-            <Text style={styles.mockupServiceLabel}>Fertility{'\n'}& IVF</Text>
+            <Text style={[styles.mockupServiceLabel, isTablet && { fontSize: 9.5, lineHeight: 12 }]}>Fertility{'\n'}& IVF</Text>
           </TouchableOpacity>
 
           {/* 8. Ayurveda & Wellness */}
           <TouchableOpacity
-            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '15.2%' : '23%', marginBottom: 12, paddingVertical: 14 }]}
+            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '10%' : '18.4%', marginBottom: 6, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 }]}
             onPress={() => navigation.navigate('AyurvedaWellness')}
             activeOpacity={0.8}
           >
-            <View style={[styles.mockupServiceIconBox, { backgroundColor: '#ECFDF5' }]}>
-              <Ionicons name="leaf" size={24} color="#059669" />
+            <View style={[styles.mockupServiceIconBox, isTablet && { width: 34, height: 34, borderRadius: 10, marginBottom: 4 }, { backgroundColor: '#ECFDF5' }]}>
+              <Ionicons name="leaf" size={isTablet ? 18 : 24} color="#059669" />
             </View>
-            <Text style={styles.mockupServiceLabel}>Ayurveda &{'\n'}Wellness</Text>
+            <Text style={[styles.mockupServiceLabel, isTablet && { fontSize: 9.5, lineHeight: 12 }]}>Ayurveda &{'\n'}Wellness</Text>
           </TouchableOpacity>
 
           {/* 9. View All Services */}
           <TouchableOpacity
-            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '15.2%' : '23%', marginBottom: 12, paddingVertical: 14 }]}
+            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '10%' : '18.4%', marginBottom: 6, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 }]}
             onPress={() => navigation.navigate('AllServices')}
             activeOpacity={0.8}
           >
-            <View style={[styles.mockupServiceIconBox, { backgroundColor: '#EEF2FF' }]}>
-              <Ionicons name="apps" size={24} color="#4F46E5" />
+            <View style={[styles.mockupServiceIconBox, isTablet && { width: 34, height: 34, borderRadius: 10, marginBottom: 4 }, { backgroundColor: '#EEF2FF' }]}>
+              <Ionicons name="apps" size={isTablet ? 18 : 24} color="#4F46E5" />
             </View>
-            <Text style={styles.mockupServiceLabel}>View{'\n'}All</Text>
+            <Text style={[styles.mockupServiceLabel, isTablet && { fontSize: 9.5, lineHeight: 12 }]}>View{'\n'}All</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={{ height: 100 }} />
+        <View style={{ height: isTablet ? 70 : 100 }} />
       </ScrollView>
 
       {/* ==========================================

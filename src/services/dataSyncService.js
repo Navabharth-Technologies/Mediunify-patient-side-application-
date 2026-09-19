@@ -82,7 +82,7 @@ const apiRequest = async (endpoint, options = {}, timeoutMs = 2500) => {
     }
   }
 
-  console.warn(`[DataSync] All candidate endpoints failed for ${endpoint}:`, lastError);
+  console.log(`[DataSync] All candidate endpoints failed for ${endpoint}:`, lastError);
   return { ok: false, error: lastError || 'Connection failed' };
 };
 

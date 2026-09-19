@@ -229,34 +229,40 @@ const BottomNavigation = ({
       style={[
         styles.bottomNavigation,
         isTabletDevice && {
-          left: (width - Math.min(width * 0.9, 540)) / 2,
+          left: (width - Math.min(width * 0.9, 520)) / 2,
           right: 'auto',
-          width: Math.min(width * 0.9, 540),
+          width: Math.min(width * 0.9, 520),
+          height: 60,
+          bottom: Platform.OS === 'android' ? 14 : 12,
+          borderRadius: 22,
+          paddingHorizontal: 8,
         },
       ]}
     >
 
       {/* 1. HOME */}
       <TouchableOpacity
-        style={styles.bottomItem}
+        style={[styles.bottomItem, isTabletDevice && { height: 56 }]}
         activeOpacity={0.7}
         onPress={() => goTo('Home')}
       >
         <View
           style={[
             styles.bottomIcon,
+            isTabletDevice && { width: 36, height: 30, borderRadius: 15 },
             currentRoute === 'Home' && styles.activeBottomIcon,
           ]}
         >
           <Ionicons
             name={currentRoute === 'Home' ? 'home' : 'home-outline'}
-            size={22}
+            size={isTabletDevice ? 19 : 22}
             color={currentRoute === 'Home' ? colors.white : '#64748B'}
           />
         </View>
         <Text
           style={[
             styles.bottomText,
+            isTabletDevice && { fontSize: 8.5, marginTop: 1 },
             currentRoute === 'Home' && styles.activeBottomText,
           ]}
         >
@@ -266,25 +272,27 @@ const BottomNavigation = ({
 
       {/* 2. BOOKINGS */}
       <TouchableOpacity
-        style={styles.bottomItem}
+        style={[styles.bottomItem, isTabletDevice && { height: 56 }]}
         activeOpacity={0.7}
         onPress={() => goTo('Bookings')}
       >
         <View
           style={[
             styles.bottomIcon,
+            isTabletDevice && { width: 36, height: 30, borderRadius: 15 },
             currentRoute === 'Bookings' && styles.activeBottomIcon,
           ]}
         >
           <Ionicons
             name={currentRoute === 'Bookings' ? 'calendar' : 'calendar-outline'}
-            size={22}
+            size={isTabletDevice ? 19 : 22}
             color={currentRoute === 'Bookings' ? colors.white : '#64748B'}
           />
         </View>
         <Text
           style={[
             styles.bottomText,
+            isTabletDevice && { fontSize: 8.5, marginTop: 1 },
             currentRoute === 'Bookings' && styles.activeBottomText,
           ]}
         >
@@ -295,14 +303,14 @@ const BottomNavigation = ({
       {/* 3. CENTER AI ASSISTANT BUTTON (MOBILE NATIVE ONLY - REMOVED FROM WEB) */}
       {Platform.OS !== 'web' && (
         <TouchableOpacity
-          style={styles.centerAiTabBtn}
+          style={[styles.centerAiTabBtn, isTabletDevice && { marginTop: -16 }]}
           activeOpacity={0.85}
           onPress={() => goTo('Chatbot')}
         >
-          <View style={[styles.centerAiCircle, currentRoute === 'Chatbot' && styles.centerAiCircleActive]}>
-            <Ionicons name="chatbubble-ellipses" size={24} color="#FFFFFF" />
+          <View style={[styles.centerAiCircle, isTabletDevice && { width: 44, height: 44, borderRadius: 22 }, currentRoute === 'Chatbot' && styles.centerAiCircleActive]}>
+            <Ionicons name="chatbubble-ellipses" size={isTabletDevice ? 20 : 24} color="#FFFFFF" />
           </View>
-          <Text style={[styles.bottomText, currentRoute === 'Chatbot' && styles.activeBottomText, { marginTop: 2 }]}>
+          <Text style={[styles.bottomText, isTabletDevice && { fontSize: 8.5, marginTop: 1 }, currentRoute === 'Chatbot' && styles.activeBottomText, { marginTop: 2 }]}>
             AI
           </Text>
         </TouchableOpacity>
@@ -310,25 +318,27 @@ const BottomNavigation = ({
 
       {/* 4. MY HEALTH */}
       <TouchableOpacity
-        style={styles.bottomItem}
+        style={[styles.bottomItem, isTabletDevice && { height: 56 }]}
         activeOpacity={0.7}
         onPress={() => goTo('HealthRecords')}
       >
         <View
           style={[
             styles.bottomIcon,
+            isTabletDevice && { width: 36, height: 30, borderRadius: 15 },
             currentRoute === 'HealthRecords' && styles.activeBottomIcon,
           ]}
         >
           <Ionicons
             name={currentRoute === 'HealthRecords' ? 'document-text' : 'document-text-outline'}
-            size={22}
+            size={isTabletDevice ? 19 : 22}
             color={currentRoute === 'HealthRecords' ? colors.white : '#64748B'}
           />
         </View>
         <Text
           style={[
             styles.bottomText,
+            isTabletDevice && { fontSize: 8.5, marginTop: 1 },
             currentRoute === 'HealthRecords' && styles.activeBottomText,
           ]}
         >
@@ -338,25 +348,27 @@ const BottomNavigation = ({
 
       {/* 5. ACCOUNT */}
       <TouchableOpacity
-        style={styles.bottomItem}
+        style={[styles.bottomItem, isTabletDevice && { height: 56 }]}
         activeOpacity={0.7}
         onPress={() => goTo('Profile')}
       >
         <View
           style={[
             styles.bottomIcon,
+            isTabletDevice && { width: 36, height: 30, borderRadius: 15 },
             currentRoute === 'Profile' && styles.activeBottomIcon,
           ]}
         >
           <Ionicons
             name={currentRoute === 'Profile' ? 'person' : 'person-outline'}
-            size={22}
+            size={isTabletDevice ? 19 : 22}
             color={currentRoute === 'Profile' ? colors.white : '#64748B'}
           />
         </View>
         <Text
           style={[
             styles.bottomText,
+            isTabletDevice && { fontSize: 8.5, marginTop: 1 },
             currentRoute === 'Profile' && styles.activeBottomText,
           ]}
         >
