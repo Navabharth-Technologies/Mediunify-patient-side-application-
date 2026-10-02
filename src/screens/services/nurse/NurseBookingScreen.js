@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -11,6 +10,7 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showAlert } from '../../../utils/alert';
@@ -21,6 +21,7 @@ import {
   assignedNursesData,
   initialNursingRequests,
 } from '../../../data/homeNursingData';
+import { useAuthGuard } from '../../../context/AuthGuardContext';
 
 const ASYNC_KEY_NURSING_REQUESTS = '@unnathi_home_nursing_requests';
 
@@ -134,6 +135,7 @@ const FAQS = [
 
 const NurseBookingScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
+  const { requireLogin } = useAuthGuard();
 
   // Active top-level view: 'LANDING' | 'REQUEST_FLOW' | 'MY_REQUESTS' | 'REQUEST_DETAILS'
   const [currentView, setCurrentView] = useState('LANDING');
@@ -380,6 +382,11 @@ const NurseBookingScreen = ({ navigation, route }) => {
 
   // Start booking with specific service
   const handleStartBookingWithService = (serviceName) => {
+    requireLogin(() => _doStartBookingWithService(serviceName));
+  };
+
+  const _doStartBookingWithService = (serviceName) => {
+
     setSelectedServices([serviceName]);
     setShowAllServices(false);
     setServiceError(null);
@@ -434,11 +441,16 @@ const NurseBookingScreen = ({ navigation, route }) => {
     ];
     const picked = mockFiles[Math.floor(Math.random() * mockFiles.length)];
     setUploadedDoc(picked);
-    showAlert('Document Attached 📄', `Attached "${picked.name}" to your care request.`);
+    showAlert('Document Attached', `Attached "${picked.name}" to your care request.`);
   };
 
   // Submit Care Request
   const handleSubmitCareRequest = () => {
+    requireLogin(() => _doSubmitCareRequest());
+  };
+
+  const _doSubmitCareRequest = async () => {
+
     const newId = `HN-2026-${Math.floor(10000 + Math.random() * 90000).toString().slice(0, 5)}`;
     const nowStr = 'Just now';
 
@@ -686,7 +698,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
           <Text style={styles.statLabel}>Visits Completed</Text>
         </View>
         <View style={styles.statBox}>
-          <Text style={styles.statValue}>4.9 ★</Text>
+          <Text style={styles.statValue}>4.9/5</Text>
           <Text style={styles.statLabel}>Family Rating</Text>
         </View>
         <View style={styles.statBox}>
@@ -864,7 +876,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
 
                 {Array.isArray(nurse.languages) && (
                   <Text style={styles.nurseLanguagesText}>
-                    🗣 {nurse.languages.join(', ')}
+                    {nurse.languages.join(', ')}
                   </Text>
                 )}
               </View>
@@ -1205,7 +1217,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
                       onPress={() => setShowAllServices(false)}
                       style={styles.doneAddingPill}
                     >
-                      <Text style={styles.doneAddingPillText}>Done Selecting ✓</Text>
+                      <Text style={styles.doneAddingPillText}>Done Selecting</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -1245,7 +1257,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
                           </View>
                           <Text style={styles.selectCardDesc}>{item.shortDesc}</Text>
                           <Text style={styles.selectCardKit}>
-                            🩺 <Text style={{ fontWeight: '600' }}>Kit:</Text> {item.equipmentProvided}
+                            <Text style={{ fontWeight: '600' }}>Kit:</Text> {item.equipmentProvided}
                           </Text>
                         </View>
                       </TouchableOpacity>
@@ -1981,7 +1993,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
                 style={[styles.trackRequestBtn, { backgroundColor: '#10B981' }]}
                 onPress={() => {
                   if (navigation?.navigate) {
-                    navigation.navigate('Bookings', { initialTab: 'upcoming', newAppointment: newlyCreatedRequest });
+                    navigation.navigate('MyAppointments', { initialTab: 'upcoming', newAppointment: newlyCreatedRequest });
                   } else {
                     setSelectedRequestDetail(newlyCreatedRequest);
                     setCurrentView('MY_REQUESTS');
@@ -2288,7 +2300,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.rootContainer}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.rootContainer}>
       {currentView === 'LANDING' && renderLandingView()}
       {currentView === 'REQUEST_FLOW' && renderRequestFlowView()}
       {currentView === 'MY_REQUESTS' && renderMyRequestsView()}
@@ -2307,8 +2319,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 40,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 95 : 85,
   },
 
   // Top Bar Row
@@ -2316,11 +2328,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 4 : 8,
-    paddingBottom: 12,
+    paddingTop: Platform.OS === 'ios' ? 4 : 6,
+    paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
-    marginBottom: 16,
+    marginBottom: 10,
     gap: 8,
   },
   headerLeftGroup: {
@@ -2333,9 +2345,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   backCircleBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -3189,7 +3201,7 @@ const styles = StyleSheet.create({
   },
   flowScrollContent: {
     padding: 16,
-    paddingBottom: 50,
+    paddingBottom: Platform.OS === 'ios' ? 95 : 85,
   },
   stepTitleBox: {
     marginBottom: 14,

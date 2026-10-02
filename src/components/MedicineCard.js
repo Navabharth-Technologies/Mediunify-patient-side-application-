@@ -1,12 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import colors from '../theme/colors';
 
 const MedicineCard = ({ medicine, onPress }) => {
   return (
     <TouchableOpacity style={styles.card} onPress={onPress}>
       <View style={styles.imageBox}>
-        <Text style={styles.icon}>💊</Text>
+        <Ionicons name="medkit-outline" size={28} color="#FF7F50" />
       </View>
 
       <View style={styles.info}>

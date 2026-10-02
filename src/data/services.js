@@ -2,32 +2,32 @@ const services = [
   {
     id: '1',
     title: 'Find a Doctor',
-    icon: '👨‍⚕️',
+    icon: 'people-outline',
   },
   {
     id: '2',
     title: 'Lab Tests',
-    icon: '🧪',
+    icon: 'flask-outline',
   },
   {
     id: '3',
     title: 'Pharmacy',
-    icon: '💊',
+    icon: 'medkit-outline',
   },
   {
     id: '4',
     title: 'Hospitals',
-    icon: '🏥',
+    icon: 'business-outline',
   },
   {
     id: '5',
     title: 'Video Consult',
-    icon: '📹',
+    icon: 'videocam-outline',
   },
   {
     id: '6',
     title: 'Emergency',
-    icon: '🚑',
+    icon: 'call-outline',
   },
 ];
 

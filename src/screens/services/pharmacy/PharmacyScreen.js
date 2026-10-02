@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -15,6 +14,7 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import { useCart } from '../../../context/CartContext';
@@ -30,14 +30,14 @@ const PHARMACY_HERO_SLIDES = [
   {
     id: 'pharma-slide-1',
     pillText: '60-MIN EXPRESS',
-    pillBg: '#FFEDD5',
-    pillColor: '#EA580C',
+    pillBg: '#E6F8F5',
+    pillColor: '#00B894',
     certText: 'Flat 20% OFF',
     certIcon: 'flash',
     title: 'Doorstep Medicines & Jan Aushadhi Store',
     priceText: 'Flat 20% OFF',
     priceSub: 'Use Code: MEDI20',
-    priceColor: '#EA580C',
+    priceColor: '#00B894',
     subTitle: '100% Genuine branded drugs & affordable Jan Aushadhi generic medicines delivered in 60 mins.',
     bullets: [
       'Superfast 60-min delivery to your doorstep across Mysuru',
@@ -45,9 +45,9 @@ const PHARMACY_HERO_SLIDES = [
       'Temperature-controlled cold-chain transit for insulin & vaccines',
     ],
     ctaText: 'Order Medicines Now',
-    ctaBg: '#EA580C',
-    bgColor: '#FFF7ED',
-    borderColor: '#FED7AA',
+    ctaBg: '#00B894',
+    bgColor: '#E6F8F5',
+    borderColor: '#B2EBF2',
     image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=900',
     trustBadge: '100% Genuine Branded Drugs',
     actionType: 'scroll-to-products',
@@ -115,53 +115,101 @@ export const BROWSE_HEALTH_CONDITIONS = [
     titlePrimary: 'SKIN',
     titleSecondary: 'CARE',
     badge: 'DERMA APPROVED',
-    tagline: 'Glow & Hydration',
-    bg: '#7B9ECC',
-    accentColor: '#4F46E5',
+    tagline: 'Glow, Acne & Hydration',
+    bg: '#00C2CB',
+    accentColor: '#00C2CB',
     image: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=600&auto=format&fit=crop&q=80',
-    filterKeywords: ['skin', 'derma', 'acne', 'glow', 'face', 'cream', 'lotion', 'sunscreen', 'cleanse', 'serum', 'facewash', 'derma'],
+    filterKeywords: ['skin', 'derma', 'acne', 'glow', 'face', 'cream', 'lotion', 'sunscreen', 'cleanse', 'serum', 'facewash'],
     categoryFilter: 'Skin Care',
   },
   {
-    id: 'sexual-wellness',
-    titlePrimary: 'SEXUAL',
-    titleSecondary: 'WELLNESS',
-    badge: '100% DISCREET',
-    tagline: 'Safe & Stamina',
-    bg: '#6DBFA0',
-    accentColor: '#FF5252',
-    image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&auto=format&fit=crop&q=80',
-    filterKeywords: ['wellness', 'condom', 'test', 'fertility', 'care', 'stamina', 'energy', 'supplement', 'vigor', 'multivitamin'],
-    categoryFilter: 'Sexual Wellness',
+    id: 'diabetes-care',
+    titlePrimary: 'DIABETES',
+    titleSecondary: 'CARE',
+    badge: 'GLYCO MONITOR',
+    tagline: 'Sugar Test & Strips',
+    bg: '#00B894',
+    accentColor: '#00B894',
+    image: 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=600&auto=format&fit=crop&q=80',
+    filterKeywords: ['diabetes', 'sugar', 'glucose', 'glucometer', 'strips', 'accu', 'insulin', 'glyco', 'onetouch', 'lancet', 'sugar free'],
+    categoryFilter: 'Diabetes Care',
   },
   {
-    id: 'weight-management',
-    titlePrimary: 'WEIGHT',
-    titleSecondary: 'MANAGEMENT',
-    badge: 'ACTIVE DIET',
-    tagline: 'Slim & Fiber',
-    bg: '#9BC862',
-    accentColor: '#65A30D',
-    image: 'https://images.unsplash.com/photo-1576097449798-7c7f90e1248a?w=600&auto=format&fit=crop&q=80',
-    filterKeywords: ['weight', 'slim', 'apple', 'green tea', 'fiber', 'detox', 'burn', 'protein', 'nutrition', 'diet'],
-    categoryFilter: 'Weight Care',
+    id: 'cardiac-care',
+    titlePrimary: 'CARDIAC',
+    titleSecondary: 'HEALTH',
+    badge: 'HEART VITAL',
+    tagline: 'BP, Omega & Cholesterol',
+    bg: '#1E3A8A',
+    accentColor: '#1E3A8A',
+    image: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=600&auto=format&fit=crop&q=80',
+    filterKeywords: ['cardiac', 'heart', 'bp', 'pressure', 'cholesterol', 'omega', 'fish oil', 'artery', 'cardio', 'circulation'],
+    categoryFilter: 'Heart Care',
   },
   {
     id: 'pain-relief',
     titlePrimary: 'PAIN',
     titleSecondary: 'RELIEF',
     badge: 'FAST ACTING',
-    tagline: 'Joint & Muscle',
-    bg: '#9688BD',
-    accentColor: '#7C3AED',
-    image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600&auto=format&fit=crop&q=80',
+    tagline: 'Joint, Muscle & Sprain',
+    bg: '#FF7F50',
+    accentColor: '#FF7F50',
+    image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&auto=format&fit=crop&q=80',
     filterKeywords: ['pain', 'volini', 'spray', 'dolo', 'paracetamol', 'sprain', 'ache', 'joint', 'moov', 'relief', 'balm', 'gel', 'fast'],
     categoryFilter: 'Pain Relief',
+  },
+  {
+    id: 'stomach-care',
+    titlePrimary: 'STOMACH &',
+    titleSecondary: 'DIGESTION',
+    badge: 'GUT HEALTH',
+    tagline: 'Acidity, Gas & Probiotics',
+    bg: '#7BC96F',
+    accentColor: '#7BC96F',
+    image: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=600&auto=format&fit=crop&q=80',
+    filterKeywords: ['stomach', 'gut', 'acidity', 'gas', 'eno', 'gelusil', 'digene', 'probiotic', 'pantry', 'constipation', 'digestion', 'antacid'],
+    categoryFilter: 'Stomach Care',
+  },
+  {
+    id: 'respiratory-care',
+    titlePrimary: 'RESPIRATORY',
+    titleSecondary: 'CARE',
+    badge: 'EASY BREATHE',
+    tagline: 'Inhalers, Cough & Cold',
+    bg: '#0284C7',
+    accentColor: '#0284C7',
+    image: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=600&auto=format&fit=crop&q=80',
+    filterKeywords: ['respiratory', 'breathe', 'inhaler', 'cough', 'cold', 'syrup', 'vicks', 'steam', 'broncho', 'asthma', 'lozenge', 'vapor'],
+    categoryFilter: 'Cold & Fever',
+  },
+  {
+    id: 'sexual-wellness',
+    titlePrimary: 'SEXUAL',
+    titleSecondary: 'WELLNESS',
+    badge: '100% DISCREET',
+    tagline: 'Safe, Vigor & Stamina',
+    bg: '#D97706',
+    accentColor: '#D97706',
+    image: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=600&auto=format&fit=crop&q=80',
+    filterKeywords: ['wellness', 'condom', 'test', 'fertility', 'care', 'stamina', 'energy', 'supplement', 'vigor', 'multivitamin', 'shilajit'],
+    categoryFilter: 'Sexual Wellness',
+  },
+  {
+    id: 'weight-management',
+    titlePrimary: 'WEIGHT',
+    titleSecondary: 'CARE',
+    badge: 'ACTIVE DIET',
+    tagline: 'Slim, Detox & Green Tea',
+    bg: '#059669',
+    accentColor: '#059669',
+    image: 'https://images.unsplash.com/photo-1512069772995-ec65ed45afd6?w=600&auto=format&fit=crop&q=80',
+    filterKeywords: ['weight', 'slim', 'apple', 'green tea', 'fiber', 'detox', 'burn', 'protein', 'nutrition', 'diet', 'slimming'],
+    categoryFilter: 'Weight Care',
   },
 ];
 
 // ==================================================
-// 3. BROWSE CATEGORIES (Creative Rich Mockup)
+// 3. BROWSE CATEGORIES (8 Curated Everyday Care Categories)
 // ==================================================
 export const BROWSE_CATEGORIES = [
   {
@@ -169,44 +217,88 @@ export const BROWSE_CATEGORIES = [
     titlePrimary: 'BABY',
     titleSecondary: 'CARE',
     badge: 'PEDIATRIC SAFE',
-    tagline: 'Gentle Baby Care',
-    bg: '#869DC2',
-    accentColor: '#2563EB',
-    image: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=600&auto=format&fit=crop&q=80',
+    tagline: 'Diapers, Gentle Wash & Lotion',
+    bg: '#1E3A8A',
+    accentColor: '#1E3A8A',
+    image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=600&auto=format&fit=crop&q=80',
     categoryFilter: 'Baby Care',
   },
   {
     id: 'fitness-wellness',
     titlePrimary: 'FITNESS &',
     titleSecondary: 'WELLNESS',
-    badge: 'ENERGY & POWER',
-    tagline: 'Proteins & Nutrition',
-    bg: '#5EB895',
-    accentColor: '#FF5252',
-    image: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=80',
+    badge: 'POWER & IMMUNITY',
+    tagline: 'Proteins, BCAA & Creatine',
+    bg: '#FF7F50',
+    accentColor: '#FF7F50',
+    image: 'https://images.unsplash.com/photo-1579722821273-0f6c7d44362f?w=600&auto=format&fit=crop&q=80',
     categoryFilter: 'Vitamins & Minerals',
   },
   {
+    id: 'alternate-medicines',
+    titlePrimary: 'AYURVEDA &',
+    titleSecondary: 'HERBALS',
+    badge: '100% HERBAL',
+    tagline: 'Ashwagandha, Giloy & Extracts',
+    bg: '#7BC96F',
+    accentColor: '#7BC96F',
+    image: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&auto=format&fit=crop&q=80',
+    categoryFilter: 'Ayurvedic',
+  },
+  {
     id: 'family-care',
-    titlePrimary: 'FAMILY',
-    titleSecondary: 'CARE',
-    badge: 'DAILY ESSENTIALS',
-    tagline: 'Family Immunity',
-    bg: '#7B98BC',
-    accentColor: '#0284C7',
-    image: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?w=600&auto=format&fit=crop&q=80',
+    titlePrimary: 'DAILY',
+    titleSecondary: 'ESSENTIALS',
+    badge: 'FAMILY SAFETY',
+    tagline: 'Bandages, Dettol & First Aid',
+    bg: '#00B894',
+    accentColor: '#00B894',
+    image: 'https://images.unsplash.com/photo-1603398938378-e54eab446dde?w=600&auto=format&fit=crop&q=80',
     categoryFilter: 'all',
   },
   {
-    id: 'alternate-medicines',
-    titlePrimary: 'ALTERNATE',
-    titleSecondary: 'MEDICINES',
-    badge: '100% HERBAL',
-    tagline: 'Ayurveda & Herbals',
-    bg: '#9480AD',
-    accentColor: '#6B21A8',
-    image: 'https://images.unsplash.com/photo-1611080626919-7cf5a9dbab5b?w=600&auto=format&fit=crop&q=80',
-    categoryFilter: 'Ayurvedic',
+    id: 'vitamins-minerals',
+    titlePrimary: 'VITAMINS &',
+    titleSecondary: 'MINERALS',
+    badge: 'NUTRITION BOOST',
+    tagline: 'Vitamin C, D3, Zinc & Calcium',
+    bg: '#00C2CB',
+    accentColor: '#00C2CB',
+    image: 'https://images.unsplash.com/photo-1577401239170-897942555fb3?w=600&auto=format&fit=crop&q=80',
+    categoryFilter: 'Vitamins & Minerals',
+  },
+  {
+    id: 'health-devices',
+    titlePrimary: 'MEDICAL',
+    titleSecondary: 'DEVICES',
+    badge: 'CLINICAL GRADE',
+    tagline: 'BP Monitors, Oximeter & Scanners',
+    bg: '#475569',
+    accentColor: '#475569',
+    image: 'https://images.unsplash.com/photo-1584515933487-779824d29309?w=600&auto=format&fit=crop&q=80',
+    categoryFilter: 'Healthcare Devices',
+  },
+  {
+    id: 'personal-hygiene',
+    titlePrimary: 'PERSONAL',
+    titleSecondary: 'HYGIENE',
+    badge: 'GERM PROTECTION',
+    tagline: 'Hand Sanitizer, Wash & Oral Care',
+    bg: '#0F766E',
+    accentColor: '#0F766E',
+    image: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=600&auto=format&fit=crop&q=80',
+    categoryFilter: 'Personal Care',
+  },
+  {
+    id: 'senior-care',
+    titlePrimary: 'SENIOR &',
+    titleSecondary: 'ORTHO CARE',
+    badge: 'MOBILITY SUPPORT',
+    tagline: 'Knee Sleeves, Belts & Joint Care',
+    bg: '#1E3A8A',
+    accentColor: '#1E3A8A',
+    image: 'https://images.unsplash.com/photo-1584432810601-6c7f27d2362b?w=600&auto=format&fit=crop&q=80',
+    categoryFilter: 'Pain Relief',
   },
 ];
 
@@ -221,11 +313,11 @@ const ACTION_CARDS = [
     ctaText: 'UPLOAD PRESCRIPTION',
     iconName: 'document-text-outline',
     iconType: 'ionicons',
-    bgColor: '#EDFAF5',
-    borderColor: '#BBF7D0',
-    iconBg: '#DCFCE7',
-    iconColor: '#FF5252',
-    ctaColor: '#FF5252',
+    bgColor: '#E6F8F5',
+    borderColor: '#CCFBF1',
+    iconBg: '#E6F8F5',
+    iconColor: '#00B894',
+    ctaColor: '#00B894',
     actionType: 'upload',
   },
   {
@@ -234,11 +326,11 @@ const ACTION_CARDS = [
     ctaText: 'BOOK VIDEO SLOT',
     iconName: 'videocam-outline',
     iconType: 'ionicons',
-    bgColor: '#F5EFFF',
-    borderColor: '#E9D5FF',
-    iconBg: '#EDE9FE',
-    iconColor: '#7C3AED',
-    ctaColor: '#7C3AED',
+    bgColor: '#E0F7FA',
+    borderColor: '#B2EBF2',
+    iconBg: '#E0F7FA',
+    iconColor: '#1E3A8A',
+    ctaColor: '#1E3A8A',
     actionType: 'navigate',
     route: 'VideoConsultation',
   },
@@ -248,11 +340,11 @@ const ACTION_CARDS = [
     ctaText: 'BOOK CHECKUP',
     iconName: 'flask-outline',
     iconType: 'ionicons',
-    bgColor: '#FFF0F3',
-    borderColor: '#FECDD3',
-    iconBg: '#FFE4E6',
-    iconColor: '#E11D48',
-    ctaColor: '#E11D48',
+    bgColor: '#E0F7FA',
+    borderColor: '#B2EBF2',
+    iconBg: '#E0F7FA',
+    iconColor: '#00C2CB',
+    ctaColor: '#00C2CB',
     actionType: 'navigate',
     route: 'LabTests',
   },
@@ -262,11 +354,11 @@ const ACTION_CARDS = [
     ctaText: '100% CASHLESS',
     iconName: 'shield-checkmark-outline',
     iconType: 'ionicons',
-    bgColor: '#FFF6E9',
-    borderColor: '#FED7AA',
-    iconBg: '#FEF3C7',
-    iconColor: '#D97706',
-    ctaColor: '#D97706',
+    bgColor: '#E6F8F5',
+    borderColor: '#CCFBF1',
+    iconBg: '#CCFBF1',
+    iconColor: '#00B894',
+    ctaColor: '#00B894',
     badge: 'New',
     actionType: 'navigate',
     route: 'HealthInsurance',
@@ -281,40 +373,40 @@ const HEALTH_CONDITIONS = [
     id: 'diabetes',
     name: 'Diabetes Care',
     iconName: 'water-outline',
-    color: '#0284C7',
-    bg: '#E0F2FE',
+    color: '#1E3A8A',
+    bg: '#E0F7FA',
     filterKeywords: ['glucose', 'sugar', 'diabet', 'accu-chek', 'metformin', 'strip'],
   },
   {
     id: 'cardiac',
     name: 'Cardiac Care',
     iconName: 'heart-pulse',
-    color: '#DC2626',
-    bg: '#FEE2E2',
+    color: '#FF7F50',
+    bg: '#FFF2ED',
     filterKeywords: ['bp', 'blood pressure', 'omron', 'cardiac', 'heart', 'cholesterol'],
   },
   {
     id: 'stomach',
     name: 'Stomach Care',
     iconName: 'medkit-outline',
-    color: '#D97706',
-    bg: '#FEF3C7',
+    color: '#00C2CB',
+    bg: '#E0F7FA',
     filterKeywords: ['antacid', 'digestion', 'stomach', 'pantocid', 'gelusil', 'gas', 'acid'],
   },
   {
     id: 'pain-relief',
     name: 'Pain Relief',
     iconName: 'flash-outline',
-    color: '#7C3AED',
-    bg: '#EDE9FE',
+    color: '#00B894',
+    bg: '#E6F8F5',
     filterKeywords: ['pain', 'volini', 'spray', 'dolo', 'paracetamol', 'sprain', 'ache', 'joint', 'moov'],
   },
   {
     id: 'liver',
     name: 'Liver Care',
     iconName: 'leaf-outline',
-    color: '#FF5252',
-    bg: '#DCFCE7',
+    color: '#7BC96F',
+    bg: '#F2FAF0',
     filterKeywords: ['liv.52', 'liver', 'himalaya', 'detox', 'herbal', 'appetite'],
   },
   {
@@ -612,7 +704,7 @@ const PharmacyScreen = ({ navigation, route }) => {
       setIsUploading(false);
       setShowUploadModal(false);
       showAlert(
-        'Prescription Received! 📄',
+        'Prescription Received',
         `Your prescription "${selectedFile.name}" has been uploaded. A verified pharmacist will confirm your medicine order shortly.`
       );
       setSelectedFile(null);
@@ -622,7 +714,7 @@ const PharmacyScreen = ({ navigation, route }) => {
   const activeSlide = PHARMACY_HERO_SLIDES[activeSlideIndex];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* TOP HEADER (MOBILE & TABLET VIEW) */}
@@ -672,7 +764,7 @@ const PharmacyScreen = ({ navigation, route }) => {
         ref={mainScrollRef}
         contentContainerStyle={[
           styles.scrollContent,
-          pharmacyCartCount > 0 && { paddingBottom: 110 },
+          pharmacyCartCount > 0 && { paddingBottom: Platform.OS === 'ios' ? 140 : 130 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -849,7 +941,7 @@ const PharmacyScreen = ({ navigation, route }) => {
           <View style={styles.mobileBrowseHeaderRow}>
             <Text style={styles.mobileBrowseMainHeading}>Browse medicines & health products</Text>
             <View style={styles.mobileBrowseHeaderBadge}>
-              <Ionicons name="sparkles" size={11} color="#FF5252" />
+              <Ionicons name="sparkles" size={11} color="#00B894" />
               <Text style={styles.mobileBrowseHeaderBadgeText}>100% Genuine</Text>
             </View>
           </View>
@@ -899,12 +991,13 @@ const PharmacyScreen = ({ navigation, route }) => {
                       <Text style={styles.mobileBannerTagline} numberOfLines={1}>{item.tagline}</Text>
                     </View>
                     <View style={styles.mobileBannerImageContainer}>
-                      <View style={styles.mobileImageBackdrop} />
-                      <Image
-                        source={{ uri: item.image }}
-                        style={styles.mobileBannerImage}
-                        resizeMode="cover"
-                      />
+                      <View style={styles.mobileImageBackdrop}>
+                        <Image
+                          source={{ uri: item.image }}
+                          style={styles.mobileBannerImage}
+                          resizeMode="cover"
+                        />
+                      </View>
                     </View>
                   </TouchableOpacity>
                 );
@@ -953,12 +1046,13 @@ const PharmacyScreen = ({ navigation, route }) => {
                       <Text style={styles.mobileBannerTagline} numberOfLines={1}>{item.tagline}</Text>
                     </View>
                     <View style={styles.mobileBannerImageContainer}>
-                      <View style={styles.mobileImageBackdrop} />
-                      <Image
-                        source={{ uri: item.image }}
-                        style={styles.mobileBannerImage}
-                        resizeMode="cover"
-                      />
+                      <View style={styles.mobileImageBackdrop}>
+                        <Image
+                          source={{ uri: item.image }}
+                          style={styles.mobileBannerImage}
+                          resizeMode="cover"
+                        />
+                      </View>
                     </View>
                   </TouchableOpacity>
                 );
@@ -1222,7 +1316,7 @@ const PharmacyScreen = ({ navigation, route }) => {
                     <Text style={styles.attachedFileName} numberOfLines={1}>
                       {selectedFile.name}
                     </Text>
-                    <Text style={styles.attachedFileStatus}>✓ Ready for Pharmacist Verification</Text>
+                    <Text style={styles.attachedFileStatus}>Ready for Pharmacist Verification</Text>
                   </View>
                   <TouchableOpacity onPress={() => setSelectedFile(null)} style={{ padding: 6 }}>
                     <Ionicons name="trash-outline" size={18} color="#EF4444" />
@@ -1328,24 +1422,24 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 40,
+    paddingBottom: Platform.OS === 'ios' ? 95 : 85,
   },
 
   // MOBILE HEADER
   mobileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
-    gap: 10,
+    gap: 8,
   },
   headerBackBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1358,32 +1452,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 20,
     gap: 8,
   },
   headerLocalityIconWrap: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: '#FFF0F0',
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerDeliverTo: {
-    fontSize: 9.5,
+    fontSize: 9,
     color: '#64748B',
     fontWeight: '600',
   },
   headerLocalityName: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '700',
     color: '#0F172A',
   },
   headerCartBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1409,11 +1503,11 @@ const styles = StyleSheet.create({
   // HERO SHOWCASE
   heroWrap: {
     paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 8,
+    paddingTop: 8,
+    paddingBottom: 4,
   },
   heroBannerCard: {
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1.5,
     overflow: 'hidden',
     flexDirection: 'row',
@@ -1448,11 +1542,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   heroLeftColMobile: {
-    padding: 16,
+    padding: 12,
   },
   heroRightCol: {
     flex: 0.8,
-    height: 220,
+    height: 150,
     position: 'relative',
   },
   heroImage: {
@@ -1523,7 +1617,7 @@ const styles = StyleSheet.create({
   heroPriceHighlight: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#EA580C',
+    color: '#00B894',
     marginTop: 4,
   },
   heroSubTitle: {
@@ -1658,7 +1752,7 @@ const styles = StyleSheet.create({
   // 4 ACTION CARDS
   actionCardsWrap: {
     paddingHorizontal: 16,
-    marginTop: 12,
+    marginTop: 8,
   },
   actionCardsGrid: {
     flexDirection: 'row',
@@ -1669,14 +1763,14 @@ const styles = StyleSheet.create({
     width: '48.5%',
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 10,
-    borderRadius: 12,
+    padding: 8,
+    borderRadius: 11,
     borderWidth: 1,
   },
   actionCardIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1684,12 +1778,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: '#0F172A',
-    lineHeight: 15,
+    lineHeight: 14,
   },
   actionCardCta: {
-    fontSize: 9.5,
+    fontSize: 9,
     fontWeight: '800',
-    marginTop: 3,
+    marginTop: 2,
   },
 
   // SECTION HEADERS
@@ -1698,16 +1792,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    marginTop: 18,
-    marginBottom: 8,
+    marginTop: 12,
+    marginBottom: 6,
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '800',
     color: '#0F172A',
   },
   sectionSeeAll: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
     color: '#FF5252',
   },
@@ -1715,11 +1809,11 @@ const styles = StyleSheet.create({
   // CATEGORIES SCROLL
   categoriesScroll: {
     paddingHorizontal: 16,
-    gap: 12,
+    gap: 10,
   },
   // BROWSE MEDICINES MOBILE
   mobileBrowseSection: {
-    marginTop: 18,
+    marginTop: 12,
     paddingHorizontal: 16,
   },
   mobileBrowseHeaderRow: {
@@ -1737,7 +1831,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FFF0F0',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
@@ -1745,7 +1841,7 @@ const styles = StyleSheet.create({
   mobileBrowseHeaderBadgeText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#FF5252',
+    color: '#00B894',
   },
   mobileBrowseSubSection: {
     marginBottom: 16,
@@ -1764,7 +1860,7 @@ const styles = StyleSheet.create({
   clearFilterLink: {
     fontSize: 11.5,
     fontWeight: '700',
-    color: '#EF4444',
+    color: '#FF7F50',
   },
   mobileBrowseScroll: {
     gap: 12,
@@ -1779,6 +1875,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingLeft: 14,
+    paddingRight: 8,
     position: 'relative',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.4)',
@@ -1850,26 +1947,38 @@ const styles = StyleSheet.create({
   },
   mobileBannerImageContainer: {
     position: 'absolute',
-    right: 0,
+    right: 8,
     top: 0,
     bottom: 0,
-    width: '52%',
-    overflow: 'hidden',
     justifyContent: 'center',
-    alignItems: 'flex-end',
+    alignItems: 'center',
+    zIndex: 2,
   },
   mobileImageBackdrop: {
-    position: 'absolute',
-    right: -10,
-    bottom: -10,
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+    borderWidth: 2.5,
+    borderColor: 'rgba(255, 255, 255, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Platform.select({
+      web: { boxShadow: '0px 2px 8px rgba(0,0,0,0.12)' },
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.12,
+        shadowRadius: 4,
+        elevation: 3,
+      },
+    }),
   },
   mobileBannerImage: {
     width: '100%',
     height: '100%',
+    borderRadius: 41,
   },
 
   // CATALOG SECTION
@@ -2054,7 +2163,7 @@ const styles = StyleSheet.create({
   stepperQty: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#B91C1C',
+    color: '#00B894',
     paddingHorizontal: 4,
   },
 

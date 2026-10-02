@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../../theme/colors';
 import {
   LAB_CATEGORIES,
@@ -24,15 +25,23 @@ import {
   INITIAL_LAB_BOOKINGS,
   INITIAL_LAB_REPORTS,
 } from '../../../data/labTestData';
+import { getSlotStatus, validateAndBookSlot, subscribeToSlotChanges } from '../../../services/slotBookingService';
 import WebFooter from '../../../components/web/WebFooter';
 import { showAlert } from '../../../utils/alert';
+import {
+  NOVUS_POPULAR_PACKAGES,
+  NOVUS_CURATED_PACKAGES,
+  NOVUS_PACKAGE_CATEGORIES,
+} from '../../../data/novusPackagesData';
 import { useCart } from '../../../context/CartContext';
+import { useAuthGuard } from '../../../context/AuthGuardContext';
 
 const LabTestsScreenWeb = (props) => {
   const { navigation, route } = props;
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
   const isTablet = width >= 768 && width < 1024;
+  const { requireLogin } = useAuthGuard();
 
   // Cart integration
   const { labCart = [], addToCart, removeFromCart, labCartCount = 0, labFinalTotal = 0 } = useCart();
@@ -58,7 +67,7 @@ const LabTestsScreenWeb = (props) => {
         fastingRequired: test.fastingRequired,
       };
       addToCart(cartItem, 1, 'lab');
-      showAlert('Added to Cart! 🧪', `${test.name} has been added to your cart.`);
+      showAlert('Added to Cart', `${test.name} has been added to your cart.`);
     }
   };
 
@@ -81,7 +90,7 @@ const LabTestsScreenWeb = (props) => {
         isPackage: true,
       };
       addToCart(cartItem, 1, 'lab');
-      showAlert('Added to Cart! 🧪', `${pkg.name} has been added to your cart.`);
+      showAlert('Added to Cart', `${pkg.name} has been added to your cart.`);
     }
   };
 
@@ -95,6 +104,30 @@ const LabTestsScreenWeb = (props) => {
   const [selectedGenderFilter, setSelectedGenderFilter] = useState('ALL');
   const [selectedSampleFilter, setSelectedSampleFilter] = useState('ALL');
   const [selectedCollectionFilter, setSelectedCollectionFilter] = useState('ALL');
+  const [selectedPriceFilter, setSelectedPriceFilter] = useState('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedSort, setSelectedSort] = useState('RECOMMENDED'); // 'RECOMMENDED' | 'PRICE_LOW_HIGH' | 'PRICE_HIGH_LOW' | 'MOST_TESTS'
+  const [selectedInclusions, setSelectedInclusions] = useState([]); // ['VITAMINS', 'ECG_IMAGING', 'ECHO', 'IRON', 'HBA1C']
+
+  const toggleInclusion = (id) => {
+    setSelectedInclusions((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((item) => item !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+    setCurrentPage(1);
+  };
+  const ITEMS_PER_PAGE = 4;
+  const [packageSubView, setPackageSubView] = useState('ALL'); // 'ALL' | 'PACKAGES' | 'TESTS'
+  const [expandedTestIndex, setExpandedTestIndex] = useState(null);
+  const DEFAULT_PATIENT_PROFILES = [
+    { id: 'p-self', name: 'User Profile', relation: 'Self', age: 28, gender: 'Not specified', phone: '' },
+  ];
+
+  const [patientProfiles, setPatientProfiles] = useState(DEFAULT_PATIENT_PROFILES);
+  const [selectedPatientId, setSelectedPatientId] = useState('p-self');
 
   // Modals & Details State
   const [selectedTest, setSelectedTest] = useState(null);
@@ -109,17 +142,177 @@ const LabTestsScreenWeb = (props) => {
   const [selectedSlotId, setSelectedSlotId] = useState('slot-2');
   const [paymentMethod, setPaymentMethod] = useState('UPI');
   const [confirmedBookingData, setConfirmedBookingData] = useState(null);
+  const [slotTick, setSlotTick] = useState(0);
+
+  // Subscribe to real-time clock advancement & slot booking updates
+  useEffect(() => {
+    const unsub = subscribeToSlotChanges(() => {
+      setSlotTick((prev) => prev + 1);
+    });
+    return unsub;
+  }, []);
+
+  // Ensure an available slot is selected when date/collection method changes or slots update
+  useEffect(() => {
+    const providerId = collectionMethod === 'HOME' ? 'home-collection' : selectedCentreId;
+    const currentSlot = TIME_SLOTS.find((s) => s.id === selectedSlotId);
+    const status = getSlotStatus({
+      date: selectedDate,
+      time: currentSlot?.label || '',
+      serviceType: 'lab',
+      providerId,
+    });
+    if (!status.available) {
+      const firstAvail = TIME_SLOTS.find((s) => {
+        return getSlotStatus({
+          date: selectedDate,
+          time: s.label,
+          serviceType: 'lab',
+          providerId,
+        }).available;
+      });
+      if (firstAvail) {
+        setSelectedSlotId(firstAvail.id);
+      }
+    }
+  }, [selectedDate, collectionMethod, selectedCentreId, slotTick, selectedSlotId]);
 
   // Manual Home Collection Address Form
   const [homeAddressName, setHomeAddressName] = useState('');
   const [homeAddressPhone, setHomeAddressPhone] = useState('');
-  const [homeAddressFlat, setHomeAddressFlat] = useState('');
-  const [homeAddressCity, setHomeAddressCity] = useState('');
-  const [homeAddressPincode, setHomeAddressPincode] = useState('');
+  const [homeAddressFlat, setHomeAddressFlat] = useState('Flat 402, Green Meadows');
+  const [homeAddressCity, setHomeAddressCity] = useState('Mysuru');
+  const [homeAddressPincode, setHomeAddressPincode] = useState('570023');
   const [homeAddressLandmark, setHomeAddressLandmark] = useState('');
+
+  // Automatically load logged in user's profile and family details
+  const loadUserProfiles = async () => {
+    try {
+      const storedPrimary = await AsyncStorage.getItem('@unnathi_primary_user');
+      const storedUser = await AsyncStorage.getItem('user');
+      const storedName = await AsyncStorage.getItem('userName');
+      const storedPhone = await AsyncStorage.getItem('userPhone');
+      const storedEmail = await AsyncStorage.getItem('userEmail');
+
+      let userName = '';
+      let userPhone = storedPhone || '';
+      let userAge = '28';
+      let userGender = 'Not specified';
+      let userEmail = storedEmail || '';
+
+      if (storedPrimary) {
+        try {
+          const p = JSON.parse(storedPrimary);
+          if (p?.name && p.name.trim()) userName = p.name.replace(/\s*\(Self\)$/i, '').trim();
+          if (p?.phone && p.phone.trim()) userPhone = p.phone.trim();
+          if (p?.email && p.email.trim()) userEmail = p.email.trim();
+          if (p?.age) userAge = p.age.toString().replace(/[^0-9]/g, '') || '28';
+          if (p?.gender) userGender = p.gender;
+        } catch (e) {}
+      }
+      if (!userName && storedUser) {
+        try {
+          const u = JSON.parse(storedUser);
+          if (u?.name && u.name.trim()) userName = u.name.replace(/\s*\(Self\)$/i, '').trim();
+          if (u?.phone && u.phone.trim()) userPhone = u.phone.trim();
+          if (u?.email && u.email.trim()) userEmail = u.email.trim();
+          if (u?.age) userAge = u.age.toString().replace(/[^0-9]/g, '') || '28';
+          if (u?.gender) userGender = u.gender;
+        } catch (e) {}
+      }
+      if (!userName && storedName && storedName.trim()) {
+        userName = storedName.replace(/\s*\(Self\)$/i, '').trim();
+      }
+
+      const effectiveName = userName || 'User Profile';
+      const selfProfile = {
+        id: 'p-self',
+        name: effectiveName,
+        relation: 'Self',
+        age: parseInt(userAge, 10) || 28,
+        gender: userGender || 'Not specified',
+        phone: userPhone || '',
+      };
+
+      // Query family members specific to current user account
+      const userKey = (userEmail || userPhone || effectiveName).toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const userFamKey = `@unnathi_family_members_${userKey}`;
+      const savedUserFam = await AsyncStorage.getItem(userFamKey);
+      let familyList = [];
+
+      if (savedUserFam) {
+        try {
+          const parsed = JSON.parse(savedUserFam);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            familyList = parsed;
+          }
+        } catch (e) {}
+      }
+
+      // Fallback: check session family members only if it belongs to this user
+      if (familyList.length === 0) {
+        const storedFam = await AsyncStorage.getItem('@unnathi_family_members');
+        if (storedFam) {
+          try {
+            const parsedG = JSON.parse(storedFam);
+            if (Array.isArray(parsedG) && parsedG.length > 0) {
+              const firstMem = parsedG[0];
+              if (firstMem?.name && firstMem.name.toLowerCase().includes(effectiveName.split(' ')[0].toLowerCase())) {
+                familyList = parsedG;
+              }
+            }
+          } catch (e) {}
+        }
+      }
+
+      // Filter out self/primary, ONLY take family members explicitly added by user
+      const otherProfiles = (Array.isArray(familyList) && familyList.length > 0)
+        ? familyList
+            .filter(m => m && m.id !== 'self' && m.relation !== 'Self' && !m.isPrimary)
+            .map((m, idx) => ({
+              id: m.id || `p-${idx + 2}`,
+              name: (m.name || m.displayName || 'Family Member').replace(/\s*\(.*?\)$/, '').trim(),
+              relation: m.relation || 'Family',
+              age: parseInt(m.age, 10) || 30,
+              gender: m.gender || 'Not specified',
+              phone: m.phone || userPhone || '',
+            }))
+        : [];
+
+      const combined = [selfProfile, ...otherProfiles];
+      setPatientProfiles(combined);
+      setSelectedPatientId('p-self');
+      setHomeAddressName(effectiveName);
+      if (userPhone) setHomeAddressPhone(userPhone);
+    } catch (err) {
+      console.warn('[LabTestsScreen] Failed to load user profiles:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadUserProfiles();
+  }, [activeBookingTest]);
 
   // Bookings & Reports State
   const [bookingsList, setBookingsList] = useState(INITIAL_LAB_BOOKINGS);
+
+  useEffect(() => {
+    const loadStoredLabBookings = async () => {
+      try {
+        const raw = await AsyncStorage.getItem('@labBookings');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const map = new Map();
+            parsed.forEach((b) => { if (b && b.id) map.set(b.id, b); });
+            INITIAL_LAB_BOOKINGS.forEach((b) => { if (b && b.id && !map.has(b.id)) map.set(b.id, b); });
+            setBookingsList(Array.from(map.values()));
+          }
+        }
+      } catch (e) {}
+    };
+    loadStoredLabBookings();
+  }, []);
   const [bookingsFilter, setBookingsFilter] = useState('ALL');
   const [selectedTrackingBooking, setSelectedTrackingBooking] = useState(null);
 
@@ -175,15 +368,142 @@ const LabTestsScreenWeb = (props) => {
     return LAB_CATEGORIES.find((c) => c.id === selectedCategory);
   }, [selectedCategory]);
 
+  const filteredPackages = useMemo(() => {
+    const list = NOVUS_POPULAR_PACKAGES.filter((pkg) => {
+      // Category filter
+      if (selectedCategory !== 'all') {
+        if (selectedCategory === 'most-popular') {
+          return (
+            pkg.isMostPopularBooked ||
+            pkg.badge?.toLowerCase().includes('popular') ||
+            ['POP-FB-01', 'POP-EXE-01', 'POP-DIA-01', 'POP-HRT-01'].includes(pkg.id)
+          );
+        }
+        if (selectedCategory === 'curated') {
+          return pkg.type === 'curated';
+        }
+        if (pkg.categoryId !== selectedCategory) {
+          return false;
+        }
+      }
+
+      // Price filter
+      if (selectedPriceFilter === 'UNDER_1000' && pkg.price >= 1000) return false;
+      if (selectedPriceFilter === '1000_2000' && (pkg.price < 1000 || pkg.price > 2000)) return false;
+      if (selectedPriceFilter === 'ABOVE_2000' && pkg.price <= 2000) return false;
+
+      // Key Inclusions Filter
+      if (selectedInclusions.includes('VITAMINS')) {
+        const hasVit = pkg.tests.some(
+          (t) =>
+            t.name.toLowerCase().includes('vitamin') ||
+            t.parameters.toLowerCase().includes('vitamin')
+        );
+        if (!hasVit) return false;
+      }
+
+      if (selectedInclusions.includes('ECG_IMAGING')) {
+        const hasEcgorUsg = pkg.tests.some(
+          (t) =>
+            t.name.toLowerCase().includes('ecg') ||
+            t.name.toLowerCase().includes('ultrasound')
+        );
+        if (!hasEcgorUsg) return false;
+      }
+
+      if (selectedInclusions.includes('ECHO')) {
+        const hasEcho = pkg.tests.some((t) => t.name.toLowerCase().includes('echo'));
+        if (!hasEcho) return false;
+      }
+
+      if (selectedInclusions.includes('IRON')) {
+        const hasIron = pkg.tests.some(
+          (t) =>
+            t.name.toLowerCase().includes('iron') ||
+            t.name.toLowerCase().includes('ferritin')
+        );
+        if (!hasIron) return false;
+      }
+
+      if (selectedInclusions.includes('HBA1C')) {
+        const hasHba1c = pkg.tests.some((t) => t.name.toLowerCase().includes('hba1c'));
+        if (!hasHba1c) return false;
+      }
+
+      // Search query across name, code, category, tests, parameters, notes
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchesName = pkg.name.toLowerCase().includes(q);
+        const matchesCode = pkg.code.toLowerCase().includes(q);
+        const matchesCategory = pkg.category.toLowerCase().includes(q);
+        const matchesTests = pkg.tests.some(
+          (t) =>
+            t.name.toLowerCase().includes(q) ||
+            t.parameters.toLowerCase().includes(q) ||
+            t.sample.toLowerCase().includes(q) ||
+            t.preparation.toLowerCase().includes(q)
+        );
+        const matchesNote = pkg.clinicalNote?.toLowerCase().includes(q);
+        if (!matchesName && !matchesCode && !matchesCategory && !matchesTests && !matchesNote) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    // Sorting
+    const sorted = [...list];
+    if (selectedSort === 'PRICE_LOW_HIGH') {
+      sorted.sort((a, b) => a.price - b.price);
+    } else if (selectedSort === 'PRICE_HIGH_LOW') {
+      sorted.sort((a, b) => b.price - a.price);
+    } else if (selectedSort === 'MOST_TESTS') {
+      sorted.sort((a, b) => b.testsCount - a.testsCount);
+    }
+
+    return sorted;
+  }, [selectedCategory, selectedPriceFilter, selectedInclusions, selectedSort, searchQuery]);
+
+  const totalPages = Math.ceil(filteredPackages.length / ITEMS_PER_PAGE) || 1;
+
+  const paginatedPackages = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredPackages.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredPackages, currentPage]);
+
   const popularTests = useMemo(() => {
     return LAB_TESTS_MASTER.filter((t) => t.popular).sort((a, b) => a.popularRank - b.popularRank);
   }, []);
 
-  const startBooking = (test, preferredMethod = null) => {
-    setActiveBookingTest(test);
+  const startBooking = (item, preferredMethod = null) => {
+    requireLogin(() => _doStartBooking(item, preferredMethod));
+  };
+
+  const _doStartBooking = (item, preferredMethod = null) => {
+
+    const isPkg = Boolean(item.tests || item.code || item.isPackage);
+    const bookingItem = {
+      ...item,
+      id: item.id || item.code,
+      name: item.name,
+      code: item.code,
+      isPackage: isPkg,
+      testsCount: item.testsCount || (item.tests ? item.tests.length : 1),
+      price: item.price,
+      mrp: item.mrp || Math.round(item.price * 1.5),
+      homeCollection: item.homeCollectionAvailable !== false && item.homeCollection !== false,
+      centreCollection: true,
+      preparation: item.preparationSummary || item.preparation || 'No special fasting required',
+    };
+    setActiveBookingTest(bookingItem);
+    const freshDates = getAvailableDates();
+    if (!freshDates.some((d) => d.dateStr === selectedDate)) {
+      setSelectedDate(freshDates[0].dateStr);
+    }
     if (preferredMethod) {
       setCollectionMethod(preferredMethod);
-    } else if (test.homeCollection) {
+    } else if (bookingItem.homeCollection) {
       setCollectionMethod('HOME');
     } else {
       setCollectionMethod('CENTRE');
@@ -192,6 +512,11 @@ const LabTestsScreenWeb = (props) => {
   };
 
   const handleSimulatePayment = () => {
+    requireLogin(() => _doSimulatePayment());
+  };
+
+  const _doSimulatePayment = async () => {
+
     const isHome = collectionMethod === 'HOME';
     if (isHome && (!homeAddressName.trim() || !homeAddressPhone.trim() || !homeAddressFlat.trim() || !homeAddressCity.trim() || !homeAddressPincode.trim())) {
       return;
@@ -201,6 +526,21 @@ const LabTestsScreenWeb = (props) => {
     const total = testPrice + collectionFee;
     const selectedCentre = DIAGNOSTIC_CENTRES.find((c) => c.id === selectedCentreId);
     const selectedSlot = TIME_SLOTS.find((s) => s.id === selectedSlotId);
+
+    // Real-Time Atomic Slot Validation (Rules 2, 3, 6)
+    const slotValidation = await validateAndBookSlot({
+      date: selectedDate,
+      time: selectedSlot?.label || '8:30 AM – 9:30 AM',
+      serviceType: 'lab',
+      providerId: isHome ? 'home-collection' : selectedCentreId,
+      slotId: selectedSlotId,
+      patientName: homeAddressName.trim() || 'Patient',
+    });
+
+    if (!slotValidation.success) {
+      showAlert('Slot Unavailable', 'This slot is no longer available. Please select another time.');
+      return;
+    }
 
     const manualAddr = isHome
       ? `${homeAddressFlat.trim()}, ${homeAddressCity.trim()} - ${homeAddressPincode.trim()}${homeAddressLandmark.trim() ? ` (${homeAddressLandmark.trim()})` : ''}`
@@ -233,6 +573,64 @@ const LabTestsScreenWeb = (props) => {
     setConfirmedBookingData(newBooking);
     setBookingsList([newBooking, ...bookingsList]);
     setBookingFlowStep(5);
+
+    try {
+      // 1. Save to @labBookings and labBookings
+      for (const k of ['@labBookings', 'labBookings']) {
+        const existingRaw = await AsyncStorage.getItem(k);
+        const existingList = existingRaw ? JSON.parse(existingRaw) : [];
+        const nextList = [newBooking, ...(Array.isArray(existingList) ? existingList : [])];
+        await AsyncStorage.setItem(k, JSON.stringify(nextList));
+      }
+
+      // 2. Format for @mediunify_patient_booked_tests (for MyTestsScreen)
+      const dashboardBooking = {
+        id: newBookingId,
+        bookingRef: newBookingId,
+        testName: newBooking.testName,
+        modality: 'Pathology & Blood',
+        modalityType: 'Blood Test',
+        testCategory: 'Pathology & Blood',
+        testType: isHome ? 'Home Sample Collection' : 'Centre Visit',
+        centerName: newBooking.diagnosticCentre?.name || 'Unnathi Central Pathology & Diagnostic Center',
+        department: 'Automated Clinical Pathology',
+        location: isHome ? (manualAddr || 'Mysuru') : (newBooking.diagnosticCentre?.location || 'Kuvempunagar, Mysuru'),
+        address: isHome ? (manualAddr || 'Mysuru') : (newBooking.diagnosticCentre?.location || 'Kuvempunagar, Mysuru'),
+        appointmentDate: selectedDate,
+        timeSlot: selectedSlot?.label || '08:30 AM – 09:30 AM',
+        patientId: selectedPatientId || 'self',
+        patientName: homeAddressName.trim() || 'Hemanth Gowda (Self)',
+        age: 28,
+        gender: 'Male',
+        status: 'Slot Confirmed',
+        badgeColor: '#00B894',
+        price: total,
+        paymentStatus: 'Paid Online via UPI',
+        instructions: 'Fasting of 10-12 hours required prior to sample collection. Water is permitted.',
+        doctorPrescription: 'Diagnostic Lab Screening Referral',
+        contactPhone: '+91 821 245 9901',
+        canReschedule: true,
+        canCancel: true,
+        phlebotomist: isHome ? {
+          name: newBooking.phlebotomistName || 'Muralidhar Rao (Senior Phlebotomist)',
+          phone: newBooking.phlebotomistPhone || '+91 98452 33110',
+          vehicle: 'Two-Wheeler (KA-09-ER-5521)',
+          eta: '15 mins',
+        } : null,
+      };
+
+      const existingBookedTestsRaw = await AsyncStorage.getItem('@mediunify_patient_booked_tests');
+      const existingBookedTests = existingBookedTestsRaw ? JSON.parse(existingBookedTestsRaw) : [];
+      const updatedBookedTests = [dashboardBooking, ...(Array.isArray(existingBookedTests) ? existingBookedTests : [])];
+      await AsyncStorage.setItem('@mediunify_patient_booked_tests', JSON.stringify(updatedBookedTests));
+
+      // 3. Save to @unnathi_appointments
+      const existingApptsRaw = await AsyncStorage.getItem('@unnathi_appointments');
+      const existingAppts = existingApptsRaw ? JSON.parse(existingApptsRaw) : [];
+      await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify([dashboardBooking, ...(Array.isArray(existingAppts) ? existingAppts : [])]));
+    } catch (saveErr) {
+      console.warn('Error saving lab booking to AsyncStorage:', saveErr);
+    }
   };
 
   // ===========================================================================
@@ -327,47 +725,150 @@ const LabTestsScreenWeb = (props) => {
     return (
       <View style={styles.webMainContentWrapper}>
         {/* Top Hero Banner */}
-        <View style={styles.webHeroBanner}>
+        <View
+          style={[
+            styles.webHeroBanner,
+            {
+              paddingVertical: 34,
+              paddingHorizontal: 32,
+              borderRadius: 24,
+              marginBottom: 24,
+              backgroundColor: '#E6FBF2',
+              ...(Platform.OS === 'web'
+                ? {
+                    backgroundImage: 'linear-gradient(135deg, #E6FBF2 0%, #D4F7EC 50%, #E2F9F0 100%)',
+                  }
+                : {}),
+              borderWidth: 1.5,
+              borderColor: '#A7F3D0',
+              boxShadow: '0 12px 32px -8px rgba(0, 184, 148, 0.12), 0 4px 12px -2px rgba(0, 0, 0, 0.03)',
+            },
+          ]}
+        >
           <View style={styles.webHeroTextCol}>
-            <View style={styles.webHeroBadge}>
-              <Ionicons name="shield-checkmark" size={14} color="#00B894" />
-              <Text style={styles.webHeroBadgeText}>NABL & ICMR Certified Clinical Partner Labs</Text>
+            <View style={[styles.webHeroBadge, { backgroundColor: '#FFFFFF', borderColor: '#A7F3D0', borderWidth: 1, boxShadow: '0 2px 6px rgba(0, 184, 148, 0.08)' }]}>
+              <Ionicons name="shield-checkmark" size={15} color="#059669" />
+              <Text style={[styles.webHeroBadgeText, { color: '#059669', fontWeight: '800' }]}>
+                NABL & ICMR Certified Clinical Partner Labs • Doorstep Collection
+              </Text>
             </View>
-            <Text style={styles.webHeroTitle}>Lab Tests & Diagnostic Services</Text>
-            <Text style={styles.webHeroSubtitle}>
-              Book diagnostic tests from trusted laboratory services with doorstep phlebotomy and 100% digital reports.
+            <Text style={[styles.webHeroTitle, { fontSize: 32, fontWeight: '900', color: '#0C3B6B', marginTop: 10, marginBottom: 6, letterSpacing: -0.6 }]}>
+              Lab Tests & Health Checkup Packages
+            </Text>
+            <Text style={[styles.webHeroSubtitle, { fontSize: 14.5, color: '#334155', maxWidth: 680, lineHeight: 22 }]}>
+              Choose from 13 doctor-verified health checkups with free doorstep sample collection, automated lab testing, and digital reports delivered in 6–8 hours.
             </Text>
           </View>
 
           {/* Search Box on Hero */}
-          <View style={styles.webSearchWrap}>
-            <Ionicons name="search" size={20} color="#00B894" />
+          <View
+            style={[
+              styles.webSearchWrap,
+              {
+                maxWidth: 640,
+                marginTop: 18,
+                backgroundColor: '#FFFFFF',
+                borderWidth: 1.5,
+                borderColor: '#A7F3D0',
+                borderRadius: 14,
+                boxShadow: '0 6px 20px -4px rgba(0, 184, 148, 0.14)',
+              },
+            ]}
+          >
+            <Ionicons name="search" size={21} color="#00B894" />
             <TextInput
-              style={styles.webSearchInput}
-              placeholder="Search by test name, sugar, CBC, lipid profile, thyroid..."
+              style={[styles.webSearchInput, { fontSize: 14 }]}
+              placeholder="Search checkup (e.g. Executive, Full Body, Diabetes, Vitamin D, POP-EXE-01)..."
               placeholderTextColor="#94A3B8"
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={(text) => { setSearchQuery(text); setCurrentPage(1); }}
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={18} color="#94A3B8" />
+              <TouchableOpacity onPress={() => { setSearchQuery(''); setCurrentPage(1); }}>
+                <Ionicons name="close-circle" size={19} color="#94A3B8" />
               </TouchableOpacity>
             )}
           </View>
+
+          {/* Quick Search Tag Suggestions */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569' }}>Popular searches:</Text>
+            {[
+              'Full Body Checkup',
+              'Executive Health',
+              'Diabetes Basic',
+              'Heart Risk',
+              'Vitamin D',
+            ].map((tag) => (
+              <TouchableOpacity
+                key={tag}
+                style={{
+                  paddingVertical: 5,
+                  paddingHorizontal: 12,
+                  borderRadius: 16,
+                  backgroundColor: '#FFFFFF',
+                  borderWidth: 1,
+                  borderColor: '#A7F3D0',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                }}
+                onPress={() => {
+                  setSearchQuery(tag === 'Full Body Checkup' ? 'Full Body' : tag);
+                  setCurrentPage(1);
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#059669' }}>{tag}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Trust Value Badges Strip */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 22, paddingTop: 18, borderTopWidth: 1, borderTopColor: 'rgba(0, 184, 148, 0.18)' }}>
+            {[
+              { icon: 'home-outline', title: 'Free Home Collection', desc: 'Doorstep phlebotomy' },
+              { icon: 'time-outline', title: '6–8 Hours TAT', desc: 'Fast digital reports' },
+              { icon: 'ribbon-outline', title: '100% NABL Accredited', desc: 'Quality assured' },
+              { icon: 'chatbubbles-outline', title: 'Doctor Consultation', desc: 'Free report review' },
+            ].map((feature, i) => (
+              <View
+                key={i}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 10,
+                  flex: 1,
+                  minWidth: 160,
+                  backgroundColor: '#FFFFFF',
+                  paddingVertical: 10,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: '#A7F3D0',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                }}
+              >
+                <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: '#ECFDF5', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#A7F3D0' }}>
+                  <Ionicons name={feature.icon} size={17} color="#059669" />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#0F172A' }}>{feature.title}</Text>
+                  <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '500' }}>{feature.desc}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
         </View>
 
-        {/* Categories Bar */}
+        {/* Categories Bar - Novus Checkup Categories */}
         <View style={styles.webCategoriesRow}>
-          {LAB_CATEGORIES.map((cat) => {
+          {NOVUS_PACKAGE_CATEGORIES.map((cat) => {
             const isSel = selectedCategory === cat.id;
             return (
               <TouchableOpacity
                 key={cat.id}
                 style={[styles.webCategoryPill, isSel && styles.webCategoryPillActive]}
                 onPress={() => {
-                  setSelectedCategory(isSel ? 'all' : cat.id);
-                  setSelectedSubCategory('all');
+                  setSelectedCategory(cat.id);
+                  setCurrentPage(1);
                 }}
               >
                 <Ionicons name={cat.icon} size={16} color={isSel ? '#FFFFFF' : '#00B894'} />
@@ -379,47 +880,186 @@ const LabTestsScreenWeb = (props) => {
           })}
         </View>
 
-        {/* Sub-category chips */}
-        {activeCategoryObj && (
-          <View style={styles.webSubCategoriesBar}>
-            <TouchableOpacity
-              style={[styles.webSubCatPill, selectedSubCategory === 'all' && styles.webSubCatPillActive]}
-              onPress={() => setSelectedSubCategory('all')}
-            >
-              <Text style={[styles.webSubCatPillText, selectedSubCategory === 'all' && styles.webSubCatPillTextActive]}>
-                All {activeCategoryObj.name}
-              </Text>
-            </TouchableOpacity>
-            {activeCategoryObj.subCategories.map((sc) => {
-              const isSubSel = selectedSubCategory === sc.id;
-              return (
-                <TouchableOpacity
-                  key={sc.id}
-                  style={[styles.webSubCatPill, isSubSel && styles.webSubCatPillActive]}
-                  onPress={() => setSelectedSubCategory(isSubSel ? 'all' : sc.id)}
+        {/* Quick-Tap Filter Chips */}
+        <View style={{ paddingHorizontal: 20, paddingBottom: 14 }}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, flexDirection: 'row', alignItems: 'center' }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748B', marginRight: 4 }}>Quick Filters:</Text>
+            {[
+              {
+                id: 'CHIP_UNDER_1000',
+                icon: 'flash-outline',
+                label: 'Under ₹1,000',
+                active: selectedPriceFilter === 'UNDER_1000',
+                onToggle: () => {
+                  setSelectedPriceFilter(selectedPriceFilter === 'UNDER_1000' ? 'ALL' : 'UNDER_1000');
+                  setCurrentPage(1);
+                },
+              },
+              {
+                id: 'CHIP_VITAMINS',
+                icon: 'medkit-outline',
+                label: 'Includes Vitamins D & B12',
+                active: selectedInclusions.includes('VITAMINS'),
+                onToggle: () => toggleInclusion('VITAMINS'),
+              },
+              {
+                id: 'CHIP_ECG',
+                icon: 'heart-outline',
+                label: 'Includes ECG / Imaging',
+                active: selectedInclusions.includes('ECG_IMAGING'),
+                onToggle: () => toggleInclusion('ECG_IMAGING'),
+              },
+              {
+                id: 'CHIP_ECHO',
+                icon: 'pulse-outline',
+                label: '2D Echo Included',
+                active: selectedInclusions.includes('ECHO'),
+                onToggle: () => toggleInclusion('ECHO'),
+              },
+              {
+                id: 'CHIP_IRON',
+                icon: 'water-outline',
+                label: 'Iron Profile',
+                active: selectedInclusions.includes('IRON'),
+                onToggle: () => toggleInclusion('IRON'),
+              },
+              {
+                id: 'CHIP_HBA1C',
+                icon: 'analytics-outline',
+                label: 'Sugar & HbA1c',
+                active: selectedInclusions.includes('HBA1C'),
+                onToggle: () => toggleInclusion('HBA1C'),
+              },
+            ].map((chip) => (
+              <TouchableOpacity
+                key={chip.id}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  paddingVertical: 6,
+                  paddingHorizontal: 12,
+                  borderRadius: 20,
+                  backgroundColor: chip.active ? '#00B894' : '#FFFFFF',
+                  borderWidth: 1,
+                  borderColor: chip.active ? '#00B894' : '#CBD5E1',
+                }}
+                onPress={chip.onToggle}
+              >
+                <Ionicons name={chip.icon} size={13} color={chip.active ? '#FFFFFF' : '#64748B'} />
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: chip.active ? '700' : '600',
+                    color: chip.active ? '#FFFFFF' : '#334155',
+                  }}
                 >
-                  <Text style={[styles.webSubCatPillText, isSubSel && styles.webSubCatPillTextActive]}>
-                    {sc.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
+                  {chip.label}
+                </Text>
+                {chip.active && (
+                  <Ionicons name="close-circle" size={14} color="#FFFFFF" style={{ marginLeft: 5 }} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
 
         {/* Main Two-Column Layout: Sidebar Filters + Test Grid */}
         <View style={styles.webTwoColumnLayout}>
           {/* Sidebar Filters */}
           <View style={styles.webSidebar}>
-            <Text style={styles.sidebarHeading}>Filter Diagnostic Tests</Text>
+            <Text style={styles.sidebarHeading}>Filter Packages</Text>
+
+            {/* Category Filter */}
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterGroupTitle}>Checkup Category</Text>
+              {NOVUS_PACKAGE_CATEGORIES.map((cat) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={styles.radioRow}
+                  onPress={() => {
+                    setSelectedCategory(cat.id);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <Ionicons
+                    name={selectedCategory === cat.id ? 'radio-button-on' : 'radio-button-off'}
+                    size={16}
+                    color="#00B894"
+                  />
+                  <Text style={styles.radioRowLabel}>{cat.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Price Range Filter */}
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterGroupTitle}>Package Price Range</Text>
+              {[
+                { id: 'ALL', label: 'All Price Ranges' },
+                { id: 'UNDER_1000', label: 'Under ₹1,000 (2 packages)' },
+                { id: '1000_2000', label: '₹1,000 – ₹2,000 (8 packages)' },
+                { id: 'ABOVE_2000', label: 'Above ₹2,000 (3 packages)' },
+              ].map((p) => (
+                <TouchableOpacity
+                  key={p.id}
+                  style={styles.radioRow}
+                  onPress={() => {
+                    setSelectedPriceFilter(p.id);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <Ionicons
+                    name={selectedPriceFilter === p.id ? 'radio-button-on' : 'radio-button-off'}
+                    size={16}
+                    color="#00B894"
+                  />
+                  <Text style={styles.radioRowLabel}>{p.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Key Inclusions Filter */}
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterGroupTitle}>Key Test Inclusions</Text>
+              {[
+                { id: 'VITAMINS', label: 'Vitamins D & B12' },
+                { id: 'ECG_IMAGING', label: '12-Lead ECG / USG' },
+                { id: 'ECHO', label: '2D Echocardiography' },
+                { id: 'IRON', label: 'Iron & Ferritin' },
+                { id: 'HBA1C', label: 'HbA1c Sugar Control' },
+              ].map((inc) => {
+                const isChecked = selectedInclusions.includes(inc.id);
+                return (
+                  <TouchableOpacity
+                    key={inc.id}
+                    style={styles.radioRow}
+                    onPress={() => toggleInclusion(inc.id)}
+                  >
+                    <Ionicons
+                      name={isChecked ? 'checkbox' : 'square-outline'}
+                      size={18}
+                      color={isChecked ? '#00B894' : '#94A3B8'}
+                    />
+                    <Text style={[styles.radioRowLabel, isChecked && { fontWeight: '700', color: '#0F172A' }]}>
+                      {inc.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
             {/* Collection Filter */}
             <View style={styles.filterGroup}>
               <Text style={styles.filterGroupTitle}>Collection Method</Text>
               {[
                 { id: 'ALL', label: 'All Methods' },
-                { id: 'HOME', label: '🏠 Home Collection' },
-                { id: 'CENTRE', label: '🏥 Diagnostic Centre' },
+                { id: 'HOME', label: 'Home Collection', icon: 'home-outline' },
+                { id: 'CENTRE', label: 'Diagnostic Centre', icon: 'business-outline' },
               ].map((m) => (
                 <TouchableOpacity
                   key={m.id}
@@ -431,55 +1071,8 @@ const LabTestsScreenWeb = (props) => {
                     size={16}
                     color="#00B894"
                   />
+                  {m.icon ? <Ionicons name={m.icon} size={14} color="#64748B" style={{ marginLeft: 6, marginRight: 2 }} /> : null}
                   <Text style={styles.radioRowLabel}>{m.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Gender Applicability */}
-            <View style={styles.filterGroup}>
-              <Text style={styles.filterGroupTitle}>Gender Applicability</Text>
-              {[
-                { id: 'ALL', label: 'All (Unrestricted)' },
-                { id: 'MALE', label: "Men's Health Only" },
-                { id: 'FEMALE', label: "Women's Health Only" },
-              ].map((g) => (
-                <TouchableOpacity
-                  key={g.id}
-                  style={styles.radioRow}
-                  onPress={() => setSelectedGenderFilter(g.id)}
-                >
-                  <Ionicons
-                    name={selectedGenderFilter === g.id ? 'radio-button-on' : 'radio-button-off'}
-                    size={16}
-                    color="#00B894"
-                  />
-                  <Text style={styles.radioRowLabel}>{g.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Sample Type */}
-            <View style={styles.filterGroup}>
-              <Text style={styles.filterGroupTitle}>Sample Type</Text>
-              {[
-                { id: 'ALL', label: 'All Samples' },
-                { id: 'Blood', label: 'Blood Sample' },
-                { id: 'Urine', label: 'Urine Sample' },
-                { id: 'Stool', label: 'Stool Sample' },
-                { id: 'Swab', label: 'Throat Swab' },
-              ].map((s) => (
-                <TouchableOpacity
-                  key={s.id}
-                  style={styles.radioRow}
-                  onPress={() => setSelectedSampleFilter(s.id)}
-                >
-                  <Ionicons
-                    name={selectedSampleFilter === s.id ? 'radio-button-on' : 'radio-button-off'}
-                    size={16}
-                    color="#00B894"
-                  />
-                  <Text style={styles.radioRowLabel}>{s.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -490,108 +1083,307 @@ const LabTestsScreenWeb = (props) => {
               onPress={() => {
                 setSelectedCategory('all');
                 setSelectedSubCategory('all');
-                setSelectedGenderFilter('ALL');
-                setSelectedSampleFilter('ALL');
+                setSelectedPriceFilter('ALL');
+                setSelectedInclusions([]);
+                setSelectedSort('RECOMMENDED');
                 setSelectedCollectionFilter('ALL');
                 setSearchQuery('');
+                setCurrentPage(1);
               }}
             >
               <Text style={styles.resetFiltersBtnText}>Reset All Filters</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Test Cards Grid */}
+          {/* Test Cards Grid - Dedicated Packages Only */}
           <View style={styles.webContentCol}>
-            {/* Packages Section */}
-            {selectedCategory === 'all' && !searchQuery && (
-              <View style={styles.webSectionBlock}>
-                <View style={styles.webSectionHeader}>
-                  <Text style={styles.webSectionTitle}>Popular Health Checkup Packages</Text>
-                  <Text style={styles.webSectionSub}>Bundled clinical profiles with free doorstep sample collection</Text>
-                </View>
-                <View style={styles.webPackagesGrid}>
-                  {LAB_PACKAGES.map((pkg) => (
-                    <View key={pkg.id} style={styles.webPackageCard}>
-                      <View style={styles.packageCardHeader}>
-                        <View style={styles.packageBadgePill}>
-                          <Text style={styles.packageBadgePillText}>{pkg.badge}</Text>
-                        </View>
-                        <Text style={styles.packageParamCount}>{pkg.includedCount} Tests Included</Text>
-                      </View>
-                      <Text style={styles.packageName}>{pkg.name}</Text>
-                      <Text style={styles.packageDesc} numberOfLines={2}>{pkg.description}</Text>
-                      <View style={styles.packagePriceRow}>
-                        <View>
-                          <Text style={styles.packagePrice}>₹{pkg.price}</Text>
-                          <Text style={styles.packageMrp}>₹{pkg.mrp}</Text>
-                        </View>
-                        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                          <TouchableOpacity
-                            style={[styles.webAddToCartBtn, isTestInCart(pkg.id) && styles.webAddToCartBtnActive]}
-                            onPress={() => handleToggleCartPackage(pkg)}
-                            activeOpacity={0.8}
-                          >
-                            <Ionicons
-                              name={isTestInCart(pkg.id) ? 'checkmark-circle' : 'cart-outline'}
-                              size={13}
-                              color={isTestInCart(pkg.id) ? '#FFFFFF' : '#00B894'}
-                            />
-                            <Text
-                              style={[
-                                styles.webAddToCartBtnText,
-                                isTestInCart(pkg.id) && styles.webAddToCartBtnTextActive,
-                              ]}
-                            >
-                              {isTestInCart(pkg.id) ? 'In Cart' : 'Add'}
-                            </Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity style={styles.packageViewBtn} onPress={() => setSelectedPackage(pkg)}>
-                            <Text style={styles.packageViewBtnText}>View</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* Popular Tests Grid */}
-            {selectedCategory === 'all' && !searchQuery && (
-              <View style={styles.webSectionBlock}>
-                <View style={styles.webSectionHeader}>
-                  <Text style={styles.webSectionTitle}>Top Prescribed Diagnostic Tests</Text>
-                  <Text style={styles.webSectionSub}>High-accuracy routine laboratory profiles</Text>
-                </View>
-                <View style={styles.webTestsGrid}>
-                  {popularTests.slice(0, 4).map((test) => renderDesktopCard(test))}
-                </View>
-              </View>
-            )}
-
-            {/* Filtered Catalog List */}
             <View style={styles.webSectionBlock}>
-              <View style={styles.webSectionHeader}>
-                <Text style={styles.webSectionTitle}>
-                  {searchQuery
-                    ? `Search Results for "${searchQuery}"`
-                    : selectedCategory !== 'all'
-                    ? `${activeCategoryObj?.name} Tests`
-                    : 'Diagnostic Tests Catalog'}
-                </Text>
-                <Text style={styles.webSectionSub}>{filteredTests.length} tests matching your selection</Text>
+              <View style={[styles.webSectionHeader, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="shield-checkmark" size={24} color="#00B894" />
+                  <View>
+                    <Text style={styles.webSectionTitle}>Novus Health Checkup Packages</Text>
+                    <Text style={styles.webSectionSub}>
+                      {filteredPackages.length === 0
+                        ? '0 packages found'
+                        : `Showing ${(currentPage - 1) * ITEMS_PER_PAGE + 1}–${Math.min(currentPage * ITEMS_PER_PAGE, filteredPackages.length)} of ${filteredPackages.length} packages (Page ${currentPage} of ${totalPages})`}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Sort Bar */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748B' }}>Sort:</Text>
+                  {[
+                    { id: 'RECOMMENDED', label: 'Featured' },
+                    { id: 'PRICE_LOW_HIGH', label: 'Price: Low to High' },
+                    { id: 'PRICE_HIGH_LOW', label: 'Price: High to Low' },
+                    { id: 'MOST_TESTS', label: 'Most Tests' },
+                  ].map((s) => {
+                    const isS = selectedSort === s.id;
+                    return (
+                      <TouchableOpacity
+                        key={s.id}
+                        style={{
+                          paddingVertical: 5,
+                          paddingHorizontal: 9,
+                          borderRadius: 6,
+                          backgroundColor: isS ? '#0F172A' : '#F1F5F9',
+                          borderWidth: 1,
+                          borderColor: isS ? '#0F172A' : '#E2E8F0',
+                        }}
+                        onPress={() => {
+                          setSelectedSort(s.id);
+                          setCurrentPage(1);
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 11.5,
+                            fontWeight: isS ? '700' : '600',
+                            color: isS ? '#FFFFFF' : '#475569',
+                          }}
+                        >
+                          {s.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
 
-              {filteredTests.length === 0 ? (
+              {filteredPackages.length === 0 ? (
                 <View style={styles.webEmptyState}>
                   <Ionicons name="search-outline" size={54} color="#94A3B8" />
-                  <Text style={styles.webEmptyTitle}>No tests found</Text>
-                  <Text style={styles.webEmptyDesc}>Try changing your search terms or clearing your sidebar filters.</Text>
+                  <Text style={styles.webEmptyTitle}>No matching packages found</Text>
+                  <Text style={styles.webEmptyDesc}>Try clearing your search query or price filter to view all 13 verified packages.</Text>
+                  <TouchableOpacity
+                    style={[styles.modalPrimaryBtn, { marginTop: 14 }]}
+                    onPress={() => {
+                      setSelectedCategory('all');
+                      setSelectedPriceFilter('ALL');
+                      setSearchQuery('');
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <Text style={styles.modalPrimaryBtnText}>Show All 13 Packages</Text>
+                  </TouchableOpacity>
                 </View>
               ) : (
-                <View style={styles.webTestsGrid}>
-                  {filteredTests.map((test) => renderDesktopCard(test))}
-                </View>
+                <>
+                  <View style={styles.webPackagesGrid}>
+                    {paginatedPackages.map((pkg) => (
+                      <View
+                        key={pkg.id}
+                        // @ts-ignore
+                        className="novus-card"
+                        style={[
+                          styles.webPackageCard,
+                          {
+                            borderRadius: 18,
+                            borderWidth: 1.5,
+                            borderColor: '#E2E8F0',
+                            backgroundColor: '#FFFFFF',
+                            padding: 22,
+                            position: 'relative',
+                            shadowColor: '#0F172A',
+                            shadowOffset: { width: 0, height: 4 },
+                            shadowOpacity: 0.05,
+                            shadowRadius: 12,
+                          },
+                        ]}
+                      >
+                        {/* Top Code & Category Badges */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                          <View style={{ backgroundColor: '#00B894', paddingHorizontal: 9, paddingVertical: 3.5, borderRadius: 6 }}>
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.3 }}>
+                              {pkg.code}
+                            </Text>
+                          </View>
+                          <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                            {(['POP-FB-01', 'POP-EXE-01', 'POP-DIA-01', 'POP-HRT-01'].includes(pkg.id) || pkg.isMostPopularBooked) && (
+                              <View style={{ backgroundColor: '#FFF2ED', borderWidth: 1, borderColor: '#FFD7C7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12, flexDirection: 'row', alignItems: 'center' }}>
+                                <Ionicons name="flame" size={11} color="#FF7F50" style={{ marginRight: 3 }} />
+                                <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#FF7F50' }}>Most Popular</Text>
+                              </View>
+                            )}
+                            <View style={{ backgroundColor: '#F2FAF0', borderWidth: 1, borderColor: '#C6F6D5', paddingHorizontal: 9, paddingVertical: 3, borderRadius: 12 }}>
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: '#7BC96F' }}>{pkg.category}</Text>
+                            </View>
+                            <View style={{ backgroundColor: '#F2FAF0', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 12 }}>
+                              <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#7BC96F' }}>{pkg.discount}</Text>
+                            </View>
+                          </View>
+                        </View>
+
+                        {/* Title */}
+                        <Text style={{ fontSize: 18, fontWeight: '800', color: '#0F172A', marginBottom: 8, lineHeight: 24 }}>
+                          {pkg.name}
+                        </Text>
+
+                        {/* Key Specs Pills */}
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EEF2FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
+                            <Ionicons name="flask-outline" size={13} color="#4338CA" />
+                            <Text style={{ fontSize: 11.5, color: '#4338CA', fontWeight: '700' }}>{pkg.testsCount} Tests Included</Text>
+                          </View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#ECFDF5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
+                            <Ionicons name="time-outline" size={13} color="#047857" />
+                            <Text style={{ fontSize: 11.5, color: '#047857', fontWeight: '700' }}>{pkg.tatSummary}</Text>
+                          </View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFFBEB', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
+                            <Ionicons name="restaurant-outline" size={13} color="#B45309" />
+                            <Text style={{ fontSize: 11.5, color: '#B45309', fontWeight: '700' }}>{pkg.preparationSummary}</Text>
+                          </View>
+                        </View>
+
+                        {/* Clinical Note Excerpt */}
+                        {Boolean(pkg.clinicalNote) && (
+                          <View style={{ backgroundColor: '#F8FAFC', borderRadius: 8, padding: 9, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0', flexDirection: 'row', gap: 6 }}>
+                            <Ionicons name="information-circle-outline" size={15} color="#0284C7" style={{ marginTop: 1 }} />
+                            <Text style={{ fontSize: 11.5, color: '#475569', lineHeight: 16, flex: 1 }} numberOfLines={2}>
+                              {pkg.clinicalNote}
+                            </Text>
+                          </View>
+                        )}
+
+                        {/* Tests preview chips */}
+                        <View style={{ marginBottom: 16 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 5 }}>INCLUDED TESTS PREVIEW:</Text>
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
+                            {pkg.tests.slice(0, 4).map((t, ti) => (
+                              <View key={ti} style={{ backgroundColor: '#F1F5F9', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5 }}>
+                                <Text style={{ fontSize: 11, color: '#334155' }}>{t.name.split('(')[0].trim()}</Text>
+                              </View>
+                            ))}
+                            {pkg.tests.length > 4 && (
+                              <TouchableOpacity
+                                onPress={() => setSelectedPackage(pkg)}
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#E2E8F0', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5 }}
+                              >
+                                <Text style={{ fontSize: 11, color: '#0F172A', fontWeight: '700' }}>
+                                  +{pkg.tests.length - 4} more tests
+                                </Text>
+                                <Ionicons name="arrow-forward" size={11} color="#0F172A" />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        </View>
+
+                        {/* Price & Action Row */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 14, borderTopWidth: 1, borderTopColor: '#F1F5F9', marginTop: 'auto' }}>
+                          <View>
+                            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+                              <Text style={{ fontSize: 22, fontWeight: '800', color: '#0F172A' }}>₹{pkg.price}</Text>
+                              <Text style={{ fontSize: 13, textDecorationLine: 'line-through', color: '#94A3B8' }}>₹{pkg.mrp}</Text>
+                            </View>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#00B894' }}>
+                              Save ₹{pkg.mrp - pkg.price} ({pkg.discount})
+                            </Text>
+                          </View>
+
+                          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                            <TouchableOpacity
+                              // @ts-ignore
+                              className="novus-pill-btn"
+                              style={{
+                                paddingVertical: 8,
+                                paddingHorizontal: 12,
+                                borderRadius: 8,
+                                borderWidth: 1,
+                                borderColor: '#CBD5E1',
+                                backgroundColor: '#FFFFFF',
+                              }}
+                              onPress={() => setSelectedPackage(pkg)}
+                            >
+                              <Text style={{ fontSize: 12, fontWeight: '700', color: '#334155' }}>View Tests</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              // @ts-ignore
+                              className="novus-btn-cta"
+                              style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 4,
+                                paddingVertical: 8,
+                                paddingHorizontal: 16,
+                                borderRadius: 8,
+                                backgroundColor: '#00B894',
+                              }}
+                              onPress={() => startBooking(pkg)}
+                            >
+                              <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>Book Now</Text>
+                              <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* Pagination Controls */}
+                  {totalPages > 1 && (
+                    <View style={styles.webPaginationBar}>
+                      <TouchableOpacity
+                        disabled={currentPage === 1}
+                        style={[
+                          styles.webPageNavBtn,
+                          { flexDirection: 'row', alignItems: 'center' },
+                          currentPage === 1 && styles.webPageNavBtnDisabled,
+                        ]}
+                        onPress={() => {
+                          setCurrentPage((prev) => Math.max(prev - 1, 1));
+                          mainScrollRef.current?.scrollTo({ y: 0, animated: true });
+                        }}
+                      >
+                        <Ionicons name="chevron-back" size={16} color={currentPage === 1 ? '#94A3B8' : '#0F172A'} style={{ marginRight: 4 }} />
+                        <Text style={[styles.webPageNavBtnText, currentPage === 1 && styles.webPageNavBtnTextDisabled]}>
+                          Previous
+                        </Text>
+                      </TouchableOpacity>
+
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        {Array.from({ length: totalPages }).map((_, i) => {
+                          const pageNum = i + 1;
+                          const isCurrent = currentPage === pageNum;
+                          return (
+                            <TouchableOpacity
+                              key={pageNum}
+                              style={[styles.webPageNumBtn, isCurrent && styles.webPageNumBtnActive]}
+                              onPress={() => {
+                                setCurrentPage(pageNum);
+                                mainScrollRef.current?.scrollTo({ y: 0, animated: true });
+                              }}
+                            >
+                              <Text style={[styles.webPageNumText, isCurrent && styles.webPageNumTextActive]}>
+                                {pageNum}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+
+                      <TouchableOpacity
+                        disabled={currentPage === totalPages}
+                        style={[
+                          styles.webPageNavBtn,
+                          { flexDirection: 'row', alignItems: 'center' },
+                          currentPage === totalPages && styles.webPageNavBtnDisabled,
+                        ]}
+                        onPress={() => {
+                          setCurrentPage((prev) => Math.min(prev + 1, totalPages));
+                          mainScrollRef.current?.scrollTo({ y: 0, animated: true });
+                        }}
+                      >
+                        <Text style={[styles.webPageNavBtnText, currentPage === totalPages && styles.webPageNavBtnTextDisabled, { marginRight: 4 }]}>
+                          Next
+                        </Text>
+                        <Ionicons name="chevron-forward" size={16} color={currentPage === totalPages ? '#94A3B8' : '#0F172A'} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </>
               )}
             </View>
           </View>
@@ -632,9 +1424,16 @@ const LabTestsScreenWeb = (props) => {
               </View>
               <Text style={styles.bookingTestName}>{b.testName}</Text>
               <Text style={styles.bookingDetailLabel}>Date & Time: {b.bookingDate} ({b.timeSlot})</Text>
-              <Text style={styles.bookingDetailLabel}>
-                Method: {b.collectionMethod === 'HOME' ? `🏠 Home Collection (${b.collectionAddress})` : `🏥 Diagnostic Centre (${b.diagnosticCentre?.name})`}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginVertical: 3 }}>
+                <Ionicons
+                  name={b.collectionMethod === 'HOME' ? 'home-outline' : 'business-outline'}
+                  size={14}
+                  color="#64748B"
+                />
+                <Text style={styles.bookingDetailLabel}>
+                  Method: {b.collectionMethod === 'HOME' ? `Home Collection (${b.collectionAddress})` : `Diagnostic Centre (${b.diagnosticCentre?.name})`}
+                </Text>
+              </View>
               <Text style={styles.bookingPriceVal}>Paid: ₹{b.amountPaid}</Text>
               <TouchableOpacity
                 style={[styles.modalPrimaryBtn, { marginTop: 10 }]}
@@ -662,7 +1461,10 @@ const LabTestsScreenWeb = (props) => {
             <View key={rep.id} style={styles.webReportCard}>
               <View style={styles.reportCardTop}>
                 <Text style={styles.reportCardId}>{rep.id}</Text>
-                <Text style={styles.reportReadyPillText}>✓ Verified & Released</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Ionicons name="checkmark-circle" size={13} color="#00B894" />
+                  <Text style={styles.reportReadyPillText}>Verified & Released</Text>
+                </View>
               </View>
               <Text style={styles.reportTestName}>{rep.testName}</Text>
               <Text style={styles.reportMetaLabel}>Lab: {rep.labName}</Text>
@@ -686,21 +1488,6 @@ const LabTestsScreenWeb = (props) => {
 
   return (
     <SafeAreaView style={styles.safeContainer}>
-      {/* Web Header Navigation */}
-      <View style={styles.webHeaderBar}>
-        <View style={styles.webHeaderInner}>
-          <View style={styles.webHeaderLogoCol}>
-            <TouchableOpacity onPress={() => navigation?.goBack?.()} style={styles.backBtn}>
-              <Ionicons name="arrow-back" size={20} color="#0F172A" />
-            </TouchableOpacity>
-            <View>
-              <Text style={styles.webHeaderTitle}>Lab Tests & Diagnostics</Text>
-              <Text style={styles.webHeaderSub}>MediUnify Patient Healthcare Portal</Text>
-            </View>
-          </View>
-        </View>
-      </View>
-
       <ScrollView ref={mainScrollRef} style={styles.scrollContainer} contentContainerStyle={{ paddingBottom: 60 }}>
         {renderWebBrowse()}
         {activeTab === 'BOOKINGS' && renderWebBookings()}
@@ -799,35 +1586,159 @@ const LabTestsScreenWeb = (props) => {
       {selectedPackage && (
         <Modal visible={!!selectedPackage} animationType="fade" transparent onRequestClose={() => setSelectedPackage(null)}>
           <View style={styles.modalOverlay}>
-            <View style={styles.detailsModalContent}>
+            <View style={[styles.detailsModalContent, { maxWidth: 680 }]}>
+              {/* Header */}
               <View style={styles.modalHeaderRow}>
                 <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <View style={{ backgroundColor: '#00B894', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFFFFF' }}>{selectedPackage.code}</Text>
+                    </View>
+                    <Text style={{ fontSize: 11.5, fontWeight: '600', color: '#64748B' }}>{selectedPackage.category}</Text>
+                  </View>
                   <Text style={styles.modalHeaderTitle}>{selectedPackage.name}</Text>
-                  <Text style={styles.modalHeaderSubtitle}>{selectedPackage.includedCount} Tests Included</Text>
+                  <Text style={styles.modalHeaderSubtitle}>
+                    {selectedPackage.testsCount || selectedPackage.tests?.length || selectedPackage.includedCount} Tests Included • {selectedPackage.tatSummary || 'Same Day Reports'}
+                  </Text>
                 </View>
-                <TouchableOpacity onPress={() => setSelectedPackage(null)}>
+                <TouchableOpacity onPress={() => { setSelectedPackage(null); setExpandedTestIndex(null); }}>
                   <Ionicons name="close" size={24} color="#0F172A" />
                 </TouchableOpacity>
               </View>
-              <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
-                <Text style={styles.packageModalDesc}>{selectedPackage.description}</Text>
-                <Text style={styles.includedSectionHeader}>Individual Tests Included ({LAB_TESTS_MASTER.filter((t) => selectedPackage.testIds.includes(t.id)).length})</Text>
-                {LAB_TESTS_MASTER.filter((t) => selectedPackage.testIds.includes(t.id)).map((test) => (
-                  <TouchableOpacity key={test.id} style={styles.includedItemRow}
-                    onPress={() => { setSelectedPackage(null); setSelectedTest(test); }}>
-                    <Ionicons name="checkmark-circle" size={16} color="#00B894" />
-                    <View style={{ flex: 1, marginLeft: 8 }}>
-                      <Text style={styles.includedItemName}>{test.name}</Text>
-                      <Text style={styles.includedItemDesc} numberOfLines={1}>{test.description}</Text>
+
+              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                {/* Clinical / Pricing Note Box */}
+                {Boolean(selectedPackage.clinicalNote) && (
+                  <View style={{ backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, padding: 12, marginBottom: 14 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <Ionicons name="information-circle" size={16} color="#0284C7" />
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#0F172A' }}>Clinical / Pricing Note</Text>
                     </View>
-                    <Text style={styles.includedItemDetailsLink}>Details →</Text>
-                  </TouchableOpacity>
-                ))}
+                    <Text style={{ fontSize: 12, color: '#475569', lineHeight: 18 }}>{selectedPackage.clinicalNote}</Text>
+                  </View>
+                )}
+
+                {/* Key Spec Grid */}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                  <View style={{ flex: 1, minWidth: 140, backgroundColor: '#F0FDF4', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: '#DCFCE7' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                      <Ionicons name="time-outline" size={13} color="#059669" />
+                      <Text style={{ fontSize: 11, color: '#059669', fontWeight: '700' }}>Turnaround Time (TAT)</Text>
+                    </View>
+                    <Text style={{ fontSize: 12, color: '#0F172A', fontWeight: '600', marginTop: 2 }}>{selectedPackage.tatSummary || '6–8 Hours'}</Text>
+                  </View>
+                  <View style={{ flex: 1, minWidth: 140, backgroundColor: '#EFF6FF', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: '#DBEAFE' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                      <Ionicons name="flask-outline" size={13} color="#2563EB" />
+                      <Text style={{ fontSize: 11, color: '#2563EB', fontWeight: '700' }}>Sample Required</Text>
+                    </View>
+                    <Text style={{ fontSize: 12, color: '#0F172A', fontWeight: '600', marginTop: 2 }}>{selectedPackage.sampleSummary || 'Blood / Urine'}</Text>
+                  </View>
+                  <View style={{ width: '100%', backgroundColor: '#FFFBEB', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: '#FEF3C7' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                      <Ionicons name="restaurant-outline" size={13} color="#D97706" />
+                      <Text style={{ fontSize: 11, color: '#D97706', fontWeight: '700' }}>Preparation Instructions</Text>
+                    </View>
+                    <Text style={{ fontSize: 12, color: '#0F172A', marginTop: 2 }}>{selectedPackage.preparationSummary || 'No special fasting required.'}</Text>
+                  </View>
+                </View>
+
+                {/* Expandable Test Parameters Section */}
+                <Text style={[styles.includedSectionHeader, { marginBottom: 6 }]}>
+                  Included Tests & Panels ({selectedPackage.tests?.length || selectedPackage.testsCount})
+                </Text>
+                <Text style={{ fontSize: 11.5, color: '#64748B', marginBottom: 12 }}>
+                  Tap any test to expand its parameters, sample tube, and clinical preparation requirements.
+                </Text>
+
+                {selectedPackage.tests && selectedPackage.tests.map((testItem, idx) => {
+                  const isExpanded = expandedTestIndex === idx;
+                  return (
+                    <View
+                      key={idx}
+                      style={{
+                        backgroundColor: isExpanded ? '#F8FAFC' : '#FFFFFF',
+                        borderWidth: 1,
+                        borderColor: isExpanded ? '#00B894' : '#E2E8F0',
+                        borderRadius: 10,
+                        marginBottom: 8,
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <TouchableOpacity
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: 12,
+                        }}
+                        onPress={() => setExpandedTestIndex(isExpanded ? null : idx)}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                          <Ionicons name="checkmark-circle" size={18} color="#00B894" />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>{testItem.name}</Text>
+                            <Text style={{ fontSize: 11, color: '#64748B', marginTop: 1 }} numberOfLines={isExpanded ? undefined : 1}>
+                              {testItem.parameters}
+                            </Text>
+                          </View>
+                        </View>
+                        <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color="#64748B" />
+                      </TouchableOpacity>
+
+                      {isExpanded && (
+                        <View style={{ borderTopWidth: 1, borderTopColor: '#E2E8F0', padding: 12, backgroundColor: '#FFFFFF' }}>
+                          <View style={{ marginBottom: 6 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                              <Ionicons name="list-outline" size={13} color="#475569" />
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: '#475569' }}>Included Parameters:</Text>
+                            </View>
+                            <Text style={{ fontSize: 12, color: '#0F172A', marginTop: 2, lineHeight: 17 }}>{testItem.parameters}</Text>
+                          </View>
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
+                            <View style={{ minWidth: 120 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Ionicons name="flask-outline" size={12} color="#64748B" />
+                                <Text style={{ fontSize: 10.5, fontWeight: '700', color: '#64748B' }}>Sample Required:</Text>
+                              </View>
+                              <Text style={{ fontSize: 11.5, color: '#0F172A' }}>{testItem.sample}</Text>
+                            </View>
+                            <View style={{ minWidth: 120 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Ionicons name="flask-outline" size={12} color="#64748B" />
+                                <Text style={{ fontSize: 10.5, fontWeight: '700', color: '#64748B' }}>Tube / Container:</Text>
+                              </View>
+                              <Text style={{ fontSize: 11.5, color: '#0F172A' }}>{testItem.tube}</Text>
+                            </View>
+                            <View style={{ minWidth: 120 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Ionicons name="time-outline" size={12} color="#64748B" />
+                                <Text style={{ fontSize: 10.5, fontWeight: '700', color: '#64748B' }}>Turnaround Time:</Text>
+                              </View>
+                              <Text style={{ fontSize: 11.5, color: '#0F172A' }}>{testItem.tat}</Text>
+                            </View>
+                            <View style={{ width: '100%' }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Ionicons name="restaurant-outline" size={12} color="#64748B" />
+                                <Text style={{ fontSize: 10.5, fontWeight: '700', color: '#64748B' }}>Preparation:</Text>
+                              </View>
+                              <Text style={{ fontSize: 11.5, color: '#0F172A' }}>{testItem.preparation}</Text>
+                            </View>
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
               </ScrollView>
+
               <View style={styles.modalFooterRow}>
                 <View>
                   <Text style={styles.modalPriceText}>₹{selectedPackage.price}</Text>
-                  <Text style={styles.modalMrpText}>₹{selectedPackage.mrp}</Text>
+                  <Text style={styles.modalMrpText}>₹{selectedPackage.mrp || Math.round(selectedPackage.price * 1.5)}</Text>
+                  {Boolean(selectedPackage.discount) && (
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#00B894' }}>{selectedPackage.discount}</Text>
+                  )}
                 </View>
                 <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
                   <TouchableOpacity
@@ -854,13 +1765,16 @@ const LabTestsScreenWeb = (props) => {
                       {isTestInCart(selectedPackage.id) ? 'In Cart' : 'Add to Cart'}
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.modalPrimaryBtn}
+                  <TouchableOpacity
+                    style={styles.modalPrimaryBtn}
                     onPress={() => {
-                      const firstTest = LAB_TESTS_MASTER.filter((t) => selectedPackage.testIds.includes(t.id))[0];
+                      const pkgToBook = selectedPackage;
                       setSelectedPackage(null);
-                      if (firstTest) startBooking(firstTest);
-                    }}>
-                    <Text style={styles.modalPrimaryBtnText}>Book Package →</Text>
+                      setExpandedTestIndex(null);
+                      startBooking(pkgToBook);
+                    }}
+                  >
+                    <Text style={styles.modalPrimaryBtnText}>Book Package Now →</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -897,12 +1811,69 @@ const LabTestsScreenWeb = (props) => {
                 {/* STEP 1 */}
                 {bookingFlowStep === 1 && (
                   <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
-                    <Text style={styles.stepPromptText}>How would you like to provide your sample?</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <Text style={[styles.stepPromptText, { marginBottom: 0 }]}>1. Select Patient Profile</Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setActiveBookingTest(null);
+                          if (navigation && navigation.navigate) {
+                            navigation.navigate('FamilyProfiles');
+                          }
+                        }}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          paddingVertical: 5,
+                          paddingHorizontal: 10,
+                          borderRadius: 8,
+                          backgroundColor: '#E6F8F4',
+                          borderWidth: 1,
+                          borderColor: '#A3E9D9',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Ionicons name="person-add-outline" size={13} color="#00B894" />
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#00B894', marginLeft: 4 }}>+ Add Family Member</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                      {patientProfiles.map((p) => {
+                        const isP = selectedPatientId === p.id;
+                        return (
+                          <TouchableOpacity
+                            key={p.id}
+                            style={[
+                              styles.methodSelectCard,
+                              isP && styles.methodSelectCardActive,
+                              { flex: 1, minWidth: 180, marginVertical: 0, paddingVertical: 8, paddingHorizontal: 10 },
+                            ]}
+                            onPress={() => {
+                              setSelectedPatientId(p.id);
+                              setHomeAddressName(p.name);
+                              setHomeAddressPhone(p.phone);
+                            }}
+                          >
+                            <View style={[styles.methodRadio, isP && styles.methodRadioActive]}>
+                              {isP && <View style={styles.methodRadioInner} />}
+                            </View>
+                            <View style={{ flex: 1, marginLeft: 8 }}>
+                              <Text style={[styles.methodSelectTitle, { fontSize: 13 }]}>{p.name} ({p.relation})</Text>
+                              <Text style={styles.methodSelectSub}>{p.age} yrs • {p.gender}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    <Text style={[styles.stepPromptText, { marginTop: 8 }]}>2. How would you like to provide your sample?</Text>
                     {test.homeCollection && (
                       <TouchableOpacity style={[styles.methodSelectCard, isHome && styles.methodSelectCardActive]} onPress={() => setCollectionMethod('HOME')}>
                         <View style={[styles.methodRadio, isHome && styles.methodRadioActive]}>{isHome && <View style={styles.methodRadioInner} />}</View>
                         <View style={{ flex: 1, marginLeft: 10 }}>
-                          <Text style={styles.methodSelectTitle}>🏠 Home Sample Collection</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Ionicons name="home-outline" size={16} color="#00B894" />
+                            <Text style={styles.methodSelectTitle}>Home Sample Collection</Text>
+                          </View>
                           <Text style={styles.methodSelectSub}>Trained phlebotomist visits your address.</Text>
                           <Text style={styles.methodFeeTag}>Doorstep Fee: ₹100</Text>
                         </View>
@@ -912,7 +1883,10 @@ const LabTestsScreenWeb = (props) => {
                       <TouchableOpacity style={[styles.methodSelectCard, !isHome && styles.methodSelectCardActive]} onPress={() => setCollectionMethod('CENTRE')}>
                         <View style={[styles.methodRadio, !isHome && styles.methodRadioActive]}>{!isHome && <View style={styles.methodRadioInner} />}</View>
                         <View style={{ flex: 1, marginLeft: 10 }}>
-                          <Text style={styles.methodSelectTitle}>🏥 Diagnostic Centre Visit</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Ionicons name="business-outline" size={16} color="#00B894" />
+                            <Text style={styles.methodSelectTitle}>Diagnostic Centre Visit</Text>
+                          </View>
                           <Text style={styles.methodSelectSub}>Walk into any verified lab partner in Mysuru.</Text>
                           <Text style={[styles.methodFeeTag, { color: '#00B894' }]}>Collection Fee: FREE</Text>
                         </View>
@@ -1002,7 +1976,10 @@ const LabTestsScreenWeb = (props) => {
                               <View style={{ flex: 1, marginLeft: 10 }}>
                                 <Text style={styles.centreSelectName}>{centre.name}</Text>
                                 <Text style={styles.centreSelectAddress}>{centre.address}</Text>
-                                <Text style={styles.centreMetaText}>⭐ {centre.rating} • {centre.distanceKm} km away</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                                  <Ionicons name="star" size={12} color="#FF7F50" />
+                                  <Text style={styles.centreMetaText}>{centre.rating} • {centre.distanceKm} km away</Text>
+                                </View>
                               </View>
                               {isSel && <Ionicons name="checkmark-circle" size={18} color="#00B894" />}
                             </TouchableOpacity>
@@ -1029,10 +2006,30 @@ const LabTestsScreenWeb = (props) => {
                       <View style={styles.slotGrid}>
                         {TIME_SLOTS.map((slot) => {
                           const isSel = selectedSlotId === slot.id;
+                          const statusObj = getSlotStatus({
+                            date: selectedDate,
+                            time: slot.label,
+                            serviceType: 'lab',
+                            providerId: collectionMethod === 'HOME' ? 'home-collection' : selectedCentreId,
+                          });
+                          const isAvail = statusObj.available;
                           return (
-                            <TouchableOpacity key={slot.id} style={[styles.slotCard, isSel && styles.slotCardActive]} onPress={() => setSelectedSlotId(slot.id)}>
-                              <Text style={[styles.slotLabel, isSel && styles.slotLabelActive]}>{slot.label}</Text>
-                              <Text style={styles.slotPeriod}>{slot.period}</Text>
+                            <TouchableOpacity
+                              key={slot.id}
+                              disabled={!isAvail}
+                              style={[
+                                styles.slotCard,
+                                isSel && styles.slotCardActive,
+                                !isAvail && styles.slotCardDisabled,
+                              ]}
+                              onPress={() => isAvail && setSelectedSlotId(slot.id)}
+                            >
+                              <Text style={[styles.slotLabel, isSel && styles.slotLabelActive, !isAvail && styles.slotLabelDisabled]}>
+                                {slot.label}
+                              </Text>
+                              <Text style={[styles.slotPeriod, !isAvail && styles.slotPeriodDisabled]}>
+                                {!isAvail ? (statusObj.status === 'BOOKED' ? 'Booked' : 'Passed') : slot.period}
+                              </Text>
                             </TouchableOpacity>
                           );
                         })}
@@ -1045,9 +2042,34 @@ const LabTestsScreenWeb = (props) => {
                 {bookingFlowStep === 3 && (
                   <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
                     <View style={styles.summaryCard}>
-                      <Text style={styles.summaryHeading}>Order Summary</Text>
-                      <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Test:</Text><Text style={styles.summaryVal}>{test.name}</Text></View>
-                      <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Method:</Text><Text style={styles.summaryVal}>{isHome ? '🏠 Home' : '🏥 Diagnostic Centre'}</Text></View>
+                      <Text style={styles.summaryHeading}>Booking & Package Summary</Text>
+                      {Boolean(test.code) && (
+                        <View style={styles.summaryRow}>
+                          <Text style={styles.summaryLabel}>Package Code:</Text>
+                          <Text style={[styles.summaryVal, { fontWeight: '700', color: '#00B894' }]}>{test.code}</Text>
+                        </View>
+                      )}
+                      <View style={styles.summaryRow}>
+                        <Text style={styles.summaryLabel}>Package / Test:</Text>
+                        <Text style={[styles.summaryVal, { fontWeight: '700', flex: 1, textAlign: 'right' }]}>{test.name}</Text>
+                      </View>
+                      {Boolean(test.testsCount) && (
+                        <View style={styles.summaryRow}>
+                          <Text style={styles.summaryLabel}>Tests Included:</Text>
+                          <Text style={styles.summaryVal}>{test.testsCount} Diagnostic Tests & Panels</Text>
+                        </View>
+                      )}
+                      <View style={styles.summaryRow}>
+                        <Text style={styles.summaryLabel}>Patient Name:</Text>
+                        <Text style={styles.summaryVal}>{homeAddressName || patientProfiles.find((p) => p.id === selectedPatientId)?.name || 'Patient'} ({patientProfiles.find((p) => p.id === selectedPatientId)?.relation || 'Self'})</Text>
+                      </View>
+                      <View style={styles.summaryRow}>
+                        <Text style={styles.summaryLabel}>Method:</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Ionicons name={isHome ? 'home-outline' : 'business-outline'} size={14} color="#00B894" />
+                          <Text style={styles.summaryVal}>{isHome ? 'Home' : 'Diagnostic Centre'}</Text>
+                        </View>
+                      </View>
                       {isHome ? (
                         <View style={styles.summaryRow}>
                           <Text style={styles.summaryLabel}>Address:</Text>
@@ -1103,8 +2125,18 @@ const LabTestsScreenWeb = (props) => {
                     <Text style={styles.confirmedDesc}>
                       {confirmedBookingData.testName} booked for {confirmedBookingData.bookingDate} ({confirmedBookingData.timeSlot}).
                     </Text>
-                    <TouchableOpacity style={styles.viewBookingsConfirmedBtn} onPress={() => { setActiveBookingTest(null); setActiveTab('BOOKINGS'); }}>
-                      <Text style={styles.viewBookingsConfirmedBtnText}>View My Lab Bookings →</Text>
+                    <TouchableOpacity
+                      style={styles.viewBookingsConfirmedBtn}
+                      onPress={() => {
+                        setActiveBookingTest(null);
+                        if (navigation?.navigate) {
+                          navigation.navigate('MyTests', { initialTab: 'lab' });
+                        } else {
+                          setActiveTab('BOOKINGS');
+                        }
+                      }}
+                    >
+                      <Text style={styles.viewBookingsConfirmedBtnText}>View My Lab Test Bookings →</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -1122,7 +2154,7 @@ const LabTestsScreenWeb = (props) => {
                         if (bookingFlowStep === 1) setBookingFlowStep(2);
                         else if (bookingFlowStep === 2) {
                           if (collectionMethod === 'HOME' && (!homeAddressName.trim() || !homeAddressPhone.trim() || !homeAddressFlat.trim() || !homeAddressCity.trim() || !homeAddressPincode.trim())) {
-                            alert('Please fill in Patient Name, Phone, Address, City and Pincode for home sample collection.');
+                            showAlert('Incomplete Details', 'Please fill in Patient Name, Phone, Address, City and Pincode for home sample collection.');
                             return;
                           }
                           setBookingFlowStep(3);
@@ -1219,7 +2251,13 @@ const LabTestsScreenWeb = (props) => {
                     <View style={styles.reportPatientRow}><Text style={styles.repPatientLabel}>Patient:</Text><Text style={styles.repPatientVal}>{r.patientName} ({r.patientAge}, {r.patientGender})</Text></View>
                     <View style={styles.reportPatientRow}><Text style={styles.repPatientLabel}>Referred By:</Text><Text style={styles.repPatientVal}>{r.doctorReferred}</Text></View>
                     <View style={styles.reportPatientRow}><Text style={styles.repPatientLabel}>Collection Date:</Text><Text style={styles.repPatientVal}>{r.sampleCollectionDate}</Text></View>
-                    <View style={styles.reportPatientRow}><Text style={styles.repPatientLabel}>Status:</Text><Text style={[styles.repPatientVal, { color: '#00B894', fontWeight: '700' }]}>✓ Verified & Released</Text></View>
+                    <View style={styles.reportPatientRow}>
+                      <Text style={styles.repPatientLabel}>Status:</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Ionicons name="checkmark-circle" size={13} color="#00B894" />
+                        <Text style={[styles.repPatientVal, { color: '#00B894', fontWeight: '700' }]}>Verified & Released</Text>
+                      </View>
+                    </View>
                   </View>
                   <Text style={styles.tableHeading}>Observed Test Parameters</Text>
                   <View style={styles.paramsTable}>
@@ -1388,12 +2426,12 @@ const styles = StyleSheet.create({
   },
   safeContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FAFCFD',
   },
   webHeaderBar: {
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#DCE7EC',
     paddingVertical: 14,
     paddingHorizontal: 24,
   },
@@ -1414,14 +2452,14 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F1F8FB',
     alignItems: 'center',
     justifyContent: 'center',
   },
   webHeaderTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   webHeaderSub: {
     fontSize: 12,
@@ -1437,11 +2475,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FAFCFD',
     gap: 6,
   },
   webTabBtnActive: {
-    backgroundColor: '#E6F9F4',
+    backgroundColor: '#ECFDF5',
     borderWidth: 1,
     borderColor: '#00B894',
   },
@@ -1465,12 +2503,12 @@ const styles = StyleSheet.create({
     paddingTop: 24,
   },
   webHeroBanner: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 20,
+    backgroundColor: '#E6FBF2',
+    borderRadius: 24,
+    padding: 28,
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
+    marginBottom: 24,
   },
   webHeroTextCol: {
     marginBottom: 16,
@@ -1478,7 +2516,7 @@ const styles = StyleSheet.create({
   webHeroBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E6F9F4',
+    backgroundColor: '#ECFDF5',
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -1494,30 +2532,30 @@ const styles = StyleSheet.create({
   webHeroTitle: {
     fontSize: 26,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   webHeroSubtitle: {
     fontSize: 14,
-    color: '#64748B',
+    color: '#4A6572',
     marginTop: 4,
     maxWidth: 700,
   },
   webSearchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FAFCFD',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: '#DCE7EC',
     maxWidth: 650,
   },
   webSearchInput: {
     flex: 1,
     marginLeft: 10,
     fontSize: 14,
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   webCategoriesRow: {
     flexDirection: 'row',
@@ -1533,7 +2571,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DCE7EC',
     gap: 6,
   },
   webCategoryPillActive: {
@@ -1558,15 +2596,15 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DCE7EC',
   },
   webSubCatPill: {
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 14,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FAFCFD',
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: '#DCE7EC',
   },
   webSubCatPillActive: {
     backgroundColor: '#00B894',
@@ -1590,13 +2628,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DCE7EC',
     alignSelf: 'flex-start',
   },
   sidebarHeading: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
     marginBottom: 14,
   },
   filterGroup: {
@@ -1621,7 +2659,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   resetFiltersBtn: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F1F8FB',
     paddingVertical: 8,
     borderRadius: 8,
     alignItems: 'center',
@@ -1630,7 +2668,7 @@ const styles = StyleSheet.create({
   resetFiltersBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#475569',
+    color: '#1E3A8A',
   },
   webContentCol: {
     flex: 1,
@@ -1787,7 +2825,7 @@ const styles = StyleSheet.create({
   webCardTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
     marginBottom: 4,
   },
   webCardDesc: {
@@ -1798,7 +2836,7 @@ const styles = StyleSheet.create({
   },
   webAvailBox: {
     flexDirection: 'row',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F1F8FB',
     borderRadius: 8,
     padding: 8,
     gap: 12,
@@ -1811,7 +2849,7 @@ const styles = StyleSheet.create({
   },
   webAvailText: {
     fontSize: 11,
-    color: '#0F172A',
+    color: '#1E3A8A',
     fontWeight: '600',
   },
   webAvailTextDisabled: {
@@ -1822,7 +2860,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: '#DCE7EC',
     paddingTop: 10,
   },
   webPriceText: {
@@ -1843,14 +2881,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F1F8FB',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DCE7EC',
   },
   webDetailsBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#334155',
+    color: '#1E3A8A',
   },
   webBookBtn: {
     paddingHorizontal: 14,
@@ -1869,18 +2907,82 @@ const styles = StyleSheet.create({
     padding: 40,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DCE7EC',
   },
   webEmptyTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
     marginTop: 10,
   },
   webEmptyDesc: {
     fontSize: 13,
     color: '#64748B',
     marginTop: 4,
+  },
+  webPaginationBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 32,
+    marginBottom: 20,
+    paddingVertical: 18,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    width: '100%',
+  },
+  webPageNavBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    boxShadow: '0 2px 5px rgba(0,0,0,0.04)',
+    cursor: 'pointer',
+  },
+  webPageNavBtnDisabled: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    opacity: 0.5,
+    cursor: 'not-allowed',
+  },
+  webPageNavBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  webPageNavBtnTextDisabled: {
+    color: '#94A3B8',
+  },
+  webPageNumBtn: {
+    minWidth: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.03)',
+    cursor: 'pointer',
+  },
+  webPageNumBtnActive: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
+    boxShadow: '0 4px 10px rgba(0, 184, 148, 0.28)',
+  },
+  webPageNumText: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#334155',
+  },
+  webPageNumTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '900',
   },
   webTabContentBox: {
     maxWidth: 1280,
@@ -2340,7 +3442,7 @@ const styles = StyleSheet.create({
   methodFeeTag: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#EA580C',
+    color: '#64748B',
   },
   stepBlock: {
     marginBottom: 16,
@@ -2470,6 +3572,12 @@ const styles = StyleSheet.create({
     borderColor: '#00B894',
     backgroundColor: '#F0FDF9',
   },
+  slotCardDisabled: {
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F1F5F9',
+    opacity: 0.65,
+    cursor: 'not-allowed',
+  },
   slotLabel: {
     fontSize: 12,
     fontWeight: '700',
@@ -2477,9 +3585,17 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   slotLabelActive: { color: '#00B894' },
+  slotLabelDisabled: {
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
   slotPeriod: {
     fontSize: 10,
     color: '#64748B',
+  },
+  slotPeriodDisabled: {
+    color: '#EF4444',
+    fontWeight: '700',
   },
 
   // ─── SUMMARY ─────────────────────────────────────────────────────
@@ -2904,14 +4020,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#1E3A8A',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     width: 260,
-    shadowColor: '#000',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 10,
   },
@@ -2937,19 +4053,19 @@ const styles = StyleSheet.create({
   addressFieldLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#374151',
+    color: '#1E3A8A',
     marginBottom: 5,
     marginTop: 10,
   },
   addressFieldInput: {
     borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    borderColor: '#DCE7EC',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 11,
     fontSize: 14,
-    color: '#0F172A',
-    backgroundColor: '#F8FAFC',
+    color: '#1E3A8A',
+    backgroundColor: '#FAFCFD',
   },
   addressRowFields: {
     flexDirection: 'row',

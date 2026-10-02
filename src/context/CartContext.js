@@ -20,55 +20,7 @@ const LAB_CART_KEY = '@unnathi_lab_cart';
 const RADIOLOGY_CART_KEY = '@unnathi_radiology_cart';
 const SELECTED_STORE_KEY = '@unnathi_selected_pharmacy_store';
 
-const DEFAULT_ORDERS = [
-  {
-    id: 'UNC10245',
-    date: '25 Aug 2026, 03:30 PM',
-    status: 'Confirmed',
-    paymentMethod: 'UPI (PhonePe)',
-    paymentStatus: 'Paid',
-    total: 315,
-    subtotal: 275,
-    deliveryFee: 40,
-    items: [
-      { id: '1', name: 'Paracetamol 500mg', price: 35, quantity: 2 },
-      { id: '2', name: 'Vitamin C 500mg', price: 120, quantity: 1 },
-      { id: '5', name: 'Antiseptic Liquid', price: 85, quantity: 1 },
-    ],
-    address: {
-      name: 'Ramesh Kumar',
-      phone: '9876543210',
-      addressLine: 'Flat 402, Green Valley Apartments, Kuvempunagar',
-      city: 'Mysore',
-      state: 'Karnataka',
-      pincode: '570023',
-    },
-    deliverySlot: 'Express Delivery (30-45 mins)',
-  },
-  {
-    id: 'UNC10187',
-    date: '18 Aug 2026, 11:15 AM',
-    status: 'Delivered',
-    paymentMethod: 'Cash on Delivery',
-    paymentStatus: 'Paid on Delivery',
-    total: 540,
-    subtotal: 540,
-    deliveryFee: 0,
-    items: [
-      { id: '3', name: 'Multivitamin Tablets', price: 199, quantity: 1 },
-      { id: '7', name: 'First Aid Kit', price: 399, quantity: 1 },
-    ],
-    address: {
-      name: 'Ramesh Kumar',
-      phone: '9876543210',
-      addressLine: 'No. 45, 3rd Cross, Vijayanagar 2nd Stage',
-      city: 'Mysore',
-      state: 'Karnataka',
-      pincode: '570017',
-    },
-    deliverySlot: 'Standard Delivery',
-  },
-];
+const DEFAULT_ORDERS = [];
 
 export const CartProvider = ({ children }) => {
   // Separate carts for Pharmacy, Lab tests, and Radiology scans
@@ -697,7 +649,7 @@ export const CartProvider = ({ children }) => {
   // ORDERS MANAGEMENT
   // ==========================================
   const addOrder = async (newOrder) => {
-    const updatedOrders = [newOrder, ...orders];
+    const updatedOrders = [newOrder, ...orders.filter((o) => o.id !== newOrder.id)];
     setOrders(updatedOrders);
     try {
       await AsyncStorage.setItem(
@@ -708,9 +660,19 @@ export const CartProvider = ({ children }) => {
         '@orders',
         JSON.stringify(updatedOrders)
       );
+      await AsyncStorage.setItem(
+        '@mediunify_patient_medicine_orders',
+        JSON.stringify(updatedOrders)
+      );
     } catch (e) {
       console.log('Error saving order to storage:', e);
     }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mediunify_orders_updated', { detail: updatedOrders }));
+      window.dispatchEvent(new Event('storage'));
+    }
+
     // Background sync to central server
     try {
       const { syncActiveUser } = require('../services/dataSyncService');
@@ -724,6 +686,7 @@ export const CartProvider = ({ children }) => {
         return {
           ...order,
           status: 'Return Requested',
+          returnRequested: true,
           returnDetails: {
             ...returnPayload,
             requestedAt: new Date().toLocaleDateString('en-GB', {
@@ -743,9 +706,17 @@ export const CartProvider = ({ children }) => {
 
     setOrders(updatedOrders);
     try {
-      await AsyncStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(updatedOrders));
+      const str = JSON.stringify(updatedOrders);
+      await AsyncStorage.setItem(ORDERS_STORAGE_KEY, str);
+      await AsyncStorage.setItem('@orders', str);
+      await AsyncStorage.setItem('@mediunify_patient_medicine_orders', str);
     } catch (e) {
       console.log('Error saving returned order:', e);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mediunify_orders_updated', { detail: updatedOrders }));
+      window.dispatchEvent(new Event('storage'));
     }
   };
 

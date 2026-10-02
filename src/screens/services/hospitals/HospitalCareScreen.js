@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -14,10 +13,12 @@ import {
   Image,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showAlert } from '../../../utils/alert';
 import WebFooter from '../../../components/web/WebFooter';
+import { useAuthGuard } from '../../../context/AuthGuardContext';
 
 const SURGERY_LIST = [
   'General Surgery Consultation',
@@ -52,6 +53,7 @@ const HospitalCareScreen = ({ navigation }) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 992;
   const isTablet = width >= 600 && width < 992;
+  const { requireLogin } = useAuthGuard();
 
   // Form State
   const [selectedSurgery, setSelectedSurgery] = useState('');
@@ -77,7 +79,12 @@ const HospitalCareScreen = ({ navigation }) => {
     loadStoredUser();
   }, []);
 
-  const handleBookAppointment = async () => {
+  const handleBookAppointment = () => {
+    requireLogin(() => _doBookAppointment());
+  };
+
+  const _doBookAppointment = async () => {
+
     if (!name.trim()) {
       showAlert('Name Required', 'Please enter your full name.');
       return;
@@ -100,7 +107,7 @@ const HospitalCareScreen = ({ navigation }) => {
       setLoading(false);
       setBookingSuccess(true);
       showAlert(
-        'Consultation Booked! 🩺',
+        'Consultation Booked',
         `Thank you ${name.trim()}! Your request for ${selectedSurgery || 'Surgery Consultation'} in ${selectedCity} has been received. Our dedicated Care Coordinator will call ${mobileNumber.trim()} within 15 minutes.`,
         [{ text: 'OK', style: 'default' }]
       );
@@ -124,7 +131,7 @@ const HospitalCareScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* MOBILE TOP HEADER */}
@@ -148,27 +155,8 @@ const HospitalCareScreen = ({ navigation }) => {
             <Text style={styles.mobileHeaderSub}>India's Fastest Growing Surgery Network</Text>
           </View>
         </View>
-      ) : (
-        /* DESKTOP BREADCRUMB */
-        <View style={styles.desktopBreadcrumbWrap}>
-          <View style={styles.desktopBreadcrumbInner}>
-            <TouchableOpacity onPress={() => navigation?.navigate('Home')} activeOpacity={0.7}>
-              <Text style={styles.breadcrumbLink}>Home</Text>
-            </TouchableOpacity>
-            <Ionicons name="chevron-forward" size={14} color="#94A3B8" />
-            <Text style={styles.breadcrumbCurrent}>Services</Text>
-            <Ionicons name="chevron-forward" size={14} color="#94A3B8" />
-            <Text style={styles.breadcrumbActive}>Hospital & Surgery Care</Text>
+      ) : null}
 
-            <View style={{ flex: 1 }} />
-
-            <View style={styles.verifiedBadge}>
-              <Ionicons name="shield-checkmark" size={14} color="#00B894" />
-              <Text style={styles.verifiedBadgeText}>100% Verified Surgery Network</Text>
-            </View>
-          </View>
-        </View>
-      )}
 
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
@@ -182,6 +170,10 @@ const HospitalCareScreen = ({ navigation }) => {
             <View style={[styles.leftColumn, isDesktopWeb && styles.leftColumnDesktop]}>
               {/* 1. HERO NETWORK BANNER CARD */}
               <View style={styles.heroCard}>
+                {/* Decorative Background Glow Discs */}
+                <View style={styles.heroGlowCircleTop} />
+                <View style={styles.heroGlowCircleBottom} />
+
                 <Text style={styles.heroTitle}>India’s fastest growing surgery network</Text>
                 <Text style={styles.heroSubtitle}>
                   Trusted across India for safe, guided surgery care.
@@ -203,7 +195,7 @@ const HospitalCareScreen = ({ navigation }) => {
                   {/* 4 Floating Badges Around Doctor */}
                   {/* Top Left: 2,00,000+ Surgeries */}
                   <View style={[styles.floatingBadge, styles.badgeTopLeft]}>
-                    <View style={styles.badgeIconWrap}>
+                    <View style={[styles.badgeIconWrap, { backgroundColor: '#EFF6FF' }]}>
                       <Ionicons name="person" size={16} color="#1E3A8A" />
                     </View>
                     <View>
@@ -214,8 +206,8 @@ const HospitalCareScreen = ({ navigation }) => {
 
                   {/* Top Right: 10,000+ Surgeons */}
                   <View style={[styles.floatingBadge, styles.badgeTopRight]}>
-                    <View style={styles.badgeIconWrap}>
-                      <Ionicons name="medkit" size={16} color="#1E3A8A" />
+                    <View style={[styles.badgeIconWrap, { backgroundColor: '#ECFDF5' }]}>
+                      <Ionicons name="medkit" size={16} color="#00B894" />
                     </View>
                     <View>
                       <Text style={styles.badgeBoldText}>10,000+</Text>
@@ -225,8 +217,8 @@ const HospitalCareScreen = ({ navigation }) => {
 
                   {/* Bottom Left: 25+ Cities */}
                   <View style={[styles.floatingBadge, styles.badgeBottomLeft]}>
-                    <View style={styles.badgeIconWrap}>
-                      <Ionicons name="business" size={16} color="#1E3A8A" />
+                    <View style={[styles.badgeIconWrap, { backgroundColor: '#FFF5F0' }]}>
+                      <Ionicons name="business" size={16} color="#FF7F50" />
                     </View>
                     <View>
                       <Text style={styles.badgeBoldText}>25+</Text>
@@ -236,8 +228,8 @@ const HospitalCareScreen = ({ navigation }) => {
 
                   {/* Bottom Right: 1,000+ Hospitals */}
                   <View style={[styles.floatingBadge, styles.badgeBottomRight]}>
-                    <View style={styles.badgeIconWrap}>
-                      <Ionicons name="fitness" size={16} color="#1E3A8A" />
+                    <View style={[styles.badgeIconWrap, { backgroundColor: '#F0FDFA' }]}>
+                      <Ionicons name="fitness" size={16} color="#00C2CB" />
                     </View>
                     <View>
                       <Text style={styles.badgeBoldText}>1,000+</Text>
@@ -683,32 +675,57 @@ const styles = StyleSheet.create({
 
   // 1. HERO NETWORK BANNER CARD
   heroCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    backgroundColor: '#1E3A8A',
+    borderRadius: 20,
     padding: 28,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
     shadowColor: '#1E3A8A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    elevation: 4,
     alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  heroGlowCircleTop: {
+    position: 'absolute',
+    top: -60,
+    right: -60,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(0, 194, 203, 0.18)', // Aqua glow
+    pointerEvents: 'none',
+  },
+  heroGlowCircleBottom: {
+    position: 'absolute',
+    bottom: -70,
+    left: -70,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: 'rgba(0, 184, 148, 0.16)', // Teal glow
+    pointerEvents: 'none',
   },
   heroTitle: {
     fontSize: 26,
     fontWeight: '900',
-    color: '#0F172A',
+    color: '#FFFFFF',
     textAlign: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
     letterSpacing: -0.3,
+    zIndex: 2,
+    textShadow: '0px 2px 4px rgba(0, 0, 0, 0.2)',
   },
   heroSubtitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1E3A8A',
+    color: '#00C2CB', // Brand Aqua accent
     textAlign: 'center',
-    marginBottom: 28,
+    marginBottom: 26,
+    zIndex: 2,
   },
 
   // Doctor Graphic with surrounding badges
@@ -719,17 +736,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    zIndex: 2,
   },
   doctorCircleBackdrop: {
     width: 210,
     height: 210,
     borderRadius: 105,
-    backgroundColor: '#1E3A8A',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     overflow: 'hidden',
     justifyContent: 'flex-end',
     alignItems: 'center',
     borderWidth: 4,
-    borderColor: '#3B82F6',
+    borderColor: '#00C2CB', // Glowing Aqua ring
+    shadowColor: '#00C2CB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 4,
   },
   doctorImage: {
     width: 210,

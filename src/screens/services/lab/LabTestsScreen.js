@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -13,6 +12,7 @@ import {
   Alert,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import {
@@ -26,6 +26,7 @@ import {
   INITIAL_LAB_BOOKINGS,
   INITIAL_LAB_REPORTS,
 } from '../../../data/labTestData';
+import { getSlotStatus, validateAndBookSlot, subscribeToSlotChanges } from '../../../services/slotBookingService';
 import LabTestsScreenWeb from './LabTestsScreen.web';
 import { showAlert } from '../../../utils/alert';
 import { useCart } from '../../../context/CartContext';
@@ -63,7 +64,7 @@ const LabTestsScreen = (props) => {
         fastingRequired: test.fastingRequired,
       };
       addToCart(cartItem, 1, 'lab');
-      showAlert('Added to Cart! 🧪', `${test.name} has been added to your cart.`);
+      showAlert('Added to Cart', `${test.name} has been added to your cart.`);
     }
   };
 
@@ -86,7 +87,7 @@ const LabTestsScreen = (props) => {
         isPackage: true,
       };
       addToCart(cartItem, 1, 'lab');
-      showAlert('Added to Cart! 🧪', `${pkg.name} has been added to your cart.`);
+      showAlert('Added to Cart', `${pkg.name} has been added to your cart.`);
     }
   };
 
@@ -210,6 +211,10 @@ const LabTestsScreen = (props) => {
   // ---------------------------------------------------------------------------
   const startBooking = (test, preferredMethod = null) => {
     setActiveBookingTest(test);
+    const freshDates = getAvailableDates();
+    if (!freshDates.some((d) => d.dateStr === selectedDate)) {
+      setSelectedDate(freshDates[0].dateStr);
+    }
     // Determine default method based on test configuration
     if (preferredMethod) {
       setCollectionMethod(preferredMethod);
@@ -221,7 +226,7 @@ const LabTestsScreen = (props) => {
     setBookingFlowStep(1);
   };
 
-  const handleSimulatePayment = () => {
+  const handleSimulatePayment = async () => {
     const isHome = collectionMethod === 'HOME';
     if (isHome && (!homeAddressName.trim() || !homeAddressPhone.trim() || !homeAddressFlat.trim() || !homeAddressCity.trim() || !homeAddressPincode.trim())) {
       return;
@@ -231,6 +236,21 @@ const LabTestsScreen = (props) => {
     const total = testPrice + collectionFee;
     const selectedCentre = DIAGNOSTIC_CENTRES.find((c) => c.id === selectedCentreId);
     const selectedSlot = TIME_SLOTS.find((s) => s.id === selectedSlotId);
+
+    // Real-Time Atomic Slot Validation (Rules 2, 3, 6)
+    const slotValidation = await validateAndBookSlot({
+      date: selectedDate,
+      time: selectedSlot?.label || '8:30 AM – 9:30 AM',
+      serviceType: 'lab',
+      providerId: isHome ? 'home-collection' : selectedCentreId,
+      slotId: selectedSlotId,
+      patientName: homeAddressName.trim() || 'Patient',
+    });
+
+    if (!slotValidation.success) {
+      showAlert('Slot Unavailable', 'This slot is no longer available. Please select another time.');
+      return;
+    }
 
     const manualAddr = isHome
       ? `${homeAddressFlat.trim()}, ${homeAddressCity.trim()} - ${homeAddressPincode.trim()}${homeAddressLandmark.trim() ? ` (${homeAddressLandmark.trim()})` : ''}`
@@ -263,6 +283,64 @@ const LabTestsScreen = (props) => {
     setConfirmedBookingData(newBooking);
     setBookingsList([newBooking, ...bookingsList]);
     setBookingFlowStep(5);
+
+    try {
+      // 1. Save to @labBookings and labBookings
+      for (const k of ['@labBookings', 'labBookings']) {
+        const existingRaw = await AsyncStorage.getItem(k);
+        const existingList = existingRaw ? JSON.parse(existingRaw) : [];
+        const nextList = [newBooking, ...(Array.isArray(existingList) ? existingList : [])];
+        await AsyncStorage.setItem(k, JSON.stringify(nextList));
+      }
+
+      // 2. Format for @mediunify_patient_booked_tests (for MyTestsScreen)
+      const dashboardBooking = {
+        id: newBookingId,
+        bookingRef: newBookingId,
+        testName: newBooking.testName,
+        modality: 'Pathology & Blood',
+        modalityType: 'Blood Test',
+        testCategory: 'Pathology & Blood',
+        testType: isHome ? 'Home Sample Collection' : 'Centre Visit',
+        centerName: newBooking.diagnosticCentre?.name || 'Unnathi Central Pathology & Diagnostic Center',
+        department: 'Automated Clinical Pathology',
+        location: isHome ? (manualAddr || 'Mysuru') : (newBooking.diagnosticCentre?.location || 'Kuvempunagar, Mysuru'),
+        address: isHome ? (manualAddr || 'Mysuru') : (newBooking.diagnosticCentre?.location || 'Kuvempunagar, Mysuru'),
+        appointmentDate: selectedDate,
+        timeSlot: selectedSlot?.label || '08:30 AM – 09:30 AM',
+        patientId: 'self',
+        patientName: homeAddressName.trim() || 'Hemanth Gowda (Self)',
+        age: 28,
+        gender: 'Male',
+        status: 'Slot Confirmed',
+        badgeColor: '#00B894',
+        price: total,
+        paymentStatus: 'Paid Online via UPI',
+        instructions: 'Fasting of 10-12 hours required prior to sample collection. Water is permitted.',
+        doctorPrescription: 'Diagnostic Lab Screening Referral',
+        contactPhone: '+91 821 245 9901',
+        canReschedule: true,
+        canCancel: true,
+        phlebotomist: isHome ? {
+          name: newBooking.phlebotomistName || 'Muralidhar Rao (Senior Phlebotomist)',
+          phone: newBooking.phlebotomistPhone || '+91 98452 33110',
+          vehicle: 'Two-Wheeler (KA-09-ER-5521)',
+          eta: '15 mins',
+        } : null,
+      };
+
+      const existingBookedTestsRaw = await AsyncStorage.getItem('@mediunify_patient_booked_tests');
+      const existingBookedTests = existingBookedTestsRaw ? JSON.parse(existingBookedTestsRaw) : [];
+      const updatedBookedTests = [dashboardBooking, ...(Array.isArray(existingBookedTests) ? existingBookedTests : [])];
+      await AsyncStorage.setItem('@mediunify_patient_booked_tests', JSON.stringify(updatedBookedTests));
+
+      // 3. Save to @unnathi_appointments
+      const existingApptsRaw = await AsyncStorage.getItem('@unnathi_appointments');
+      const existingAppts = existingApptsRaw ? JSON.parse(existingApptsRaw) : [];
+      await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify([dashboardBooking, ...(Array.isArray(existingAppts) ? existingAppts : [])]));
+    } catch (saveErr) {
+      console.warn('Error saving lab booking to AsyncStorage:', saveErr);
+    }
   };
 
   // ===========================================================================
@@ -430,6 +508,7 @@ const LabTestsScreen = (props) => {
         contentContainerStyle={[
           styles.scrollContent,
           width >= 600 && { maxWidth: 960, width: '100%', alignSelf: 'center' },
+          labCartCount > 0 && { paddingBottom: Platform.OS === 'ios' ? 150 : 140 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -471,8 +550,8 @@ const LabTestsScreen = (props) => {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipsScroll}>
             {[
               { label: 'All Tests', active: selectedGenderFilter === 'ALL' && selectedCollectionFilter === 'ALL' && selectedSampleFilter === 'ALL', onPress: () => { setSelectedGenderFilter('ALL'); setSelectedCollectionFilter('ALL'); setSelectedSampleFilter('ALL'); } },
-              { label: '🏠 Home Collection', active: selectedCollectionFilter === 'HOME', onPress: () => setSelectedCollectionFilter(selectedCollectionFilter === 'HOME' ? 'ALL' : 'HOME') },
-              { label: '🏥 Lab Visit', active: selectedCollectionFilter === 'CENTRE', onPress: () => setSelectedCollectionFilter(selectedCollectionFilter === 'CENTRE' ? 'ALL' : 'CENTRE') },
+              { label: 'Home Collection', active: selectedCollectionFilter === 'HOME', onPress: () => setSelectedCollectionFilter(selectedCollectionFilter === 'HOME' ? 'ALL' : 'HOME') },
+              { label: 'Lab Visit', active: selectedCollectionFilter === 'CENTRE', onPress: () => setSelectedCollectionFilter(selectedCollectionFilter === 'CENTRE' ? 'ALL' : 'CENTRE') },
               { label: "Women's", active: selectedGenderFilter === 'FEMALE', onPress: () => setSelectedGenderFilter(selectedGenderFilter === 'FEMALE' ? 'ALL' : 'FEMALE') },
               { label: "Men's", active: selectedGenderFilter === 'MALE', onPress: () => setSelectedGenderFilter(selectedGenderFilter === 'MALE' ? 'ALL' : 'MALE') },
               { label: 'Blood Tests', active: selectedSampleFilter === 'Blood', onPress: () => setSelectedSampleFilter(selectedSampleFilter === 'Blood' ? 'ALL' : 'Blood') },
@@ -809,7 +888,7 @@ const LabTestsScreen = (props) => {
                 <View style={styles.bookingDetailRow}>
                   <Text style={styles.bookingDetailLabel}>Collection Method:</Text>
                   <Text style={styles.bookingDetailVal}>
-                    {b.collectionMethod === 'HOME' ? '🏠 Home Collection' : '🏥 Centre Collection'}
+                    {b.collectionMethod === 'HOME' ? 'Home Collection' : 'Centre Collection'}
                   </Text>
                 </View>
                 {b.collectionMethod === 'HOME' && (
@@ -998,7 +1077,7 @@ const LabTestsScreen = (props) => {
                   <Text style={styles.appliBadgeText}>Age: {t.ageApplicability}</Text>
                 </View>
                 <View style={styles.appliBadge}>
-                  <Ionicons name="water-outline" size={14} color="#EA580C" />
+                  <Ionicons name="water-outline" size={14} color="#00C2CB" />
                   <Text style={styles.appliBadgeText}>Sample: {t.sampleType}</Text>
                 </View>
               </View>
@@ -1041,7 +1120,7 @@ const LabTestsScreen = (props) => {
                   <View style={styles.methodOptionCard}>
                     <Ionicons name="home" size={20} color="#00B894" />
                     <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.methodOptionTitle}>🏠 Home Collection (Available)</Text>
+                      <Text style={styles.methodOptionTitle}>Home Collection (Available)</Text>
                       <Text style={styles.methodOptionDesc}>Phlebotomist collects sample from your doorstep.</Text>
                     </View>
                   </View>
@@ -1050,7 +1129,7 @@ const LabTestsScreen = (props) => {
                   <View style={styles.methodOptionCard}>
                     <Ionicons name="business" size={20} color="#0284C7" />
                     <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.methodOptionTitle}>🏥 Centre Collection (Available)</Text>
+                      <Text style={styles.methodOptionTitle}>Centre Collection (Available)</Text>
                       <Text style={styles.methodOptionDesc}>Visit any verified partner diagnostic lab in Mysuru.</Text>
                     </View>
                   </View>
@@ -1255,7 +1334,7 @@ const LabTestsScreen = (props) => {
                       {isHome && <View style={styles.methodRadioInner} />}
                     </View>
                     <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.methodSelectTitle}>🏠 Home Sample Collection</Text>
+                      <Text style={styles.methodSelectTitle}>Home Sample Collection</Text>
                       <Text style={styles.methodSelectSub}>
                         Trained certified phlebotomist visits your selected address. Barcoded sample vials with cold chain.
                       </Text>
@@ -1274,7 +1353,7 @@ const LabTestsScreen = (props) => {
                       {!isHome && <View style={styles.methodRadioInner} />}
                     </View>
                     <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.methodSelectTitle}>🏥 Diagnostic Centre Visit</Text>
+                      <Text style={styles.methodSelectTitle}>Diagnostic Centre Visit</Text>
                       <Text style={styles.methodSelectSub}>
                         Walk into any verified clinical laboratory partner in Mysuru. Dedicated fast-track queue.
                       </Text>
@@ -1376,7 +1455,7 @@ const LabTestsScreen = (props) => {
                             <Text style={styles.centreSelectName}>{centre.name}</Text>
                             <Text style={styles.centreSelectAddress}>{centre.address}</Text>
                             <View style={styles.centreMetaRow}>
-                              <Text style={styles.centreMetaText}>⭐ {centre.rating} ({centre.reviewsCount}+ reviews)</Text>
+                              <Text style={styles.centreMetaText}>{centre.rating}/5 ({centre.reviewsCount}+ reviews)</Text>
                               <Text style={styles.centreMetaText}>• {centre.distanceKm} km away</Text>
                             </View>
                           </View>
@@ -1413,16 +1492,43 @@ const LabTestsScreen = (props) => {
                   <View style={styles.slotGrid}>
                     {TIME_SLOTS.map((slot) => {
                       const isSel = selectedSlotId === slot.id;
-                      return (
-                        <TouchableOpacity
-                          key={slot.id}
-                          style={[styles.slotCard, isSel && styles.slotCardActive]}
-                          onPress={() => setSelectedSlotId(slot.id)}
-                        >
-                          <Text style={[styles.slotLabel, isSel && styles.slotLabelActive]}>{slot.label}</Text>
-                          <Text style={styles.slotPeriod}>{slot.period}</Text>
-                        </TouchableOpacity>
-                      );
+                        const statusObj = getSlotStatus({
+                          date: selectedDate,
+                          time: slot.label,
+                          serviceType: 'lab',
+                          providerId: collectionMethod === 'HOME' ? 'home-collection' : selectedCentreId,
+                        });
+                        const isAvail = statusObj.available;
+                        return (
+                          <TouchableOpacity
+                            key={slot.id}
+                            disabled={!isAvail}
+                            style={[
+                              styles.slotCard,
+                              isSel && styles.slotCardActive,
+                              !isAvail && { borderColor: '#E2E8F0', backgroundColor: '#F1F5F9', opacity: 0.65 },
+                            ]}
+                            onPress={() => isAvail && setSelectedSlotId(slot.id)}
+                          >
+                            <Text
+                              style={[
+                                styles.slotLabel,
+                                isSel && styles.slotLabelActive,
+                                !isAvail && { color: '#94A3B8', textDecorationLine: 'line-through' },
+                              ]}
+                            >
+                              {slot.label}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.slotPeriod,
+                                !isAvail && { color: '#EF4444', fontWeight: '700' },
+                              ]}
+                            >
+                              {!isAvail ? (statusObj.status === 'BOOKED' ? 'Booked' : 'Passed') : slot.period}
+                            </Text>
+                          </TouchableOpacity>
+                        );
                     })}
                   </View>
                 </View>
@@ -1441,7 +1547,7 @@ const LabTestsScreen = (props) => {
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Collection Method:</Text>
-                    <Text style={styles.summaryVal}>{isHome ? '🏠 Home Collection' : '🏥 Diagnostic Centre'}</Text>
+                    <Text style={styles.summaryVal}>{isHome ? 'Home Collection' : 'Diagnostic Centre'}</Text>
                   </View>
                   {isHome ? (
                     <View style={styles.summaryRow}>
@@ -1697,7 +1803,7 @@ const LabTestsScreen = (props) => {
                 </View>
                 <View style={styles.reportPatientRow}>
                   <Text style={styles.repPatientLabel}>Report Status:</Text>
-                  <Text style={[styles.repPatientVal, { color: '#00B894', fontWeight: '700' }]}>✓ Verified & Released</Text>
+                  <Text style={[styles.repPatientVal, { color: '#00B894', fontWeight: '700' }]}>Verified & Released</Text>
                 </View>
               </View>
 
@@ -1769,7 +1875,7 @@ const LabTestsScreen = (props) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeContainer}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeContainer}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Top Header Bar */}
@@ -1878,13 +1984,13 @@ const styles = StyleSheet.create({
   },
   mobileFloatingCartBar: {
     position: 'absolute',
-    bottom: 16,
+    bottom: Platform.OS === 'ios' ? 88 : 78,
     left: 16,
     right: 16,
     backgroundColor: '#0F172A',
     borderRadius: 14,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1944,31 +2050,31 @@ const styles = StyleSheet.create({
   topNavBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
   headerBackBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitleCol: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 10,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
   },
   headerSub: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748B',
   },
   headerCartIconBtn: {
@@ -2026,7 +2132,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: Platform.OS === 'ios' ? 95 : 85,
   },
   toastBox: {
     position: 'absolute',
@@ -2051,11 +2157,11 @@ const styles = StyleSheet.create({
   heroHeaderBox: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 10,
+    paddingTop: 10,
+    paddingBottom: 8,
   },
   heroTextCol: {
-    gap: 4,
+    gap: 3,
   },
   heroMicroPill: {
     flexDirection: 'row',
@@ -2063,54 +2169,55 @@ const styles = StyleSheet.create({
     backgroundColor: '#E6F9F4',
     alignSelf: 'flex-start',
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 2.5,
     borderRadius: 20,
     gap: 4,
   },
   heroMicroPillText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#00B894',
   },
   mainTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '800',
     color: '#0F172A',
     marginTop: 2,
+    lineHeight: 22,
   },
   mainSubtitle: {
-    fontSize: 13,
+    fontSize: 11.5,
     color: '#64748B',
-    lineHeight: 18,
+    lineHeight: 16,
   },
 
   // Search Wrap
   searchWrap: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 8,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F1F5F9',
     borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
   searchInput: {
     flex: 1,
     marginLeft: 8,
-    fontSize: 14,
+    fontSize: 13,
     color: '#0F172A',
   },
 
   // Filter Chips Row
   filterChipsRow: {
     backgroundColor: '#FFFFFF',
-    paddingBottom: 10,
+    paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
@@ -2146,11 +2253,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-end',
     paddingHorizontal: 16,
-    marginTop: 18,
-    marginBottom: 10,
+    marginTop: 12,
+    marginBottom: 6,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: '#0F172A',
   },
@@ -3151,7 +3258,7 @@ const styles = StyleSheet.create({
   methodFeeTag: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#EA580C',
+    color: '#64748B',
   },
 
   // Step 2

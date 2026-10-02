@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -11,6 +10,7 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showAlert } from '../../../utils/alert';
@@ -88,9 +88,9 @@ const HealthInsuranceScreen = ({ navigation }) => {
       await AsyncStorage.setItem('@unnathi_insurance_notify', contactInput.trim());
       setIsSubscribed(true);
       setLoading(false);
-      showToast('🎉 You are on the VIP launch list!');
+      showToast('You are on the VIP launch list!');
       showAlert(
-        'You’re on the VIP List! 🛡️',
+        'You’re on the VIP List!',
         `Thank you! We will notify ${contactInput.trim()} the moment Health Insurance launches with exclusive zero-deposit benefits.`,
         [{ text: 'Great!', style: 'default' }]
       );
@@ -102,7 +102,7 @@ const HealthInsuranceScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* MOBILE TOP HEADER */}
@@ -131,27 +131,6 @@ const HealthInsuranceScreen = ({ navigation }) => {
         </View>
       )}
 
-      {/* DESKTOP BREADCRUMB */}
-      {isDesktopWeb && (
-        <View style={styles.desktopBreadcrumbWrap}>
-          <View style={styles.desktopBreadcrumbInner}>
-            <TouchableOpacity onPress={() => navigation?.navigate('Home')} activeOpacity={0.7}>
-              <Text style={styles.breadcrumbLink}>Home</Text>
-            </TouchableOpacity>
-            <Ionicons name="chevron-forward" size={14} color="#94A3B8" />
-            <Text style={styles.breadcrumbCurrent}>Services</Text>
-            <Ionicons name="chevron-forward" size={14} color="#94A3B8" />
-            <Text style={styles.breadcrumbActive}>Health Insurance (Launching Soon)</Text>
-
-            <View style={{ flex: 1 }} />
-
-            <View style={styles.launchingHeaderBadge}>
-              <Ionicons name="rocket-outline" size={14} color="#00B894" />
-              <Text style={styles.launchingHeaderBadgeText}>Launching Soon</Text>
-            </View>
-          </View>
-        </View>
-      )}
 
       {/* TOAST BANNER */}
       {toastMsg && (
@@ -170,6 +149,10 @@ const HealthInsuranceScreen = ({ navigation }) => {
               LAUNCHING SOON HERO CARD
           ============================================================ */}
           <View style={styles.heroCard}>
+            {/* Decorative Background Glow Discs */}
+            <View style={styles.heroGlowCircleTop} />
+            <View style={styles.heroGlowCircleBottom} />
+
             {/* Top decorative glow badge */}
             <View style={styles.pillBadgeRow}>
               <View style={styles.launchingBadge}>
@@ -203,7 +186,7 @@ const HealthInsuranceScreen = ({ navigation }) => {
             {/* NOTIFY ME BOX */}
             <View style={styles.notifyCard}>
               <Text style={styles.notifyTitle}>
-                {isSubscribed ? '🎉 You are on the Early Access List!' : 'Get Notified When We Go Live'}
+                {isSubscribed ? 'You are on the Early Access List!' : 'Get Notified When We Go Live'}
               </Text>
               <Text style={styles.notifySub}>
                 {isSubscribed
@@ -457,18 +440,40 @@ const styles = StyleSheet.create({
 
   // HERO CARD
   heroCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1E3A8A', // Brand Navy
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
     padding: 28,
     alignItems: 'center',
     shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.05,
-    shadowRadius: 16,
-    elevation: 3,
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    elevation: 4,
     marginBottom: 24,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  heroGlowCircleTop: {
+    position: 'absolute',
+    top: -60,
+    right: -60,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(0, 194, 203, 0.22)', // Aqua glow
+    pointerEvents: 'none',
+  },
+  heroGlowCircleBottom: {
+    position: 'absolute',
+    bottom: -70,
+    left: -70,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: 'rgba(0, 184, 148, 0.2)', // Teal glow
+    pointerEvents: 'none',
   },
   pillBadgeRow: {
     flexDirection: 'row',
@@ -477,14 +482,15 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     marginBottom: 24,
+    zIndex: 2,
   },
   launchingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: 'rgba(0, 184, 148, 0.25)',
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#00B894',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -492,16 +498,16 @@ const styles = StyleSheet.create({
   launchingBadgeText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#00B894',
+    color: '#A7F3D0',
     letterSpacing: 0.5,
   },
   irdaiBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: 'rgba(0, 194, 203, 0.25)',
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: '#00C2CB',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -509,7 +515,7 @@ const styles = StyleSheet.create({
   irdaiBadgeText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#1E3A8A',
+    color: '#BAE6FD',
     letterSpacing: 0.5,
   },
 
@@ -517,14 +523,15 @@ const styles = StyleSheet.create({
   iconGraphicContainer: {
     position: 'relative',
     marginBottom: 20,
+    zIndex: 2,
   },
   iconOuterRing: {
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     borderWidth: 2,
-    borderColor: '#DCFCE7',
+    borderColor: 'rgba(0, 194, 203, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -532,14 +539,14 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#00B894',
+    shadowColor: '#00C2CB',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.25,
     shadowRadius: 10,
-    elevation: 2,
+    elevation: 4,
   },
   floatingSparkleBadge: {
     position: 'absolute',
@@ -557,33 +564,42 @@ const styles = StyleSheet.create({
 
   // Hero Typography
   heroTitle: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '900',
-    color: '#0F172A',
+    color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 10,
     maxWidth: 620,
+    zIndex: 2,
+    textShadow: '0px 2px 4px rgba(0, 0, 0, 0.2)',
   },
   heroSubtitle: {
-    fontSize: 14,
-    color: '#64748B',
+    fontSize: 14.5,
+    color: '#E2E8F0',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 23,
     maxWidth: 600,
-    marginBottom: 24,
+    marginBottom: 26,
+    zIndex: 2,
   },
 
   // Notify Card
   notifyCard: {
     width: '100%',
     maxWidth: 580,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    padding: 20,
-    marginBottom: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 3,
     alignItems: 'center',
+    marginBottom: 20,
+    zIndex: 2,
   },
   notifyTitle: {
     fontSize: 15,

@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -13,7 +12,10 @@ import {
   Linking,
   Platform,
   useWindowDimensions,
+  Keyboard,
+  KeyboardAvoidingView,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,6 +23,25 @@ import colors from '../../../theme/colors';
 import WebFooter from '../../../components/web/WebFooter';
 
 const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
+  const insets = useSafeAreaInsets();
+  const scrollViewRef = useRef(null);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardVisible(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardVisible(false)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   const { hospital, surgery } = route.params || {};
@@ -139,7 +160,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* HEADER */}
@@ -158,10 +179,22 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
         </View>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? (insets.top > 0 ? insets.top + 10 : 20) : 0}
+        style={{ flex: 1 }}
       >
+        <ScrollView
+          ref={scrollViewRef}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: isKeyboardVisible ? (Platform.OS === 'ios' ? 240 : 180) : 40 },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+        >
         {/* DESKTOP BREADCRUMBS */}
         {isDesktopWeb && (
           <View style={styles.breadcrumbsRow}>
@@ -196,7 +229,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
           </View>
 
           <Text style={styles.selectedSurgeryTitle}>{surgery?.name}</Text>
-          <Text style={styles.selectedHospitalName}>🏥 {hospital?.name}</Text>
+          <Text style={styles.selectedHospitalName}>{hospital?.name}</Text>
           <Text style={styles.selectedHospitalArea}>{hospital?.address}</Text>
 
           <View style={styles.techniqueBanner}>
@@ -213,6 +246,11 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
             style={styles.input}
             value={patientName}
             onChangeText={setPatientName}
+            onFocus={() => {
+              setTimeout(() => {
+                scrollViewRef.current?.scrollTo({ y: 180, animated: true });
+              }, 100);
+            }}
             placeholder="Enter patient full name"
           />
 
@@ -223,6 +261,11 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
                 style={styles.input}
                 value={patientAge}
                 onChangeText={setPatientAge}
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+                  }, 100);
+                }}
                 keyboardType="numeric"
                 placeholder="Age"
               />
@@ -259,6 +302,11 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
             style={styles.input}
             value={patientPhone}
             onChangeText={setPatientPhone}
+            onFocus={() => {
+              setTimeout(() => {
+                scrollViewRef.current?.scrollTo({ y: 300, animated: true });
+              }, 100);
+            }}
             keyboardType="phone-pad"
             placeholder="Mobile number for quote SMS & WhatsApp"
           />
@@ -353,6 +401,11 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
                 style={styles.input}
                 value={insuranceProvider}
                 onChangeText={setInsuranceProvider}
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollTo({ y: 550, animated: true });
+                  }, 100);
+                }}
                 placeholder="e.g. Star Health, HDFC ERGO, Medi Assist"
               />
             </View>
@@ -397,6 +450,11 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
             multiline
             value={medicalNotes}
             onChangeText={setMedicalNotes}
+            onFocus={() => {
+              setTimeout(() => {
+                scrollViewRef.current?.scrollTo({ y: 700, animated: true });
+              }, 100);
+            }}
             placeholder="e.g. Existing diabetes, severe gallbladder pain, previous surgeries..."
           />
         </View>
@@ -428,6 +486,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
           </View>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* ==================================================
           QUOTE REQUEST CONFIRMATION MODAL
@@ -490,10 +549,10 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
               style={styles.modalPrimaryBtn}
               onPress={() => {
                 setSuccessModalVisible(false);
-                navigation.navigate('Bookings');
+                navigation.navigate('MyAppointments');
               }}
             >
-              <Text style={styles.modalPrimaryBtnText}>View in My Bookings & Quotes</Text>
+              <Text style={styles.modalPrimaryBtnText}>View in My Appointments</Text>
             </TouchableOpacity>
 
             <TouchableOpacity

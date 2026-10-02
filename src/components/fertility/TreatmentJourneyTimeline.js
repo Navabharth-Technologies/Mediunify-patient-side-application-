@@ -6,7 +6,7 @@ const TreatmentJourneyTimeline = ({
   stages = [],
   currentStageIndex = 0,
   onSelectStage,
-  activeColor = '#E11D48',
+  activeColor = '#00B894',
 }) => {
   if (!stages || stages.length === 0) return null;
 
@@ -29,7 +29,7 @@ const TreatmentJourneyTimeline = ({
               <View
                 style={[
                   styles.nodeCircle,
-                  isCompleted && { backgroundColor: '#059669', borderColor: '#059669' },
+                  isCompleted && { backgroundColor: '#7BC96F', borderColor: '#7BC96F' },
                   isCurrent && { backgroundColor: '#FFFFFF', borderColor: activeColor, borderWidth: 3 },
                 ]}
               >
@@ -45,7 +45,7 @@ const TreatmentJourneyTimeline = ({
                 <View
                   style={[
                     styles.verticalLine,
-                    isCompleted && { backgroundColor: '#059669' },
+                    isCompleted && { backgroundColor: '#7BC96F' },
                   ]}
                 />
               )}
@@ -55,7 +55,7 @@ const TreatmentJourneyTimeline = ({
             <View
               style={[
                 styles.contentBox,
-                isCurrent && { borderColor: activeColor, backgroundColor: '#FFF1F2' },
+                isCurrent && { borderColor: activeColor, backgroundColor: '#E6F8F5' },
               ]}
             >
               <View style={styles.contentHeader}>
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   },
   stageSubtitle: {
     fontSize: 11,
-    color: '#E11D48',
+    color: '#00B894',
     fontWeight: '600',
     marginTop: 2,
   },
@@ -183,11 +183,11 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#FECDD3',
+    borderColor: '#B2EBF2',
   },
   currentNoteText: {
     fontSize: 11,
-    color: '#9F1239',
+    color: '#00B894',
     flex: 1,
     fontWeight: '500',
   },

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TextInput,
   TouchableOpacity,
   FlatList,
@@ -12,6 +11,7 @@ import {
   useWindowDimensions,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../theme/colors';
 import WebFooter from '../../components/web/WebFooter';
@@ -51,10 +51,10 @@ const searchData = [
     description: 'Acne, allergies, hair fall & cosmetic dermatology (Dr. Priya Rao)',
     keywords: 'dermatologist skin hair acne allergy rash eczema cosmetic glow dr priya rao',
     icon: 'sparkles',
-    backgroundColor: '#FAF5FF',
-    iconColor: '#9333EA',
+    backgroundColor: '#F2FAF0',
+    iconColor: '#7BC96F',
     badgeText: 'Specialist',
-    badgeColor: '#F3E8FF',
+    badgeColor: '#F2FAF0',
     route: 'DoctorList',
   },
   {
@@ -64,10 +64,10 @@ const searchData = [
     description: 'Newborn care, vaccinations & pediatric nutrition (Dr. Ananya Reddy)',
     keywords: 'pediatrician child baby newborn vaccination immunization fever infant dr ananya reddy',
     icon: 'happy',
-    backgroundColor: '#FFFBEB',
-    iconColor: '#D97706',
+    backgroundColor: '#E0F7FA',
+    iconColor: '#1E3A8A',
     badgeText: 'Child Care',
-    badgeColor: '#FEF3C7',
+    badgeColor: '#E0F7FA',
     route: 'DoctorList',
   },
   {
@@ -77,10 +77,10 @@ const searchData = [
     description: 'Consult top doctors via 10-minute HD video call with digital Rx',
     keywords: 'video consultation online doctor video call teleconsultation instant call prescription digital rx',
     icon: 'videocam',
-    backgroundColor: '#EFF6FF',
-    iconColor: '#2563EB',
+    backgroundColor: '#E0F7FA',
+    iconColor: '#00C2CB',
     badgeText: '10 Min Connect',
-    badgeColor: '#DBEAFE',
+    badgeColor: '#E0F7FA',
     route: 'VideoConsultation',
   },
 
@@ -92,10 +92,10 @@ const searchData = [
     description: 'Order genuine medicines with flat 20% OFF & express delivery',
     keywords: 'pharmacy medicine medicines order tablets syrup capsules painkiller antibiotic dolo 650 paracetamol azithromycin discount 20% off delivery',
     icon: 'medkit',
-    backgroundColor: '#FFF7ED',
-    iconColor: '#EA580C',
+    backgroundColor: '#E6F8F5',
+    iconColor: '#00B894',
     badgeText: '20% OFF',
-    badgeColor: '#FFEDD5',
+    badgeColor: '#CCFBF1',
     route: 'Pharmacy',
   },
   {
@@ -105,10 +105,10 @@ const searchData = [
     description: 'Easy return policy for unused sealed medicines with reason feedback',
     keywords: 'return medicine refund exchange product return issue wrong tablet expired sealed return order pharmacy refund',
     icon: 'swap-horizontal',
-    backgroundColor: '#FFF1F2',
-    iconColor: '#E11D48',
+    backgroundColor: '#FFF2ED',
+    iconColor: '#FF7F50',
     badgeText: 'Doorstep Pickup',
-    badgeColor: '#FFE4E6',
+    badgeColor: '#FFF2ED',
     route: 'Pharmacy',
   },
 
@@ -120,10 +120,10 @@ const searchData = [
     description: 'CBC, HbA1c, Lipid Profile, Thyroid with Free Home Sample Collection',
     keywords: 'lab tests blood test cbc hba1c thyroid lipid profile sugar fasting urine test pathology diagnostics report doorstep sample',
     icon: 'flask',
-    backgroundColor: '#ECFDF5',
-    iconColor: '#059669',
+    backgroundColor: '#E0F7FA',
+    iconColor: '#00C2CB',
     badgeText: 'Free Home Pickup',
-    badgeColor: '#D1FAE5',
+    badgeColor: '#E0F7FA',
     route: 'LabTests',
   },
   {
@@ -133,10 +133,10 @@ const searchData = [
     description: '72+ vital tests (Liver, Kidney, Heart, Diabetes & Vitamins)',
     keywords: 'full body checkup health package executive comprehensive preventive master health test',
     icon: 'fitness',
-    backgroundColor: '#F0FDF4',
-    iconColor: '#16A34A',
+    backgroundColor: '#F2FAF0',
+    iconColor: '#7BC96F',
     badgeText: '50% OFF Pack',
-    badgeColor: '#DCFCE7',
+    badgeColor: '#F2FAF0',
     route: 'LabTests',
   },
 
@@ -148,10 +148,10 @@ const searchData = [
     description: 'Book 2D Echo, 12-Lead ECG, 3T MRI, CT Scan, Ultrasound & TMT Stress Test',
     keywords: 'radiology cardiology scans 2d echo echo ecg tmt holter cardiac ct heart scan heart echo 3t mri scan 128 ct scan brain spine abdomen knee xray digital x-ray ultrasound sonography mammography dexa pet ct diagnostic center hospital only',
     icon: 'heart-circle',
-    backgroundColor: '#FFE4E6',
-    iconColor: '#E11D48',
+    backgroundColor: '#E0F7FA',
+    iconColor: '#00C2CB',
     badgeText: 'Instant Booking',
-    badgeColor: '#FECDD3',
+    badgeColor: '#E0F7FA',
     route: 'RadiologyLabs',
   },
   {
@@ -161,10 +161,10 @@ const searchData = [
     description: 'Get expert 2nd opinion from senior radiologists & cardiac specialists',
     keywords: 'radiologist cardiologist doctor 2nd opinion cardiac echo scan interpretation mri report ct scan report radiologist consultation cardiologist consult',
     icon: 'eye',
-    backgroundColor: '#F5F3FF',
-    iconColor: '#7C3AED',
+    backgroundColor: '#E0F7FA',
+    iconColor: '#1E3A8A',
     badgeText: 'Expert Opinion',
-    badgeColor: '#EDE9FE',
+    badgeColor: '#E0F7FA',
     route: 'RadiologistList',
   },
 
@@ -189,10 +189,10 @@ const searchData = [
     description: 'Cataract, Knee Replacement, Hernia, Laparoscopy & Maternity packages',
     keywords: 'surgery surgeries hospital care surgical package knee replacement cataract kidney stone gall bladder hernia maternity delivery c-section',
     icon: 'bandage',
-    backgroundColor: '#FFF7ED',
-    iconColor: '#C2410C',
+    backgroundColor: '#EFF6FF',
+    iconColor: '#1E3A8A',
     badgeText: 'All-Inclusive',
-    badgeColor: '#FFEDD5',
+    badgeColor: '#DBEAFE',
     route: 'HospitalCare',
   },
   {
@@ -256,10 +256,10 @@ const searchData = [
     description: 'Advanced IVF, IUI, ICSI, egg freezing & 0% EMI financing plans',
     keywords: 'fertility ivf iui icsi pregnancy baby conceive egg freezing semen analysis sperm andrology reproductive medicine test tube',
     icon: 'heart',
-    backgroundColor: '#FDF2F8',
-    iconColor: '#DB2777',
+    backgroundColor: '#FFF2ED',
+    iconColor: '#FF7F50',
     badgeText: '0% EMI Plans',
-    badgeColor: '#FBCFE8',
+    badgeColor: '#FFF2ED',
     route: 'FertilityIvf',
   },
   {
@@ -269,10 +269,10 @@ const searchData = [
     description: 'Hospital ICU beds, 10L oxygen concentrators, BiPAP & wheelchairs at home',
     keywords: 'equipment rental hospital bed oxygen concentrator wheelchair bipap cpap monitor walker patient cot rent medical equipment',
     icon: 'fitness',
-    backgroundColor: '#FAF5FF',
-    iconColor: '#7C3AED',
+    backgroundColor: '#E6F8F5',
+    iconColor: '#00B894',
     badgeText: '4-Hr Delivery',
-    badgeColor: '#DDD6FE',
+    badgeColor: '#CCFBF1',
     route: 'EquipmentRental',
   },
   {
@@ -283,7 +283,7 @@ const searchData = [
     keywords: 'records health records medical records prescriptions lab reports scan reports ehr emr files pdf download',
     icon: 'document-text',
     backgroundColor: '#F8FAFC',
-    iconColor: '#475569',
+    iconColor: '#64748B',
     badgeText: 'Encrypted',
     badgeColor: '#E2E8F0',
     route: 'HealthRecords',
@@ -295,10 +295,10 @@ const searchData = [
     description: 'Track Blood Sugar, Blood Pressure (BP), SpO2, Heart Rate & BMI',
     keywords: 'vitals health monitor blood sugar fasting bp blood pressure spo2 pulse bmi tracker glucose log',
     icon: 'pulse',
-    backgroundColor: '#FEF2F2',
-    iconColor: '#E11D48',
+    backgroundColor: '#E0F7FA',
+    iconColor: '#00C2CB',
     badgeText: 'Live Tracker',
-    badgeColor: '#FFE4E6',
+    badgeColor: '#E0F7FA',
     route: 'HealthMonitor',
   },
   {
@@ -312,7 +312,7 @@ const searchData = [
     iconColor: '#B45309',
     badgeText: 'Manage Slots',
     badgeColor: '#FEF3C7',
-    route: 'Bookings',
+    route: 'MyAppointments',
   },
   {
     id: 'chatbot-ai',
@@ -432,7 +432,7 @@ const GlobalSearchScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, isDesktopWeb && styles.webContainer]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, isDesktopWeb && styles.webContainer]}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* MOBILE HEADER (Only shown on mobile) */}

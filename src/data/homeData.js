@@ -198,8 +198,8 @@ export const moreServices = [
     subtitle: 'Authentic Nadi Pariksha, Panchakarma & Herbal Formulations',
     icon: 'leaf-outline',
     route: 'AyurvedaWellness',
-    color: '#ECFDF5',
-    iconColor: '#059669',
+    color: '#F2FAF0',
+    iconColor: '#7BC96F',
   },
 
   {
@@ -208,8 +208,8 @@ export const moreServices = [
     subtitle: 'Advanced IVF, IUI, 0% EMI & Confidential Specialist Guidance',
     icon: 'heart-outline',
     route: 'FertilityIvf',
-    color: '#FDF2F8',
-    iconColor: '#DB2777',
+    color: '#FFF2ED',
+    iconColor: '#FF7F50',
   },
 
   {
@@ -218,7 +218,7 @@ export const moreServices = [
     subtitle: 'Hospital Beds, Oxygen Concentrators & Wheelchairs at Home',
     icon: 'fitness-outline',
     route: 'EquipmentRental',
-    color: '#FAF5FF',
-    iconColor: '#7C3AED',
+    color: '#E6F8F5',
+    iconColor: '#00B894',
   },
 ];

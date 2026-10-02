@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   TextInput,
   TouchableOpacity,
@@ -14,6 +13,7 @@ import {
   Alert,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -25,17 +25,17 @@ import { useCart } from '../../context/CartContext';
 
 // Quick prompt suggestions
 const QUICK_SUGGESTIONS = [
-  '🤒 I have fever & body pain',
-  '❤️ Best Cardiologist for Chest Pain',
-  '📷 Scan My Prescription',
-  '🧪 Suggest nearby Lab for Blood Test',
-  '💊 Can I buy Paracetamol?',
-  '🦴 Knee & Joint pain specialist',
-  '📊 Update Blood Sugar & BP',
-  '📦 How do I return a medicine?',
-  '🌿 Ayurveda & Panchakarma Therapies',
-  '👶 Fertility & IVF Specialists (0% EMI)',
-  '🛏️ Rent Hospital Bed & Oxygen Concentrator',
+  ' I have fever & body pain',
+  'Best Cardiologist for Chest Pain',
+  ' Scan My Prescription',
+  ' Suggest nearby Lab for Blood Test',
+  ' Can I buy Paracetamol?',
+  ' Knee & Joint pain specialist',
+  ' Update Blood Sugar & BP',
+  ' How do I return a medicine?',
+  ' Ayurveda & Panchakarma Therapies',
+  'Fertility & IVF Specialists (0% EMI)',
+  ' Rent Hospital Bed & Oxygen Concentrator',
 ];
 
 // Sample prescription knowledge base for OCR analysis
@@ -104,11 +104,11 @@ const INITIAL_MESSAGES = [
     sender: 'bot',
     text: "Hi! I'm MediUnify AI.\nHow can I help you today?\n\nI can help you with health information, guide you to the right care, and connect you with our trusted doctors, labs, pharmacies and more.",
     quickPrompts: [
-      { icon: 'fitness-outline', color: '#0284C7', bg: '#E0F2FE', text: 'I have fever and body pain' },
-      { icon: 'person-outline', color: '#16A34A', bg: '#F0FDF4', text: 'Find best doctor for my child' },
-      { icon: 'flask-outline', color: '#0D9488', bg: '#F0FDFA', text: 'Book a blood test at home' },
-      { icon: 'medkit-outline', color: '#EA580C', bg: '#FFF7ED', text: 'Order my medicines' },
-      { icon: 'home-outline', color: '#7C3AED', bg: '#FAF5FF', text: 'Post-surgery home care' },
+      { icon: 'fitness-outline', color: '#1E3A8A', bg: '#EFF6FF', text: 'I have fever and body pain' },
+      { icon: 'person-outline', color: '#7BC96F', bg: '#F2FAF0', text: 'Find best doctor for my child' },
+      { icon: 'flask-outline', color: '#00C2CB', bg: '#E0F7FA', text: 'Book a blood test at home' },
+      { icon: 'medkit-outline', color: '#00B894', bg: '#E6F8F5', text: 'Order my medicines' },
+      { icon: 'home-outline', color: '#FF7F50', bg: '#FFF2ED', text: 'Post-surgery home care' },
     ],
   },
 ];
@@ -160,15 +160,15 @@ const ChatbotScreen = ({ navigation }) => {
         'Choose how you would like to provide your doctor prescription photo:',
         [
           {
-            text: '📷 Take Photo',
+            text: ' Take Photo',
             onPress: () => launchImagePicker(true),
           },
           {
-            text: '🖼️ Choose from Gallery',
+            text: 'Choose from Gallery',
             onPress: () => launchImagePicker(false),
           },
           {
-            text: '🧪 Use Sample Rx',
+            text: ' Use Sample Rx',
             onPress: () => analyzePrescriptionData(PRESCRIPTION_SAMPLES[0]),
           },
           { text: 'Cancel', style: 'cancel' },
@@ -211,7 +211,7 @@ const ChatbotScreen = ({ navigation }) => {
         const userImgMsg = {
           id: `user-img-${Date.now()}`,
           sender: 'user',
-          text: 'Uploaded doctor prescription for scanning 📷',
+          text: 'Uploaded doctor prescription for scanning ',
           image: imageUri,
         };
         setMessages((prev) => [...prev, userImgMsg]);
@@ -240,14 +240,14 @@ const ChatbotScreen = ({ navigation }) => {
     const botMsg = {
       id: `bot-rx-${Date.now()}`,
       sender: 'bot',
-      text: `✅ **Prescription Scanned & Analyzed Successfully!**\n\nI have detected **${sampleRx.medicines.length} medicines** from your prescription with their clinical uses and dosage instructions:`,
+      text: ` **Prescription Scanned & Analyzed Successfully!**\n\nI have detected **${sampleRx.medicines.length} medicines** from your prescription with their clinical uses and dosage instructions:`,
       prescriptionAnalysis: {
         medicines: sampleRx.medicines,
         suggestedDoctor,
       },
       actionButtons: [
         {
-          title: '💊 Order Medicines from Pharmacy',
+          title: ' Order Medicines from Pharmacy',
           icon: 'cart',
           action: () => {
             sampleRx.medicines.forEach((med, idx) => {
@@ -264,7 +264,7 @@ const ChatbotScreen = ({ navigation }) => {
               );
             });
             showAlert(
-              'Medicines Added! 🛒',
+              'Medicines Added! ',
               'Prescription tablets have been added to your Pharmacy Cart.',
               [
                 { text: 'Keep Chatting', style: 'cancel' },
@@ -274,7 +274,7 @@ const ChatbotScreen = ({ navigation }) => {
           },
         },
         {
-          title: `👨‍⚕️ Consult ${suggestedDoctor.name}`,
+          title: ` Consult ${suggestedDoctor.name}`,
           icon: 'calendar',
           action: () => navigation.navigate('DoctorDetails', { doctor: suggestedDoctor }),
         },
@@ -312,16 +312,16 @@ const ChatbotScreen = ({ navigation }) => {
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: '📊 **Health Monitor & Vitals Tracking**\n\nYou can log and monitor your **Blood Glucose (Sugar)**, **Blood Pressure (BP)**, **Oxygen (SpO2)**, **Temperature**, and **BMI** directly in the app with automatic color-coded safety indicators!',
+        text: ' **Health Monitor & Vitals Tracking**\n\nYou can log and monitor your **Blood Glucose (Sugar)**, **Blood Pressure (BP)**, **Oxygen (SpO2)**, **Temperature**, and **BMI** directly in the app with automatic color-coded safety indicators!',
         suggestedDoctor: physician,
         actionButtons: [
           {
-            title: '📊 Open Health Monitor',
+            title: ' Open Health Monitor',
             icon: 'pulse',
             action: () => navigation.navigate('HealthMonitor'),
           },
           {
-            title: `👨‍⚕️ Consult ${physician.name}`,
+            title: ` Consult ${physician.name}`,
             icon: 'calendar',
             action: () => navigation.navigate('DoctorDetails', { doctor: physician }),
           },
@@ -336,12 +336,12 @@ const ChatbotScreen = ({ navigation }) => {
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: '🔄 **Pharmacy Product Return Policy**\n\nYou can easily return delivered pharmacy medicines within our hassle-free return window.\n\n• Go to **My Orders** → Tap **Return Order**.\n• Select the items and provide the issue details (damaged seal, wrong medicine, expired date, doctor changed Rx).\n• Choose instant **MediUnnathi Wallet refund** or Bank source.\n• Free doorstep pickup will be arranged within 24-48 hours.',
+        text: ' **Pharmacy Product Return Policy**\n\nYou can easily return delivered pharmacy medicines within our hassle-free return window.\n\n• Go to **My Orders** → Tap **Return Order**.\n• Select the items and provide the issue details (damaged seal, wrong medicine, expired date, doctor changed Rx).\n• Choose instant **MediUnnathi Wallet refund** or Bank source.\n• Free doorstep pickup will be arranged within 24-48 hours.',
         actionButtons: [
           {
-            title: '📦 View Orders & Return',
+            title: ' View Orders & Return',
             icon: 'receipt',
-            action: () => navigation.navigate('MyOrders'),
+            action: () => navigation.navigate('MyMedicineOrders'),
           },
         ],
       };
@@ -365,15 +365,15 @@ const ChatbotScreen = ({ navigation }) => {
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: '🌿 **Ayurveda & Panchakarma Healing Sanctuary**\n\nMediUnify provides direct access to senior AYUSH-certified Vaidyas for:\n\n• **Nadi Pariksha (Pulse Diagnosis)** & Dosha (Vata-Pitta-Kapha) assessment.\n• **Classical Panchakarma Therapies**: Abhyanga full-body warm oil massage, Shirodhara stress relief, Janu Basti for knee joints, and 7-Day Detox.\n• **Authentic Classical Herbal Store**: Shilajit resin, KSM-66 Ashwagandha, Chyawanprash, and Kumkumadi facial oils with express doorstep delivery.',
+        text: ' **Ayurveda & Panchakarma Healing Sanctuary**\n\nMediUnify provides direct access to senior AYUSH-certified Vaidyas for:\n\n• **Nadi Pariksha (Pulse Diagnosis)** & Dosha (Vata-Pitta-Kapha) assessment.\n• **Classical Panchakarma Therapies**: Abhyanga full-body warm oil massage, Shirodhara stress relief, Janu Basti for knee joints, and 7-Day Detox.\n• **Authentic Classical Herbal Store**: Shilajit resin, KSM-66 Ashwagandha, Chyawanprash, and Kumkumadi facial oils with express doorstep delivery.',
         actionButtons: [
           {
-            title: '🌿 Open Ayurveda & Wellness',
+            title: ' Open Ayurveda & Wellness',
             icon: 'leaf',
             action: () => navigation.navigate('AyurvedaWellness'),
           },
           {
-            title: '📅 Book Ayurvedic Vaidya (₹400)',
+            title: 'Book Ayurvedic Vaidya (₹400)',
             icon: 'calendar',
             action: () => navigation.navigate('AyurvedaWellness'),
           },
@@ -400,15 +400,15 @@ const ChatbotScreen = ({ navigation }) => {
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: '💖 **Fertility & Advanced IVF Care Desk**\n\nWe provide compassionate, 100% confidential reproductive medicine with accredited centers in Mysore & Bangalore:\n\n• **Advanced IVF with ICSI** & Blastocyst Day-5 culture (up to 73% clinical pregnancy rate).\n• **Couple Fertility Workup**: AMH ovarian reserve, CASA semen analysis & pelvic 3D ultrasound.\n• **Social & Medical Egg Freezing** with vitrification cryogenic preservation.\n• **0% Interest EMI Financing**: Split treatment costs into 6, 12, 18, or 24 equal monthly installments with zero deposit.',
+        text: ' **Fertility & Advanced IVF Care Desk**\n\nWe provide compassionate, 100% confidential reproductive medicine with accredited centers in Mysore & Bangalore:\n\n• **Advanced IVF with ICSI** & Blastocyst Day-5 culture (up to 73% clinical pregnancy rate).\n• **Couple Fertility Workup**: AMH ovarian reserve, CASA semen analysis & pelvic 3D ultrasound.\n• **Social & Medical Egg Freezing** with vitrification cryogenic preservation.\n• **0% Interest EMI Financing**: Split treatment costs into 6, 12, 18, or 24 equal monthly installments with zero deposit.',
         actionButtons: [
           {
-            title: '💖 Open Fertility & IVF Hub',
+            title: ' Open Fertility & IVF Hub',
             icon: 'heart',
             action: () => navigation.navigate('FertilityIvf'),
           },
           {
-            title: '🔒 Book Private Consult',
+            title: 'Book Private Consult',
             icon: 'lock-closed',
             action: () => navigation.navigate('FertilityIvf'),
           },
@@ -435,10 +435,10 @@ const ChatbotScreen = ({ navigation }) => {
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: '🛏️ **Home Medical Equipment Rental Service**\n\nRent certified, hospital-grade equipment with express delivery and free technician installation:\n\n• **Hospital Beds**: 5-Function electric motorized ICU beds with remote control.\n• **Respiratory Care**: 10L medical oxygen concentrators (93% purity) & Auto-BiPAP/CPAP.\n• **Mobility Aids**: Motorized smart electric wheelchairs & standard foldable wheelchairs.\n• **Patient Monitors**: 12.1" ICU multi-parameter ECG, SpO2, and NIBP screens.\n• **Fast & Safe**: Delivered within 2-4 hours, with 100% refundable security deposit.',
+        text: ' **Home Medical Equipment Rental Service**\n\nRent certified, hospital-grade equipment with express delivery and free technician installation:\n\n• **Hospital Beds**: 5-Function electric motorized ICU beds with remote control.\n• **Respiratory Care**: 10L medical oxygen concentrators (93% purity) & Auto-BiPAP/CPAP.\n• **Mobility Aids**: Motorized smart electric wheelchairs & standard foldable wheelchairs.\n• **Patient Monitors**: 12.1" ICU multi-parameter ECG, SpO2, and NIBP screens.\n• **Fast & Safe**: Delivered within 2-4 hours, with 100% refundable security deposit.',
         actionButtons: [
           {
-            title: '🛏️ Browse Equipment Rental',
+            title: ' Browse Equipment Rental',
             icon: 'fitness',
             action: () => navigation.navigate('EquipmentRental'),
           },
@@ -462,7 +462,7 @@ const ChatbotScreen = ({ navigation }) => {
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: '⚠️ **Chest Pain & Cardiac Health Advisory**\n\nIf you are experiencing severe crushing chest pain, radiating pain to the left arm or jaw, or extreme shortness of breath, please **seek emergency care immediately**.\n\nFor clinical evaluation, ECG, and echocardiography, we recommend consulting our senior Cardiologist:',
+        text: ' **Chest Pain & Cardiac Health Advisory**\n\nIf you are experiencing severe crushing chest pain, radiating pain to the left arm or jaw, or extreme shortness of breath, please **seek emergency care immediately**.\n\nFor clinical evaluation, ECG, and echocardiography, we recommend consulting our senior Cardiologist:',
         suggestedDoctor: cardiologist,
         suggestedLab: nearbyLab,
         actionButtons: [
@@ -472,7 +472,7 @@ const ChatbotScreen = ({ navigation }) => {
             action: () => navigation.navigate('DoctorDetails', { doctor: cardiologist }),
           },
           {
-            title: `🏥 ECG / Echo at ${nearbyLab.name}`,
+            title: `ECG / Echo at ${nearbyLab.name}`,
             icon: 'flask',
             action: () => navigation.navigate('RadiologyLabDetails', { labId: nearbyLab.id }),
           },
@@ -496,7 +496,7 @@ const ChatbotScreen = ({ navigation }) => {
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: '✨ **Skin & Dermatology Guidance**\n\nSkin irritations, allergic rashes, persistent acne, or acute hair loss require specialized dermatological assessment to identify the root cause.',
+        text: ' **Skin & Dermatology Guidance**\n\nSkin irritations, allergic rashes, persistent acne, or acute hair loss require specialized dermatological assessment to identify the root cause.',
         suggestedDoctor: dermatologist,
         actionButtons: [
           {
@@ -505,7 +505,7 @@ const ChatbotScreen = ({ navigation }) => {
             action: () => navigation.navigate('DoctorDetails', { doctor: dermatologist }),
           },
           {
-            title: '💊 Skin Care in Pharmacy',
+            title: ' Skin Care in Pharmacy',
             icon: 'medkit',
             action: () => navigation.navigate('Pharmacy'),
           },
@@ -531,7 +531,7 @@ const ChatbotScreen = ({ navigation }) => {
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: '🦴 **Orthopedic & Joint Care**\n\nFor joint stiffness, knee pain, ligament sprains, or chronic back pain, resting the joint and obtaining an X-Ray or MRI scan helps accurate diagnosis.',
+        text: ' **Orthopedic & Joint Care**\n\nFor joint stiffness, knee pain, ligament sprains, or chronic back pain, resting the joint and obtaining an X-Ray or MRI scan helps accurate diagnosis.',
         suggestedDoctor: orthoDoctor,
         suggestedLab: nearbyLab,
         actionButtons: [
@@ -541,7 +541,7 @@ const ChatbotScreen = ({ navigation }) => {
             action: () => navigation.navigate('DoctorDetails', { doctor: orthoDoctor }),
           },
           {
-            title: `🏥 Digital X-Ray & MRI at ${nearbyLab.name}`,
+            title: `Digital X-Ray & MRI at ${nearbyLab.name}`,
             icon: 'flask',
             action: () => navigation.navigate('RadiologyLabDetails', { labId: nearbyLab.id }),
           },
@@ -567,16 +567,16 @@ const ChatbotScreen = ({ navigation }) => {
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: `🧪 **Certified Diagnostic Labs & Imaging Centers**\n\nWe have partnered with NABH & NABL accredited diagnostic centers in Mysore for 100% verified digital reports.\n\n• **Blood Tests**: Home Sample Collection (Free) or Center Visit.\n• **Radiology Scans (MRI, CT, X-Ray, Ultrasound)**: Conducted on-site at the hospital with fast-track appointment tokens.`,
+        text: ` **Certified Diagnostic Labs & Imaging Centers**\n\nWe have partnered with NABH & NABL accredited diagnostic centers in Mysore for 100% verified digital reports.\n\n• **Blood Tests**: Home Sample Collection (Free) or Center Visit.\n• **Radiology Scans (MRI, CT, X-Ray, Ultrasound)**: Conducted on-site at the hospital with fast-track appointment tokens.`,
         suggestedLab: topLab,
         actionButtons: [
           {
-            title: `🏥 View Tests at ${topLab.name}`,
+            title: `View Tests at ${topLab.name}`,
             icon: 'flask',
             action: () => navigation.navigate('RadiologyLabDetails', { labId: topLab.id }),
           },
           {
-            title: '🧪 All Diagnostic Centers',
+            title: ' All Diagnostic Centers',
             icon: 'business',
             action: () => navigation.navigate('RadiologyLabs'),
           },
@@ -601,16 +601,16 @@ const ChatbotScreen = ({ navigation }) => {
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: `💊 **Medicine Inquiry & Clinical Safety Guidance**\n\nWhile OTC medications like **Paracetamol (for fever/pain)** and **Antacid (for mild acidity)** offer temporary relief, **prescription drugs, antibiotics, and exact dosages must be prescribed by a certified doctor** based on your medical history.\n\n⚠️ **Medical Safety Notice**: Self-medication can mask underlying health issues or lead to drug interactions. Please consult a doctor for tailored prescription guidance.`,
+        text: ` **Medicine Inquiry & Clinical Safety Guidance**\n\nWhile OTC medications like **Paracetamol (for fever/pain)** and **Antacid (for mild acidity)** offer temporary relief, **prescription drugs, antibiotics, and exact dosages must be prescribed by a certified doctor** based on your medical history.\n\n **Medical Safety Notice**: Self-medication can mask underlying health issues or lead to drug interactions. Please consult a doctor for tailored prescription guidance.`,
         suggestedDoctor: generalDoctor,
         actionButtons: [
           {
-            title: `👨‍⚕️ Consult ${generalDoctor.name} (${generalDoctor.fee})`,
+            title: ` Consult ${generalDoctor.name} (${generalDoctor.fee})`,
             icon: 'calendar',
             action: () => navigation.navigate('DoctorDetails', { doctor: generalDoctor }),
           },
           {
-            title: '💊 Browse Unnathi Pharmacy',
+            title: ' Browse Unnathi Pharmacy',
             icon: 'cart',
             action: () => navigation.navigate('Pharmacy'),
           },
@@ -635,7 +635,7 @@ const ChatbotScreen = ({ navigation }) => {
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: `🤒 **Symptom Evaluation & Care Guidance**\n\nFor fever, cold, or acute body ache:\n• Stay hydrated with plenty of warm fluids and ORS.\n• Get adequate rest and monitor temperature.\n• Avoid unprescribed heavy antibiotics.\n\nWe recommend booking a consultation with our verified General Physician:`,
+        text: ` **Symptom Evaluation & Care Guidance**\n\nFor fever, cold, or acute body ache:\n• Stay hydrated with plenty of warm fluids and ORS.\n• Get adequate rest and monitor temperature.\n• Avoid unprescribed heavy antibiotics.\n\nWe recommend booking a consultation with our verified General Physician:`,
         suggestedDoctor: physician,
         actionButtons: [
           {
@@ -644,7 +644,7 @@ const ChatbotScreen = ({ navigation }) => {
             action: () => navigation.navigate('DoctorDetails', { doctor: physician }),
           },
           {
-            title: '💊 Order Fever Medicines',
+            title: ' Order Fever Medicines',
             icon: 'cart',
             action: () => navigation.navigate('Pharmacy'),
           },
@@ -661,27 +661,27 @@ const ChatbotScreen = ({ navigation }) => {
     const botResponse = {
       id: `bot-${Date.now()}`,
       sender: 'bot',
-      text: `🤖 **MediUnify Health Assistant**\n\nI can assist you with:\n1. **Doctor Consultations**: Find top specialists for any medical problem.\n2. **Prescription Scanner**: Upload your Rx photo to explain tablet uses and timings.\n3. **Pharmacy Delivery & Returns**: Order genuine medicines or schedule returns.\n4. **Diagnostic Labs & Scans**: Book certified blood tests, MRI, and CT scans.\n5. **Health Monitor**: Log Blood Sugar, Blood Pressure, and Vitals.\n\nWhat would you like to explore?`,
+      text: ` **MediUnify Health Assistant**\n\nI can assist you with:\n1. **Doctor Consultations**: Find top specialists for any medical problem.\n2. **Prescription Scanner**: Upload your Rx photo to explain tablet uses and timings.\n3. **Pharmacy Delivery & Returns**: Order genuine medicines or schedule returns.\n4. **Diagnostic Labs & Scans**: Book certified blood tests, MRI, and CT scans.\n5. **Health Monitor**: Log Blood Sugar, Blood Pressure, and Vitals.\n\nWhat would you like to explore?`,
       suggestedDoctor: defaultDoctor,
       suggestedLab: topLab,
       actionButtons: [
         {
-          title: '👨‍⚕️ Find Specialists',
+          title: ' Find Specialists',
           icon: 'people',
           action: () => navigation.navigate('DoctorList'),
         },
         {
-          title: '📷 Scan Prescription',
+          title: ' Scan Prescription',
           icon: 'camera',
           action: handleScanPrescription,
         },
         {
-          title: '💊 Pharmacy Store',
+          title: ' Pharmacy Store',
           icon: 'medkit',
           action: () => navigation.navigate('Pharmacy'),
         },
         {
-          title: '🧪 Book Lab Tests',
+          title: ' Book Lab Tests',
           icon: 'flask',
           action: () => navigation.navigate('RadiologyLabs'),
         },
@@ -746,7 +746,7 @@ const ChatbotScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.cardFooterRow}>
-          <Text style={styles.labTimingText}>🕒 {lab.openHours || 'Open Today • Fast-track reports'}</Text>
+          <Text style={styles.labTimingText}> {lab.openHours || 'Open Today • Fast-track reports'}</Text>
 
           <TouchableOpacity
             style={[styles.cardActionBtn, { backgroundColor: colors.secondary }]}
@@ -785,7 +785,7 @@ const ChatbotScreen = ({ navigation }) => {
               <Ionicons name="time-outline" size={13} color="#059669" />
               <Text style={styles.rxMedTimingText}>{med.timing}</Text>
             </View>
-            <Text style={styles.rxMedCaution}>⚠️ {med.caution}</Text>
+            <Text style={styles.rxMedCaution}> {med.caution}</Text>
           </View>
         ))}
       </View>
@@ -895,7 +895,7 @@ const ChatbotScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       {/* HEADER (MOCKUP 2 STYLE) */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -1326,11 +1326,11 @@ const styles = StyleSheet.create({
   rxMedTimingText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#059669',
+    color: '#7BC96F',
   },
   rxMedCaution: {
     fontSize: 10.5,
-    color: '#D97706',
+    color: '#FF7F50',
     marginTop: 2,
   },
 

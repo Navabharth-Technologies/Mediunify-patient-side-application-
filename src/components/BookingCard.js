@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import colors from '../theme/colors';
 
 const BookingCard = ({ booking }) => {
@@ -11,13 +12,15 @@ const BookingCard = ({ booking }) => {
         {booking.title}
       </Text>
 
-      <Text style={styles.date}>
-        📅 {booking.date}
-      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
+        <Ionicons name="calendar-outline" size={14} color={colors.textSecondary} />
+        <Text style={styles.date}>{booking.date}</Text>
+      </View>
 
-      <Text style={styles.time}>
-        🕐 {booking.time}
-      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+        <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
+        <Text style={styles.time}>{booking.time}</Text>
+      </View>
 
       <View style={styles.statusBox}>
         <Text style={styles.status}>

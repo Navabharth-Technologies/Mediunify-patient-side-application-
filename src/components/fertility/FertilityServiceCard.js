@@ -15,7 +15,7 @@ const FertilityServiceCard = ({ treatment, onPress, onBook }) => {
 
       <View style={styles.contentWrap}>
         <View style={styles.topBadgeRow}>
-          <View style={[styles.badgePill, { backgroundColor: treatment.badgeColor || '#E11D48' }]}>
+          <View style={[styles.badgePill, { backgroundColor: treatment.badgeColor || '#00B894' }]}>
             <Text style={styles.badgeText}>{treatment.badge}</Text>
           </View>
           <View style={styles.durationTag}>
@@ -30,7 +30,7 @@ const FertilityServiceCard = ({ treatment, onPress, onBook }) => {
         <View style={styles.inclusionsList}>
           {treatment.inclusions.slice(0, 3).map((item, index) => (
             <View key={index} style={styles.inclusionItem}>
-              <Ionicons name="checkmark-circle" size={14} color="#059669" />
+              <Ionicons name="checkmark-circle" size={14} color="#7BC96F" />
               <Text style={styles.inclusionText} numberOfLines={1}>
                 {item}
               </Text>
@@ -167,12 +167,12 @@ const styles = StyleSheet.create({
   },
   emiText: {
     fontSize: 10,
-    color: '#059669',
+    color: '#7BC96F',
     fontWeight: '700',
     marginTop: 2,
   },
   actionBtn: {
-    backgroundColor: '#E11D48',
+    backgroundColor: '#00B894',
     paddingHorizontal: 16,
     paddingVertical: 9,
     borderRadius: 10,

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -12,6 +11,7 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showAlert } from '../../../utils/alert';
@@ -716,7 +716,7 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
               </Text>
             </View>
             <TouchableOpacity onPress={() => handleSelectCategory('all')} style={styles.clearCategoryPillBtn}>
-              <Text style={styles.clearCategoryPillBtnText}>✕ Show All</Text>
+              <Text style={styles.clearCategoryPillBtnText}>Show All</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -740,7 +740,7 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
                 <View key={`pop-${item.id}`} style={styles.popularCardItem}>
                   <Image source={{ uri: item.image }} style={styles.popularCardImg} />
                   <View style={styles.popularCardBadge}>
-                    <Ionicons name="flame" size={11} color="#EA580C" />
+                    <Ionicons name="flame" size={11} color="#FF7F50" />
                     <Text style={styles.popularCardBadgeText}>Popular</Text>
                   </View>
                   <View style={{ padding: 12, flex: 1, justifyContent: 'space-between' }}>
@@ -842,7 +842,7 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
 
                     <View style={styles.deliveryMetaRow}>
                       <Text style={styles.deliveryMetaText}>
-                        🚚 Delivery: ₹{item.deliveryCharge} • 🛠️ Installation: {item.installationIncluded ? 'Included' : 'On Request'}
+                        Delivery: ₹{item.deliveryCharge} • Installation: {item.installationIncluded ? 'Included' : 'On Request'}
                       </Text>
                     </View>
                   </View>
@@ -1032,7 +1032,7 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
                 <Ionicons name="checkmark-circle" size={16} color="#00B894" style={{ marginLeft: 4 }} />
               </View>
               <Text style={styles.vendorSub}>
-                ⭐ {item.verifiedPartner?.rating} • {item.verifiedPartner?.serviceArea}
+                {item.verifiedPartner?.rating}/5 • {item.verifiedPartner?.serviceArea}
               </Text>
             </View>
           </View>
@@ -1040,7 +1040,7 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
           <View style={styles.vendorBadgesRow}>
             {item.verifiedPartner?.badges.map((b, i) => (
               <View key={i} style={styles.vendorBadgeChip}>
-                <Text style={styles.vendorBadgeChipText}>✓ {b}</Text>
+                <Text style={styles.vendorBadgeChipText}>{b}</Text>
               </View>
             ))}
           </View>
@@ -1158,7 +1158,7 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
             return (
               <View key={sName} style={[styles.stepPillBox, isCurr && styles.stepPillBoxActive]}>
                 <Text style={[styles.stepPillNum, (isDone || isCurr) && styles.stepPillNumActive]}>
-                  {isDone ? '✓' : stepNum}
+                  {isDone ? 'Done' : stepNum}
                 </Text>
                 <Text
                   style={[styles.stepPillLabel, isCurr && styles.stepPillLabelActive]}
@@ -1742,7 +1742,7 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
                     style={styles.rentalPickupBtn}
                     onPress={() => handleOpenPickupModal(rental)}
                   >
-                    <Ionicons name="arrow-undo-outline" size={15} color="#EF4444" style={{ marginRight: 4 }} />
+                    <Ionicons name="arrow-undo-outline" size={15} color="#FF7F50" style={{ marginRight: 4 }} />
                     <Text style={styles.rentalPickupBtnText}>Request Pickup</Text>
                   </TouchableOpacity>
                 </View>
@@ -2048,7 +2048,7 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
               <Ionicons name="shield-checkmark" size={24} color="#00B894" />
               <View style={{ marginLeft: 10 }}>
                 <Text style={styles.offerPartnerName}>{req.verifiedPartner?.name}</Text>
-                <Text style={styles.offerPartnerSub}>⭐ {req.verifiedPartner?.rating} • Verified MediUnify Partner</Text>
+                <Text style={styles.offerPartnerSub}>{req.verifiedPartner?.rating}/5 • Verified MediUnify Partner</Text>
               </View>
             </View>
 
@@ -2205,7 +2205,7 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
             <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setPickupModalVisible(false)}>
               <Text style={styles.modalCancelBtnText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.modalSubmitBtn, { backgroundColor: '#EF4444' }]} onPress={handleSubmitPickupRequest}>
+            <TouchableOpacity style={[styles.modalSubmitBtn, { backgroundColor: '#FF7F50' }]} onPress={handleSubmitPickupRequest}>
               <Text style={styles.modalSubmitBtnText}>Request Pickup</Text>
             </TouchableOpacity>
           </View>
@@ -2215,7 +2215,7 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
   );
 
   return (
-    <SafeAreaView style={styles.safeContainer}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeContainer}>
       {currentView === 'HOME' && renderHomeView()}
       {currentView === 'DETAILS' && renderDetailsView()}
       {currentView === 'REQUEST_FLOW' && renderRequestFlowView()}
@@ -2244,7 +2244,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: Platform.OS === 'ios' ? 95 : 85,
   },
   desktopContainer: {
     maxWidth: 1100,
@@ -2257,22 +2257,22 @@ const styles = StyleSheet.create({
   topHeaderBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
   headerBackBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
   mainScreenTitle: {
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: '800',
     color: '#0F172A',
     letterSpacing: -0.3,
@@ -2561,7 +2561,7 @@ const styles = StyleSheet.create({
   popularCardBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#EA580C',
+    color: '#FF7F50',
     marginLeft: 3,
   },
   popularCardCategory: {
@@ -3366,11 +3366,11 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   formInputError: {
-    borderColor: '#EF4444',
+    borderColor: '#FF7F50',
   },
   errorText: {
     fontSize: 11,
-    color: '#EF4444',
+    color: '#FF7F50',
     marginTop: 3,
   },
 
@@ -3708,14 +3708,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#FFF2ED',
     borderWidth: 1,
-    borderColor: '#FCA5A5',
+    borderColor: '#FFD7C7',
   },
   rentalPickupBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#EF4444',
+    color: '#FF7F50',
   },
 
   // Rental Requests Tracking Screen

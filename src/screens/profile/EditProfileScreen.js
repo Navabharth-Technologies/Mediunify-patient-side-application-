@@ -1,9 +1,8 @@
-﻿import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -15,6 +14,7 @@ import {
   KeyboardAvoidingView,
   TouchableWithoutFeedback,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -34,7 +34,25 @@ const BLOOD_GROUPS = [
 const GENDERS = ['Male', 'Female', 'Other'];
 
 const EditProfileScreen = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets();
   const passedUser = route?.params?.user || {};
+  const scrollViewRef = useRef(null);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardVisible(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardVisible(false)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Store initial credentials to detect changes requiring OTP verification
   const initialEmail = (passedUser.email || '').trim().toLowerCase();
@@ -420,7 +438,7 @@ const EditProfileScreen = ({ navigation, route }) => {
       setOtpModalVisible(false);
 
       showAlert(
-        'Profile Saved Successfully 🎉',
+        'Profile Saved Successfully',
         'Your profile details have been verified and updated!',
         [
           {
@@ -449,7 +467,7 @@ const EditProfileScreen = ({ navigation, route }) => {
   const isPhoneChanged = initialPhoneDigits && phone.replace(/[^0-9]/g, '').slice(0, 10) !== initialPhoneDigits;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* TOP APP BAR */}
@@ -477,11 +495,22 @@ const EditProfileScreen = ({ navigation, route }) => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? (insets.top > 0 ? insets.top + 10 : 20) : 0}
+        style={{ flex: 1 }}
       >
+        <ScrollView
+          ref={scrollViewRef}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: isKeyboardVisible ? (Platform.OS === 'ios' ? 240 : 180) : 40 },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+        >
         {/* AVATAR HERO EDIT */}
         <View style={styles.avatarCard}>
           <View style={styles.avatarCircle}>
@@ -513,6 +542,11 @@ const EditProfileScreen = ({ navigation, route }) => {
                 style={styles.textInput}
                 value={name}
                 onChangeText={setName}
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollTo({ y: 60, animated: true });
+                  }, 100);
+                }}
                 placeholder="Enter full name"
                 placeholderTextColor="#94A3B8"
               />
@@ -536,6 +570,11 @@ const EditProfileScreen = ({ navigation, route }) => {
                 style={styles.textInput}
                 value={email}
                 onChangeText={setEmail}
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollTo({ y: 130, animated: true });
+                  }, 100);
+                }}
                 placeholder="Enter email address"
                 placeholderTextColor="#94A3B8"
                 keyboardType="email-address"
@@ -579,6 +618,11 @@ const EditProfileScreen = ({ navigation, route }) => {
                 style={styles.textInput}
                 value={phone}
                 onChangeText={handlePhoneChange}
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollTo({ y: 210, animated: true });
+                  }, 100);
+                }}
                 placeholder="10-digit mobile number"
                 placeholderTextColor="#94A3B8"
                 keyboardType="number-pad"
@@ -592,11 +636,11 @@ const EditProfileScreen = ({ navigation, route }) => {
             </View>
             {phone.length > 0 && phone.length < 10 ? (
               <Text style={styles.inlineWarningText}>
-                ⚠️ Please enter all 10 digits ({10 - phone.length} more needed)
+                Please enter all 10 digits ({10 - phone.length} more needed)
               </Text>
             ) : isPhoneChanged ? (
               <Text style={styles.inlineInfoText}>
-                🔒 Security OTP verification required when saving mobile change
+                Security OTP verification required when saving mobile change
               </Text>
             ) : null}
           </View>
@@ -611,6 +655,11 @@ const EditProfileScreen = ({ navigation, route }) => {
                   style={styles.textInput}
                   value={dob}
                   onChangeText={handleDobChange}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollTo({ y: 300, animated: true });
+                    }, 100);
+                  }}
                   placeholder="DD/MM/YYYY"
                   placeholderTextColor="#94A3B8"
                   keyboardType="number-pad"
@@ -627,6 +676,11 @@ const EditProfileScreen = ({ navigation, route }) => {
                   style={styles.textInput}
                   value={age}
                   onChangeText={setAge}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollTo({ y: 300, animated: true });
+                    }, 100);
+                  }}
                   placeholder="e.g. 28 Yrs"
                   placeholderTextColor="#94A3B8"
                 />
@@ -749,6 +803,11 @@ const EditProfileScreen = ({ navigation, route }) => {
                 style={styles.textInput}
                 value={emergencyContact}
                 onChangeText={handleEmergencyContactChange}
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollTo({ y: 480, animated: true });
+                  }, 100);
+                }}
                 placeholder="10-digit emergency phone"
                 placeholderTextColor="#94A3B8"
                 keyboardType="number-pad"
@@ -801,6 +860,11 @@ const EditProfileScreen = ({ navigation, route }) => {
                   style={[styles.textInput, { flex: 1 }]}
                   value={currentPassword}
                   onChangeText={setCurrentPassword}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollTo({ y: 640, animated: true });
+                    }, 100);
+                  }}
                   placeholder="Enter current password"
                   placeholderTextColor="#94A3B8"
                   secureTextEntry={!showCurrentPw}
@@ -824,6 +888,11 @@ const EditProfileScreen = ({ navigation, route }) => {
                   style={[styles.textInput, { flex: 1 }]}
                   value={newPassword}
                   onChangeText={setNewPassword}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollTo({ y: 720, animated: true });
+                    }, 100);
+                  }}
                   placeholder="Minimum 6 characters"
                   placeholderTextColor="#94A3B8"
                   secureTextEntry={!showNewPw}
@@ -847,6 +916,11 @@ const EditProfileScreen = ({ navigation, route }) => {
                   style={[styles.textInput, { flex: 1 }]}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollTo({ y: 800, animated: true });
+                    }, 100);
+                  }}
                   placeholder="Re-enter new password"
                   placeholderTextColor="#94A3B8"
                   secureTextEntry={!showConfirmPw}
@@ -884,6 +958,7 @@ const EditProfileScreen = ({ navigation, route }) => {
           <Text style={styles.cancelBtnText}>Discard & Go Back</Text>
         </TouchableOpacity>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* ==========================================
           SECURITY OTP VERIFICATION MODAL

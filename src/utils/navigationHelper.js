@@ -17,10 +17,6 @@ export const getAppBasePath = () => {
  * (React Navigation Stack, Web history, and full page fallback)
  */
 export const safeNavigateToMain = async (navigation) => {
-  try {
-    await AsyncStorage.setItem('isLoggedIn', 'true');
-  } catch (e) {}
-
   let navigated = false;
 
   if (navigation) {

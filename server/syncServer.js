@@ -552,6 +552,92 @@ const server = http.createServer(async (req, res) => {
     }
 
     // -----------------------------------------------------------------
+    // 7.5 Real-Time Slot Validation & Booking Engine
+    // -----------------------------------------------------------------
+    if (!db.bookedSlots || typeof db.bookedSlots !== 'object') {
+      db.bookedSlots = {};
+    }
+
+    // GET /api/slots/booked
+    if (pathname === '/api/slots/booked' && req.method === 'GET') {
+      return sendJSON(res, 200, {
+        success: true,
+        bookedSlots: Object.values(db.bookedSlots || {}),
+      });
+    }
+
+    // POST /api/slots/book
+    if (pathname === '/api/slots/book' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { serviceType = 'general', providerId = 'any', date, time, slotId, patientName, bookingId } = body;
+
+      if (!date || !time) {
+        return sendJSON(res, 400, {
+          success: false,
+          message: 'Date and time are required.',
+        });
+      }
+
+      const cleanService = String(serviceType).toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cleanProvider = String(providerId).toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cleanDate = String(date).toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const cleanTime = String(time).toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const slotKey = `${cleanService}_${cleanProvider}_${cleanDate}_${cleanTime}`;
+
+      if (db.bookedSlots[slotKey]) {
+        return sendJSON(res, 409, {
+          success: false,
+          message: 'This slot is no longer available. Please select another time.',
+          reason: 'BOOKED',
+        });
+      }
+
+      db.bookedSlots[slotKey] = {
+        slotKey,
+        serviceType,
+        providerId,
+        date,
+        time,
+        slotId,
+        patientName: patientName || 'Patient',
+        bookingId: bookingId || `BOK-${Date.now()}`,
+        bookedAt: Date.now(),
+      };
+      saveDB();
+
+      console.log(`[SLOTS] Booked slot: ${slotKey} for ${patientName}`);
+      return sendJSON(res, 201, {
+        success: true,
+        slotKey,
+        bookedSlot: db.bookedSlots[slotKey],
+      });
+    }
+
+    // POST /api/slots/cancel
+    if (pathname === '/api/slots/cancel' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { slotKey, bookingId } = body;
+
+      if (slotKey && db.bookedSlots[slotKey]) {
+        delete db.bookedSlots[slotKey];
+        saveDB();
+        return sendJSON(res, 200, { success: true, message: 'Slot freed.' });
+      }
+
+      if (bookingId) {
+        for (const [k, v] of Object.entries(db.bookedSlots)) {
+          if (v && v.bookingId === bookingId) {
+            delete db.bookedSlots[k];
+            saveDB();
+            return sendJSON(res, 200, { success: true, message: 'Slot freed.' });
+          }
+        }
+      }
+
+      return sendJSON(res, 200, { success: true, message: 'No matching slot to cancel.' });
+    }
+
+    // -----------------------------------------------------------------
     // 8. 404 Fallback
     // -----------------------------------------------------------------
     return sendJSON(res, 404, { success: false, message: 'Route not found.' });

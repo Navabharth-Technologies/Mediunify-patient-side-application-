@@ -5,15 +5,21 @@ import {
   Text,
   StyleSheet,
   Image,
-  SafeAreaView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import colors from '../../theme/colors';
 import { safeNavigateToMain } from '../../utils/navigationHelper';
+import LoginScreenWeb from './LoginScreen.web';
 
-const SplashScreen = ({ navigation }) => {
+const SplashScreen = (props) => {
+  const { navigation } = props;
+
+  if (Platform.OS === 'web') {
+    return <LoginScreenWeb {...props} />;
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -34,6 +40,13 @@ const SplashScreen = ({ navigation }) => {
       }
     };
 
+    if (Platform.OS === 'web') {
+      checkAuth();
+      return () => {
+        isMounted = false;
+      };
+    }
+
     const timer = setTimeout(checkAuth, 1800);
     return () => {
       isMounted = false;
@@ -43,7 +56,7 @@ const SplashScreen = ({ navigation }) => {
 
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
 
       <View style={styles.container}>
 

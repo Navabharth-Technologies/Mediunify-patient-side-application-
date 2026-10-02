@@ -3,12 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Modal,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -96,7 +96,7 @@ const ReportsScreen = ({ navigation }) => {
 
   const handleUploadReport = () => {
     showAlert(
-      'Upload Medical Report 📄',
+      'Upload Medical Report',
       'Select document format:',
       [
         { text: 'Take Photo', onPress: () => showAlert('Report Saved', 'Report photographed and saved.') },
@@ -113,7 +113,7 @@ const ReportsScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity

@@ -3,13 +3,13 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   Linking,
   Platform,
   useWindowDimensions,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import WebFooter from '../../../components/web/WebFooter';
 
@@ -22,7 +22,7 @@ const EmergencyScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       {/* HEADER (Mobile Only) */}
       {!isDesktopWeb && (
         <View style={styles.header}>
@@ -34,27 +34,8 @@ const EmergencyScreen = ({ navigation }) => {
         </View>
       )}
 
-      {/* DESKTOP BREADCRUMB */}
-      {isDesktopWeb && (
-        <View style={styles.desktopBreadcrumbWrap}>
-          <View style={styles.desktopBreadcrumbInner}>
-            <TouchableOpacity onPress={() => navigation.navigate('Home')} activeOpacity={0.7}>
-              <Text style={styles.breadcrumbLink}>Home</Text>
-            </TouchableOpacity>
-            <Ionicons name="chevron-forward" size={14} color="#94A3B8" />
-            <Text style={styles.breadcrumbCurrent}>Services</Text>
-            <Ionicons name="chevron-forward" size={14} color="#94A3B8" />
-            <Text style={styles.breadcrumbActive}>24/7 Medical Emergency Help</Text>
 
-            <View style={{ flex: 1 }} />
 
-            <View style={styles.emergencyVerifiedBadge}>
-              <Ionicons name="flash" size={14} color="#DC2626" />
-              <Text style={styles.emergencyVerifiedBadgeText}>108 Karnataka EMS & Trauma Dispatch</Text>
-            </View>
-          </View>
-        </View>
-      )}
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -99,11 +80,11 @@ const EmergencyScreen = ({ navigation }) => {
                 <Text style={styles.contactChipText}>Free Ambulance Dispatch</Text>
               </View>
               <View style={styles.contactChip}>
-                <Ionicons name="time" size={16} color="#2563EB" />
+                <Ionicons name="time" size={16} color="#1E3A8A" />
                 <Text style={styles.contactChipText}>Average 12-Min Arrival</Text>
               </View>
               <View style={styles.contactChip}>
-                <Ionicons name="heart" size={16} color="#E11D48" />
+                <Ionicons name="heart" size={16} color="#FF7F50" />
                 <Text style={styles.contactChipText}>Zero Upfront Payment</Text>
               </View>
             </View>

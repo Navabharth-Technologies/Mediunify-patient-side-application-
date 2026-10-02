@@ -16,7 +16,7 @@ const ClinicComparisonCard = ({ clinics = [], onRemoveClinic, onSelectClinic }) 
       render: (c) => `₹${c.startingPackagePrice.toLocaleString('en-IN')}`,
     },
     { label: 'Specialists', render: (c) => `${c.doctorsCount} In-house` },
-    { label: 'Rating', render: (c) => `⭐ ${c.rating} (${c.reviewsCount})` },
+    { label: 'Rating', render: (c) => `${c.rating}/5 (${c.reviewsCount})` },
     {
       label: 'Certifications',
       render: (c) => c.certifications.join(', '),
@@ -163,17 +163,17 @@ const styles = StyleSheet.create({
   },
   chooseBtn: {
     marginTop: 6,
-    backgroundColor: '#FFF1F2',
+    backgroundColor: '#E6F8F5',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#FECDD3',
+    borderColor: '#B2EBF2',
   },
   chooseBtnText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#E11D48',
+    color: '#00B894',
   },
   dataRow: {
     flexDirection: 'row',
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   },
   highlightValText: {
     fontWeight: '800',
-    color: '#E11D48',
+    color: '#00B894',
     fontSize: 13,
   },
 });

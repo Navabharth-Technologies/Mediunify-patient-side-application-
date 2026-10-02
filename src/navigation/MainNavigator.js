@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 
 import {
   View,
@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   Platform,
+  Image,
+  Animated,
 } from 'react-native';
 
 import WebHeader from '../components/web/WebHeader';
@@ -21,6 +23,7 @@ import {
 
 import colors from '../theme/colors';
 import { useCart } from '../context/CartContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 
 // ==================================================
@@ -35,6 +38,7 @@ import NotificationsScreen from '../screens/home/NotificationsScreen';
 // DOCTORS
 // ==================================================
 
+import FindDoctorsScreen from '../screens/services/doctors/FindDoctorsScreen';
 import DoctorListScreen from '../screens/services/doctors/DoctorListScreen';
 import DoctorDetailsScreen from '../screens/services/doctors/DoctorDetailsScreen';
 import DoctorBookingScreen from '../screens/services/doctors/DoctorBookingScreen';
@@ -71,7 +75,6 @@ import CartScreen from '../screens/services/pharmacy/CartScreen';
 import CheckoutScreen from '../screens/services/pharmacy/CheckoutScreen';
 import PaymentScreen from '../screens/services/pharmacy/PaymentScreen';
 import OrderSuccessScreen from '../screens/services/pharmacy/OrderSuccessScreen';
-import MyOrdersScreen from '../screens/services/pharmacy/MyOrdersScreen';
 
 
 // ==================================================
@@ -151,7 +154,6 @@ import ReportsScreen from '../screens/health/ReportsScreen';
 // BOOKINGS
 // ==================================================
 
-import BookingsScreen from '../screens/services/booking/BookingsScreen';
 import BookingDetailsScreen from '../screens/services/booking/BookingDetailsScreen';
 
 
@@ -175,6 +177,16 @@ import ReferEarnScreen from '../screens/profile/ReferEarnScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import HelpSupportScreen from '../screens/settings/HelpSupportScreen';
 import MembershipScreen from '../screens/services/membership/MembershipScreen';
+
+// ==================================================
+// DEDICATED PATIENT PROFILE MENU SCREENS
+// ==================================================
+import MyAppointmentsScreen from '../screens/services/booking/MyAppointmentsScreen.web';
+import MyTestsScreen from '../screens/services/lab/MyTestsScreen.web';
+import MyMedicineOrdersScreen from '../screens/services/pharmacy/MyMedicineOrdersScreen.web';
+import MyMedicalRecordsScreen from '../screens/health/MyMedicalRecordsScreen.web';
+import MyOnlineConsultationsScreen from '../screens/services/videocall/MyOnlineConsultationsScreen.web';
+import MyFeedbackScreen from '../screens/settings/MyFeedbackScreen.web';
 
 // ==================================================
 // AUTH SCREENS
@@ -202,6 +214,29 @@ const BottomNavigation = ({
 }) => {
   const { width } = useWindowDimensions();
   const isTabletDevice = width >= 600;
+  const insets = useSafeAreaInsets();
+
+  // Gentle breathing aura animation for the AI bot floating button
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const breathing = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.08,
+          duration: 1800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1.0,
+          duration: 1800,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    breathing.start();
+    return () => breathing.stop();
+  }, [pulseAnim]);
 
   // ==================================================
   // NAVIGATE
@@ -224,7 +259,6 @@ const BottomNavigation = ({
 
 
   return (
-
     <View
       style={[
         styles.bottomNavigation,
@@ -232,37 +266,27 @@ const BottomNavigation = ({
           left: (width - Math.min(width * 0.9, 520)) / 2,
           right: 'auto',
           width: Math.min(width * 0.9, 520),
-          height: 60,
-          bottom: Platform.OS === 'android' ? 14 : 12,
-          borderRadius: 22,
+          height: 64,
+          bottom: insets.bottom > 0 ? insets.bottom : 0,
+          borderRadius: 24,
           paddingHorizontal: 8,
         },
       ]}
     >
-
       {/* 1. HOME */}
       <TouchableOpacity
-        style={[styles.bottomItem, isTabletDevice && { height: 56 }]}
+        style={styles.bottomItem}
         activeOpacity={0.7}
         onPress={() => goTo('Home')}
       >
-        <View
-          style={[
-            styles.bottomIcon,
-            isTabletDevice && { width: 36, height: 30, borderRadius: 15 },
-            currentRoute === 'Home' && styles.activeBottomIcon,
-          ]}
-        >
-          <Ionicons
-            name={currentRoute === 'Home' ? 'home' : 'home-outline'}
-            size={isTabletDevice ? 19 : 22}
-            color={currentRoute === 'Home' ? colors.white : '#64748B'}
-          />
-        </View>
+        <Ionicons
+          name={currentRoute === 'Home' ? 'home' : 'home-outline'}
+          size={isTabletDevice ? 21 : 23}
+          color={currentRoute === 'Home' ? '#007D69' : '#64748B'}
+        />
         <Text
           style={[
             styles.bottomText,
-            isTabletDevice && { fontSize: 8.5, marginTop: 1 },
             currentRoute === 'Home' && styles.activeBottomText,
           ]}
         >
@@ -270,112 +294,121 @@ const BottomNavigation = ({
         </Text>
       </TouchableOpacity>
 
-      {/* 2. BOOKINGS */}
+      {/* 2. SEARCH */}
       <TouchableOpacity
-        style={[styles.bottomItem, isTabletDevice && { height: 56 }]}
+        style={styles.bottomItem}
         activeOpacity={0.7}
-        onPress={() => goTo('Bookings')}
+        onPress={() => goTo('GlobalSearch')}
       >
-        <View
-          style={[
-            styles.bottomIcon,
-            isTabletDevice && { width: 36, height: 30, borderRadius: 15 },
-            currentRoute === 'Bookings' && styles.activeBottomIcon,
-          ]}
-        >
-          <Ionicons
-            name={currentRoute === 'Bookings' ? 'calendar' : 'calendar-outline'}
-            size={isTabletDevice ? 19 : 22}
-            color={currentRoute === 'Bookings' ? colors.white : '#64748B'}
-          />
-        </View>
+        <Ionicons
+          name={currentRoute === 'GlobalSearch' ? 'search' : 'search-outline'}
+          size={isTabletDevice ? 21 : 23}
+          color={currentRoute === 'GlobalSearch' ? '#007D69' : '#64748B'}
+        />
         <Text
           style={[
             styles.bottomText,
-            isTabletDevice && { fontSize: 8.5, marginTop: 1 },
-            currentRoute === 'Bookings' && styles.activeBottomText,
+            currentRoute === 'GlobalSearch' && styles.activeBottomText,
           ]}
         >
-          Bookings
+          Search
         </Text>
       </TouchableOpacity>
 
-      {/* 3. CENTER AI ASSISTANT BUTTON (MOBILE NATIVE ONLY - REMOVED FROM WEB) */}
-      {Platform.OS !== 'web' && (
-        <TouchableOpacity
-          style={[styles.centerAiTabBtn, isTabletDevice && { marginTop: -16 }]}
-          activeOpacity={0.85}
-          onPress={() => goTo('Chatbot')}
-        >
-          <View style={[styles.centerAiCircle, isTabletDevice && { width: 44, height: 44, borderRadius: 22 }, currentRoute === 'Chatbot' && styles.centerAiCircleActive]}>
-            <Ionicons name="chatbubble-ellipses" size={isTabletDevice ? 20 : 24} color="#FFFFFF" />
+      {/* 3. CENTER ELEVATED BUTTON: AI CHAT BOT */}
+      <TouchableOpacity
+        style={styles.centerVaultTabBtn}
+        activeOpacity={0.85}
+        onPress={() => goTo('Chatbot')}
+      >
+        <View style={styles.centerButtonWrapper}>
+          {/* Subtle living breathing aura */}
+          <Animated.View
+            style={[
+              styles.vaultGlowHalo,
+              { transform: [{ scale: pulseAnim }] },
+            ]}
+          />
+
+          {/* Elevated Circular Medallion */}
+          <View
+            style={[
+              styles.centerVaultCircle,
+              currentRoute === 'Chatbot' && styles.centerVaultCircleActive,
+            ]}
+          >
+            <Image
+              source={require('../../assets/ai-bot-avatar.png')}
+              style={[
+                styles.centerAiBotImg,
+                isTabletDevice && { width: 44, height: 44 },
+              ]}
+              resizeMode="contain"
+            />
+
+            {/* Sparkle Badge / Live AI Status */}
+            <View style={styles.aiSparkleBadge}>
+              <Ionicons name="sparkles" size={9.5} color="#FFFFFF" />
+            </View>
           </View>
-          <Text style={[styles.bottomText, isTabletDevice && { fontSize: 8.5, marginTop: 1 }, currentRoute === 'Chatbot' && styles.activeBottomText, { marginTop: 2 }]}>
-            AI
-          </Text>
-        </TouchableOpacity>
-      )}
+        </View>
 
-      {/* 4. MY HEALTH */}
-      <TouchableOpacity
-        style={[styles.bottomItem, isTabletDevice && { height: 56 }]}
-        activeOpacity={0.7}
-        onPress={() => goTo('HealthRecords')}
-      >
-        <View
+        <Text
           style={[
-            styles.bottomIcon,
-            isTabletDevice && { width: 36, height: 30, borderRadius: 15 },
-            currentRoute === 'HealthRecords' && styles.activeBottomIcon,
+            styles.bottomText,
+            styles.centerAiText,
+            currentRoute === 'Chatbot' && styles.activeBottomText,
           ]}
+          numberOfLines={1}
         >
+          AI Chat Bot
+        </Text>
+      </TouchableOpacity>
+
+      {/* 4. ALERTS */}
+      <TouchableOpacity
+        style={styles.bottomItem}
+        activeOpacity={0.7}
+        onPress={() => goTo('Notifications')}
+      >
+        <View style={{ position: 'relative' }}>
           <Ionicons
-            name={currentRoute === 'HealthRecords' ? 'document-text' : 'document-text-outline'}
-            size={isTabletDevice ? 19 : 22}
-            color={currentRoute === 'HealthRecords' ? colors.white : '#64748B'}
+            name={currentRoute === 'Notifications' ? 'notifications' : 'notifications-outline'}
+            size={isTabletDevice ? 21 : 23}
+            color={currentRoute === 'Notifications' ? '#007D69' : '#64748B'}
           />
+          <View style={styles.notifBadgeDot} />
         </View>
         <Text
           style={[
             styles.bottomText,
-            isTabletDevice && { fontSize: 8.5, marginTop: 1 },
-            currentRoute === 'HealthRecords' && styles.activeBottomText,
+            currentRoute === 'Notifications' && styles.activeBottomText,
           ]}
         >
-          My Health
+          Alerts
         </Text>
       </TouchableOpacity>
 
-      {/* 5. ACCOUNT */}
+      {/* 5. HISTORY */}
       <TouchableOpacity
-        style={[styles.bottomItem, isTabletDevice && { height: 56 }]}
+        style={styles.bottomItem}
         activeOpacity={0.7}
-        onPress={() => goTo('Profile')}
+        onPress={() => goTo('MyAppointments')}
       >
-        <View
-          style={[
-            styles.bottomIcon,
-            isTabletDevice && { width: 36, height: 30, borderRadius: 15 },
-            currentRoute === 'Profile' && styles.activeBottomIcon,
-          ]}
-        >
-          <Ionicons
-            name={currentRoute === 'Profile' ? 'person' : 'person-outline'}
-            size={isTabletDevice ? 19 : 22}
-            color={currentRoute === 'Profile' ? colors.white : '#64748B'}
-          />
-        </View>
+        <Ionicons
+          name={currentRoute === 'MyAppointments' ? 'time' : 'time-outline'}
+          size={isTabletDevice ? 21 : 23}
+          color={currentRoute === 'MyAppointments' ? '#007D69' : '#64748B'}
+        />
         <Text
           style={[
             styles.bottomText,
-            isTabletDevice && { fontSize: 8.5, marginTop: 1 },
-            currentRoute === 'Profile' && styles.activeBottomText,
+            currentRoute === 'MyAppointments' && styles.activeBottomText,
           ]}
         >
-          Account
+          History
         </Text>
       </TouchableOpacity>
-
     </View>
   );
 };
@@ -389,7 +422,7 @@ const MainNavigator = ({
   navigation,
 }) => {
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 600;
+  const isDesktopWeb = Platform.OS === 'web' && width >= 992;
 
   const [
     currentRoute,
@@ -460,7 +493,7 @@ const MainNavigator = ({
       {/* ==================================================
           DESKTOP REAL WEBSITE HEADER
       ================================================== */}
-      {isDesktopWeb && (
+      {isDesktopWeb && currentRoute !== 'Login' && (
         <WebHeader
           navigation={navigation}
           currentRoute={currentRoute}
@@ -505,6 +538,7 @@ const MainNavigator = ({
             'FertilityNotifications',
             'FertilityAI',
             'EquipmentRental',
+            'FindDoctors',
             'DoctorList',
             'DoctorDetails',
             'DoctorBooking',
@@ -526,6 +560,14 @@ const MainNavigator = ({
             'Bookings',
             'Chatbot',
             'Membership',
+            'MyAppointments',
+            'MyTests',
+            'MyMedicineOrders',
+            'MyOrders',
+            'MyMedicalRecords',
+            'MyOnlineConsultations',
+            'MyFeedback',
+            'Settings',
           ].includes(currentRoute) &&
           styles.desktopStackWrapper,
         ]}
@@ -539,7 +581,7 @@ const MainNavigator = ({
 
             contentStyle: {
               backgroundColor:
-                '#F1F2F4',
+                '#FAFCFD',
             },
           }}
 
@@ -593,6 +635,11 @@ const MainNavigator = ({
         {/* ==================================================
             DOCTOR FLOW
         ================================================== */}
+
+        <Stack.Screen
+          name="FindDoctors"
+          component={FindDoctorsScreen}
+        />
 
         <Stack.Screen
           name="DoctorList"
@@ -826,7 +873,7 @@ const MainNavigator = ({
 
         <Stack.Screen
           name="MyOrders"
-          component={MyOrdersScreen}
+          component={MyMedicineOrdersScreen}
         />
 
 
@@ -926,7 +973,7 @@ const MainNavigator = ({
 
         <Stack.Screen
           name="Bookings"
-          component={BookingsScreen}
+          component={MyTestsScreen}
         />
 
         <Stack.Screen
@@ -975,6 +1022,41 @@ const MainNavigator = ({
         />
 
         <Stack.Screen
+          name="MyAppointments"
+          component={MyAppointmentsScreen}
+        />
+
+        <Stack.Screen
+          name="MyTests"
+          component={MyTestsScreen}
+        />
+
+        <Stack.Screen
+          name="MyMedicineOrders"
+          component={MyMedicineOrdersScreen}
+        />
+
+        <Stack.Screen
+          name="MyMedicalRecords"
+          component={MyMedicalRecordsScreen}
+        />
+
+        <Stack.Screen
+          name="MyOnlineConsultations"
+          component={MyOnlineConsultationsScreen}
+        />
+
+        <Stack.Screen
+          name="OnlineConsultant"
+          component={MyOnlineConsultationsScreen}
+        />
+
+        <Stack.Screen
+          name="MyFeedback"
+          component={MyFeedbackScreen}
+        />
+
+        <Stack.Screen
           name="HelpSupport"
           component={HelpSupportScreen}
         />
@@ -1015,7 +1097,7 @@ const MainNavigator = ({
           BOTTOM NAVIGATION (ONLY ON MAIN TAB SCREENS)
       ================================================== */}
 
-      {!isDesktopWeb && ['Home', 'DoctorList', 'VideoConsultation', 'Bookings', 'HealthRecords', 'Profile', 'AllServices'].includes(currentRoute) && (
+      {!isDesktopWeb && ['Home', 'DoctorList', 'VideoConsultation', 'Bookings', 'MyTests', 'MyAppointments', 'HealthRecords', 'Profile', 'AllServices', 'GlobalSearch', 'Notifications', 'Chatbot'].includes(currentRoute) && (
         <BottomNavigation
           navigation={navigation}
           currentRoute={currentRoute}
@@ -1063,171 +1145,162 @@ const styles = StyleSheet.create({
   // ==================================================
 
   bottomNavigation: {
-
     position: Platform.OS === 'web' ? 'fixed' : 'absolute',
-
     left: 14,
-
     right: 14,
-
-    bottom: 12,
-
+    bottom: Platform.OS === 'ios' ? 20 : 10,
     maxWidth: 520,
-
     marginHorizontal: 'auto',
-
-    height: 72,
-
-    borderRadius: 28,
-
-    backgroundColor:
-      colors.white,
-
-    flexDirection:
-      'row',
-
-    alignItems:
-      'center',
-
-    justifyContent:
-      'space-around',
-
-    paddingHorizontal: 6,
-
+    height: 62,
+    borderRadius: 24,
+    backgroundColor: colors.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingHorizontal: 8,
+    paddingBottom: Platform.OS === 'ios' ? 4 : 2,
     borderWidth: 1,
-
-    borderColor:
-      colors.border,
-
-    elevation: 15,
-
-    shadowColor:
-      '#000',
-
+    borderColor: colors.border,
+    elevation: 10,
+    shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 5,
+      height: 3,
     },
-
-    shadowOpacity:
-      0.18,
-
-    shadowRadius:
-      10,
-
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
     zIndex: 999,
-
   },
-
-
-  // ==================================================
-  // BOTTOM ITEM
-  // ==================================================
 
   bottomItem: {
-
     flex: 1,
-
-    height: 68,
-
-    alignItems:
-      'center',
-
-    justifyContent:
-      'center',
-
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 1000,
-
   },
-
-
-  // ==================================================
-  // ICON
-  // ==================================================
 
   bottomIcon: {
-
-    width: 42,
-
-    height: 35,
-
-    borderRadius: 20,
-
-    alignItems:
-      'center',
-
-    justifyContent:
-      'center',
-
+    width: 36,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-
-
-  // ==================================================
-  // ACTIVE ICON
-  // ==================================================
 
   activeBottomIcon: {
-
-    backgroundColor:
-      colors.primary,
-
+    backgroundColor: colors.primary,
   },
-
-
-  // ==================================================
-  // TEXT
-  // ==================================================
 
   bottomText: {
-
-    marginTop: 3,
-
-    fontSize: 9,
-
+    marginTop: 2,
+    fontSize: 9.5,
     fontWeight: '700',
-
-    color:
-      colors.secondary,
-
-    textAlign:
-      'center',
-
+    color: '#64748B',
+    textAlign: 'center',
   },
-
-
-  // ==================================================
-  // ACTIVE TEXT
-  // ==================================================
 
   activeBottomText: {
-
-    color:
-      colors.primary,
-
-    fontWeight: '900',
-
+    color: '#007D69',
+    fontWeight: '800',
   },
 
+  centerVaultTabBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -20,
+    zIndex: 1002,
+    minWidth: 72,
+  },
+  centerButtonWrapper: {
+    width: 60,
+    height: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  vaultGlowHalo: {
+    position: 'absolute',
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: 'rgba(0, 184, 148, 0.18)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 184, 148, 0.35)',
+  },
+  centerVaultCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2.5,
+    borderColor: '#00B894',
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.36,
+    shadowRadius: 8,
+    elevation: 8,
+    position: 'relative',
+  },
+  centerVaultCircleActive: {
+    borderColor: '#007D69',
+    backgroundColor: '#F0FDF9',
+    shadowColor: '#007D69',
+    shadowOpacity: 0.5,
+    elevation: 10,
+  },
+  centerAiBotImg: {
+    width: 44,
+    height: 44,
+  },
+  aiSparkleBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#00B894',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.45,
+    shadowRadius: 3,
+    elevation: 6,
+    zIndex: 10,
+  },
+  centerAiText: {
+    marginTop: 2,
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#007D69',
+    letterSpacing: 0.1,
+  },
   centerAiTabBtn: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -22,
+    marginTop: -14,
     zIndex: 1001,
   },
   centerAiCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: '#0F766E',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3.5,
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22,
+    shadowRadius: 5,
+    elevation: 4,
+    borderWidth: 2,
     borderColor: '#FFFFFF',
-    shadowColor: '#0F766E',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 8,
   },
   centerAiCircleActive: {
     backgroundColor: '#00B894',

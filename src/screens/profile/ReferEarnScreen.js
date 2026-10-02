@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Alert,
@@ -11,6 +10,7 @@ import {
   Linking,
   Share,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -61,6 +61,11 @@ const ReferEarnScreen = ({ navigation }) => {
 
   const loadUserReferralCode = async () => {
     try {
+      const savedCode = await AsyncStorage.getItem('@unnathi_user_referral_code');
+      if (savedCode && savedCode.trim()) {
+        setReferralCode(savedCode.trim());
+        return;
+      }
       const storedName = await AsyncStorage.getItem('userName');
       if (storedName && storedName.trim()) {
         const cleanName = storedName.trim().split(' ')[0].toUpperCase();
@@ -74,14 +79,14 @@ const ReferEarnScreen = ({ navigation }) => {
   const handleCopyCode = () => {
     setCopied(true);
     showAlert(
-      'Referral Code Copied! 📋',
+      'Referral Code Copied',
       `Your code "${referralCode}" has been copied. Share it with friends & family to earn ₹250 each!`
     );
     setTimeout(() => setCopied(false), 3000);
   };
 
   const handleShareWhatsApp = () => {
-    const message = `Hey! Download the MediUnify App for Doctor Consultations, 3T MRI Scans, Surgeries & Medicines. Use my referral code "${referralCode}" to get an instant ₹250 OFF on your first booking! 🩺✨`;
+    const message = `Hey! Download the MediUnify App for Doctor Consultations, 3T MRI Scans, Surgeries & Medicines. Use my referral code "${referralCode}" to get an instant ₹250 OFF on your first booking!`;
     const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
     Linking.openURL(url).catch(() => {
       handleNativeShare();
@@ -100,7 +105,7 @@ const ReferEarnScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* HEADER */}

@@ -4,11 +4,11 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   TouchableOpacity,
   TextInput,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 
@@ -389,7 +389,7 @@ const RadiologistListScreen = ({
 
 
   return (
-    <SafeAreaView
+    <SafeAreaView edges={['top', 'left', 'right']}
       style={styles.container}
     >
 

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -13,6 +12,7 @@ import {
   useWindowDimensions,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../../theme/colors';
@@ -25,6 +25,12 @@ import {
   initialCallbackRequests,
   mockAyurvedaNotifications,
 } from '../../../data/ayurvedaData';
+import {
+  getSlotStatus,
+  validateAndBookSlot,
+  cancelBookedSlot,
+  subscribeToSlotChanges,
+} from '../../../services/slotBookingService';
 
 const ASYNC_KEY_BOOKINGS = '@unnathi_ayurveda_bookings';
 const ASYNC_KEY_REQUESTS = '@unnathi_ayurveda_callback_requests';
@@ -38,9 +44,17 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
   const [activeView, setActiveView] = useState('DISCOVERY');
 
   // Search & Filter State
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(route?.params?.search || route?.params?.query || '');
   const [selectedPopularService, setSelectedPopularService] = useState(null);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (route?.params?.query !== undefined) {
+      setSearchQuery(route.params.query);
+    } else if (route?.params?.search !== undefined) {
+      setSearchQuery(route.params.search);
+    }
+  }, [route?.params?.query, route?.params?.search]);
 
   // Filters
   const [filterLocation, setFilterLocation] = useState('All');
@@ -55,14 +69,87 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
   const [detailsTab, setDetailsTab] = useState('about'); // 'about' | 'services' | 'therapies' | 'practitioners' | 'pricing' | 'location'
   const [selectedPractitionerModal, setSelectedPractitionerModal] = useState(null);
 
+  // Dynamic Date Generator for Ayurveda
+  const generateAyurvedaDates = () => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const list = [];
+    const now = new Date();
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+      const dayName = days[d.getDay()];
+      const dayNum = d.getDate();
+      const month = months[d.getMonth()];
+      const year = d.getFullYear();
+      let label = `${dayName}, ${dayNum} ${month}`;
+      let date = `${dayName}, ${dayNum} ${month} ${year}`;
+      if (i === 0) {
+        label = 'Today';
+        date = `Today, ${dayNum} ${month} ${year}`;
+      } else if (i === 1) {
+        label = 'Tomorrow';
+        date = `Tomorrow, ${dayNum} ${month} ${year}`;
+      }
+      list.push({ label, date });
+    }
+    return list;
+  };
+
   // Direct Booking State
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [bookingCentre, setBookingCentre] = useState(null);
   const [bookingStep, setBookingStep] = useState(1); // 1: Service, 2: Practitioner, 3: Date, 4: Time, 5: Summary, 6: Confirmation
   const [bookingService, setBookingService] = useState(null);
   const [bookingPractitioner, setBookingPractitioner] = useState(null);
-  const [bookingDate, setBookingDate] = useState('Tomorrow, 18 Sep 2026');
+  const [bookingDate, setBookingDate] = useState(() => generateAyurvedaDates()[1]?.date || 'Tomorrow');
   const [bookingTime, setBookingTime] = useState('11:00 AM');
+
+  // Real-time slot update ticker
+  const [slotTick, setSlotTick] = useState(0);
+  useEffect(() => {
+    const unsub = subscribeToSlotChanges(() => {
+      setSlotTick((t) => t + 1);
+    });
+    return unsub;
+  }, []);
+
+  const getFirstAvailableSlot = (dateStr, centreId, preferred = null) => {
+    if (preferred) {
+      const prefSt = getSlotStatus({
+        date: dateStr,
+        time: preferred,
+        serviceType: 'ayurveda',
+        providerId: centreId,
+      });
+      if (prefSt.available) return preferred;
+    }
+    for (const s of TIME_SLOTS) {
+      const st = getSlotStatus({
+        date: dateStr,
+        time: s.label,
+        serviceType: 'ayurveda',
+        providerId: centreId,
+      });
+      if (st.available) return s.label;
+    }
+    return '';
+  };
+
+  useEffect(() => {
+    if (isBookingModalOpen && bookingDate) {
+      const currentSt = getSlotStatus({
+        date: bookingDate,
+        time: bookingTime,
+        serviceType: 'ayurveda',
+        providerId: bookingCentre?.id,
+      });
+      if (!currentSt.available) {
+        const nextSlot = getFirstAvailableSlot(bookingDate, bookingCentre?.id);
+        setBookingTime(nextSlot);
+      }
+    }
+  }, [bookingDate, isBookingModalOpen, slotTick, bookingCentre]);
+
   const [patientName, setPatientName] = useState('Ramesh Kumar (Self)');
   const [patientPhone, setPatientPhone] = useState('+91 98450 12345');
   const [patientHealthNote, setPatientHealthNote] = useState('Seeking Ayurvedic consultation for joint stiffness and stress');
@@ -74,7 +161,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
   const [cbPatientName, setCbPatientName] = useState('Ramesh Kumar');
   const [cbMobileNumber, setCbMobileNumber] = useState('+91 98450 12345');
   const [cbService, setCbService] = useState('');
-  const [cbDate, setCbDate] = useState('22 Sep 2026');
+  const [cbDate, setCbDate] = useState(() => generateAyurvedaDates()[2]?.date || 'In 2 Days');
   const [cbTime, setCbTime] = useState('Morning (9:00 AM - 12:00 PM)');
   const [cbMessage, setCbMessage] = useState('Please share available dates and doctor slot details.');
   const [cbErrors, setCbErrors] = useState({});
@@ -98,14 +185,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
   const [contactModalCentre, setContactModalCentre] = useState(null);
 
   // Available dates for booking
-  const AVAILABLE_DATES = [
-    { label: 'Today', date: 'Today, 17 Sep 2026' },
-    { label: 'Tomorrow', date: 'Tomorrow, 18 Sep 2026' },
-    { label: 'Fri, 19 Sep', date: 'Fri, 19 Sep 2026' },
-    { label: 'Sat, 20 Sep', date: 'Sat, 20 Sep 2026' },
-    { label: 'Sun, 21 Sep', date: 'Sun, 21 Sep 2026' },
-    { label: 'Mon, 22 Sep', date: 'Mon, 22 Sep 2026' },
-  ];
+  const AVAILABLE_DATES = useMemo(() => generateAyurvedaDates(), []);
 
   // Available time slots
   const TIME_SLOTS = [
@@ -314,17 +394,36 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
     setBookingCentre(centre);
     setBookingService(preselectedService || (centre.services && centre.services[0]) || null);
     setBookingPractitioner((centre.practitioners && centre.practitioners[0]) || null);
-    setBookingDate('Tomorrow, 18 Sep 2026');
-    setBookingTime('11:00 AM');
+    const chosenDate = AVAILABLE_DATES[1]?.date || AVAILABLE_DATES[0]?.date;
+    setBookingDate(chosenDate);
+    const validSlot = getFirstAvailableSlot(chosenDate, centre.id, '11:00 AM');
+    setBookingTime(validSlot);
     setBookingStep(1);
     setConfirmedBooking(null);
     setIsBookingModalOpen(true);
   };
 
   // Confirm Direct Booking
-  const handleConfirmDirectBooking = () => {
+  const handleConfirmDirectBooking = async () => {
     if (!patientName.trim() || !patientPhone.trim()) {
       showAlert('Required', 'Please enter your name and phone number.');
+      return;
+    }
+
+    const slotValidation = await validateAndBookSlot({
+      date: bookingDate,
+      time: bookingTime,
+      serviceType: 'ayurveda',
+      providerId: bookingCentre?.id || bookingCentre?.name,
+      bookingDetails: {
+        centreName: bookingCentre?.name,
+        serviceName: bookingService?.name,
+        patientName,
+      },
+    });
+
+    if (!slotValidation.success) {
+      showAlert('Slot Unavailable', slotValidation.message || 'This slot is no longer available. Please select another time.');
       return;
     }
 
@@ -359,7 +458,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
     // Add mock notification
     const newNotif = {
       id: `notif-${Date.now()}`,
-      title: 'Appointment Confirmed 🌿',
+      title: 'Appointment Confirmed',
       message: `Your booking for ${newBooking.service} at ${bookingCentre.name} on ${bookingDate} at ${bookingTime} is confirmed.`,
       time: 'Just now',
       read: false,
@@ -375,7 +474,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
     setCbService(preselectedService?.name || (centre.services && centre.services[0]?.name) || 'Ayurveda Consultation & Wellness Package');
     setCbPatientName('Ramesh Kumar');
     setCbMobileNumber('+91 98450 12345');
-    setCbDate('22 Sep 2026');
+    setCbDate(AVAILABLE_DATES[2]?.date || 'In 2 Days');
     setCbTime('Morning (9:00 AM - 12:00 PM)');
     setCbMessage('Please contact me with consultation details and treatment availability.');
     setCbErrors({});
@@ -408,7 +507,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
       centreId: callbackCentre.id,
       centreName: callbackCentre.name,
       service: cbService,
-      requestDate: 'Today, 17 Sep 2026',
+      requestDate: AVAILABLE_DATES[0]?.date || 'Today',
       preferredDate: cbDate,
       preferredTime: cbTime,
       patientName: cbPatientName,
@@ -426,7 +525,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
     // Add mock notification
     const newNotif = {
       id: `notif-${Date.now()}`,
-      title: 'Callback Request Submitted 📝',
+      title: 'Callback Request Submitted',
       message: `Your enquiry for ${cbService} has been sent to ${callbackCentre.name}. Their team will contact you shortly.`,
       time: 'Just now',
       read: false,
@@ -447,6 +546,16 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
 
   // Cancel an appointment
   const handleCancelAppointment = (apptId) => {
+    const toCancel = appointments.find((a) => a.id === apptId);
+    if (toCancel) {
+      cancelBookedSlot({
+        date: toCancel.date,
+        time: toCancel.time,
+        serviceType: 'ayurveda',
+        providerId: toCancel.centreId || toCancel.centreName,
+      });
+    }
+
     const updated = appointments.map((a) => {
       if (a.id === apptId) {
         return { ...a, status: 'Cancelled' };
@@ -585,7 +694,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                       filterLocation === city && styles.filterChipTextActive,
                     ]}
                   >
-                    {city === 'All' ? 'All Locations' : `📍 ${city}`}
+                    {city === 'All' ? 'All Locations' : `${city}`}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -641,7 +750,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                       filterConsultation === opt && styles.filterChipTextActive,
                     ]}
                   >
-                    {opt === 'All' ? 'All Centres' : '✓ Vaidya Consult Available'}
+                    {opt === 'All' ? 'All Centres' : 'Vaidya Consult Available'}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -665,7 +774,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                       filterTherapy === opt && styles.filterChipTextActive,
                     ]}
                   >
-                    {opt === 'All' ? 'All' : '✓ Therapies Offered'}
+                    {opt === 'All' ? 'All' : 'Therapies Offered'}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -713,7 +822,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                       filterRating === rate && styles.filterChipTextActive,
                     ]}
                   >
-                    {rate === 'All' ? 'All Ratings' : `★ ${rate}`}
+                    {rate === 'All' ? 'All Ratings' : `${rate}/5`}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -940,7 +1049,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                         </View>
                         <Text style={styles.selectOptionDesc}>{item.description}</Text>
                         <View style={styles.selectOptionMetaRow}>
-                          <Text style={styles.selectOptionDuration}>⏱ {item.duration}</Text>
+                          <Text style={styles.selectOptionDuration}>{item.duration}</Text>
                           <Text style={styles.selectOptionPrice}>{item.price}</Text>
                         </View>
                       </View>
@@ -1047,33 +1156,54 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                     Selected Date: <Text style={{ fontWeight: '700' }}>{bookingDate}</Text>
                   </Text>
                   <View style={styles.timeSlotGrid}>
-                    {TIME_SLOTS.map((slot) => (
-                      <TouchableOpacity
-                        key={slot.label}
-                        style={[
-                          styles.timeSlotCard,
-                          bookingTime === slot.label && styles.timeSlotCardActive,
-                        ]}
-                        onPress={() => setBookingTime(slot.label)}
-                      >
-                        <Text
+                    {TIME_SLOTS.map((slot) => {
+                      const status = getSlotStatus({
+                        date: bookingDate,
+                        time: slot.label,
+                        serviceType: 'ayurveda',
+                        providerId: bookingCentre?.id,
+                      });
+                      const isAvailable = status.available;
+                      const isSelected = bookingTime === slot.label;
+                      return (
+                        <TouchableOpacity
+                          key={slot.label}
                           style={[
-                            styles.timeSlotText,
-                            bookingTime === slot.label && styles.timeSlotTextActive,
+                            styles.timeSlotCard,
+                            isSelected && styles.timeSlotCardActive,
+                            !isAvailable && styles.timeSlotCardDisabled,
                           ]}
+                          disabled={!isAvailable}
+                          onPress={() => setBookingTime(slot.label)}
                         >
-                          {slot.label}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.timeSlotPeriod,
-                            bookingTime === slot.label && styles.timeSlotTextActive,
-                          ]}
-                        >
-                          {slot.period}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                          <Text
+                            style={[
+                              styles.timeSlotText,
+                              isSelected && styles.timeSlotTextActive,
+                              !isAvailable && styles.timeSlotTextDisabled,
+                            ]}
+                          >
+                            {slot.label}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.timeSlotPeriod,
+                              isSelected && styles.timeSlotTextActive,
+                              !isAvailable && styles.timeSlotTextDisabled,
+                            ]}
+                          >
+                            {slot.period}
+                          </Text>
+                          {!isAvailable && (
+                            <View style={styles.slotStatusBadge}>
+                              <Text style={styles.slotStatusBadgeText}>
+                                {status.status === 'PASSED' ? 'Passed' : 'Booked'}
+                              </Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
                 </View>
               )}
@@ -1401,7 +1531,12 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                   <View style={styles.inputGroup}>
                     <Text style={styles.inputLabel}>Preferred Date</Text>
                     <View style={styles.filterChipRow}>
-                      {['Tomorrow, 18 Sep', '20 Sep 2026', '22 Sep 2026', 'Next Week'].map((d) => (
+                      {[
+                        AVAILABLE_DATES[1]?.label || 'Tomorrow',
+                        AVAILABLE_DATES[2]?.date || 'In 2 Days',
+                        AVAILABLE_DATES[3]?.date || 'In 3 Days',
+                        'Next Week',
+                      ].map((d) => (
                         <TouchableOpacity
                           key={d}
                           style={[styles.filterChip, cbDate === d && styles.filterChipActive]}
@@ -1845,7 +1980,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                 {c.name}
               </Text>
               <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 12 }}>
-                📍 {c.address}
+                {c.address}
               </Text>
               <View style={styles.mapGraphicPlaceholder}>
                 <Ionicons name="navigate-circle" size={48} color="#059669" />
@@ -2137,7 +2272,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                     </View>
                     <Text style={styles.serviceDetailDesc}>{srv.description}</Text>
                     <View style={styles.serviceDetailMetaRow}>
-                      <Text style={styles.serviceDetailDuration}>⏱ {srv.duration}</Text>
+                      <Text style={styles.serviceDetailDuration}>{srv.duration}</Text>
                       <Text style={styles.serviceDetailAvail}>• {srv.availability}</Text>
                     </View>
                     <Text style={styles.serviceDetailPrice}>{srv.price}</Text>
@@ -2181,7 +2316,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                     <Text style={styles.therapyCardTitle}>{th.name}</Text>
                     <Text style={styles.therapyCardDesc}>{th.description}</Text>
                     <View style={styles.therapyCardFooter}>
-                      <Text style={styles.therapyCardDuration}>⏱ {th.duration}</Text>
+                      <Text style={styles.therapyCardDuration}>{th.duration}</Text>
                       <TouchableOpacity
                         onPress={() => {
                           if (c.directBooking) {
@@ -2277,7 +2412,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                   <View key={i} style={styles.pricingRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.pricingRowTitle}>{item.title}</Text>
-                      <Text style={styles.pricingRowDuration}>⏱ {item.duration}</Text>
+                      <Text style={styles.pricingRowDuration}>{item.duration}</Text>
                     </View>
                     <Text style={styles.pricingRowFee}>{item.fee}</Text>
                   </View>
@@ -2294,7 +2429,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                   <View key={i} style={styles.pricingRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.pricingRowTitle}>{item.title}</Text>
-                      <Text style={styles.pricingRowDuration}>⏱ {item.duration}</Text>
+                      <Text style={styles.pricingRowDuration}>{item.duration}</Text>
                     </View>
                     <Text style={styles.pricingRowFee}>{item.fee}</Text>
                   </View>
@@ -2311,7 +2446,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                   <View key={i} style={styles.pricingRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.pricingRowTitle}>{item.title}</Text>
-                      <Text style={styles.pricingRowDuration}>⏱ {item.duration}</Text>
+                      <Text style={styles.pricingRowDuration}>{item.duration}</Text>
                     </View>
                     <Text
                       style={[
@@ -2760,7 +2895,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
           <Ionicons name="search" size={20} color="#64748B" style={{ marginRight: 8 }} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search Ayurveda centres or services"
+            placeholder="Search Ayurvedic doctors, Vaidyas, centres or therapies..."
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -2807,7 +2942,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
           )}
           {filterLocation !== 'All' && (
             <View style={styles.activeFilterPill}>
-              <Text style={styles.activeFilterPillText}>📍 {filterLocation}</Text>
+              <Text style={styles.activeFilterPillText}>{filterLocation}</Text>
               <TouchableOpacity onPress={() => setFilterLocation('All')}>
                 <Ionicons name="close" size={14} color="#059669" />
               </TouchableOpacity>
@@ -2872,7 +3007,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                     isSelected && { color: '#059669', fontWeight: '700' },
                   ]}
                 >
-                  {isSelected ? 'Filtered ✓' : 'Explore →'}
+                  {isSelected ? 'Filtered' : 'Explore →'}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -3022,7 +3157,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
   );
 
   return (
-    <SafeAreaView style={styles.safeContainer}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeContainer}>
       {/* Main View Switcher */}
       <View style={{ flex: 1 }}>
         {activeView === 'DISCOVERY' && renderDiscoveryView()}
@@ -3062,8 +3197,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 40,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 95 : 85,
   },
 
   // Top Nav Bar
@@ -3071,8 +3206,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
@@ -3085,9 +3220,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   navBackBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
@@ -4573,6 +4708,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#059669',
     borderColor: '#059669',
   },
+  timeSlotCardDisabled: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+    opacity: 0.6,
+  },
   timeSlotText: {
     fontSize: 12,
     fontWeight: '700',
@@ -4585,6 +4725,23 @@ const styles = StyleSheet.create({
   },
   timeSlotTextActive: {
     color: '#FFFFFF',
+  },
+  timeSlotTextDisabled: {
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  slotStatusBadge: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 4,
+    paddingVertical: 1.5,
+    borderRadius: 3,
+    marginTop: 3,
+  },
+  slotStatusBadgeText: {
+    fontSize: 8.5,
+    fontWeight: '700',
+    color: '#DC2626',
+    textTransform: 'uppercase',
   },
 
   // Summary Box

@@ -4,13 +4,13 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Image,
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../../utils/alert';
 
 import * as ImagePicker from 'expo-image-picker';
@@ -335,7 +335,7 @@ const RadiologyReportUploadScreen = ({
 
     return (
 
-      <SafeAreaView
+      <SafeAreaView edges={['top', 'left', 'right']}
         style={styles.container}
       >
 
@@ -364,7 +364,7 @@ const RadiologyReportUploadScreen = ({
 
   return (
 
-    <SafeAreaView
+    <SafeAreaView edges={['top', 'left', 'right']}
       style={styles.container}
     >
 

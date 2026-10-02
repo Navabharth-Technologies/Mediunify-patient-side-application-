@@ -3,12 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Modal,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -122,7 +122,7 @@ const PrescriptionsScreen = ({ navigation }) => {
     });
 
     showAlert(
-      'Medicines Added to Cart! 🛒',
+      'Medicines Added to Cart',
       `All ${rx.medicines.length} prescribed medicines have been added to your cart with prescription linked.`,
       [
         { text: 'Keep Browsing', style: 'cancel' },
@@ -158,7 +158,7 @@ const PrescriptionsScreen = ({ navigation }) => {
           doctorAdvice: 'Document will be verified by Unnathi pharmacist.',
         };
         setPrescriptions([newRx, ...prescriptions]);
-        showAlert('Prescription Uploaded! 📄', 'Your prescription document has been added.');
+        showAlert('Prescription Uploaded', 'Your prescription document has been added.');
       }
     } catch (e) {
       showAlert('Upload Simulated', 'Prescription saved to your medical records.');
@@ -166,7 +166,7 @@ const PrescriptionsScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity

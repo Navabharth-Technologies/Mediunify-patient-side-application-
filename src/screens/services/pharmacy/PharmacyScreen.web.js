@@ -25,14 +25,14 @@ const PHARMACY_HERO_SLIDES = [
   {
     id: 'pharma-slide-1',
     pillText: '60-MIN EXPRESS',
-    pillBg: '#FFEDD5',
-    pillColor: '#EA580C',
+    pillBg: '#FFF5F0',
+    pillColor: '#FF7F50',
     certText: 'Flat 20% OFF',
     certIcon: 'flash',
     title: 'Doorstep Medicines & Jan Aushadhi Store',
     priceText: 'Flat 20% OFF',
     priceSub: 'Use Code: MEDI20',
-    priceColor: '#EA580C',
+    priceColor: '#FF7F50',
     subTitle: '100% Genuine branded drugs & affordable Jan Aushadhi generic medicines delivered in 60 mins.',
     bullets: [
       'Superfast 60-min delivery to your doorstep across Mysuru',
@@ -40,8 +40,8 @@ const PHARMACY_HERO_SLIDES = [
       'Temperature-controlled cold-chain transit for insulin & vaccines',
     ],
     ctaText: 'Order Medicines Now',
-    ctaBg: '#EA580C',
-    bgColor: '#FFF7ED',
+    ctaBg: '#00B894',
+    bgColor: '#FFF5F0',
     borderColor: '#FED7AA',
     image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=900',
     trustBadge: '100% Genuine Branded Drugs',
@@ -50,14 +50,14 @@ const PHARMACY_HERO_SLIDES = [
   {
     id: 'pharma-slide-2',
     pillText: 'RX VERIFICATION',
-    pillBg: '#FECDD3',
-    pillColor: '#FF5252',
+    pillBg: '#ECFDF5',
+    pillColor: '#00B894',
     certText: 'Verified Pharmacists',
     certIcon: 'shield-checkmark',
     title: 'Upload Doctor Prescription for Instant Order',
     priceText: 'Zero Extra Fee',
     priceSub: 'Free Dosage Review',
-    priceColor: '#FF5252',
+    priceColor: '#00B894',
     subTitle: 'Just upload your prescription. Our licensed registered pharmacist will verify and confirm your order within minutes.',
     bullets: [
       'Automatic prescription reading & digital medicine mapping',
@@ -65,9 +65,9 @@ const PHARMACY_HERO_SLIDES = [
       'Easy refills for monthly chronic diabetes & BP medications',
     ],
     ctaText: 'Upload Prescription Now',
-    ctaBg: '#FF5252',
-    bgColor: '#FFF5F5',
-    borderColor: '#FECDD3',
+    ctaBg: '#1E3A8A',
+    bgColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
     image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=900',
     trustBadge: 'Licensed & Registered Pharmacists',
     actionType: 'upload',
@@ -75,14 +75,14 @@ const PHARMACY_HERO_SLIDES = [
   {
     id: 'pharma-slide-3',
     pillText: 'CHRONIC CARE',
-    pillBg: '#DBEAFE',
-    pillColor: '#1D4ED8',
+    pillBg: '#EFF6FF',
+    pillColor: '#1E3A8A',
     certText: 'Up to 35% OFF',
     certIcon: 'pulse',
     title: 'Diabetes, BP & Vital Healthcare Devices',
     priceText: 'Save up to 35%',
     priceSub: 'Certified Devices',
-    priceColor: '#2563EB',
+    priceColor: '#00C2CB',
     subTitle: 'Accu-Chek glucometers, Omron blood pressure monitors, digital thermometers & test strips with full warranty.',
     bullets: [
       'Clinical-grade precision certified by ISO & CE standards',
@@ -90,9 +90,9 @@ const PHARMACY_HERO_SLIDES = [
       'Discounted combo strips & lancet refill packs',
     ],
     ctaText: 'Explore Health Devices',
-    ctaBg: '#2563EB',
-    bgColor: '#EFF6FF',
-    borderColor: '#BFDBFE',
+    ctaBg: '#00B894',
+    bgColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
     image: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=900',
     trustBadge: 'Certified Clinical Accuracy',
     actionType: 'filter-devices',
@@ -100,9 +100,7 @@ const PHARMACY_HERO_SLIDES = [
 ];
 
 // ==================================================
-// 2. HEALTHCARE CATEGORIES (Matching HomeScreen Cat Circles)
-// ==================================================
-// 2. BROWSE HEALTH CONDITIONS (Creative Rich Mockup)
+// 2. BROWSE HEALTH CONDITIONS (MediUnify Brand Palette)
 // ==================================================
 export const BROWSE_HEALTH_CONDITIONS = [
   {
@@ -111,35 +109,35 @@ export const BROWSE_HEALTH_CONDITIONS = [
     titleSecondary: 'CARE',
     badge: 'DERMA APPROVED',
     tagline: 'Glow, Acne & Hydration',
-    bg: '#7B9ECC',
-    accentColor: '#4F46E5',
+    bg: '#00C2CB',
+    accentColor: '#00C2CB',
     image: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=600&auto=format&fit=crop&q=80',
-    filterKeywords: ['skin', 'derma', 'acne', 'glow', 'face', 'cream', 'lotion', 'sunscreen', 'cleanse', 'serum', 'facewash', 'derma'],
+    filterKeywords: ['skin', 'derma', 'acne', 'glow', 'face', 'cream', 'lotion', 'sunscreen', 'cleanse', 'serum', 'facewash'],
     categoryFilter: 'Skin Care',
   },
   {
-    id: 'sexual-wellness',
-    titlePrimary: 'SEXUAL',
-    titleSecondary: 'WELLNESS',
-    badge: '100% DISCREET',
-    tagline: 'Safe, Vigor & Stamina',
-    bg: '#FF8080',
-    accentColor: '#FF5252',
-    image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&auto=format&fit=crop&q=80',
-    filterKeywords: ['wellness', 'condom', 'test', 'fertility', 'care', 'stamina', 'energy', 'supplement', 'vigor', 'multivitamin'],
-    categoryFilter: 'Sexual Wellness',
+    id: 'diabetes-care',
+    titlePrimary: 'DIABETES',
+    titleSecondary: 'CARE',
+    badge: 'GLYCO MONITOR',
+    tagline: 'Sugar Test & Strips',
+    bg: '#00B894',
+    accentColor: '#00B894',
+    image: 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=600&auto=format&fit=crop&q=80',
+    filterKeywords: ['diabetes', 'sugar', 'glucose', 'glucometer', 'strips', 'accu', 'insulin', 'glyco', 'onetouch', 'lancet', 'sugar free'],
+    categoryFilter: 'Diabetes Care',
   },
   {
-    id: 'weight-management',
-    titlePrimary: 'WEIGHT',
-    titleSecondary: 'MANAGEMENT',
-    badge: 'ACTIVE DIET',
-    tagline: 'Slim, Detox & Fiber',
-    bg: '#9BC862',
-    accentColor: '#65A30D',
-    image: 'https://images.unsplash.com/photo-1576097449798-7c7f90e1248a?w=600&auto=format&fit=crop&q=80',
-    filterKeywords: ['weight', 'slim', 'apple', 'green tea', 'fiber', 'detox', 'burn', 'protein', 'nutrition', 'diet'],
-    categoryFilter: 'Weight Care',
+    id: 'cardiac-care',
+    titlePrimary: 'CARDIAC',
+    titleSecondary: 'HEALTH',
+    badge: 'HEART VITAL',
+    tagline: 'BP, Omega & Cholesterol',
+    bg: '#1E3A8A',
+    accentColor: '#1E3A8A',
+    image: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=600&auto=format&fit=crop&q=80',
+    filterKeywords: ['cardiac', 'heart', 'bp', 'pressure', 'cholesterol', 'omega', 'fish oil', 'artery', 'cardio', 'circulation'],
+    categoryFilter: 'Heart Care',
   },
   {
     id: 'pain-relief',
@@ -147,16 +145,64 @@ export const BROWSE_HEALTH_CONDITIONS = [
     titleSecondary: 'RELIEF',
     badge: 'FAST ACTING',
     tagline: 'Joint, Muscle & Sprain',
-    bg: '#9688BD',
-    accentColor: '#7C3AED',
-    image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600&auto=format&fit=crop&q=80',
+    bg: '#FF7F50',
+    accentColor: '#FF7F50',
+    image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&auto=format&fit=crop&q=80',
     filterKeywords: ['pain', 'volini', 'spray', 'dolo', 'paracetamol', 'sprain', 'ache', 'joint', 'moov', 'relief', 'balm', 'gel', 'fast'],
     categoryFilter: 'Pain Relief',
+  },
+  {
+    id: 'stomach-care',
+    titlePrimary: 'STOMACH &',
+    titleSecondary: 'DIGESTION',
+    badge: 'GUT HEALTH',
+    tagline: 'Acidity, Gas & Probiotics',
+    bg: '#7BC96F',
+    accentColor: '#7BC96F',
+    image: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=600&auto=format&fit=crop&q=80',
+    filterKeywords: ['stomach', 'gut', 'acidity', 'gas', 'eno', 'gelusil', 'digene', 'probiotic', 'pantry', 'constipation', 'digestion', 'antacid'],
+    categoryFilter: 'Stomach Care',
+  },
+  {
+    id: 'respiratory-care',
+    titlePrimary: 'RESPIRATORY',
+    titleSecondary: 'CARE',
+    badge: 'EASY BREATHE',
+    tagline: 'Inhalers, Cough & Cold',
+    bg: '#0284C7',
+    accentColor: '#0284C7',
+    image: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=600&auto=format&fit=crop&q=80',
+    filterKeywords: ['respiratory', 'breathe', 'inhaler', 'cough', 'cold', 'syrup', 'vicks', 'steam', 'broncho', 'asthma', 'lozenge', 'vapor'],
+    categoryFilter: 'Cold & Fever',
+  },
+  {
+    id: 'sexual-wellness',
+    titlePrimary: 'SEXUAL',
+    titleSecondary: 'WELLNESS',
+    badge: '100% DISCREET',
+    tagline: 'Safe, Vigor & Stamina',
+    bg: '#D97706',
+    accentColor: '#D97706',
+    image: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=600&auto=format&fit=crop&q=80',
+    filterKeywords: ['wellness', 'condom', 'test', 'fertility', 'care', 'stamina', 'energy', 'supplement', 'vigor', 'multivitamin', 'shilajit'],
+    categoryFilter: 'Sexual Wellness',
+  },
+  {
+    id: 'weight-management',
+    titlePrimary: 'WEIGHT',
+    titleSecondary: 'CARE',
+    badge: 'ACTIVE DIET',
+    tagline: 'Slim, Detox & Green Tea',
+    bg: '#059669',
+    accentColor: '#059669',
+    image: 'https://images.unsplash.com/photo-1512069772995-ec65ed45afd6?w=600&auto=format&fit=crop&q=80',
+    filterKeywords: ['weight', 'slim', 'apple', 'green tea', 'fiber', 'detox', 'burn', 'protein', 'nutrition', 'diet', 'slimming'],
+    categoryFilter: 'Weight Care',
   },
 ];
 
 // ==================================================
-// 3. BROWSE CATEGORIES (Creative Rich Mockup)
+// 3. BROWSE CATEGORIES (8 Curated Everyday Care Categories)
 // ==================================================
 export const BROWSE_CATEGORIES = [
   {
@@ -164,10 +210,10 @@ export const BROWSE_CATEGORIES = [
     titlePrimary: 'BABY',
     titleSecondary: 'CARE',
     badge: 'PEDIATRIC SAFE',
-    tagline: 'Diapers, Gentle Wash & Nutrition',
-    bg: '#869DC2',
-    accentColor: '#2563EB',
-    image: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=600&auto=format&fit=crop&q=80',
+    tagline: 'Diapers, Gentle Wash & Lotion',
+    bg: '#1E3A8A',
+    accentColor: '#1E3A8A',
+    image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=600&auto=format&fit=crop&q=80',
     categoryFilter: 'Baby Care',
   },
   {
@@ -175,33 +221,77 @@ export const BROWSE_CATEGORIES = [
     titlePrimary: 'FITNESS &',
     titleSecondary: 'WELLNESS',
     badge: 'POWER & IMMUNITY',
-    tagline: 'Proteins, BCAA & Energy',
-    bg: '#FF8080',
-    accentColor: '#FF5252',
-    image: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=80',
+    tagline: 'Proteins, BCAA & Creatine',
+    bg: '#FF7F50',
+    accentColor: '#FF7F50',
+    image: 'https://images.unsplash.com/photo-1579722821273-0f6c7d44362f?w=600&auto=format&fit=crop&q=80',
     categoryFilter: 'Vitamins & Minerals',
   },
   {
+    id: 'alternate-medicines',
+    titlePrimary: 'AYURVEDA &',
+    titleSecondary: 'HERBALS',
+    badge: '100% HERBAL',
+    tagline: 'Ashwagandha, Giloy & Extracts',
+    bg: '#7BC96F',
+    accentColor: '#7BC96F',
+    image: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&auto=format&fit=crop&q=80',
+    categoryFilter: 'Ayurvedic',
+  },
+  {
     id: 'family-care',
-    titlePrimary: 'FAMILY',
-    titleSecondary: 'CARE',
-    badge: 'DAILY ESSENTIALS',
-    tagline: 'Whole Family Immunity & First Aid',
-    bg: '#7B98BC',
-    accentColor: '#0284C7',
-    image: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?w=600&auto=format&fit=crop&q=80',
+    titlePrimary: 'DAILY',
+    titleSecondary: 'ESSENTIALS',
+    badge: 'FAMILY SAFETY',
+    tagline: 'Bandages, Dettol & First Aid',
+    bg: '#00B894',
+    accentColor: '#00B894',
+    image: 'https://images.unsplash.com/photo-1603398938378-e54eab446dde?w=600&auto=format&fit=crop&q=80',
     categoryFilter: 'all',
   },
   {
-    id: 'alternate-medicines',
-    titlePrimary: 'ALTERNATE',
-    titleSecondary: 'MEDICINES',
-    badge: '100% HERBAL',
-    tagline: 'Ayurveda, Siddha & Homeopathy',
-    bg: '#9480AD',
-    accentColor: '#6B21A8',
-    image: 'https://images.unsplash.com/photo-1611080626919-7cf5a9dbab5b?w=600&auto=format&fit=crop&q=80',
-    categoryFilter: 'Ayurvedic',
+    id: 'vitamins-minerals',
+    titlePrimary: 'VITAMINS &',
+    titleSecondary: 'MINERALS',
+    badge: 'NUTRITION BOOST',
+    tagline: 'Vitamin C, D3, Zinc & Calcium',
+    bg: '#00C2CB',
+    accentColor: '#00C2CB',
+    image: 'https://images.unsplash.com/photo-1577401239170-897942555fb3?w=600&auto=format&fit=crop&q=80',
+    categoryFilter: 'Vitamins & Minerals',
+  },
+  {
+    id: 'health-devices',
+    titlePrimary: 'MEDICAL',
+    titleSecondary: 'DEVICES',
+    badge: 'CLINICAL GRADE',
+    tagline: 'BP Monitors, Oximeter & Scanners',
+    bg: '#475569',
+    accentColor: '#475569',
+    image: 'https://images.unsplash.com/photo-1584515933487-779824d29309?w=600&auto=format&fit=crop&q=80',
+    categoryFilter: 'Healthcare Devices',
+  },
+  {
+    id: 'personal-hygiene',
+    titlePrimary: 'PERSONAL',
+    titleSecondary: 'HYGIENE',
+    badge: 'GERM PROTECTION',
+    tagline: 'Hand Sanitizer, Wash & Oral Care',
+    bg: '#0F766E',
+    accentColor: '#0F766E',
+    image: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=600&auto=format&fit=crop&q=80',
+    categoryFilter: 'Personal Care',
+  },
+  {
+    id: 'senior-care',
+    titlePrimary: 'SENIOR &',
+    titleSecondary: 'ORTHO CARE',
+    badge: 'MOBILITY SUPPORT',
+    tagline: 'Knee Sleeves, Belts & Joint Care',
+    bg: '#1E3A8A',
+    accentColor: '#1E3A8A',
+    image: 'https://images.unsplash.com/photo-1584432810601-6c7f27d2362b?w=600&auto=format&fit=crop&q=80',
+    categoryFilter: 'Pain Relief',
   },
 ];
 
@@ -216,11 +306,11 @@ const ACTION_CARDS = [
     ctaText: 'UPLOAD PRESCRIPTION',
     iconName: 'document-text-outline',
     iconType: 'ionicons',
-    bgColor: '#FFF0F0',
-    borderColor: '#FFBDBD',
-    iconBg: '#FFE4E6',
-    iconColor: '#FF5252',
-    ctaColor: '#FF5252',
+    bgColor: '#FFF5F0',
+    borderColor: '#FED7AA',
+    iconBg: '#FFEBE5',
+    iconColor: '#FF7F50',
+    ctaColor: '#FF7F50',
     actionType: 'upload',
   },
   {
@@ -229,11 +319,11 @@ const ACTION_CARDS = [
     ctaText: 'BOOK VIDEO SLOT',
     iconName: 'videocam-outline',
     iconType: 'ionicons',
-    bgColor: '#F5EFFF',
-    borderColor: '#E9D5FF',
-    iconBg: '#EDE9FE',
-    iconColor: '#7C3AED',
-    ctaColor: '#7C3AED',
+    bgColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+    iconBg: '#DBEAFE',
+    iconColor: '#1E3A8A',
+    ctaColor: '#1E3A8A',
     actionType: 'navigate',
     route: 'VideoConsultation',
   },
@@ -243,11 +333,11 @@ const ACTION_CARDS = [
     ctaText: 'BOOK CHECKUP',
     iconName: 'flask-outline',
     iconType: 'ionicons',
-    bgColor: '#FFF0F3',
-    borderColor: '#FECDD3',
-    iconBg: '#FFE4E6',
-    iconColor: '#E11D48',
-    ctaColor: '#E11D48',
+    bgColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+    iconBg: '#D1FAE5',
+    iconColor: '#00B894',
+    ctaColor: '#00B894',
     actionType: 'navigate',
     route: 'LabTests',
   },
@@ -257,11 +347,11 @@ const ACTION_CARDS = [
     ctaText: '100% CASHLESS',
     iconName: 'shield-checkmark-outline',
     iconType: 'ionicons',
-    bgColor: '#FFF6E9',
-    borderColor: '#FED7AA',
-    iconBg: '#FEF3C7',
-    iconColor: '#D97706',
-    ctaColor: '#D97706',
+    bgColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+    iconBg: '#DCFCE7',
+    iconColor: '#7BC96F',
+    ctaColor: '#7BC96F',
     badge: 'New',
     actionType: 'navigate',
     route: 'HealthInsurance',
@@ -277,8 +367,8 @@ const HEALTH_CONDITIONS = [
     name: 'Diabetes Care',
     iconName: 'water-outline',
     iconType: 'ionicons',
-    color: '#0284C7',
-    bg: '#E0F2FE',
+    color: '#00C2CB',
+    bg: '#E0F7FA',
     filterKeywords: ['glucose', 'sugar', 'diabet', 'accu-chek', 'metformin', 'strip'],
   },
   {
@@ -286,8 +376,8 @@ const HEALTH_CONDITIONS = [
     name: 'Cardiac Care',
     iconName: 'heart-pulse',
     iconType: 'mci',
-    color: '#DC2626',
-    bg: '#FEE2E2',
+    color: '#FF7F50',
+    bg: '#FFF5F0',
     filterKeywords: ['bp', 'blood pressure', 'omron', 'cardiac', 'heart', 'cholesterol'],
   },
   {
@@ -295,8 +385,8 @@ const HEALTH_CONDITIONS = [
     name: 'Stomach Care',
     iconName: 'stomach',
     iconType: 'mci',
-    color: '#D97706',
-    bg: '#FEF3C7',
+    color: '#7BC96F',
+    bg: '#F0FDF4',
     filterKeywords: ['antacid', 'digestion', 'stomach', 'pantocid', 'gelusil', 'gas', 'acid'],
   },
   {
@@ -304,8 +394,8 @@ const HEALTH_CONDITIONS = [
     name: 'Pain Relief',
     iconName: 'human-handsdown',
     iconType: 'mci',
-    color: '#7C3AED',
-    bg: '#EDE9FE',
+    color: '#1E3A8A',
+    bg: '#EFF6FF',
     filterKeywords: ['pain', 'volini', 'spray', 'dolo', 'paracetamol', 'sprain', 'ache', 'joint', 'moov'],
   },
   {
@@ -313,8 +403,8 @@ const HEALTH_CONDITIONS = [
     name: 'Liver Care',
     iconName: 'pill',
     iconType: 'mci',
-    color: '#FF5252',
-    bg: '#FFE4E6',
+    color: '#00B894',
+    bg: '#ECFDF5',
     filterKeywords: ['liv.52', 'liver', 'himalaya', 'detox', 'herbal', 'appetite'],
   },
   {
@@ -322,7 +412,7 @@ const HEALTH_CONDITIONS = [
     name: 'Oral Care',
     iconName: 'tooth-outline',
     iconType: 'mci',
-    color: '#FF5252',
+    color: '#00C2CB',
     bg: '#E0F7FA',
     filterKeywords: ['tooth', 'oral', 'cleanser', 'mouth', 'dental', 'paste', 'gum', 'sensodyne'],
   },
@@ -331,8 +421,8 @@ const HEALTH_CONDITIONS = [
     name: 'Respiratory',
     iconName: 'lungs',
     iconType: 'mci',
-    color: '#2563EB',
-    bg: '#DBEAFE',
+    color: '#1E3A8A',
+    bg: '#EFF6FF',
     filterKeywords: ['antibiotic', 'respiratory', 'cough', 'cold', 'chest', 'augmentin', 'inhaler', 'vicks'],
   },
   {
@@ -340,8 +430,8 @@ const HEALTH_CONDITIONS = [
     name: 'Cold & Immunity',
     iconName: 'shield-check-outline',
     iconType: 'mci',
-    color: '#FF5252',
-    bg: '#E6FAF5',
+    color: '#7BC96F',
+    bg: '#F0FDF4',
     filterKeywords: ['vitamin c', 'zinc', 'immunity', 'antiseptic', 'dettol', 'sanitizer', 'fever'],
   },
 ];
@@ -521,6 +611,25 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
 
   // Scroll ref & auto-scroll to products
   const mainScrollRef = useRef(null);
+  const conditionScrollRef = useRef(null);
+  const categoryScrollRef = useRef(null);
+  const [conditionScrollX, setConditionScrollX] = useState(0);
+  const [categoryScrollX, setCategoryScrollX] = useState(0);
+
+  const handleScrollCondition = (direction) => {
+    const delta = direction === 'next' ? 320 : -320;
+    const target = Math.max(0, conditionScrollX + delta);
+    setConditionScrollX(target);
+    conditionScrollRef.current?.scrollTo({ x: target, animated: true });
+  };
+
+  const handleScrollCategory = (direction) => {
+    const delta = direction === 'next' ? 320 : -320;
+    const target = Math.max(0, categoryScrollX + delta);
+    setCategoryScrollX(target);
+    categoryScrollRef.current?.scrollTo({ x: target, animated: true });
+  };
+
   const [catalogY, setCatalogY] = useState(0);
 
   const scrollToProducts = () => {
@@ -688,7 +797,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
             activeOpacity={0.8}
           >
             <View style={styles.headerLocalityIconWrap}>
-              <Ionicons name="location" size={14} color="#FF5252" />
+              <Ionicons name="location" size={14} color="#00B894" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.headerDeliverTo}>Deliver to</Text>
@@ -767,9 +876,9 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                     <Ionicons
                       name={activeSlide.certIcon || 'shield-checkmark'}
                       size={12}
-                      color={activeSlide.priceColor || '#FF5252'}
+                      color={activeSlide.priceColor || '#00B894'}
                     />
-                    <Text style={[styles.brandTagFlipkartText, { color: activeSlide.priceColor || '#FF5252' }]}>
+                    <Text style={[styles.brandTagFlipkartText, { color: activeSlide.priceColor || '#00B894' }]}>
                       {activeSlide.certText}
                     </Text>
                   </View>
@@ -784,9 +893,9 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                   <Text style={[styles.fullWidthPriceText, { color: activeSlide.priceColor }]}>
                     {activeSlide.priceText}
                   </Text>
-                  {activeSlide.priceSub && (
+                  {Boolean(activeSlide.priceSub) ? (
                     <Text style={styles.fullWidthPriceSubText}>• {activeSlide.priceSub}</Text>
-                  )}
+                  ) : null}
                 </View>
 
                 <Text style={styles.fullWidthSubTitle} numberOfLines={2}>
@@ -797,7 +906,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                 <View style={styles.fullWidthBulletsCol}>
                   {activeSlide.bullets.map((b, bIdx) => (
                     <View key={bIdx} style={styles.fullWidthBulletItem}>
-                      <Ionicons name="checkmark-circle" size={15} color={activeSlide.priceColor || '#FF5252'} />
+                      <Ionicons name="checkmark-circle" size={15} color={activeSlide.priceColor || '#00B894'} />
                       <Text style={styles.fullWidthBulletText} numberOfLines={1}>
                         {b}
                       </Text>
@@ -834,12 +943,12 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                   style={styles.fullWidthImage}
                   resizeMode="cover"
                 />
-                {activeSlide.trustBadge && (
+                {Boolean(activeSlide.trustBadge) ? (
                   <View style={styles.floatingTrustBadge}>
-                    <Ionicons name="shield-checkmark" size={13} color="#FF5252" />
+                    <Ionicons name="shield-checkmark" size={13} color="#00B894" />
                     <Text style={styles.floatingTrustBadgeText}>{activeSlide.trustBadge}</Text>
                   </View>
-                )}
+                ) : null}
               </View>
 
               {/* Right Navigation Chevron Button */}
@@ -873,7 +982,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
           <View style={styles.searchSectionInner}>
             <View style={styles.searchBarBox}>
               <View style={styles.searchIconBox}>
-                <Ionicons name="search" size={20} color="#FF5252" />
+                <Ionicons name="search" size={20} color="#00B894" />
               </View>
               <TextInput
                 style={styles.searchInput}
@@ -910,7 +1019,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
             <View style={styles.browseHeaderBadgeRow}>
               <Text style={styles.browseMainHeading}>Browse medicines & health products</Text>
               <View style={styles.browseHeaderPill}>
-                <Ionicons name="sparkles" size={13} color="#FF5252" />
+                <Ionicons name="sparkles" size={13} color="#00B894" />
                 <Text style={styles.browseHeaderPillText}>100% Genuine & Verified</Text>
               </View>
             </View>
@@ -920,25 +1029,38 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
               <View style={styles.subSectionHeaderRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={styles.browseSubHeading}>Health condition</Text>
-                  <Text style={styles.subSectionCountText}>4 specialized therapies</Text>
+                  <Text style={styles.subSectionCountText}>{BROWSE_HEALTH_CONDITIONS.length} specialized therapies</Text>
                 </View>
-                {selectedCondition && (
+                {Boolean(selectedCondition) ? (
                   <TouchableOpacity
                     onPress={() => setSelectedCondition(null)}
                     style={styles.activeFilterChip}
                     activeOpacity={0.8}
                   >
                     <Text style={styles.activeFilterChipText}>Clear Filter</Text>
-                    <Ionicons name="close-circle" size={14} color="#EF4444" />
+                    <Ionicons name="close-circle" size={14} color="#FF7F50" />
                   </TouchableOpacity>
-                )}
+                ) : null}
               </View>
 
               <View style={styles.browseCardsRow}>
+                {conditionScrollX > 0 ? (
+                  <TouchableOpacity
+                    style={styles.carouselPrevBtn}
+                    onPress={() => handleScrollCondition('prev')}
+                    activeOpacity={0.88}
+                  >
+                    <Ionicons name="chevron-back" size={18} color="#1E293B" />
+                  </TouchableOpacity>
+                ) : null}
+
                 <ScrollView
+                  ref={conditionScrollRef}
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.browseCardsScroll}
+                  onScroll={(e) => setConditionScrollX(e.nativeEvent.contentOffset.x)}
+                  scrollEventThrottle={16}
                 >
                   {BROWSE_HEALTH_CONDITIONS.map((item) => {
                     const isSelected = selectedCondition === item.id;
@@ -988,22 +1110,28 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                           </View>
                         </View>
 
-                        {/* Right Column (Cutout Image) */}
+                        {/* Right Column (Elevated Circle Product Showcase) */}
                         <View style={styles.bannerImageContainer}>
-                          <View style={styles.imageBackdropDisc} />
-                          <Image
-                            source={{ uri: item.image }}
-                            style={styles.bannerCutoutImage}
-                            resizeMode="cover"
-                          />
+                          <View style={styles.imageBackdropDisc}>
+                            <Image
+                              source={{ uri: item.image }}
+                              style={styles.bannerCutoutImage}
+                              resizeMode="cover"
+                            />
+                          </View>
                         </View>
                       </TouchableOpacity>
                     );
                   })}
                 </ScrollView>
-                <View style={styles.carouselNextBtn}>
+
+                <TouchableOpacity
+                  style={styles.carouselNextBtn}
+                  onPress={() => handleScrollCondition('next')}
+                  activeOpacity={0.88}
+                >
                   <Ionicons name="chevron-forward" size={18} color="#1E293B" />
-                </View>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -1012,25 +1140,38 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
               <View style={styles.subSectionHeaderRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={styles.browseSubHeading}>Categories</Text>
-                  <Text style={styles.subSectionCountText}>Curated everyday care</Text>
+                  <Text style={styles.subSectionCountText}>{BROWSE_CATEGORIES.length} curated everyday categories</Text>
                 </View>
-                {selectedCategory !== 'all' && !selectedCondition && (
+                {Boolean(selectedCategory !== 'all' && !selectedCondition) ? (
                   <TouchableOpacity
                     onPress={() => setSelectedCategory('all')}
                     style={styles.activeFilterChip}
                     activeOpacity={0.8}
                   >
                     <Text style={styles.activeFilterChipText}>View All</Text>
-                    <Ionicons name="close-circle" size={14} color="#EF4444" />
+                    <Ionicons name="close-circle" size={14} color="#FF7F50" />
                   </TouchableOpacity>
-                )}
+                ) : null}
               </View>
 
               <View style={styles.browseCardsRow}>
+                {categoryScrollX > 0 ? (
+                  <TouchableOpacity
+                    style={styles.carouselPrevBtn}
+                    onPress={() => handleScrollCategory('prev')}
+                    activeOpacity={0.88}
+                  >
+                    <Ionicons name="chevron-back" size={18} color="#1E293B" />
+                  </TouchableOpacity>
+                ) : null}
+
                 <ScrollView
+                  ref={categoryScrollRef}
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.browseCardsScroll}
+                  onScroll={(e) => setCategoryScrollX(e.nativeEvent.contentOffset.x)}
+                  scrollEventThrottle={16}
                 >
                   {BROWSE_CATEGORIES.map((item) => {
                     const isSelected = selectedCategory === item.categoryFilter && !selectedCondition;
@@ -1076,22 +1217,28 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                           </View>
                         </View>
 
-                        {/* Right Column (Cutout Image) */}
+                        {/* Right Column (Elevated Circle Product Showcase) */}
                         <View style={styles.bannerImageContainer}>
-                          <View style={styles.imageBackdropDisc} />
-                          <Image
-                            source={{ uri: item.image }}
-                            style={styles.bannerCutoutImage}
-                            resizeMode="cover"
-                          />
+                          <View style={styles.imageBackdropDisc}>
+                            <Image
+                              source={{ uri: item.image }}
+                              style={styles.bannerCutoutImage}
+                              resizeMode="cover"
+                            />
+                          </View>
                         </View>
                       </TouchableOpacity>
                     );
                   })}
                 </ScrollView>
-                <View style={styles.carouselNextBtn}>
+
+                <TouchableOpacity
+                  style={styles.carouselNextBtn}
+                  onPress={() => handleScrollCategory('next')}
+                  activeOpacity={0.88}
+                >
                   <Ionicons name="chevron-forward" size={18} color="#1E293B" />
-                </View>
+                </TouchableOpacity>
               </View>
             </View>
           </View>
@@ -1103,8 +1250,8 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
         <View style={styles.guaranteeSectionWrap}>
           <View style={styles.guaranteeCard}>
             <View style={styles.guaranteeItem}>
-              <View style={[styles.guaranteeIconCircle, { backgroundColor: '#FFF0F0' }]}>
-                <Ionicons name="shield-checkmark" size={20} color="#FF5252" />
+              <View style={[styles.guaranteeIconCircle, { backgroundColor: '#ECFDF5' }]}>
+                <Ionicons name="shield-checkmark" size={20} color="#00B894" />
               </View>
               <View>
                 <Text style={styles.guaranteeTitle}>100% Genuine Medicines</Text>
@@ -1115,8 +1262,8 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
             <View style={styles.guaranteeDivider} />
 
             <View style={styles.guaranteeItem}>
-              <View style={[styles.guaranteeIconCircle, { backgroundColor: '#FFEDD5' }]}>
-                <Ionicons name="flash" size={20} color="#EA580C" />
+              <View style={[styles.guaranteeIconCircle, { backgroundColor: '#FFF5F0' }]}>
+                <Ionicons name="flash" size={20} color="#FF7F50" />
               </View>
               <View>
                 <Text style={styles.guaranteeTitle}>60-Min Express Delivery</Text>
@@ -1128,7 +1275,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
 
             <View style={styles.guaranteeItem}>
               <View style={[styles.guaranteeIconCircle, { backgroundColor: '#EFF6FF' }]}>
-                <Ionicons name="medkit" size={20} color="#2563EB" />
+                <Ionicons name="medkit" size={20} color="#1E3A8A" />
               </View>
               <View>
                 <Text style={styles.guaranteeTitle}>Pharmacist Review 24/7</Text>
@@ -1168,7 +1315,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
               </Text>
             </View>
 
-            {(selectedCategory !== 'all' || selectedCondition || searchQuery) && (
+            {Boolean(selectedCategory !== 'all' || selectedCondition || (searchQuery && searchQuery.trim())) ? (
               <TouchableOpacity
                 style={styles.viewStoreBtn}
                 onPress={() => {
@@ -1179,9 +1326,9 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                 activeOpacity={0.8}
               >
                 <Text style={styles.viewStoreBtnText}>View All Products</Text>
-                <Ionicons name="arrow-forward" size={14} color="#FF5252" />
+                <Ionicons name="arrow-forward" size={14} color="#00B894" />
               </TouchableOpacity>
-            )}
+            ) : null}
           </View>
 
           {filteredProducts.length === 0 ? (
@@ -1219,11 +1366,11 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                       </Text>
                     </View>
 
-                    {prod.requiresPrescription && (
+                    {Boolean(prod.requiresPrescription) ? (
                       <View style={styles.pharmacyRxBadge}>
                         <Text style={styles.pharmacyRxBadgeText}>Rx</Text>
                       </View>
-                    )}
+                    ) : null}
 
                     {/* Image */}
                     <TouchableOpacity
@@ -1261,9 +1408,9 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                       {/* Price Row */}
                       <View style={styles.pharmacyPriceRow}>
                         <Text style={styles.pharmacyPrice}>₹{prod.price}</Text>
-                        {(prod.mrp || prod.oldPrice) && (
+                        {Boolean(prod.mrp || prod.oldPrice) ? (
                           <Text style={styles.pharmacyMrp}>MRP ₹{prod.mrp || prod.oldPrice}</Text>
-                        )}
+                        ) : null}
                       </View>
 
                       {/* Add to Cart or Stepper */}
@@ -1274,7 +1421,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                             onPress={() => decreaseQuantity(prod.id, 'pharmacy')}
                             activeOpacity={0.7}
                           >
-                            <Ionicons name="remove" size={14} color="#FF5252" />
+                            <Ionicons name="remove" size={14} color="#00B894" />
                           </TouchableOpacity>
                           <Text style={styles.stepperQuantity}>{quantity}</Text>
                           <TouchableOpacity
@@ -1282,7 +1429,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                             onPress={() => increaseQuantity(prod.id, 'pharmacy')}
                             activeOpacity={0.7}
                           >
-                            <Ionicons name="add" size={14} color="#FF5252" />
+                            <Ionicons name="add" size={14} color="#00B894" />
                           </TouchableOpacity>
                         </View>
                       ) : (
@@ -1302,7 +1449,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
             </View>
 
             {/* Pagination Controls Bar */}
-            {totalPages > 1 && (
+            {totalPages > 1 ? (
               <View style={styles.paginationRow}>
                 <TouchableOpacity
                   style={[styles.pageNavBtn, currentPage === 1 && styles.pageNavBtnDisabled]}
@@ -1358,7 +1505,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                   />
                 </TouchableOpacity>
               </View>
-            )}
+            ) : null}
             </>
           )}
         </View>
@@ -1389,7 +1536,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
 
               <View style={styles.modalBody}>
                 <View style={styles.uploadDropzone}>
-                  <Ionicons name="cloud-upload" size={48} color="#FF5252" />
+                  <Ionicons name="cloud-upload" size={48} color="#00B894" />
                   <Text style={styles.dropzoneTitle}>
                     {selectedFile ? `Selected: ${selectedFile}` : 'Drag & Drop prescription image or PDF here'}
                   </Text>
@@ -1454,7 +1601,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                       <Ionicons
                         name="location"
                         size={18}
-                        color={isActive ? '#FF5252' : '#64748B'}
+                        color={isActive ? '#00B894' : '#64748B'}
                         style={{ marginRight: 12 }}
                       />
                       <View style={{ flex: 1 }}>
@@ -1463,7 +1610,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
                         </Text>
                         <Text style={styles.localitySub}>Pincode: {loc.pincode} • Express Delivery Available</Text>
                       </View>
-                      {isActive && <Ionicons name="checkmark-circle" size={18} color="#FF5252" />}
+                      {Boolean(isActive) ? <Ionicons name="checkmark-circle" size={18} color="#00B894" /> : null}
                     </TouchableOpacity>
                   );
                 })}
@@ -1473,14 +1620,14 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
         </Modal>
 
         {/* Upload Success Toast */}
-        {uploadSuccessToast && (
+        {Boolean(uploadSuccessToast) ? (
           <View style={styles.successToastWrap}>
             <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
             <Text style={styles.successToastText}>
               Prescription submitted! Our pharmacist will review it shortly.
             </Text>
           </View>
-        )}
+        ) : null}
       </ScrollView>
 
       {/* Floating Cart FAB */}
@@ -1493,11 +1640,11 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
         activeOpacity={0.85}
       >
         <Ionicons name="cart" size={24} color="#FFFFFF" />
-        {pharmacyCartCount > 0 && (
+        {pharmacyCartCount > 0 ? (
           <View style={styles.fabCountBadge}>
             <Text style={styles.fabCountText}>{pharmacyCartCount}</Text>
           </View>
-        )}
+        ) : null}
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -1509,7 +1656,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC', // Match HomeScreen background
+    backgroundColor: '#FAFCFD', // Match healthcare background
   },
   scrollContent: {
     flexGrow: 1,
@@ -1524,14 +1671,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#DCE7EC',
     gap: 10,
   },
   headerBackBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F1F8FB',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1539,9 +1686,9 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FAFCFD',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DCE7EC',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
@@ -1551,7 +1698,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FFF0F0',
+    backgroundColor: '#ECFDF5',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1563,7 +1710,7 @@ const styles = StyleSheet.create({
   headerLocalityName: {
     fontSize: 11.5,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   headerCartBtn: {
     width: 38,
@@ -1578,7 +1725,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -3,
     right: -3,
-    backgroundColor: '#EF4444',
+    backgroundColor: '#FF7F50',
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 10,
@@ -1736,7 +1883,7 @@ const styles = StyleSheet.create({
   brandTagFlipkartText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#FF5252',
+    color: '#00B894',
   },
   adNoticePill: {
     backgroundColor: 'rgba(0, 0, 0, 0.06)',
@@ -1752,7 +1899,7 @@ const styles = StyleSheet.create({
   fullWidthTitle: {
     fontSize: 26,
     fontWeight: '900',
-    color: '#0F172A',
+    color: '#1E3A8A',
     lineHeight: 34,
     marginTop: 8,
     letterSpacing: -0.6,
@@ -1854,7 +2001,7 @@ const styles = StyleSheet.create({
   },
   dotActive: {
     width: 24,
-    backgroundColor: '#FF5252',
+    backgroundColor: '#00B894',
     borderRadius: 4,
   },
 
@@ -1892,7 +2039,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: '#ECFDF5',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -1918,20 +2065,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#FFF0F0',
+    backgroundColor: '#FFF5F0',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#FFBDBD',
+    borderColor: '#FED7AA',
   },
   searchUploadChipText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#FF5252',
+    color: '#FF7F50',
   },
   searchSubmitBtn: {
-    backgroundColor: '#FF5252',
+    backgroundColor: '#00B894',
     paddingHorizontal: 18,
     paddingVertical: 8,
     borderRadius: 8,
@@ -1999,9 +2146,9 @@ const styles = StyleSheet.create({
     cursor: 'pointer',
   },
   pageNumberChipActive: {
-    backgroundColor: '#FF5252',
-    borderColor: '#FF5252',
-    shadowColor: '#FF5252',
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
+    shadowColor: '#00B894',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
@@ -2056,9 +2203,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#FFF0F0',
+    backgroundColor: '#ECFDF5',
     borderWidth: 1,
-    borderColor: '#FFBDBD',
+    borderColor: '#A7F3D0',
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 20,
@@ -2066,7 +2213,7 @@ const styles = StyleSheet.create({
   browseHeaderPillText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#FF5252',
+    color: '#00B894',
   },
   browseSubSection: {
     marginBottom: 26,
@@ -2091,7 +2238,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FFF5F0',
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 12,
@@ -2099,7 +2246,7 @@ const styles = StyleSheet.create({
   activeFilterChipText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#EF4444',
+    color: '#FF7F50',
   },
   browseCardsRow: {
     position: 'relative',
@@ -2210,32 +2357,60 @@ const styles = StyleSheet.create({
   },
   bannerImageContainer: {
     position: 'absolute',
-    right: 0,
+    right: 12,
     top: 0,
     bottom: 0,
-    width: '52%',
-    overflow: 'hidden',
     justifyContent: 'center',
-    alignItems: 'flex-end',
+    alignItems: 'center',
+    zIndex: 2,
   },
   imageBackdropDisc: {
-    position: 'absolute',
-    right: -10,
-    bottom: -10,
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.75)',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    elevation: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   bannerCutoutImage: {
     width: '100%',
     height: '100%',
+    borderRadius: 50,
+  },
+  carouselPrevBtn: {
+    position: 'absolute',
+    left: -14,
+    top: '50%',
+    transform: [{ translateY: -19 }],
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+    cursor: 'pointer',
   },
   carouselNextBtn: {
     position: 'absolute',
-    right: 0,
+    right: -14,
     top: '50%',
-    transform: [{ translateY: -18 }],
+    transform: [{ translateY: -19 }],
     width: 38,
     height: 38,
     borderRadius: 19,
@@ -2361,17 +2536,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#FFF5F0',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#FECDD3',
+    borderColor: '#FED7AA',
   },
   clearConditionBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#DC2626',
+    color: '#FF7F50',
   },
   conditionsGrid: {
     maxWidth: 1320,
@@ -2398,9 +2573,9 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
   },
   conditionCardSelected: {
-    borderColor: '#FF5252',
+    borderColor: '#00B894',
     borderWidth: 1.5,
-    backgroundColor: '#FFF5F5',
+    backgroundColor: '#ECFDF5',
   },
   conditionIconBox: {
     width: 44,
@@ -2418,7 +2593,7 @@ const styles = StyleSheet.create({
     color: '#1E3A8A',
   },
   conditionNameSelected: {
-    color: '#FF5252',
+    color: '#00B894',
   },
   conditionActionText: {
     fontSize: 11,
@@ -2510,7 +2685,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#F0F9FF',
+    backgroundColor: '#ECFDF5',
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 6,
@@ -2518,7 +2693,7 @@ const styles = StyleSheet.create({
   viewStoreBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#FF5252',
+    color: '#00B894',
   },
   pharmacyCardsGrid: {
     maxWidth: 1320,
@@ -2548,7 +2723,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     left: 10,
-    backgroundColor: '#FFF3E0',
+    backgroundColor: '#FFF5F0',
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 4,
@@ -2563,18 +2738,18 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     right: 10,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#EFF6FF',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: '#FECDD3',
+    borderColor: '#BAE6FD',
     zIndex: 2,
   },
   pharmacyRxBadgeText: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#DC2626',
+    color: '#1E3A8A',
   },
   pharmacyCardImgWrap: {
     width: '100%',
@@ -2598,7 +2773,7 @@ const styles = StyleSheet.create({
   pharmacyCat: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#FF5252',
+    color: '#00B894',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -2624,7 +2799,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: '#FFF3E0',
+    backgroundColor: '#FFF5F0',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -2659,7 +2834,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#FF5252',
+    backgroundColor: '#00B894',
     paddingVertical: 9,
     borderRadius: 8,
     height: 38,
@@ -2674,9 +2849,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1.5,
-    borderColor: '#FF5252',
+    borderColor: '#00B894',
     borderRadius: 8,
-    backgroundColor: '#FFF5F5',
+    backgroundColor: '#ECFDF5',
     height: 38,
     paddingHorizontal: 8,
   },
@@ -2689,7 +2864,7 @@ const styles = StyleSheet.create({
   stepperQuantity: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#FF5252',
+    color: '#00B894',
   },
   emptyProductsState: {
     paddingVertical: 60,
@@ -2709,7 +2884,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   resetCatalogBtn: {
-    backgroundColor: '#FF5252',
+    backgroundColor: '#00B894',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
@@ -2729,10 +2904,10 @@ const styles = StyleSheet.create({
     maxWidth: 1320,
     width: '100%',
     alignSelf: 'center',
-    backgroundColor: '#FFF5F5',
+    backgroundColor: '#ECFDF5',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#FFBDBD',
+    borderColor: '#A7F3D0',
     padding: 24,
     flexDirection: 'row',
     alignItems: 'center',
@@ -2751,7 +2926,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#FFE4E6',
+    backgroundColor: '#D1FAE5',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2768,13 +2943,13 @@ const styles = StyleSheet.create({
   walletHomeTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#B91C1C',
+    color: '#1E3A8A',
   },
   walletStatusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#FFE4E6',
+    backgroundColor: '#E6FAF5',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
@@ -2783,16 +2958,16 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#FF5252',
+    backgroundColor: '#7BC96F',
   },
   walletStatusText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#B91C1C',
+    color: '#00B894',
   },
   walletHomeSub: {
     fontSize: 13,
-    color: '#B91C1C',
+    color: '#64748B',
     lineHeight: 19,
   },
   walletHomeRight: {
@@ -2802,7 +2977,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#FF5252',
+    backgroundColor: '#00B894',
     paddingHorizontal: 22,
     paddingVertical: 12,
     borderRadius: 10,
@@ -2876,10 +3051,10 @@ const styles = StyleSheet.create({
   },
   uploadDropzone: {
     borderWidth: 2,
-    borderColor: '#FFBDBD',
+    borderColor: '#A7F3D0',
     borderStyle: 'dashed',
     borderRadius: 16,
-    backgroundColor: '#FFF5F5',
+    backgroundColor: '#ECFDF5',
     padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2899,7 +3074,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   dropzoneBrowseBtn: {
-    backgroundColor: '#FF5252',
+    backgroundColor: '#00B894',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -2944,7 +3119,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   modalConfirmBtn: {
-    backgroundColor: '#FF5252',
+    backgroundColor: '#00B894',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
@@ -2967,8 +3142,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   localitySelectItemActive: {
-    borderColor: '#FF5252',
-    backgroundColor: '#FFF5F5',
+    borderColor: '#00B894',
+    backgroundColor: '#ECFDF5',
   },
   localityName: {
     fontSize: 14,
@@ -2976,7 +3151,7 @@ const styles = StyleSheet.create({
     color: '#1E293B',
   },
   localityNameActive: {
-    color: '#FF5252',
+    color: '#00B894',
     fontWeight: '700',
   },
   localitySub: {
@@ -3010,13 +3185,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // 13. FLOATING BOTTOM CART DOCK (Navy Blue & Emerald Theme)
+  // 13. FLOATING BOTTOM CART DOCK (Navy Blue & Teal Theme)
   floatingCartDock: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#1E3A8A', // Deep navy matching header & Home design
+    backgroundColor: '#1E3A8A', // Deep navy matching brand palette
     borderTopWidth: 1,
     borderTopColor: '#1E40AF',
     shadowColor: '#000',
@@ -3045,7 +3220,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#00B894',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
@@ -3054,7 +3229,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -3,
     right: -3,
-    backgroundColor: '#EF4444',
+    backgroundColor: '#FF7F50',
     minWidth: 18,
     height: 18,
     borderRadius: 9,
@@ -3085,7 +3260,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   floatingCartPriceBold: {
-    color: '#FF5252',
+    color: '#00C2CB',
     fontWeight: '800',
     fontSize: 13,
   },
@@ -3093,7 +3268,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#FF5252',
+    backgroundColor: '#00B894',
     paddingHorizontal: 20,
     paddingVertical: 11,
     borderRadius: 25,
@@ -3112,30 +3287,35 @@ const styles = StyleSheet.create({
 
   // Floating FAB
   floatingCartFab: {
-    position: 'absolute',
-    right: 28,
-    bottom: 28,
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    position: Platform.OS === 'web' ? 'fixed' : 'absolute',
+    right: 32,
+    bottom: 108,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: '#1E3A8A',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 10,
-    zIndex: 950,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 12,
+    zIndex: 99999,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', transition: 'transform 0.2s ease, background-color 0.2s ease' } : {}),
   },
   floatingCartFabActive: {
-    backgroundColor: '#FF5252',
+    backgroundColor: '#00B894',
+    shadowColor: '#00B894',
+    shadowOpacity: 0.45,
   },
   fabCountBadge: {
     position: 'absolute',
     top: -4,
     right: -4,
-    backgroundColor: '#EF4444',
+    backgroundColor: '#FF7F50',
     minWidth: 20,
     height: 20,
     borderRadius: 10,

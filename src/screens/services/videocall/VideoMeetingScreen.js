@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   Image,
   Modal,
@@ -15,6 +14,7 @@ import {
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -143,7 +143,7 @@ const VideoMeetingScreen = ({ route, navigation }) => {
           {
             id: `msg-${Date.now()}`,
             sender: 'user',
-            text: `📄 Uploaded file: ${newDoc.name}`,
+            text: `Uploaded file: ${newDoc.name}`,
             time: 'Just now',
             docAttachment: newDoc,
           },
@@ -155,7 +155,7 @@ const VideoMeetingScreen = ({ route, navigation }) => {
           },
         ]);
 
-        showAlert('Uploaded to Doctor 📤', 'Your document has been sent directly to the doctor in this call.');
+        showAlert('Uploaded to Doctor', 'Your document has been sent directly to the doctor in this call.');
       }
     } catch (e) {
       setIsUploading(false);
@@ -201,7 +201,7 @@ const VideoMeetingScreen = ({ route, navigation }) => {
           {
             id: `msg-${Date.now()}`,
             sender: 'user',
-            text: `📸 Shared live camera photo: ${newDoc.name}`,
+            text: `Shared live camera photo: ${newDoc.name}`,
             time: 'Just now',
             docAttachment: newDoc,
           },
@@ -213,7 +213,7 @@ const VideoMeetingScreen = ({ route, navigation }) => {
           },
         ]);
 
-        showAlert('Photo Shared with Doctor 📸', 'Your photo has been transmitted to the doctor.');
+        showAlert('Photo Shared with Doctor', 'Your photo has been transmitted to the doctor.');
       }
     } catch (e) {
       setIsUploading(false);
@@ -243,7 +243,7 @@ const VideoMeetingScreen = ({ route, navigation }) => {
       {
         id: `msg-${Date.now()}`,
         sender: 'user',
-        text: `📄 Attached from Health Vault: ${newDoc.name}`,
+        text: `Attached from Health Vault: ${newDoc.name}`,
         time: 'Just now',
         docAttachment: newDoc,
       },
@@ -255,7 +255,7 @@ const VideoMeetingScreen = ({ route, navigation }) => {
       },
     ]);
 
-    showAlert('Document Attached! 📄', `${newDoc.name} has been shared with ${doctor.name}.`);
+    showAlert('Document Attached', `${newDoc.name} has been shared with ${doctor.name}.`);
   };
 
   // Send message in chat
@@ -313,7 +313,7 @@ const VideoMeetingScreen = ({ route, navigation }) => {
       });
 
       showAlert(
-        'Medicines Added to Cart! 🛒',
+        'Medicines Added to Cart',
         `Prescription from ${doctor.name} has been added to your cart.\n\n• Paracetamol 650mg Tablets (₹32)\n• Vitamin C & Zinc Chewable (₹110)\n\nTotal: ₹142`,
         [
           {
@@ -338,7 +338,7 @@ const VideoMeetingScreen = ({ route, navigation }) => {
 
   // Handle Back to Appointments
   const handleBackToAppointments = () => {
-    navigation.navigate('Bookings', { initialTab: 'Video Consults', timestamp: Date.now() });
+    navigation.navigate('MyAppointments', { initialTab: 'Video Consults', timestamp: Date.now() });
   };
 
   // Handle Go to Home
@@ -409,7 +409,7 @@ const VideoMeetingScreen = ({ route, navigation }) => {
   // ====================================================
   if (isCallEnded) {
     return (
-      <SafeAreaView style={styles.summaryContainer}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.summaryContainer}>
         <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -505,7 +505,7 @@ const VideoMeetingScreen = ({ route, navigation }) => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
 
       {/* ==================================================
@@ -761,8 +761,8 @@ const VideoMeetingScreen = ({ route, navigation }) => {
                   activeOpacity={0.85}
                   onPress={() => handleSelectSampleDoc('lab')}
                 >
-                  <View style={[styles.uploadOptionIcon, { backgroundColor: '#FEF3C7' }]}>
-                    <Ionicons name="flask" size={24} color="#D97706" />
+                  <View style={[styles.uploadOptionIcon, { backgroundColor: '#E0F7FA' }]}>
+                    <Ionicons name="flask" size={24} color="#00C2CB" />
                   </View>
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={styles.uploadOptionTitle}>Attach Blood Test / Lab Report</Text>
@@ -778,8 +778,8 @@ const VideoMeetingScreen = ({ route, navigation }) => {
                   activeOpacity={0.85}
                   onPress={() => handleSelectSampleDoc('rx')}
                 >
-                  <View style={[styles.uploadOptionIcon, { backgroundColor: '#F5F3FF' }]}>
-                    <Ionicons name="medkit" size={24} color="#7C3AED" />
+                  <View style={[styles.uploadOptionIcon, { backgroundColor: '#E0F7FA' }]}>
+                    <Ionicons name="medkit" size={24} color="#00B894" />
                   </View>
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={styles.uploadOptionTitle}>Attach Previous Prescription</Text>
@@ -1211,7 +1211,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   controlBtnActive: {
-    backgroundColor: '#DC2626',
+    backgroundColor: '#FF7F50',
   },
   controlBtnSelected: {
     backgroundColor: '#CCFBF1',
@@ -1238,13 +1238,13 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#FDE047',
+    backgroundColor: '#00C2CB',
   },
   chatBadgeDot: {
     position: 'absolute',
     top: -2,
     right: 4,
-    backgroundColor: '#EF4444',
+    backgroundColor: '#FF7F50',
     borderRadius: 8,
     paddingHorizontal: 4,
     paddingVertical: 1,
@@ -1260,7 +1260,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 52,
     borderRadius: 16,
-    backgroundColor: '#DC2626',
+    backgroundColor: '#FF7F50',
   },
   endCallBtnText: {
     fontSize: 9,
@@ -1668,23 +1668,23 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   doctorAdviceBox: {
-    backgroundColor: '#FFFBEB',
+    backgroundColor: '#EFF6FF',
     padding: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#FEF3C7',
+    borderColor: '#BFDBFE',
     marginTop: 6,
     marginBottom: 14,
   },
   doctorAdviceLabel: {
     fontSize: 10.5,
     fontWeight: '800',
-    color: '#B45309',
+    color: '#1E3A8A',
     textTransform: 'uppercase',
   },
   doctorAdviceText: {
     fontSize: 11.5,
-    color: '#92400E',
+    color: '#334155',
     marginTop: 2,
     fontStyle: 'italic',
   },

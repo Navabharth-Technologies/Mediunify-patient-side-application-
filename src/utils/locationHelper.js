@@ -2,6 +2,46 @@ import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+export const normalizeCityName = (rawCity) => {
+  if (!rawCity || typeof rawCity !== 'string') return 'Bangalore';
+  const clean = rawCity.trim().toLowerCase();
+
+  if (clean.includes('bengaluru') || clean.includes('bangalore')) return 'Bangalore';
+  if (clean.includes('mysuru') || clean.includes('mysore')) return 'Mysore';
+  if (clean.includes('hubli') || clean.includes('hubballi') || clean.includes('dharwad')) return 'Hubli - Dharwad';
+  if (clean.includes('mangaluru') || clean.includes('mangalore')) return 'Mangalore';
+  if (clean.includes('belagavi') || clean.includes('belgaum')) return 'Belgaum';
+  if (clean.includes('shivamogga') || clean.includes('shimoga')) return 'Shimoga';
+  if (clean.includes('davanagere') || clean.includes('davangere')) return 'Davanagere';
+  if (clean.includes('kalaburagi') || clean.includes('gulbarga')) return 'Gulbarga';
+  if (clean.includes('ballari') || clean.includes('bellary')) return 'Bellary';
+  if (clean.includes('udupi') || clean.includes('manipal')) return 'Udupi';
+  if (clean.includes('tumakuru') || clean.includes('tumkur')) return 'Tumkur';
+  if (clean.includes('delhi') || clean.includes('noida') || clean.includes('gurgaon') || clean.includes('gurugram') || clean.includes('ghaziabad') || clean.includes('faridabad')) return 'Delhi NCR';
+  if (clean.includes('mumbai') || clean.includes('thane') || clean.includes('navi mumbai')) return 'Mumbai';
+  if (clean.includes('hyderabad') || clean.includes('secunderabad')) return 'Hyderabad';
+  if (clean.includes('chennai') || clean.includes('madras')) return 'Chennai';
+  if (clean.includes('pune')) return 'Pune';
+  if (clean.includes('kolkata') || clean.includes('calcutta')) return 'Kolkata';
+
+  // Capitalize raw city nicely
+  return rawCity.trim().charAt(0).toUpperCase() + rawCity.trim().slice(1);
+};
+
+export const saveLocationToStorage = async (city, fullLocation = '', coords = null) => {
+  try {
+    if (city) {
+      await AsyncStorage.setItem('@mediunify_selected_city', city);
+      await AsyncStorage.setItem('@unnathi_user_location', fullLocation || city);
+    }
+    if (coords && coords.latitude && coords.longitude) {
+      await AsyncStorage.setItem('@unnathi_user_coords', JSON.stringify(coords));
+    }
+  } catch (e) {
+    console.warn('[LocationHelper] Failed to save location to storage:', e);
+  }
+};
+
 export const MYSORE_LOCALITIES = [
   { id: '1', name: 'Kuvempunagar', city: 'Mysore', full: 'Kuvempunagar, Mysore', latitude: 12.2858, longitude: 76.6341, pincode: '570023' },
   { id: '2', name: 'Jayalakshmipuram', city: 'Mysore', full: 'Jayalakshmipuram, Mysore', latitude: 12.3168, longitude: 76.6285, pincode: '570012' },
@@ -202,22 +242,23 @@ export const reverseGeocodeWebSafe = async ({ latitude, longitude }) => {
       if (data && data.address) {
         const addr = data.address;
         const mainName = addr.amenity || addr.road || addr.suburb || addr.neighbourhood || 'Current Location';
-        const district = addr.suburb || addr.neighbourhood || addr.city_district || addr.residential || 'Mysore';
-        const city = addr.city || addr.town || addr.village || addr.county || 'Mysore';
+        const district = addr.suburb || addr.neighbourhood || addr.city_district || addr.residential || addr.county || '';
+        const rawCity = addr.city || addr.town || addr.village || addr.municipality || addr.city_district || addr.state_district || addr.county || addr.state || 'Bangalore';
+        const city = normalizeCityName(rawCity);
         const state = addr.state || 'Karnataka';
-        const postalCode = addr.postcode || '570001';
+        const postalCode = addr.postcode || '';
 
         return [
           {
             name: mainName,
             street: addr.road || '',
-            district: district,
-            subregion: district,
+            district: district || city,
+            subregion: district || city,
             city: city,
             region: state,
             postalCode: postalCode,
             country: addr.country || 'India',
-            formattedAddress: data.display_name || `${mainName}, ${district}, ${city} - ${postalCode}`,
+            formattedAddress: data.display_name || `${mainName}, ${city} - ${postalCode}`,
           },
         ];
       }
@@ -239,11 +280,12 @@ export const reverseGeocodeWebSafe = async ({ latitude, longitude }) => {
 
     if (res.ok) {
       const data = await res.json();
-      if (data && (data.locality || data.city)) {
-        const locality = data.locality || data.city || 'Kuvempunagar';
-        const city = data.city || 'Mysore';
+      if (data && (data.locality || data.city || data.principalSubdivision)) {
+        const rawCity = data.city || data.locality || data.principalSubdivision || 'Bangalore';
+        const city = normalizeCityName(rawCity);
+        const locality = data.locality || data.city || city;
         const state = data.principalSubdivision || 'Karnataka';
-        const postalCode = data.postcode || '570023';
+        const postalCode = data.postcode || '';
 
         return [
           {
@@ -255,28 +297,45 @@ export const reverseGeocodeWebSafe = async ({ latitude, longitude }) => {
             region: state,
             postalCode: postalCode,
             country: data.countryName || 'India',
-            formattedAddress: `${locality}, ${city}, ${state} - ${postalCode}`,
+            formattedAddress: `${locality}, ${city}, ${state}${postalCode ? ` - ${postalCode}` : ''}`,
           },
         ];
       }
     }
   } catch (bdcErr) {
-    // BigDataCloud failed, proceed to local Mysore matcher
+    // BigDataCloud failed, proceed to local matcher
   }
 
-  // 3. Fallback: Match against known Mysore localities based on distance
-  const closest = getClosestMysoreLocality(latitude, longitude);
+  // 3. Fallback: Distance matcher for known Mysore & Bangalore coords
+  const distToMysore = calculateDistanceKm(latitude, longitude, 12.2958, 76.6394);
+  if (distToMysore < 40) {
+    const closest = getClosestMysoreLocality(latitude, longitude);
+    return [
+      {
+        name: closest.name,
+        street: `${closest.name} Main Road`,
+        district: closest.name,
+        subregion: closest.name,
+        city: 'Mysore',
+        region: 'Karnataka',
+        postalCode: closest.pincode || '570023',
+        country: 'India',
+        formattedAddress: `${closest.name}, Mysore - ${closest.pincode || '570023'}`,
+      },
+    ];
+  }
+
   return [
     {
-      name: closest.name,
-      street: `${closest.name} Main Road`,
-      district: closest.name,
-      subregion: closest.name,
-      city: closest.city || 'Mysore',
+      name: 'Current Location',
+      street: '',
+      district: 'Bangalore',
+      subregion: 'Bangalore',
+      city: 'Bangalore',
       region: 'Karnataka',
-      postalCode: closest.pincode || '570023',
+      postalCode: '560001',
       country: 'India',
-      formattedAddress: `${closest.name}, ${closest.city || 'Mysore'} - ${closest.pincode || '570023'}`,
+      formattedAddress: 'Bangalore, Karnataka',
     },
   ];
 };
@@ -393,12 +452,132 @@ export const detectUserLocationWithAddress = async () => {
   };
 };
 
+/**
+ * Automatically detects the user's location via GPS (with IP fallback).
+ * Works reliably on Web (browsers) and Native (iOS/Android).
+ */
+export const detectAutoLocation = async () => {
+  try {
+    // 1. Try Browser / Device GPS first
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      try {
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            (position) => resolve(position),
+            (err) => reject(err),
+            { enableHighAccuracy: false, timeout: 6000, maximumAge: 60000 }
+          );
+        });
+
+        if (pos?.coords?.latitude && pos?.coords?.longitude) {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          const addresses = await reverseGeocodeWebSafe({ latitude: lat, longitude: lon });
+          const first = addresses?.[0];
+          if (first && first.city) {
+            const detectedCity = normalizeCityName(first.city);
+            await saveLocationToStorage(detectedCity, first.formattedAddress || `${detectedCity}, ${first.region || 'India'}`, { latitude: lat, longitude: lon });
+            return {
+              success: true,
+              city: detectedCity,
+              fullLocation: first.formattedAddress || `${detectedCity}, ${first.region || 'India'}`,
+              coords: { latitude: lat, longitude: lon },
+              source: 'gps',
+            };
+          }
+        }
+      } catch (gpsErr) {
+        console.log('[LocationHelper] GPS request skipped or timed out, trying IP detection:', gpsErr?.message);
+      }
+    }
+
+    // 2. Mobile Native fallback using expo-location
+    if (Platform.OS !== 'web') {
+      try {
+        const perm = await requestLocationPermissionWebSafe();
+        if (perm.granted || perm.status === 'granted') {
+          const loc = await getCurrentPositionWebSafe({ accuracy: Location.Accuracy.Balanced });
+          if (loc?.coords?.latitude && loc?.coords?.longitude) {
+            const lat = loc.coords.latitude;
+            const lon = loc.coords.longitude;
+            const addresses = await reverseGeocodeWebSafe({ latitude: lat, longitude: lon });
+            const first = addresses?.[0];
+            if (first && first.city) {
+              const detectedCity = normalizeCityName(first.city);
+              await saveLocationToStorage(detectedCity, first.formattedAddress, { latitude: lat, longitude: lon });
+              return {
+                success: true,
+                city: detectedCity,
+                fullLocation: first.formattedAddress,
+                coords: { latitude: lat, longitude: lon },
+                source: 'gps',
+              };
+            }
+          }
+        }
+      } catch (nativeErr) {
+        console.warn('[LocationHelper] Native GPS detection error:', nativeErr);
+      }
+    }
+
+    // 3. Fast IP Geolocation Fallback (instant, no browser permission prompt needed)
+    try {
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timeoutId = controller ? setTimeout(() => controller.abort(), 4000) : null;
+      const res = await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client', {
+        signal: controller?.signal,
+      });
+      if (timeoutId) clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        const rawCity = data.city || data.locality || data.principalSubdivision;
+        if (rawCity) {
+          const detectedCity = normalizeCityName(rawCity);
+          const lat = data.latitude || 12.9716;
+          const lon = data.longitude || 77.5946;
+          await saveLocationToStorage(detectedCity, `${detectedCity}, ${data.principalSubdivision || 'India'}`, { latitude: lat, longitude: lon });
+          return {
+            success: true,
+            city: detectedCity,
+            fullLocation: `${detectedCity}, ${data.principalSubdivision || 'India'}`,
+            coords: { latitude: lat, longitude: lon },
+            source: 'ip',
+          };
+        }
+      }
+    } catch (ipErr) {
+      console.log('[LocationHelper] IP fallback error:', ipErr?.message);
+    }
+
+    // 4. Default fallback
+    return {
+      success: false,
+      city: 'Bangalore',
+      fullLocation: 'Bangalore, Karnataka',
+      coords: { latitude: 12.9716, longitude: 77.5946 },
+      source: 'default',
+    };
+  } catch (err) {
+    return {
+      success: false,
+      city: 'Bangalore',
+      fullLocation: 'Bangalore, Karnataka',
+      coords: { latitude: 12.9716, longitude: 77.5946 },
+      source: 'default',
+    };
+  }
+};
+
 export default {
   requestLocationPermissionWebSafe,
   getCurrentPositionWebSafe,
   reverseGeocodeWebSafe,
   geocodeWebSafe,
   detectUserLocationWithAddress,
+  detectAutoLocation,
+  normalizeCityName,
+  saveLocationToStorage,
   getClosestMysoreLocality,
   calculateDistanceKm,
   MYSORE_LOCALITIES,

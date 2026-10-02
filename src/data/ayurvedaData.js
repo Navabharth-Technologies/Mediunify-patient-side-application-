@@ -8,8 +8,8 @@ export const popularServices = [
     icon: 'leaf-outline',
     shortDesc: 'Authentic Nadi Pariksha & holistic root-cause assessment',
     filterKey: 'Ayurveda Consultation',
-    color: '#059669',
-    bgColor: '#ECFDF5',
+    color: '#7BC96F',
+    bgColor: '#F2FAF0',
   },
   {
     id: 'pop-2',
@@ -17,8 +17,8 @@ export const popularServices = [
     icon: 'water-outline',
     shortDesc: 'Classical 5-fold internal detoxification & cellular renewal',
     filterKey: 'Panchakarma',
-    color: '#0284C7',
-    bgColor: '#F0F9FF',
+    color: '#00C2CB',
+    bgColor: '#E0F7FA',
   },
   {
     id: 'pop-3',
@@ -26,8 +26,8 @@ export const popularServices = [
     icon: 'body-outline',
     shortDesc: 'Abhyanga, Shirodhara, Janu Basti, Kizhi & restorative therapies',
     filterKey: 'Ayurvedic Therapies',
-    color: '#7C3AED',
-    bgColor: '#F5F3FF',
+    color: '#00B894',
+    bgColor: '#E6F8F5',
   },
   {
     id: 'pop-4',
@@ -35,8 +35,8 @@ export const popularServices = [
     icon: 'fitness-outline',
     shortDesc: 'Therapeutic Pranayama, guided meditation & Asanas',
     filterKey: 'Yoga & Wellness',
-    color: '#D97706',
-    bgColor: '#FFFBEB',
+    color: '#1E3A8A',
+    bgColor: '#EFF6FF',
   },
   {
     id: 'pop-5',
@@ -44,8 +44,8 @@ export const popularServices = [
     icon: 'nutrition-outline',
     shortDesc: 'Ahara-Vihara personalized diet plans & herbal regimen',
     filterKey: 'Nutrition & Lifestyle',
-    color: '#16A34A',
-    bgColor: '#F0FDF4',
+    color: '#7BC96F',
+    bgColor: '#F2FAF0',
   },
   {
     id: 'pop-6',
@@ -53,8 +53,8 @@ export const popularServices = [
     icon: 'heart-half-outline',
     shortDesc: 'Holistic 7 to 21-day rejuvenation & stress relief retreats',
     filterKey: 'Wellness Programs',
-    color: '#DC2626',
-    bgColor: '#FEF2F2',
+    color: '#FF7F50',
+    bgColor: '#FFF2ED',
   },
 ];
 
@@ -1003,7 +1003,7 @@ export const initialCallbackRequests = [
 export const mockAyurvedaNotifications = [
   {
     id: 'notif-ayu-1',
-    title: 'Appointment Confirmed 🌿',
+    title: 'Appointment Confirmed',
     message: 'Your Nadi Pariksha consultation at Kottakkal Arya Vaidya Sala with Dr. Vaidya Madhavan is confirmed for Tomorrow, 11:00 AM.',
     time: '2 hours ago',
     read: false,
@@ -1012,7 +1012,7 @@ export const mockAyurvedaNotifications = [
   },
   {
     id: 'notif-ayu-2',
-    title: 'Appointment Reminder ⏰',
+    title: 'Appointment Reminder',
     message: 'Reminder: Arrive 15 minutes before your scheduled appointment at Saraswathipuram Centre for pulse assessment on an empty stomach.',
     time: '4 hours ago',
     read: false,
@@ -1020,7 +1020,7 @@ export const mockAyurvedaNotifications = [
   },
   {
     id: 'notif-ayu-3',
-    title: 'Centre Contacted You 📞',
+    title: 'Centre Contacted You',
     message: 'Soukya Care Coordinator reached out regarding your Signature Royal Panchakarma callback request.',
     time: 'Yesterday',
     read: true,
@@ -1028,7 +1028,7 @@ export const mockAyurvedaNotifications = [
   },
   {
     id: 'notif-ayu-4',
-    title: 'Callback Request Submitted 📝',
+    title: 'Callback Request Submitted',
     message: 'Your enquiry for Frozen Shoulder Mobility has been shared with Dhanwantari Marma Ashram. They will call you shortly.',
     time: 'Yesterday',
     read: true,
@@ -1036,7 +1036,7 @@ export const mockAyurvedaNotifications = [
   },
   {
     id: 'notif-ayu-5',
-    title: 'Appointment Rescheduled 🔄',
+    title: 'Appointment Rescheduled',
     message: 'Your Abhyanga session at Sanjeevani Sanctuary has been moved to 22 Sep at 04:00 PM as per your request.',
     time: '2 days ago',
     read: true,

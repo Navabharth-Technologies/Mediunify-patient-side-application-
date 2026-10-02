@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   TouchableOpacity,
   TextInput,
@@ -14,6 +13,7 @@ import {
   StatusBar,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -147,10 +147,10 @@ const DEFAULT_TRANSACTIONS = [
 
 const FILTER_TABS = [
   { id: 'all', label: 'All Transactions' },
-  { id: 'consultation', label: '👨‍⚕️ Consultations' },
-  { id: 'radiology', label: '☢️ Radiology Scans' },
-  { id: 'lab', label: '🧪 Lab Tests' },
-  { id: 'pharmacy', label: '💊 Pharmacy' },
+  { id: 'consultation', label: 'Consultations' },
+  { id: 'radiology', label: 'Radiology Scans' },
+  { id: 'lab', label: 'Lab Tests' },
+  { id: 'pharmacy', label: 'Pharmacy' },
 ];
 
 const TransactionHistoryScreen = ({ navigation }) => {
@@ -336,7 +336,7 @@ const TransactionHistoryScreen = ({ navigation }) => {
           {item.title}
         </Text>
         <Text style={styles.facilityText} numberOfLines={1}>
-          🏥 {item.facility}
+          {item.facility}
         </Text>
 
         {/* DATE & PAYMENT MODE */}
@@ -374,7 +374,7 @@ const TransactionHistoryScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* ==================================================
@@ -571,7 +571,7 @@ const TransactionHistoryScreen = ({ navigation }) => {
                 <View style={styles.invoiceFacilityBox}>
                   <Text style={styles.invoiceFacilityTitle}>{selectedTxn.service}</Text>
                   <Text style={styles.invoiceFacilityName}>{selectedTxn.title}</Text>
-                  <Text style={styles.invoiceFacilityLoc}>🏥 {selectedTxn.facility}</Text>
+                  <Text style={styles.invoiceFacilityLoc}>{selectedTxn.facility}</Text>
                   <Text style={styles.invoiceGstin}>GSTIN: {selectedTxn.gstin}</Text>
                 </View>
 

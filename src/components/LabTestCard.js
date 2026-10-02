@@ -1,12 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import colors from '../theme/colors';
 
 const LabTestCard = ({ test, onPress }) => {
   return (
     <TouchableOpacity style={styles.card} onPress={onPress}>
       <View style={styles.iconBox}>
-        <Text style={styles.icon}>🧪</Text>
+        <Ionicons name="flask-outline" size={26} color="#00B894" />
       </View>
 
       <View style={styles.info}>

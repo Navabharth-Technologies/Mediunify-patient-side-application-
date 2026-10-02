@@ -26,7 +26,7 @@ const FertilityRecordCard = ({ record, onView, onDownload }) => {
     <View style={styles.card}>
       <View style={styles.header}>
         <View style={styles.iconCircle}>
-          <Ionicons name={getTypeIcon(record.type)} size={18} color="#E11D48" />
+          <Ionicons name={getTypeIcon(record.type)} size={18} color="#00C2CB" />
         </View>
 
         <View style={styles.headerInfo}>
@@ -75,7 +75,7 @@ const FertilityRecordCard = ({ record, onView, onDownload }) => {
             activeOpacity={0.85}
           >
             <Text style={styles.viewBtnText}>View Report</Text>
-            <Ionicons name="eye-outline" size={13} color="#E11D48" />
+            <Ionicons name="eye-outline" size={13} color="#00C2CB" />
           </TouchableOpacity>
         </View>
       </View>
@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#FFF1F2',
+    backgroundColor: '#E0F7FA',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FFF1F2',
+    backgroundColor: '#E0F7FA',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 6,
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   viewBtnText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#E11D48',
+    color: '#00C2CB',
   },
 });
 

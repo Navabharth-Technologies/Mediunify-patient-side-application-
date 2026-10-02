@@ -1,9 +1,8 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   TouchableOpacity,
   TextInput,
@@ -15,8 +14,9 @@ import {
   Platform,
   Linking,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { videoDoctors, videoSpecialties } from '../../../data/videoDoctors';
+import { videoDoctors, videoSpecialties, SPECIALIZATION_CATEGORIES } from '../../../data/videoDoctors';
 import inPersonDoctors, { doctorSpecialties as inPersonSpecialties } from '../../../data/doctors';
 import colors from '../../../theme/colors';
 import WebFooter from '../../../components/web/WebFooter';
@@ -27,6 +27,11 @@ const LANGUAGES_LIST = ['All', 'English', 'Kannada', 'Hindi', 'Telugu', 'Malayal
 const VideoConsultationScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 992;
+  const scrollViewRef = useRef(null);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const DOCTORS_PER_PAGE = 4;
+
   const initialSearch = route?.params?.query || route?.params?.search || '';
   const [search, setSearch] = useState(initialSearch);
   const [consultationMode, setConsultationMode] = useState(route?.params?.mode || 'online'); // 'online' | 'physical'
@@ -39,7 +44,28 @@ const VideoConsultationScreen = ({ navigation, route }) => {
     }
   }, [route?.params?.query, route?.params?.search]);
 
-  const [selectedSpecialty, setSelectedSpecialty] = useState('all');
+  const [selectedSpecialty, setSelectedSpecialty] = useState(route?.params?.specialty || route?.params?.categoryId || 'all');
+  const [sidebarSpecSearch, setSidebarSpecSearch] = useState('');
+  const [modalSpecSearch, setModalSpecSearch] = useState('');
+  const [expandedCategories, setExpandedCategories] = useState({
+    'general-primary': true,
+    'cardiology-group': true,
+  });
+
+  useEffect(() => {
+    if (route?.params?.specialty !== undefined) {
+      setSelectedSpecialty(route.params.specialty);
+    } else if (route?.params?.categoryId !== undefined) {
+      setSelectedSpecialty(route.params.categoryId);
+    }
+  }, [route?.params?.specialty, route?.params?.categoryId]);
+
+  const toggleCategory = (catId) => {
+    setExpandedCategories((prev) => ({
+      ...prev,
+      [catId]: !prev[catId],
+    }));
+  };
 
   // Filter state
   const [filterModalVisible, setFilterModalVisible] = useState(false);
@@ -47,7 +73,7 @@ const VideoConsultationScreen = ({ navigation, route }) => {
   const [minExperience, setMinExperience] = useState('all'); // 'all' | '5' | '10' | '15'
   const [maxFee, setMaxFee] = useState('all'); // 'all' | '500' | '700'
   const [onlyAvailableToday, setOnlyAvailableToday] = useState(false);
-  const [sortBy, setSortBy] = useState('earliest'); // 'earliest' | 'rating' | 'experience' | 'fee'
+  const [sortBy, setSortBy] = useState('nearest'); // 'nearest' | 'rating' | 'experience' | 'fee' | 'earliest'
 
   // Selected Doctor for Profile Quick View Modal
   const [profileDoctor, setProfileDoctor] = useState(null);
@@ -63,7 +89,7 @@ const VideoConsultationScreen = ({ navigation, route }) => {
     if (minExperience !== 'all') count++;
     if (maxFee !== 'all') count++;
     if (onlyAvailableToday) count++;
-    if (sortBy !== 'earliest') count++;
+    if (sortBy !== 'nearest') count++;
     return count;
   }, [selectedSpecialty, selectedLanguage, minExperience, maxFee, onlyAvailableToday, sortBy]);
 
@@ -73,7 +99,7 @@ const VideoConsultationScreen = ({ navigation, route }) => {
     setMinExperience('all');
     setMaxFee('all');
     setOnlyAvailableToday(false);
-    setSortBy('earliest');
+    setSortBy('nearest');
   };
 
   // Active Specialties for Video Consultation
@@ -92,8 +118,37 @@ const VideoConsultationScreen = ({ navigation, route }) => {
       if (!matchesSearch) return false;
 
       // 2. Specialty
-      if (selectedSpecialty !== 'all' && doc.specialtyKey !== selectedSpecialty) {
-        return false;
+      if (selectedSpecialty !== 'all') {
+        const specObj = videoSpecialties.find(
+          (s) => s.id === selectedSpecialty || s.key === selectedSpecialty
+        );
+        const catObj = SPECIALIZATION_CATEGORIES.find((c) => c.id === selectedSpecialty);
+
+        const matchesKey =
+          doc.specialtyKey === selectedSpecialty ||
+          (specObj && (doc.specialtyKey === specObj.key || doc.specialtyKey === specObj.id));
+
+        const matchesName =
+          doc.specialty &&
+          (doc.specialty.toLowerCase() === selectedSpecialty.toLowerCase() ||
+            (specObj &&
+              (doc.specialty.toLowerCase().includes(specObj.name.toLowerCase()) ||
+                specObj.name.toLowerCase().includes(doc.specialty.toLowerCase()))));
+
+        const matchesCategory =
+          (doc.categoryId && doc.categoryId === selectedSpecialty) ||
+          (catObj &&
+            (doc.categoryId === catObj.id ||
+              catObj.specialties.some(
+                (s) =>
+                  s.key === doc.specialtyKey ||
+                  s.id === doc.specialtyKey ||
+                  (doc.specialty && doc.specialty.toLowerCase().includes(s.name.toLowerCase()))
+              )));
+
+        if (!matchesKey && !matchesName && !matchesCategory) {
+          return false;
+        }
       }
 
       // 3. Language
@@ -123,6 +178,9 @@ const VideoConsultationScreen = ({ navigation, route }) => {
 
     // Sorting
     result.sort((a, b) => {
+      if (sortBy === 'nearest') {
+        return (a.distanceKm || 99) - (b.distanceKm || 99);
+      }
       if (sortBy === 'rating') {
         return b.rating - a.rating;
       }
@@ -141,6 +199,20 @@ const VideoConsultationScreen = ({ navigation, route }) => {
     return result;
   }, [search, selectedSpecialty, selectedLanguage, minExperience, maxFee, onlyAvailableToday, sortBy]);
 
+  // Reset pagination when search or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, selectedSpecialty, selectedLanguage, minExperience, maxFee, onlyAvailableToday, sortBy]);
+
+  const totalDoctors = filteredDoctors.length;
+  const totalPages = Math.max(1, Math.ceil(totalDoctors / DOCTORS_PER_PAGE));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedDoctors = useMemo(() => {
+    const startIndex = (safeCurrentPage - 1) * DOCTORS_PER_PAGE;
+    return filteredDoctors.slice(startIndex, startIndex + DOCTORS_PER_PAGE);
+  }, [filteredDoctors, safeCurrentPage]);
+
   const renderDoctor = ({ item }) => {
     return (
       <View style={styles.card}>
@@ -150,8 +222,8 @@ const VideoConsultationScreen = ({ navigation, route }) => {
             <View style={styles.onlineDot} />
             <Text style={styles.onlineText}>
               {item.availableToday
-                ? '💻 Accepting Instant Video Calls'
-                : '💻 Next Video Slot Tomorrow'}
+                ? 'Accepting Instant Video Calls'
+                : 'Next Video Slot Tomorrow'}
             </Text>
           </View>
           <View style={styles.discountBadge}>
@@ -183,7 +255,7 @@ const VideoConsultationScreen = ({ navigation, route }) => {
             {/* EXPERIENCE & RATING CHIPS */}
             <View style={styles.metricsRow}>
               <View style={styles.experienceChip}>
-                <Ionicons name="ribbon-outline" size={12} color="#D97706" />
+                <Ionicons name="ribbon-outline" size={12} color="#1E3A8A" />
                 <Text style={styles.experienceChipText}>{item.experience}</Text>
               </View>
 
@@ -289,36 +361,282 @@ const VideoConsultationScreen = ({ navigation, route }) => {
 
       {/* 3. Doctor Specialization */}
       <View style={styles.sidebarSection}>
-        <Text style={styles.sidebarSectionTitle}>Specialization</Text>
-        <View style={styles.sidebarSpecialtyList}>
-          {videoSpecialties.slice(0, 8).map((spec) => {
-            const isSelected = selectedSpecialty === spec.id;
-            return (
-              <TouchableOpacity
-                key={spec.id}
-                style={[styles.sidebarSpecialtyRow, isSelected && styles.sidebarSpecialtyRowActive]}
-                onPress={() => setSelectedSpecialty(spec.id)}
-                activeOpacity={0.75}
-              >
-                <Ionicons
-                  name={spec.icon}
-                  size={14}
-                  color={isSelected ? '#00B894' : '#64748B'}
-                  style={{ width: 18 }}
-                />
-                <Text
-                  style={[styles.sidebarSpecialtyText, isSelected && styles.sidebarSpecialtyTextActive]}
-                  numberOfLines={1}
-                >
-                  {spec.name}
-                </Text>
-                {isSelected && (
-                  <Ionicons name="checkmark-circle" size={14} color="#00B894" style={{ marginLeft: 'auto' }} />
-                )}
-              </TouchableOpacity>
-            );
-          })}
+        <View style={styles.sidebarSectionHeaderRow}>
+          <Text style={styles.sidebarSectionTitle}>Specialization ({videoSpecialties.length - 1})</Text>
+          {selectedSpecialty !== 'all' && (
+            <TouchableOpacity onPress={() => setSelectedSpecialty('all')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.sidebarClearSpecLink}>Clear</Text>
+            </TouchableOpacity>
+          )}
         </View>
+
+        {/* In-sidebar search input */}
+        <View style={styles.sidebarSpecSearchBox}>
+          <Ionicons name="search-outline" size={13} color="#94A3B8" style={{ marginRight: 6 }} />
+          <TextInput
+            style={styles.sidebarSpecSearchInput}
+            placeholder="Search 80+ specializations..."
+            placeholderTextColor="#94A3B8"
+            value={sidebarSpecSearch}
+            onChangeText={setSidebarSpecSearch}
+          />
+          {sidebarSpecSearch.length > 0 && (
+            <TouchableOpacity onPress={() => setSidebarSpecSearch('')} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+              <Ionicons name="close-circle" size={14} color="#94A3B8" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* If searching within specializations */}
+        {sidebarSpecSearch.trim() !== '' ? (
+          <ScrollView
+            style={styles.sidebarSpecScrollList}
+            nestedScrollEnabled
+            showsVerticalScrollIndicator
+          >
+            {/* Full Category matches in search */}
+            {SPECIALIZATION_CATEGORIES
+              .filter((c) => c.name.toLowerCase().includes(sidebarSpecSearch.toLowerCase()))
+              .map((cat) => {
+                const isSelected = selectedSpecialty === cat.id;
+                return (
+                  <TouchableOpacity
+                    key={`cat-${cat.id}`}
+                    style={[styles.sidebarSpecialtyRow, styles.sidebarFullCatSearchRow, isSelected && styles.sidebarSpecialtyRowActive]}
+                    onPress={() => setSelectedSpecialty(isSelected ? 'all' : cat.id)}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons
+                      name={cat.icon || 'layers-outline'}
+                      size={14}
+                      color={isSelected ? '#00B894' : '#0D9488'}
+                      style={{ width: 16 }}
+                    />
+                    <View style={{ flex: 1, marginLeft: 4 }}>
+                      <Text
+                        style={[styles.sidebarSpecialtyText, { fontWeight: '700', color: isSelected ? '#00B894' : '#0F766E' }]}
+                        numberOfLines={1}
+                      >
+                        {cat.name}
+                      </Text>
+                      <Text style={styles.sidebarSpecCategoryHint} numberOfLines={1}>
+                        {cat.specialties.length} specializations
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <Ionicons name="checkmark-circle" size={14} color="#00B894" style={{ marginLeft: 4 }} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+
+            {/* Individual sub-specialty matches */}
+            {videoSpecialties
+              .filter(
+                (s) =>
+                  s.id !== 'all' &&
+                  (s.name.toLowerCase().includes(sidebarSpecSearch.toLowerCase()) ||
+                    (s.categoryName && s.categoryName.toLowerCase().includes(sidebarSpecSearch.toLowerCase())))
+              )
+              .map((spec) => {
+                const isSelected = selectedSpecialty === spec.id || selectedSpecialty === spec.key;
+                return (
+                  <TouchableOpacity
+                    key={spec.id}
+                    style={[styles.sidebarSpecialtyRow, isSelected && styles.sidebarSpecialtyRowActive]}
+                    onPress={() => setSelectedSpecialty(isSelected ? 'all' : spec.id)}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons
+                      name={spec.icon || 'videocam-outline'}
+                      size={13}
+                      color={isSelected ? '#00B894' : '#64748B'}
+                      style={{ width: 16 }}
+                    />
+                    <View style={{ flex: 1, marginLeft: 4 }}>
+                      <Text
+                        style={[styles.sidebarSpecialtyText, isSelected && styles.sidebarSpecialtyTextActive]}
+                        numberOfLines={1}
+                      >
+                        {spec.name}
+                      </Text>
+                      {spec.categoryName && (
+                        <Text style={styles.sidebarSpecCategoryHint} numberOfLines={1}>
+                          {spec.categoryName}
+                        </Text>
+                      )}
+                    </View>
+                    {isSelected && (
+                      <Ionicons name="checkmark-circle" size={14} color="#00B894" style={{ marginLeft: 4 }} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+          </ScrollView>
+        ) : (
+          /* Categorized Accordion List */
+          <ScrollView
+            style={styles.sidebarSpecScrollList}
+            nestedScrollEnabled
+            showsVerticalScrollIndicator
+          >
+            {/* All Specializations Option */}
+            <TouchableOpacity
+              style={[
+                styles.sidebarSpecialtyRow,
+                selectedSpecialty === 'all' && styles.sidebarSpecialtyRowActive,
+                { marginBottom: 4 },
+              ]}
+              onPress={() => setSelectedSpecialty('all')}
+              activeOpacity={0.75}
+            >
+              <Ionicons
+                name="videocam-outline"
+                size={14}
+                color={selectedSpecialty === 'all' ? '#00B894' : '#64748B'}
+                style={{ width: 18 }}
+              />
+              <Text
+                style={[
+                  styles.sidebarSpecialtyText,
+                  selectedSpecialty === 'all' && styles.sidebarSpecialtyTextActive,
+                ]}
+              >
+                All Specializations
+              </Text>
+              {selectedSpecialty === 'all' && (
+                <Ionicons name="checkmark-circle" size={14} color="#00B894" style={{ marginLeft: 'auto' }} />
+              )}
+            </TouchableOpacity>
+
+            {SPECIALIZATION_CATEGORIES.map((cat) => {
+              const isExpanded = !!expandedCategories[cat.id];
+              const isFullCatSelected = selectedSpecialty === cat.id;
+              const hasActiveChild = cat.specialties.some(
+                (s) => s.id === selectedSpecialty || s.key === selectedSpecialty
+              );
+              const isCategoryActive = isFullCatSelected || hasActiveChild;
+
+              return (
+                <View key={cat.id} style={styles.sidebarCategoryGroup}>
+                  {/* Category Header Row */}
+                  <View
+                    style={[
+                      styles.sidebarCategoryHeader,
+                      isCategoryActive && styles.sidebarCategoryHeaderActive,
+                    ]}
+                  >
+                    {/* Selectable category button to select the whole specialization section */}
+                    <TouchableOpacity
+                      style={styles.sidebarCategorySelectBtn}
+                      onPress={() => {
+                        if (isFullCatSelected) {
+                          setSelectedSpecialty('all');
+                        } else {
+                          setSelectedSpecialty(cat.id);
+                          if (!isExpanded) {
+                            toggleCategory(cat.id);
+                          }
+                        }
+                      }}
+                      activeOpacity={0.75}
+                    >
+                      <Ionicons
+                        name={cat.icon || 'medkit-outline'}
+                        size={15}
+                        color={isCategoryActive ? '#00B894' : '#64748B'}
+                        style={{ marginRight: 8, width: 16 }}
+                      />
+                      <Text
+                        style={[
+                          styles.sidebarCategoryTitle,
+                          isCategoryActive && styles.sidebarCategoryTitleActive,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {cat.name}
+                      </Text>
+                      {isFullCatSelected && (
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={15}
+                          color="#00B894"
+                          style={{ marginLeft: 6 }}
+                        />
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Expand/Collapse Chevron Button */}
+                    <TouchableOpacity
+                      style={styles.sidebarCategoryExpandBtn}
+                      onPress={() => toggleCategory(cat.id)}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <View style={[styles.sidebarCategoryBadge, isCategoryActive && styles.sidebarCategoryBadgeActive]}>
+                        <Text style={[styles.sidebarCategoryCount, isCategoryActive && styles.sidebarCategoryCountActive]}>
+                          {cat.specialties.length}
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                        size={14}
+                        color={isCategoryActive ? '#00B894' : '#94A3B8'}
+                        style={{ marginLeft: 2 }}
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Expanded Sub-options (Clean individual sub-specialties) */}
+                  {isExpanded && (
+                    <View style={styles.sidebarCategoryChildren}>
+                      {/* Individual sub-specialties */}
+                      {cat.specialties.map((spec) => {
+                        const isSelected =
+                          selectedSpecialty === spec.id || selectedSpecialty === spec.key;
+                        return (
+                          <TouchableOpacity
+                            key={spec.id}
+                            style={[
+                              styles.sidebarChildSpecRow,
+                              isSelected && styles.sidebarChildSpecRowActive,
+                            ]}
+                            onPress={() => setSelectedSpecialty(isSelected ? 'all' : spec.id)}
+                            activeOpacity={0.75}
+                          >
+                            <Ionicons
+                              name={spec.icon || 'ellipse'}
+                              size={12}
+                              color={isSelected ? '#00B894' : '#64748B'}
+                              style={{ width: 14 }}
+                            />
+                            <Text
+                              style={[
+                                styles.sidebarChildSpecText,
+                                isSelected && styles.sidebarChildSpecTextActive,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {spec.name}
+                            </Text>
+                            {isSelected && (
+                              <Ionicons
+                                name="checkmark-circle"
+                                size={13}
+                                color="#00B894"
+                                style={{ marginLeft: 'auto' }}
+                              />
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </ScrollView>
+        )}
       </View>
 
       {/* 4. Consultation Fee */}
@@ -411,10 +729,11 @@ const VideoConsultationScreen = ({ navigation, route }) => {
         <Text style={styles.sidebarSectionTitle}>Sort Doctors</Text>
         <View style={styles.sidebarOptionsCol}>
           {[
-            { label: 'Earliest Slot', value: 'earliest' },
-            { label: 'Highest Rated (★)', value: 'rating' },
+            { label: 'Nearest Doctor', value: 'nearest' },
+            { label: 'Highest Rated', value: 'rating' },
             { label: 'Most Experienced', value: 'experience' },
             { label: 'Fee: Low to High', value: 'fee' },
+            { label: 'Earliest Slot', value: 'earliest' },
           ].map((opt) => {
             const isSelected = sortBy === opt.value;
             return (
@@ -441,12 +760,13 @@ const VideoConsultationScreen = ({ navigation, route }) => {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={isDesktopWeb}
       >
         {/* ==================================================
             HEADER (Mobile Only)
@@ -492,47 +812,37 @@ const VideoConsultationScreen = ({ navigation, route }) => {
           </View>
         )}
 
+
         {/* ==================================================
-            HERO PROMO BANNER
+            SEARCH BAR & FILTER CHIP (Desktop & Mobile)
         ================================================== */}
-        <View style={styles.heroBanner}>
-          <View style={styles.heroContent}>
-            <View style={styles.heroTag}>
-              <Ionicons name="sparkles" size={12} color="#FFFFFF" />
-              <Text style={styles.heroTagText}>
-                MEDIUNIFY TELEHEALTH
-              </Text>
-            </View>
-            <Text style={styles.heroTitle}>
-              Consult Specialist Doctors Online
-            </Text>
-            <Text style={styles.heroDesc}>
-              100% Private HD Video Call • Verified e-Prescription • Free Follow-up for 3 Days
-            </Text>
+        <View style={[styles.searchBarContainer, isDesktopWeb && styles.searchBarContainerDesktop]}>
+          <View style={[styles.searchBox, isDesktopWeb && styles.searchBoxDesktop]}>
+            <Ionicons name="search-outline" size={20} color={colors.primary} />
+            <TextInput
+              style={[styles.searchInput, isDesktopWeb && { fontSize: 14.5 }]}
+              placeholder="Search online video doctors by name, specialty, or hospital..."
+              placeholderTextColor="#94A3B8"
+              value={search}
+              onChangeText={setSearch}
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch('')} style={{ padding: 4, marginRight: 6 }}>
+                <Ionicons name="close-circle" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
+            {isDesktopWeb && (
+              <TouchableOpacity
+                style={styles.desktopSearchActionBtn}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="search" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.desktopSearchActionBtnText}>Search</Text>
+              </TouchableOpacity>
+            )}
           </View>
-        </View>
 
-        {/* ==================================================
-            SEARCH BAR & FILTER CHIP (Mobile Only)
-        ================================================== */}
-        {!isDesktopWeb && (
-          <View style={styles.searchBarContainer}>
-            <View style={styles.searchBox}>
-              <Ionicons name="search-outline" size={19} color={colors.textSecondary} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search doctor, specialty, language..."
-                placeholderTextColor="#94A3B8"
-                value={search}
-                onChangeText={setSearch}
-              />
-              {search.length > 0 && (
-                <TouchableOpacity onPress={() => setSearch('')}>
-                  <Ionicons name="close-circle" size={18} color="#94A3B8" />
-                </TouchableOpacity>
-              )}
-            </View>
-
+          {!isDesktopWeb && (
             <TouchableOpacity
               style={[styles.filterTriggerPill, activeFiltersCount > 0 && styles.filterTriggerPillActive]}
               onPress={() => setFilterModalVisible(true)}
@@ -551,8 +861,8 @@ const VideoConsultationScreen = ({ navigation, route }) => {
                 {activeFiltersCount > 0 ? `${activeFiltersCount} Filters` : 'Filters'}
               </Text>
             </TouchableOpacity>
-          </View>
-        )}
+          )}
+        </View>
 
         {/* ==================================================
             MAIN CONTENT AREA: DESKTOP 2-COLUMN (VISIBLE FILTER SIDEBAR + DOCTORS LIST)
@@ -568,13 +878,61 @@ const VideoConsultationScreen = ({ navigation, route }) => {
           {/* Right Content Column: Results count & Doctors Cards */}
           <View style={[styles.doctorsColWrap, isDesktopWeb && styles.doctorsColWrapDesktop]}>
             <View style={styles.resultsHeaderRow}>
-              <Text style={styles.resultsCountText}>
-                {filteredDoctors.length} {filteredDoctors.length === 1 ? 'Doctor' : 'Doctors'} Available for Video Consultation
-              </Text>
-              <Text style={styles.sortedByText}>
-                Sorted: {sortBy === 'earliest' ? 'Earliest Slot' : sortBy === 'rating' ? 'Highest Rated' : sortBy === 'experience' ? 'Most Experienced' : 'Lowest Fee'}
-              </Text>
+              <View>
+                <Text style={styles.sectionHeadingTitle}>Top Doctors Near You</Text>
+                <Text style={styles.resultsCountText}>
+                  Showing {totalDoctors > 0 ? (safeCurrentPage - 1) * DOCTORS_PER_PAGE + 1 : 0}–{Math.min(safeCurrentPage * DOCTORS_PER_PAGE, totalDoctors)} of {totalDoctors} {totalDoctors === 1 ? 'doctor' : 'doctors'} available for video consultation
+                </Text>
+              </View>
+
+              {/* Interactive Sort Options (Matching In-Clinic Design) */}
+              <View style={styles.sortPillsRow}>
+                <Text style={styles.sortLabel}>Sort:</Text>
+                {[
+                  { id: 'nearest', label: 'Nearest' },
+                  { id: 'rating', label: 'Top Rated' },
+                  { id: 'experience', label: 'Experience' },
+                  { id: 'fee', label: 'Lowest Fee' },
+                ].map((item) => {
+                  const isSortActive = sortBy === item.id;
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[styles.sortPillBtn, isSortActive && styles.sortPillBtnActive]}
+                      onPress={() => setSortBy(item.id)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.sortPillText, isSortActive && styles.sortPillTextActive]}>
+                        {item.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
+
+            {selectedSpecialty !== 'all' && (
+              <View style={styles.activeSpecChipRow}>
+                <View style={styles.activeSpecChip}>
+                  <Text style={styles.activeSpecChipLabel}>Specialty:</Text>
+                  <Text style={styles.activeSpecChipValue}>
+                    {SPECIALIZATION_CATEGORIES.find((c) => c.id === selectedSpecialty)
+                      ? SPECIALIZATION_CATEGORIES.find((c) => c.id === selectedSpecialty).name
+                      : videoSpecialties.find((s) => s.id === selectedSpecialty || s.key === selectedSpecialty)?.name || selectedSpecialty}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setSelectedSpecialty('all')}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={{ marginLeft: 6 }}
+                  >
+                    <Ionicons name="close-circle" size={16} color="#00B894" />
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity onPress={resetFilters}>
+                  <Text style={styles.clearAllFiltersText}>Reset Filter</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {filteredDoctors.length === 0 ? (
               <View style={styles.emptyContainer}>
@@ -601,13 +959,75 @@ const VideoConsultationScreen = ({ navigation, route }) => {
                 </TouchableOpacity>
               </View>
             ) : (
-              <View style={styles.doctorsCardsList}>
-                {filteredDoctors.map((doc) => (
-                  <View key={`video-${doc.id}`}>
-                    {renderDoctor({ item: doc })}
+              <>
+                <View style={styles.doctorsCardsList}>
+                  {paginatedDoctors.map((doc) => (
+                    <View key={`video-${doc.id}`}>
+                      {renderDoctor({ item: doc })}
+                    </View>
+                  ))}
+                </View>
+
+                {/* PAGINATION (5 DOCTORS PER PAGE) */}
+                {totalPages > 1 && (
+                  <View style={styles.paginationContainer}>
+                    <TouchableOpacity
+                      style={[styles.pageNavBtn, safeCurrentPage === 1 && styles.pageNavBtnDisabled]}
+                      onPress={() => {
+                        if (safeCurrentPage > 1) {
+                          setCurrentPage(safeCurrentPage - 1);
+                          scrollViewRef.current?.scrollTo({ y: isDesktopWeb ? 90 : 140, animated: true });
+                        }
+                      }}
+                      disabled={safeCurrentPage === 1}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="chevron-back" size={16} color={safeCurrentPage === 1 ? '#94A3B8' : '#0F172A'} />
+                      <Text style={[styles.pageNavBtnText, safeCurrentPage === 1 && styles.pageNavBtnTextDisabled]}>
+                        Previous
+                      </Text>
+                    </TouchableOpacity>
+
+                    <View style={styles.pageNumbersWrap}>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+                        const isActive = pageNum === safeCurrentPage;
+                        return (
+                          <TouchableOpacity
+                            key={`page-${pageNum}`}
+                            style={[styles.pageNumberBtn, isActive && styles.pageNumberBtnActive]}
+                            onPress={() => {
+                              setCurrentPage(pageNum);
+                              scrollViewRef.current?.scrollTo({ y: isDesktopWeb ? 90 : 140, animated: true });
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={[styles.pageNumberText, isActive && styles.pageNumberTextActive]}>
+                              {pageNum}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    <TouchableOpacity
+                      style={[styles.pageNavBtn, safeCurrentPage === totalPages && styles.pageNavBtnDisabled]}
+                      onPress={() => {
+                        if (safeCurrentPage < totalPages) {
+                          setCurrentPage(safeCurrentPage + 1);
+                          scrollViewRef.current?.scrollTo({ y: isDesktopWeb ? 90 : 140, animated: true });
+                        }
+                      }}
+                      disabled={safeCurrentPage === totalPages}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.pageNavBtnText, safeCurrentPage === totalPages && styles.pageNavBtnTextDisabled]}>
+                        Next
+                      </Text>
+                      <Ionicons name="chevron-forward" size={16} color={safeCurrentPage === totalPages ? '#94A3B8' : '#0F172A'} />
+                    </TouchableOpacity>
                   </View>
-                ))}
-              </View>
+                )}
+              </>
             )}
           </View>
         </View>
@@ -644,7 +1064,7 @@ const VideoConsultationScreen = ({ navigation, route }) => {
                     <Text style={styles.modalDocSpec}>{profileDoctor.specialty}</Text>
                     <Text style={styles.modalDocQual}>{profileDoctor.qualification}</Text>
                     <View style={styles.modalExpBadge}>
-                      <Ionicons name="ribbon" size={12} color="#D97706" />
+                      <Ionicons name="ribbon" size={12} color="#1E3A8A" />
                       <Text style={styles.modalExpBadgeText}>{profileDoctor.experience}</Text>
                     </View>
                   </View>
@@ -653,7 +1073,7 @@ const VideoConsultationScreen = ({ navigation, route }) => {
                 {/* STATS */}
                 <View style={styles.modalStatsRow}>
                   <View style={styles.modalStatCol}>
-                    <Text style={styles.modalStatVal}>{profileDoctor.rating} ★</Text>
+                    <Text style={styles.modalStatVal}>{profileDoctor.rating}/5</Text>
                     <Text style={styles.modalStatSub}>{profileDoctor.reviewCount} Reviews</Text>
                   </View>
                   <View style={styles.modalStatDiv} />
@@ -727,37 +1147,197 @@ const VideoConsultationScreen = ({ navigation, route }) => {
 
             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
               {/* 1. DOCTOR SPECIALIZATION */}
-              <Text style={styles.filterGroupTitle}>Doctor Specialization</Text>
+              <View style={styles.modalSpecHeaderRow}>
+                <Text style={styles.filterGroupTitle}>Doctor Specialization ({videoSpecialties.length - 1})</Text>
+                {selectedSpecialty !== 'all' && (
+                  <TouchableOpacity onPress={() => setSelectedSpecialty('all')}>
+                    <Text style={styles.modalClearSpecLink}>Clear</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Quick Search within specializations in mobile modal */}
+              <View style={styles.modalSpecSearchBox}>
+                <Ionicons name="search-outline" size={14} color="#94A3B8" style={{ marginRight: 6 }} />
+                <TextInput
+                  style={styles.modalSpecSearchInput}
+                  placeholder="Search 80+ specializations..."
+                  placeholderTextColor="#94A3B8"
+                  value={modalSpecSearch}
+                  onChangeText={setModalSpecSearch}
+                />
+                {modalSpecSearch.length > 0 && (
+                  <TouchableOpacity onPress={() => setModalSpecSearch('')} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                    <Ionicons name="close-circle" size={15} color="#94A3B8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
               <View style={styles.filterOptionsGrid}>
-                {videoSpecialties.map((spec) => {
-                  const isSelected = selectedSpecialty === spec.id;
-                  return (
+                {modalSpecSearch.trim() !== '' ? (
+                  <>
+                    {/* Matching Full Categories */}
+                    {SPECIALIZATION_CATEGORIES
+                      .filter((c) => c.name.toLowerCase().includes(modalSpecSearch.toLowerCase()))
+                      .map((cat) => {
+                        const isSelected = selectedSpecialty === cat.id;
+                        return (
+                          <TouchableOpacity
+                            key={`modal-cat-${cat.id}`}
+                            style={[
+                              styles.filterOptionPill,
+                              styles.modalFullCatPill,
+                              isSelected && styles.filterOptionPillActive,
+                            ]}
+                            onPress={() => setSelectedSpecialty(isSelected ? 'all' : cat.id)}
+                          >
+                            <Ionicons
+                              name={cat.icon || 'layers-outline'}
+                              size={13}
+                              color={isSelected ? colors.primary : '#0D9488'}
+                              style={{ marginRight: 5 }}
+                            />
+                            <Text
+                              style={[
+                                styles.filterOptionText,
+                                { fontWeight: '700' },
+                                isSelected && styles.filterOptionTextActive,
+                              ]}
+                            >
+                              All {cat.name} (Full)
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+
+                    {/* Matching Sub-specialties */}
+                    {videoSpecialties
+                      .filter(
+                        (s) =>
+                          s.id !== 'all' &&
+                          (s.name.toLowerCase().includes(modalSpecSearch.toLowerCase()) ||
+                            (s.categoryName && s.categoryName.toLowerCase().includes(modalSpecSearch.toLowerCase())))
+                      )
+                      .map((spec) => {
+                        const isSelected = selectedSpecialty === spec.id || selectedSpecialty === spec.key;
+                        return (
+                          <TouchableOpacity
+                            key={spec.id}
+                            style={[
+                              styles.filterOptionPill,
+                              { flexDirection: 'row', alignItems: 'center' },
+                              isSelected && styles.filterOptionPillActive,
+                            ]}
+                            onPress={() => setSelectedSpecialty(isSelected ? 'all' : spec.id)}
+                          >
+                            <Ionicons
+                              name={spec.icon || 'videocam-outline'}
+                              size={13}
+                              color={isSelected ? colors.primary : colors.textSecondary}
+                              style={{ marginRight: 5 }}
+                            />
+                            <Text
+                              style={[
+                                styles.filterOptionText,
+                                isSelected && styles.filterOptionTextActive,
+                              ]}
+                            >
+                              {spec.name}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                  </>
+                ) : (
+                  <>
+                    {/* All Option */}
                     <TouchableOpacity
-                      key={spec.id}
                       style={[
                         styles.filterOptionPill,
-                        { flexDirection: 'row', alignItems: 'center' },
-                        isSelected && styles.filterOptionPillActive,
+                        selectedSpecialty === 'all' && styles.filterOptionPillActive,
                       ]}
-                      onPress={() => setSelectedSpecialty(spec.id)}
+                      onPress={() => setSelectedSpecialty('all')}
                     >
                       <Ionicons
-                        name={spec.icon}
+                        name="videocam-outline"
                         size={13}
-                        color={isSelected ? colors.primary : colors.textSecondary}
+                        color={selectedSpecialty === 'all' ? colors.primary : colors.textSecondary}
                         style={{ marginRight: 5 }}
                       />
                       <Text
                         style={[
                           styles.filterOptionText,
-                          isSelected && styles.filterOptionTextActive,
+                          selectedSpecialty === 'all' && styles.filterOptionTextActive,
                         ]}
                       >
-                        {spec.name}
+                        All Specializations
                       </Text>
                     </TouchableOpacity>
-                  );
-                })}
+
+                    {/* Top Full Categories */}
+                    {SPECIALIZATION_CATEGORIES.slice(0, 6).map((cat) => {
+                      const isSelected = selectedSpecialty === cat.id;
+                      return (
+                        <TouchableOpacity
+                          key={`modal-full-${cat.id}`}
+                          style={[
+                            styles.filterOptionPill,
+                            styles.modalFullCatPill,
+                            isSelected && styles.filterOptionPillActive,
+                          ]}
+                          onPress={() => setSelectedSpecialty(isSelected ? 'all' : cat.id)}
+                        >
+                          <Ionicons
+                            name={cat.icon || 'layers-outline'}
+                            size={13}
+                            color={isSelected ? colors.primary : '#0D9488'}
+                            style={{ marginRight: 5 }}
+                          />
+                          <Text
+                            style={[
+                              styles.filterOptionText,
+                              { fontWeight: '700' },
+                              isSelected && styles.filterOptionTextActive,
+                            ]}
+                          >
+                            {cat.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+
+                    {/* Sub-specialties */}
+                    {videoSpecialties.slice(1, 15).map((spec) => {
+                      const isSelected = selectedSpecialty === spec.id || selectedSpecialty === spec.key;
+                      return (
+                        <TouchableOpacity
+                          key={spec.id}
+                          style={[
+                            styles.filterOptionPill,
+                            { flexDirection: 'row', alignItems: 'center' },
+                            isSelected && styles.filterOptionPillActive,
+                          ]}
+                          onPress={() => setSelectedSpecialty(isSelected ? 'all' : spec.id)}
+                        >
+                          <Ionicons
+                            name={spec.icon || 'videocam-outline'}
+                            size={13}
+                            color={isSelected ? colors.primary : colors.textSecondary}
+                            style={{ marginRight: 5 }}
+                          />
+                          <Text
+                            style={[
+                              styles.filterOptionText,
+                              isSelected && styles.filterOptionTextActive,
+                            ]}
+                          >
+                            {spec.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </>
+                )}
               </View>
 
               {/* 2. LANGUAGE SPOKEN */}
@@ -830,10 +1410,11 @@ const VideoConsultationScreen = ({ navigation, route }) => {
               <Text style={styles.filterGroupTitle}>Sort Results By</Text>
               <View style={styles.filterOptionsGrid}>
                 {[
-                  { label: 'Earliest Slot', value: 'earliest' },
+                  { label: 'Nearest Doctor', value: 'nearest' },
                   { label: 'Highest Rated', value: 'rating' },
                   { label: 'Most Experienced', value: 'experience' },
                   { label: 'Fee: Low to High', value: 'fee' },
+                  { label: 'Earliest Slot', value: 'earliest' },
                 ].map((opt) => {
                   const isSelected = sortBy === opt.value;
                   return (
@@ -914,7 +1495,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 60,
+    paddingBottom: Platform.OS === 'ios' ? 95 : 85,
   },
   doctorsCardsList: {
     width: '100%',
@@ -925,23 +1506,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerCenter: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 10,
     marginRight: 8,
   },
   headerTitleRow: {
@@ -949,7 +1530,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
     color: colors.secondary,
   },
@@ -1049,6 +1630,25 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     gap: 8,
   },
+  searchBarContainerDesktop: {
+    maxWidth: 1200,
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 18,
+    paddingBottom: 8,
+  },
+  searchBoxDesktop: {
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
   searchBox: {
     flex: 1,
     flexDirection: 'row',
@@ -1065,6 +1665,97 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 13,
     color: colors.text,
+  },
+  desktopSearchActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00B894',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginLeft: 6,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  desktopSearchActionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+    marginTop: 8,
+    marginBottom: 20,
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  pageNavBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 12,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  pageNavBtnDisabled: {
+    opacity: 0.45,
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    ...(Platform.OS === 'web' ? { cursor: 'not-allowed' } : {}),
+  },
+  pageNavBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  pageNavBtnTextDisabled: {
+    color: '#94A3B8',
+  },
+  pageNumbersWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pageNumberBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  pageNumberBtnActive: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  pageNumberText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  pageNumberTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
   },
   filterTriggerPill: {
     flexDirection: 'row',
@@ -1139,17 +1830,58 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 0,
     paddingVertical: 4,
-    marginBottom: 10,
+    marginBottom: 12,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   resultsCountText: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  sectionHeadingTitle: {
+    fontSize: 18,
+    fontWeight: '900',
     color: '#0F172A',
+    letterSpacing: -0.3,
   },
   sortedByText: {
     fontSize: 12,
     color: '#64748B',
     fontWeight: '500',
+  },
+  sortPillsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  sortLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+    marginRight: 2,
+  },
+  sortPillBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4.5,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  sortPillBtnActive: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
+  },
+  sortPillText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  sortPillTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
   },
 
   // MAIN 2-COLUMN LAYOUT
@@ -1167,13 +1899,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   desktopSidebarCol: {
-    width: 280,
-    ...Platform.select({
-      web: {
-        position: 'sticky',
-        top: 20,
-      },
-    }),
+    width: 310,
   },
   doctorsColWrap: {
     width: '100%',
@@ -1313,6 +2039,228 @@ const styles = StyleSheet.create({
     color: '#00B894',
     fontWeight: '800',
   },
+  sidebarSectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  sidebarClearSpecLink: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  sidebarSpecSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 8,
+    height: 34,
+    marginBottom: 8,
+  },
+  sidebarSpecSearchInput: {
+    flex: 1,
+    fontSize: 12,
+    color: '#1E293B',
+    paddingVertical: 0,
+  },
+  sidebarSpecScrollList: {
+    maxHeight: 340,
+  },
+  sidebarSpecCategoryHint: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginTop: 1,
+  },
+  sidebarCategoryGroup: {
+    marginBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 2,
+  },
+
+  sidebarCategoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    justifyContent: 'space-between',
+  },
+  sidebarCategoryHeaderActive: {
+    backgroundColor: '#F0FDFA',
+  },
+  sidebarCategorySelectBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  sidebarCategoryExpandBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingLeft: 6,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  sidebarFullActivePill: {
+    backgroundColor: '#CCFBF1',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginRight: 4,
+  },
+  sidebarFullActivePillText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#0F766E',
+  },
+  sidebarFullOptionRow: {
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    marginBottom: 4,
+  },
+  sidebarFullCatSearchRow: {
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    marginBottom: 4,
+  },
+  sidebarFullSpecBadgeText: {
+    fontSize: 10,
+    color: '#0D9488',
+    fontWeight: '600',
+  },
+  sidebarFullSubText: {
+    fontSize: 10,
+    color: '#0D9488',
+    fontWeight: '500',
+    marginTop: 1,
+  },
+  modalFullCatPill: {
+    backgroundColor: '#F0FDFA',
+    borderColor: '#99F6E4',
+  },
+  sidebarCategoryTitle: {
+    flex: 1,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  sidebarCategoryTitleActive: {
+    color: '#00B894',
+    fontWeight: '800',
+  },
+  sidebarCategoryBadge: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    marginRight: 4,
+  },
+  sidebarCategoryBadgeActive: {
+    backgroundColor: '#CCFBF1',
+  },
+  sidebarCategoryCount: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  sidebarCategoryCountActive: {
+    color: '#00B894',
+    fontWeight: '800',
+  },
+  sidebarCategoryChildren: {
+    paddingLeft: 12,
+    paddingTop: 2,
+    paddingBottom: 4,
+    gap: 2,
+  },
+  sidebarChildSpecRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  sidebarChildSpecRowActive: {
+    backgroundColor: '#CCFBF1',
+  },
+  sidebarChildSpecText: {
+    fontSize: 12,
+    color: '#475569',
+    marginLeft: 4,
+    flex: 1,
+  },
+  sidebarChildSpecTextActive: {
+    color: '#00B894',
+    fontWeight: '700',
+  },
+  modalSpecHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  modalClearSpecLink: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  modalSpecSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 10,
+    height: 40,
+    marginBottom: 12,
+  },
+  modalSpecSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#1E293B',
+    paddingVertical: 0,
+  },
+  activeSpecChipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 14,
+  },
+  activeSpecChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  activeSpecChipLabel: {
+    fontSize: 12,
+    color: '#0F766E',
+    fontWeight: '500',
+    marginRight: 4,
+  },
+  activeSpecChipValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F766E',
+  },
+  clearAllFiltersText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FF7F50',
+  },
   sidebarOptionsCol: {
     gap: 8,
   },
@@ -1405,7 +2353,7 @@ const styles = StyleSheet.create({
     color: '#047857',
   },
   discountBadge: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#FFF2ED',
     paddingHorizontal: 6,
     paddingVertical: 3,
     borderRadius: 6,
@@ -1413,7 +2361,7 @@ const styles = StyleSheet.create({
   discountBadgeText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#D97706',
+    color: '#FF7F50',
   },
 
   // DOCTOR MAIN ROW
@@ -1463,7 +2411,7 @@ const styles = StyleSheet.create({
   experienceChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#EFF6FF',
     paddingHorizontal: 6,
     paddingVertical: 3,
     borderRadius: 6,
@@ -1472,7 +2420,7 @@ const styles = StyleSheet.create({
   experienceChipText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#D97706',
+    color: '#1E3A8A',
   },
   ratingChip: {
     flexDirection: 'row',
@@ -1693,7 +2641,7 @@ const styles = StyleSheet.create({
   modalExpBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#EFF6FF',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -1704,7 +2652,7 @@ const styles = StyleSheet.create({
   modalExpBadgeText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#D97706',
+    color: '#1E3A8A',
   },
   modalStatsRow: {
     flexDirection: 'row',

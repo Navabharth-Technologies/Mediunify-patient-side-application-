@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -14,6 +13,7 @@ import {
   KeyboardAvoidingView,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,17 +21,70 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { pushAppointment } from '../../../services/dataSyncService';
 import WebFooter from '../../../components/web/WebFooter';
+import { getAvailableDates, getSlotsForDate } from '../../../utils/appointmentSlotHelper';
+import { validateAndBookSlot, subscribeToSlotChanges } from '../../../services/slotBookingService';
+import { useAuthGuard } from '../../../context/AuthGuardContext';
 
 const VideoBookingScreen = ({ route, navigation }) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   const doctor = route?.params?.doctor;
+  const { requireLogin } = useAuthGuard();
 
-  const [selectedTime, setSelectedTime] = useState('Tomorrow, 10:30 AM');
+  const [slotTick, setSlotTick] = useState(0);
 
-  // Patient Info (matching screenshot)
-  const [patientName, setPatientName] = useState('Ramesh (Self)');
-  const [patientPhone, setPatientPhone] = useState('+91 98450 12345');
+  // Subscribe to real-time clock advancement & slot booking updates
+  useEffect(() => {
+    const unsub = subscribeToSlotChanges(() => {
+      setSlotTick((prev) => prev + 1);
+    });
+    return unsub;
+  }, []);
+
+  const availableDates = getAvailableDates();
+  const [selectedDateIndex, setSelectedDateIndex] = useState(0);
+
+  const currentDateObj = availableDates[selectedDateIndex] || availableDates[0];
+  const currentSlots = getSlotsForDate(currentDateObj, true, doctor);
+
+  const getDefaultSlotForDate = (dateObj) => {
+    const slots = getSlotsForDate(dateObj, true, doctor);
+    if (slots.instant && slots.instant.available) return slots.instant.fullLabel;
+    const availMorning = slots.morning?.find((s) => s.available);
+    if (availMorning) return availMorning.fullLabel;
+    const availAfternoon = slots.afternoon?.find((s) => s.available);
+    if (availAfternoon) return availAfternoon.fullLabel;
+    const availEvening = slots.evening?.find((s) => s.available);
+    if (availEvening) return availEvening.fullLabel;
+    return '';
+  };
+
+  const [selectedTime, setSelectedTime] = useState(getDefaultSlotForDate(availableDates[0]));
+
+  // Auto-switch to next available slot if selected slot expired or was booked in real-time
+  useEffect(() => {
+    if (!selectedTime) return;
+    const allSlots = [
+      ...(currentSlots.instant ? [currentSlots.instant] : []),
+      ...currentSlots.morning,
+      ...currentSlots.afternoon,
+      ...currentSlots.evening,
+    ];
+    const match = allSlots.find((s) => s.fullLabel === selectedTime);
+    if (match && !match.available) {
+      setSelectedTime(getDefaultSlotForDate(currentDateObj));
+    }
+  }, [currentSlots, selectedTime, currentDateObj]);
+
+  const handleSelectDate = (idx) => {
+    setSelectedDateIndex(idx);
+    const targetDate = availableDates[idx];
+    setSelectedTime(getDefaultSlotForDate(targetDate));
+  };
+
+  // Patient Info (matching current account user)
+  const [patientName, setPatientName] = useState('Hemanth Gowda (Self)');
+  const [patientPhone, setPatientPhone] = useState('+91 97414 22544');
   const [healthConcern, setHealthConcern] = useState('Stress, Joint Pain & Wellness');
 
   // Uploaded Medical Document / PDF / Image
@@ -50,11 +103,16 @@ const VideoBookingScreen = ({ route, navigation }) => {
     try {
       const storedName = await AsyncStorage.getItem('userName');
       if (storedName && storedName.trim()) {
-        setPatientName(`${storedName.trim()} (Self)`);
+        const clean = storedName.trim().replace(/\s*\(Self\)$/i, '');
+        setPatientName(`${clean} (Self)`);
+      } else {
+        setPatientName('Hemanth Gowda (Self)');
       }
-      const storedPhone = await AsyncStorage.getItem('userPhone');
+      const storedPhone = (await AsyncStorage.getItem('userPhone')) || (await AsyncStorage.getItem('@unnathi_user_phone'));
       if (storedPhone && storedPhone.trim()) {
         setPatientPhone(storedPhone.trim().startsWith('+91') ? storedPhone.trim() : `+91 ${storedPhone.trim()}`);
+      } else {
+        setPatientPhone('+91 97414 22544');
       }
       const bal = await AsyncStorage.getItem('@unnathi_wallet_balance');
       if (bal) setWalletBalance(parseInt(bal, 10) || 1250);
@@ -158,7 +216,7 @@ const VideoBookingScreen = ({ route, navigation }) => {
 
   if (!doctor) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
         <View style={styles.scrollContent}>
           <View style={styles.modalCard}>
             <View style={styles.errorContainer}>
@@ -180,7 +238,12 @@ const VideoBookingScreen = ({ route, navigation }) => {
 
   const fee = doctor.fee || 450;
 
-  const handleConfirmAndPay = async () => {
+  const handleConfirmAndPay = () => {
+    requireLogin(() => _doConfirmAndPay(), 'You need to login first to book an appointment with the doctor.');
+  };
+
+  const _doConfirmAndPay = async () => {
+
     if (!patientName.trim()) {
       showAlert('Patient Name Required', 'Please enter patient full name.');
       return;
@@ -197,7 +260,7 @@ const VideoBookingScreen = ({ route, navigation }) => {
     if (paymentMethod === 'WALLET') {
       if (walletBalance < fee) {
         showAlert(
-          'Insufficient Wallet Balance 💳',
+          'Insufficient Wallet Balance',
           `Your MediUnify Wallet has ₹${walletBalance.toLocaleString('en-IN')}, but consultation fee is ₹${fee.toLocaleString('en-IN')}.\n\nPlease top up your wallet or select UPI.`,
           [
             { text: 'Top Up Wallet', onPress: () => navigation.navigate('Wallet') },
@@ -211,6 +274,20 @@ const VideoBookingScreen = ({ route, navigation }) => {
     setIsBooking(true);
 
     try {
+      // Real-Time Atomic Slot Validation (Rules 2, 3, 6)
+      const slotValidation = await validateAndBookSlot({
+        date: currentDateObj,
+        time: selectedTime,
+        serviceType: 'video',
+        providerId: doctor?.id || doctor?.name || 'doctor',
+        patientName: patientName.trim(),
+      });
+
+      if (!slotValidation.success) {
+        showAlert('Slot Unavailable', 'This slot is no longer available. Please select another time.');
+        setIsBooking(false);
+        return;
+      }
       await new Promise((resolve) => setTimeout(resolve, 800));
 
       const bookingId = `VID-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -240,25 +317,41 @@ const VideoBookingScreen = ({ route, navigation }) => {
         }
       }
 
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + (currentDateObj?.offset || 0));
+      const cleanDateStr = targetDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+      const cleanTimeStr = selectedTime.includes(',') ? selectedTime.split(',')[1].trim() : selectedTime;
+
       const newVideoBooking = {
         id: bookingId,
         tokenNumber,
         type: 'Video Consultation',
         doctor: {
+          id: doctor.id,
           name: doctor.name,
           specialty: doctor.specialty,
           qualification: doctor.qualification,
+          experienceYears: doctor.experienceYears || doctor.experience || '10+ Yrs',
+          clinicName: doctor.clinicName || 'MediUnify TeleHealth Suite',
           languages: doctor.languages,
           image: doctor.image,
+          rating: doctor.rating || '4.9/5',
         },
-        day: selectedTime.includes('Tomorrow') ? 'Tomorrow' : 'Day After',
-        date: selectedTime,
-        time: selectedTime.split(', ')[1] || selectedTime,
-        status: 'Confirmed',
+        specialty: doctor.specialty,
+        day: currentDateObj?.displayTitle || 'Today',
+        date: cleanDateStr,
+        formattedDate: cleanDateStr,
+        time: cleanTimeStr,
+        timeSlot: selectedTime,
+        status: 'Upcoming',
+        fee,
         paidAmount: fee,
         paymentStatus: paymentMethod === 'WALLET' ? 'Paid via MediUnify Wallet' : 'Paid Online (UPI)',
         paymentMethod: paymentMethod === 'WALLET' ? 'MediUnify Health Wallet' : 'UPI',
         videoRoomLink,
+        meetingRoomId: tokenNumber,
+        patientName,
+        symptoms: healthConcern,
         patient: {
           name: patientName,
           phone: patientPhone,
@@ -267,23 +360,23 @@ const VideoBookingScreen = ({ route, navigation }) => {
           reportName: uploadedDocument?.name || null,
           reportType: uploadedDocument?.type || null,
         },
+        createdAt: new Date().toISOString(),
       };
 
-      // 1. Save to @unnathi_appointments
-      const existingApptJson = await AsyncStorage.getItem('@unnathi_appointments');
-      const existingAppt = existingApptJson ? JSON.parse(existingApptJson) : [];
-      await AsyncStorage.setItem(
-        '@unnathi_appointments',
-        JSON.stringify([newVideoBooking, ...existingAppt])
-      );
-
-      // 2. Save to @videoBookings
+      // 1. Save strictly to video consultations storage
       const existingVidJson = await AsyncStorage.getItem('@videoBookings');
-      const existingVid = existingVidJson ? JSON.parse(existingVidJson) : [];
-      await AsyncStorage.setItem(
-        '@videoBookings',
-        JSON.stringify([newVideoBooking, ...existingVid])
-      );
+      const existingVid = existingVidJson ? JSON.parse(existingVidJson).filter((a) => a.id !== bookingId) : [];
+      const updatedVid = [newVideoBooking, ...existingVid];
+      await AsyncStorage.setItem('@videoBookings', JSON.stringify(updatedVid));
+      await AsyncStorage.setItem('@mediunify_patient_online_consultations', JSON.stringify(updatedVid));
+
+      // 2. Remove from physical appointments if present (to avoid mixing)
+      const existingApptJson = await AsyncStorage.getItem('@unnathi_appointments');
+      if (existingApptJson) {
+        const filtered = JSON.parse(existingApptJson).filter((a) => a.id !== bookingId);
+        await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(filtered));
+        await AsyncStorage.setItem('@mediunify_patient_physical_appointments', JSON.stringify(filtered));
+      }
 
       // 3. Push to central server database
       try {
@@ -292,18 +385,21 @@ const VideoBookingScreen = ({ route, navigation }) => {
         console.warn('Could not push video appointment to server:', pushErr);
       }
 
+      if (typeof window !== 'undefined' && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent('mediunify_consultations_updated', { detail: { consultation: newVideoBooking } }));
+      }
+
       setIsBooking(false);
 
       showAlert(
-        'Video Appointment Confirmed! 📹',
+        'Video Appointment Confirmed',
         `Your online consultation with ${doctor.name} has been booked for ${selectedTime}.${uploadedDocument ? '\n\nAttached Record: ' + uploadedDocument.name : ''}\n\nBooking ID: ${bookingId}\nRoom Token: ${tokenNumber}`,
         [
           {
-            text: 'Go to My Bookings',
+            text: 'Go to Online Consultant',
             onPress: () => {
-              navigation.navigate('Bookings', {
-                newAppointment: newVideoBooking,
-                initialTab: 'Consultations',
+              navigation.navigate('MyOnlineConsultations', {
+                newConsultation: newVideoBooking,
                 timestamp: Date.now(),
               });
             },
@@ -324,7 +420,7 @@ const VideoBookingScreen = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <KeyboardAvoidingView
@@ -421,7 +517,7 @@ const VideoBookingScreen = ({ route, navigation }) => {
                       onPress={() => handlePickDocument('pdf')}
                       activeOpacity={0.8}
                     >
-                      <Ionicons name="document-text" size={18} color="#DC2626" />
+                      <Ionicons name="document-text" size={18} color="#FF7F50" />
                       <Text style={styles.uploadActionBtnText}>Upload PDF</Text>
                     </TouchableOpacity>
 
@@ -431,7 +527,7 @@ const VideoBookingScreen = ({ route, navigation }) => {
                       onPress={() => handlePickDocument('image')}
                       activeOpacity={0.8}
                     >
-                      <Ionicons name="image" size={18} color="#059669" />
+                      <Ionicons name="image" size={18} color="#00B894" />
                       <Text style={styles.uploadActionBtnText}>Upload Image</Text>
                     </TouchableOpacity>
 
@@ -441,7 +537,7 @@ const VideoBookingScreen = ({ route, navigation }) => {
                       onPress={() => handlePickDocument('camera')}
                       activeOpacity={0.8}
                     >
-                      <Ionicons name="camera" size={18} color="#2563EB" />
+                      <Ionicons name="camera" size={18} color="#00C2CB" />
                       <Text style={styles.uploadActionBtnText}>Camera</Text>
                     </TouchableOpacity>
                   </View>
@@ -453,7 +549,7 @@ const VideoBookingScreen = ({ route, navigation }) => {
                 <View style={styles.uploadedFileCard}>
                   <View style={styles.uploadedFileIconWrap}>
                     {uploadedDocument.type === 'pdf' ? (
-                      <Ionicons name="document-text" size={26} color="#DC2626" />
+                      <Ionicons name="document-text" size={26} color="#FF7F50" />
                     ) : (
                       <Image source={{ uri: uploadedDocument.uri }} style={styles.uploadedFileThumb} />
                     )}
@@ -465,7 +561,7 @@ const VideoBookingScreen = ({ route, navigation }) => {
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
                       <Text style={styles.uploadedFileSize}>{uploadedDocument.size}</Text>
                       <Text style={styles.uploadedFileDot}>•</Text>
-                      <Ionicons name="checkmark-circle" size={12} color="#059669" />
+                      <Ionicons name="checkmark-circle" size={12} color="#00B894" />
                       <Text style={styles.uploadedFileReady}>Attached for Doctor</Text>
                     </View>
                   </View>
@@ -474,26 +570,237 @@ const VideoBookingScreen = ({ route, navigation }) => {
                     style={styles.removeFileBtn}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                    <Ionicons name="trash-outline" size={18} color="#FF7F50" />
                   </TouchableOpacity>
                 </View>
               )}
 
               {/* PREFERRED APPOINTMENT SLOT */}
-              <Text style={styles.inputLabel}>Preferred Appointment Slot</Text>
-              <View style={styles.slotPickerRow}>
-                {['Tomorrow, 10:30 AM', 'Tomorrow, 04:30 PM', 'Day After, 11:00 AM'].map((slot, i) => (
-                  <TouchableOpacity
-                    key={i}
-                    style={[styles.slotChip, selectedTime === slot && styles.slotChipSelected]}
-                    onPress={() => setSelectedTime(slot)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.slotChipText, selectedTime === slot && styles.slotChipTextSelected]}>
-                      {slot}
+              <View style={styles.slotPickerSection}>
+                <View style={styles.slotHeaderRow}>
+                  <Text style={styles.inputLabel}>Choose Date & Time Slot</Text>
+                  <View style={styles.selectedSlotSummaryBadge}>
+                    <Ionicons name="checkmark-circle" size={12} color="#059669" />
+                    <Text style={styles.selectedSlotSummaryText} numberOfLines={1}>
+                      {selectedTime}
                     </Text>
-                  </TouchableOpacity>
-                ))}
+                  </View>
+                </View>
+
+                {/* HORIZONTAL DATE PICKER TABS */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.datePickerScroll}
+                  contentContainerStyle={styles.datePickerContainer}
+                >
+                  {availableDates.map((dateItem, idx) => {
+                    const isSelected = selectedDateIndex === idx;
+                    return (
+                      <TouchableOpacity
+                        key={dateItem.id}
+                        style={[styles.dateChip, isSelected && styles.dateChipSelected]}
+                        onPress={() => handleSelectDate(idx)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.dateChipTitle, isSelected && styles.dateChipTitleSelected]}>
+                          {dateItem.displayTitle}
+                        </Text>
+                        <Text style={[styles.dateChipSub, isSelected && styles.dateChipSubSelected]}>
+                          {dateItem.displaySub}
+                        </Text>
+                        <View style={[styles.dateChipBadge, isSelected && styles.dateChipBadgeSelected]}>
+                          <Text style={[styles.dateChipBadgeText, isSelected && styles.dateChipBadgeTextSelected]}>
+                            Available
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* SLOTS GROUPED BY SESSION */}
+                <View style={styles.slotsGroupCard}>
+                  {/* INSTANT CONNECT (VIDEO TODAY ONLY) */}
+                  {currentSlots.instant && (
+                    <TouchableOpacity
+                      style={[
+                        styles.instantSlotCard,
+                        selectedTime === currentSlots.instant.fullLabel && styles.instantSlotCardSelected,
+                      ]}
+                      onPress={() => setSelectedTime(currentSlots.instant.fullLabel)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.instantSlotLeft}>
+                        <View style={styles.instantSlotIconWrap}>
+                          <Ionicons name="flash" size={15} color="#FFFFFF" />
+                        </View>
+                        <View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={styles.instantSlotTitle}>Instant Video Consultation</Text>
+                            <View style={styles.instantLiveBadge}>
+                              <View style={styles.livePulseDot} />
+                              <Text style={styles.livePulseText}>Doctor Ready</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.instantSlotSub}>Within 10-15 mins • Live HD Encrypted Room</Text>
+                        </View>
+                      </View>
+                      <Ionicons
+                        name={selectedTime === currentSlots.instant.fullLabel ? 'checkmark-circle' : 'chevron-forward'}
+                        size={18}
+                        color={selectedTime === currentSlots.instant.fullLabel ? '#059669' : '#94A3B8'}
+                      />
+                    </TouchableOpacity>
+                  )}
+
+                  {/* MORNING SLOTS */}
+                  <View style={styles.sessionSection}>
+                    <View style={styles.sessionHeaderRow}>
+                      <Ionicons name="sunny-outline" size={13} color="#FF7F50" />
+                      <Text style={styles.sessionHeaderTitle}>
+                        Morning Sessions ({currentSlots.morning.filter((s) => s.available).length} available)
+                      </Text>
+                    </View>
+                    <View style={styles.slotsGrid}>
+                      {currentSlots.morning.map((slot) => {
+                        const isSel = selectedTime === slot.fullLabel;
+                        const isAvail = slot.available !== false;
+                        return (
+                          <TouchableOpacity
+                            key={slot.id}
+                            disabled={!isAvail}
+                            style={[
+                              styles.slotChipGrid,
+                              isSel && styles.slotChipGridSelected,
+                              !isAvail && styles.slotChipGridDisabled,
+                            ]}
+                            onPress={() => isAvail && setSelectedTime(slot.fullLabel)}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons
+                              name="videocam-outline"
+                              size={12}
+                              color={!isAvail ? '#94A3B8' : isSel ? '#FFFFFF' : '#0D9488'}
+                            />
+                            <Text
+                              style={[
+                                styles.slotChipGridText,
+                                isSel && styles.slotChipGridTextSelected,
+                                !isAvail && styles.slotChipGridTextDisabled,
+                              ]}
+                            >
+                              {slot.time}
+                            </Text>
+                            {!isAvail && (
+                              <Text style={styles.slotStatusTagText}>
+                                {slot.isBooked ? 'Booked' : 'Passed'}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  {/* AFTERNOON SLOTS */}
+                  <View style={styles.sessionSection}>
+                    <View style={styles.sessionHeaderRow}>
+                      <Ionicons name="partly-sunny-outline" size={13} color="#2563EB" />
+                      <Text style={styles.sessionHeaderTitle}>
+                        Afternoon Sessions ({currentSlots.afternoon.filter((s) => s.available).length} available)
+                      </Text>
+                    </View>
+                    <View style={styles.slotsGrid}>
+                      {currentSlots.afternoon.map((slot) => {
+                        const isSel = selectedTime === slot.fullLabel;
+                        const isAvail = slot.available !== false;
+                        return (
+                          <TouchableOpacity
+                            key={slot.id}
+                            disabled={!isAvail}
+                            style={[
+                              styles.slotChipGrid,
+                              isSel && styles.slotChipGridSelected,
+                              !isAvail && styles.slotChipGridDisabled,
+                            ]}
+                            onPress={() => isAvail && setSelectedTime(slot.fullLabel)}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons
+                              name="videocam-outline"
+                              size={12}
+                              color={!isAvail ? '#94A3B8' : isSel ? '#FFFFFF' : '#0D9488'}
+                            />
+                            <Text
+                              style={[
+                                styles.slotChipGridText,
+                                isSel && styles.slotChipGridTextSelected,
+                                !isAvail && styles.slotChipGridTextDisabled,
+                              ]}
+                            >
+                              {slot.time}
+                            </Text>
+                            {!isAvail && (
+                              <Text style={styles.slotStatusTagText}>
+                                {slot.isBooked ? 'Booked' : 'Passed'}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  {/* EVENING SLOTS */}
+                  <View style={[styles.sessionSection, { marginBottom: 0 }]}>
+                    <View style={styles.sessionHeaderRow}>
+                      <Ionicons name="moon-outline" size={13} color="#1E3A8A" />
+                      <Text style={styles.sessionHeaderTitle}>
+                        Evening Sessions ({currentSlots.evening.filter((s) => s.available).length} available)
+                      </Text>
+                    </View>
+                    <View style={styles.slotsGrid}>
+                      {currentSlots.evening.map((slot) => {
+                        const isSel = selectedTime === slot.fullLabel;
+                        const isAvail = slot.available !== false;
+                        return (
+                          <TouchableOpacity
+                            key={slot.id}
+                            disabled={!isAvail}
+                            style={[
+                              styles.slotChipGrid,
+                              isSel && styles.slotChipGridSelected,
+                              !isAvail && styles.slotChipGridDisabled,
+                            ]}
+                            onPress={() => isAvail && setSelectedTime(slot.fullLabel)}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons
+                              name="videocam-outline"
+                              size={12}
+                              color={!isAvail ? '#94A3B8' : isSel ? '#FFFFFF' : '#0D9488'}
+                            />
+                            <Text
+                              style={[
+                                styles.slotChipGridText,
+                                isSel && styles.slotChipGridTextSelected,
+                                !isAvail && styles.slotChipGridTextDisabled,
+                              ]}
+                            >
+                              {slot.time}
+                            </Text>
+                            {!isAvail && (
+                              <Text style={styles.slotStatusTagText}>
+                                {slot.isBooked ? 'Booked' : 'Passed'}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </View>
               </View>
 
               {/* PAYMENT OPTION PILLS */}
@@ -527,7 +834,7 @@ const VideoBookingScreen = ({ route, navigation }) => {
                   <Text style={styles.summaryValue}>₹{fee}</Text>
                 </View>
                 <Text style={styles.summaryNote}>
-                  ✓ Zero cancellation fee • Digital prescription included • Instant confirmation
+                  Zero cancellation fee • Digital prescription included • Instant confirmation
                 </Text>
               </View>
 
@@ -782,6 +1089,233 @@ const styles = StyleSheet.create({
   },
 
   // PREFERRED APPOINTMENT SLOTS
+  slotPickerSection: {
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  slotHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  selectedSlotSummaryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    maxWidth: '55%',
+  },
+  selectedSlotSummaryText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  datePickerScroll: {
+    marginBottom: 8,
+  },
+  datePickerContainer: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  dateChip: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+    minWidth: 84,
+  },
+  dateChipSelected: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#059669',
+    borderWidth: 1.5,
+  },
+  dateChipTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  dateChipTitleSelected: {
+    color: '#065F46',
+    fontWeight: '800',
+  },
+  dateChipSub: {
+    fontSize: 10,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  dateChipSubSelected: {
+    color: '#059669',
+    fontWeight: '600',
+  },
+  dateChipBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  dateChipBadgeSelected: {
+    backgroundColor: '#D1FAE5',
+  },
+  dateChipBadgeText: {
+    fontSize: 9,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  dateChipBadgeTextSelected: {
+    color: '#047857',
+    fontWeight: '700',
+  },
+  slotsGroupCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 10,
+  },
+  instantSlotCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#10B981',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  instantSlotCardSelected: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#059669',
+  },
+  instantSlotLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  instantSlotIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  instantSlotTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  instantLiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  livePulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#22C55E',
+  },
+  livePulseText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#15803D',
+  },
+  instantSlotSub: {
+    fontSize: 10,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  sessionSection: {
+    marginBottom: 10,
+  },
+  sessionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 6,
+  },
+  sessionHeaderTitle: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#475569',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  slotsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  slotChipGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  slotChipGridSelected: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  slotChipGridDisabled: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+    opacity: 0.65,
+    cursor: 'not-allowed',
+  },
+  slotChipGridTextDisabled: {
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  slotStatusTagText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#FF7F50',
+    backgroundColor: '#FFF2ED',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    marginLeft: 2,
+  },
+  slotChipGridText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  slotChipGridTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
   slotPickerRow: {
     gap: 6,
     marginTop: 4,

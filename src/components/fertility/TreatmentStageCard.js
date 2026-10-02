@@ -26,7 +26,7 @@ const TreatmentStageCard = ({
       {stage.doctorNotes && (
         <View style={styles.noteSection}>
           <View style={styles.noteHeader}>
-            <Ionicons name="medkit-outline" size={14} color="#E11D48" />
+            <Ionicons name="medkit-outline" size={14} color="#FF7F50" />
             <Text style={styles.noteTitle}>Clinician Instructions</Text>
           </View>
           <Text style={styles.noteBody}>{stage.doctorNotes}</Text>
@@ -41,7 +41,7 @@ const TreatmentStageCard = ({
               <Ionicons
                 name={item.done ? 'checkmark-circle' : 'ellipse-outline'}
                 size={16}
-                color={item.done ? '#059669' : '#94A3B8'}
+                color={item.done ? '#7BC96F' : '#94A3B8'}
               />
               <Text style={[styles.checkText, item.done && styles.checkTextDone]}>
                 {item.item}
@@ -56,7 +56,7 @@ const TreatmentStageCard = ({
           <Text style={styles.checklistTitle}>Prescribed Medications</Text>
           {stage.medicines.map((med, idx) => (
             <View key={idx} style={styles.medItem}>
-              <Ionicons name="bandage-outline" size={13} color="#7C3AED" />
+              <Ionicons name="bandage-outline" size={13} color="#00B894" />
               <Text style={styles.medText}>{med}</Text>
             </View>
           ))}
@@ -65,7 +65,7 @@ const TreatmentStageCard = ({
 
       {stage.nextAppointment && (
         <View style={styles.appointmentBanner}>
-          <Ionicons name="calendar" size={15} color="#0284C7" />
+          <Ionicons name="calendar" size={15} color="#1E3A8A" />
           <View style={styles.appointmentCol}>
             <Text style={styles.appointmentLabel}>Upcoming Appointment</Text>
             <Text style={styles.appointmentVal}>{stage.nextAppointment}</Text>
@@ -122,11 +122,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   noteSection: {
-    backgroundColor: '#FFF1F2',
+    backgroundColor: '#FFF2ED',
     borderRadius: 10,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#FECDD3',
+    borderColor: '#FFD7C7',
     marginBottom: 12,
   },
   noteHeader: {
@@ -138,11 +138,11 @@ const styles = StyleSheet.create({
   noteTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#9F1239',
+    color: '#FF7F50',
   },
   noteBody: {
     fontSize: 12,
-    color: '#4C0519',
+    color: '#0F172A',
     lineHeight: 18,
   },
   checklistSection: {
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
   },
   medsSection: {
     marginBottom: 12,
-    backgroundColor: '#F5F3FF',
+    backgroundColor: '#E6F8F5',
     borderRadius: 10,
     padding: 12,
   },
@@ -186,18 +186,18 @@ const styles = StyleSheet.create({
   },
   medText: {
     fontSize: 12,
-    color: '#5B21B6',
+    color: '#00B894',
     fontWeight: '500',
   },
   appointmentBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#F0F9FF',
+    backgroundColor: '#EFF6FF',
     padding: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
+    borderColor: '#BFDBFE',
     marginBottom: 12,
   },
   appointmentCol: {
@@ -205,16 +205,16 @@ const styles = StyleSheet.create({
   },
   appointmentLabel: {
     fontSize: 10,
-    color: '#0369A1',
+    color: '#1E3A8A',
     fontWeight: '600',
   },
   appointmentVal: {
     fontSize: 12,
-    color: '#0C4A6E',
+    color: '#0F172A',
     fontWeight: '700',
   },
   actionBtn: {
-    backgroundColor: '#E11D48',
+    backgroundColor: '#00B894',
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 10,

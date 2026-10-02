@@ -3,11 +3,11 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import colors from '../../../theme/colors';
@@ -22,7 +22,7 @@ const OrderSuccessScreen = ({ navigation, route }) => {
   };
 
   const handleViewOrders = () => {
-    navigation.navigate('MyOrders');
+    navigation.navigate('MyMedicineOrders');
   };
 
   const handleContinueShopping = () => {
@@ -30,7 +30,7 @@ const OrderSuccessScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       {/* TOP HEADER BAR */}
       <View style={styles.topHeader}>
         <TouchableOpacity
@@ -61,7 +61,7 @@ const OrderSuccessScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        <Text style={styles.successHeading}>Order Placed Successfully! 🎉</Text>
+        <Text style={styles.successHeading}>Order Placed Successfully</Text>
         <Text style={styles.successSub}>
           Thank you for choosing MediUnify. Your pharmacy order is confirmed and being prepared for dispatch.
         </Text>

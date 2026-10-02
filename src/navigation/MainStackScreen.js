@@ -18,6 +18,7 @@ import colors from '../theme/colors';
 import HomeScreen from '../screens/home/HomeScreen';
 import NotificationsScreen from '../screens/home/NotificationsScreen';
 
+import FindDoctorsScreen from '../screens/services/doctors/FindDoctorsScreen';
 import DoctorListScreen from '../screens/services/doctors/DoctorListScreen';
 import DoctorDetailsScreen from '../screens/services/doctors/DoctorDetailsScreen';
 import DoctorBookingScreen from '../screens/services/doctors/DoctorBookingScreen';
@@ -84,7 +85,7 @@ import ChatbotScreen from '../screens/chatbot/ChatbotScreen';
 import HealthMonitorScreen from '../screens/health/HealthMonitorScreen';
 import HealthRecordsScreen from '../screens/health/HealthRecordsScreen';
 
-import BookingsScreen from '../screens/services/booking/BookingsScreen';
+import MyTestsScreen from '../screens/services/lab/MyTestsScreen.web';
 import BookingDetailsScreen from '../screens/services/booking/BookingDetailsScreen';
 
 import GlobalSearchScreen from '../screens/search/GlobalSearchScreen';
@@ -378,6 +379,11 @@ const MainStackScreen = () => {
         />
 
         <Stack.Screen
+          name="FindDoctors"
+          component={FindDoctorsScreen}
+        />
+
+        <Stack.Screen
           name="DoctorList"
           component={DoctorListScreen}
         />
@@ -609,7 +615,7 @@ const MainStackScreen = () => {
 
         <Stack.Screen
           name="Bookings"
-          component={BookingsScreen}
+          component={MyTestsScreen}
         />
 
         <Stack.Screen

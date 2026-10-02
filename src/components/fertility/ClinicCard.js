@@ -48,7 +48,7 @@ const ClinicCard = ({ clinic, onPress, onCompare, isSelectedForCompare }) => {
         <View style={styles.metricsBox}>
           <View style={styles.metricItem}>
             <Text style={styles.metricLabel}>Success Rate</Text>
-            <Text style={[styles.metricVal, { color: '#E11D48' }]}>{clinic.successRate}</Text>
+            <Text style={[styles.metricVal, { color: '#7BC96F' }]}>{clinic.successRate}</Text>
           </View>
           <View style={styles.metricDivider} />
           <View style={styles.metricItem}>
@@ -65,7 +65,7 @@ const ClinicCard = ({ clinic, onPress, onCompare, isSelectedForCompare }) => {
         {clinic.doctorsList && clinic.doctorsList.length > 0 && (
           <View style={styles.doctorsPreviewBox}>
             <View style={styles.docHeaderRow}>
-              <Ionicons name="medical" size={12} color="#0F766E" />
+              <Ionicons name="medical" size={12} color="#00B894" />
               <Text style={styles.docHeaderTitle}>
                 Available Doctors ({clinic.doctorsList.length})
               </Text>
@@ -86,12 +86,12 @@ const ClinicCard = ({ clinic, onPress, onCompare, isSelectedForCompare }) => {
               <Ionicons
                 name={isSelectedForCompare ? 'checkbox' : 'square-outline'}
                 size={15}
-                color={isSelectedForCompare ? '#E11D48' : '#64748B'}
+                color={isSelectedForCompare ? '#00B894' : '#64748B'}
               />
               <Text
                 style={[
                   styles.compareBtnText,
-                  isSelectedForCompare && { color: '#E11D48', fontWeight: '700' },
+                  isSelectedForCompare && { color: '#00B894', fontWeight: '700' },
                 ]}
               >
                 Compare
@@ -104,7 +104,7 @@ const ClinicCard = ({ clinic, onPress, onCompare, isSelectedForCompare }) => {
             onPress={() => onPress && onPress(clinic, 'doctors')}
             activeOpacity={0.85}
           >
-            <Ionicons name="people-outline" size={13} color="#0F766E" />
+            <Ionicons name="people-outline" size={13} color="#00B894" />
             <Text style={styles.viewDoctorsText}>
               Doctors ({clinic.doctorsList ? clinic.doctorsList.length : clinic.doctorsCount})
             </Text>
@@ -116,7 +116,7 @@ const ClinicCard = ({ clinic, onPress, onCompare, isSelectedForCompare }) => {
             activeOpacity={0.85}
           >
             <Text style={styles.detailsBtnText}>View Centre</Text>
-            <Ionicons name="arrow-forward" size={12} color="#E11D48" />
+            <Ionicons name="arrow-forward" size={12} color="#00B894" />
           </TouchableOpacity>
         </View>
       </View>
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
   detailsBtnText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#E11D48',
+    color: '#00B894',
   },
 });
 

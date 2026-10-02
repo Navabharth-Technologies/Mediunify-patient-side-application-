@@ -11,7 +11,7 @@ export const EmptyState = ({
 }) => (
   <View style={styles.container}>
     <View style={styles.iconCircle}>
-      <Ionicons name={icon} size={36} color="#E11D48" />
+      <Ionicons name={icon} size={36} color="#00B894" />
     </View>
     <Text style={styles.title}>{title}</Text>
     <Text style={styles.subtitle}>{subtitle}</Text>
@@ -25,8 +25,8 @@ export const EmptyState = ({
 
 export const LoadingState = ({ message = 'Loading fertility information...' }) => (
   <View style={styles.container}>
-    <View style={[styles.iconCircle, { backgroundColor: '#FFF1F2' }]}>
-      <Ionicons name="sync-outline" size={32} color="#E11D48" />
+    <View style={[styles.iconCircle, { backgroundColor: '#E6F8F5' }]}>
+      <Ionicons name="sync-outline" size={32} color="#00B894" />
     </View>
     <Text style={styles.loadingText}>{message}</Text>
   </View>
@@ -38,8 +38,8 @@ export const ErrorState = ({
   onRetry,
 }) => (
   <View style={styles.container}>
-    <View style={[styles.iconCircle, { backgroundColor: '#FEE2E2' }]}>
-      <Ionicons name="alert-circle-outline" size={36} color="#EF4444" />
+    <View style={[styles.iconCircle, { backgroundColor: '#FFF2ED' }]}>
+      <Ionicons name="alert-circle-outline" size={36} color="#FF7F50" />
     </View>
     <Text style={styles.title}>{title}</Text>
     <Text style={styles.subtitle}>{message}</Text>
@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#FFF1F2',
+    backgroundColor: '#E6F8F5',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -88,13 +88,13 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   actionBtn: {
-    backgroundColor: '#E11D48',
+    backgroundColor: '#00B894',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
   },
   retryBtn: {
-    backgroundColor: '#EF4444',
+    backgroundColor: '#FF7F50',
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 10,

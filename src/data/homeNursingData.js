@@ -20,7 +20,7 @@ export const availableNursingServices = [
     equipmentProvided: 'Medication tracking chart, vitals recording sheet.',
     category: 'Care',
     color: '#1E3A8A',
-    bgColor: '#EEF2FF',
+    bgColor: '#E0F7FA',
   },
   {
     id: 'ns-3',
@@ -29,8 +29,8 @@ export const availableNursingServices = [
     shortDesc: 'Aseptic dressing for surgical incisions, bedsores, diabetic ulcers, and trauma wounds.',
     equipmentProvided: 'Antiseptic solution, sterile gauze, dynaplast, betadine.',
     category: 'Clinical',
-    color: '#0284C7',
-    bgColor: '#F0F9FF',
+    color: '#00B894',
+    bgColor: '#E6F8F5',
   },
   {
     id: 'ns-4',
@@ -39,8 +39,8 @@ export const availableNursingServices = [
     shortDesc: 'Clinical check of blood pressure, heart rate, oxygen saturation (SpO2), and temperature.',
     equipmentProvided: 'Digital BP monitor, pulse oximeter, clinical thermometer.',
     category: 'Monitoring',
-    color: '#7C3AED',
-    bgColor: '#F5F3FF',
+    color: '#00C2CB',
+    bgColor: '#E0F7FA',
   },
   {
     id: 'ns-5',
@@ -49,8 +49,8 @@ export const availableNursingServices = [
     shortDesc: 'Fasting and postprandial capillary blood glucose testing with immediate record logging.',
     equipmentProvided: 'Glucometer, sterile lancets, test strips.',
     category: 'Monitoring',
-    color: '#DC2626',
-    bgColor: '#FEF2F2',
+    color: '#FF7F50',
+    bgColor: '#FFF2ED',
   },
   {
     id: 'ns-6',
@@ -59,8 +59,8 @@ export const availableNursingServices = [
     shortDesc: 'Specialized nursing after hospital discharge, pain relief support, and recovery tracking.',
     equipmentProvided: 'Incision care kit, fluid balance chart, recovery log.',
     category: 'Specialized',
-    color: '#D97706',
-    bgColor: '#FFFBEB',
+    color: '#7BC96F',
+    bgColor: '#F2FAF0',
   },
   {
     id: 'ns-7',
@@ -69,8 +69,8 @@ export const availableNursingServices = [
     shortDesc: 'Foley catheter bag maintenance, aseptic flushing, drainage monitoring, and hygiene care.',
     equipmentProvided: 'Normal saline flush, sterile gloves, catheter strap.',
     category: 'Clinical',
-    color: '#059669',
-    bgColor: '#ECFDF5',
+    color: '#7BC96F',
+    bgColor: '#F2FAF0',
   },
   {
     id: 'ns-8',
@@ -79,7 +79,7 @@ export const availableNursingServices = [
     shortDesc: 'Comprehensive sponge bath, position changes for pressure ulcer prevention, and feeding assistance.',
     equipmentProvided: 'Bed sore barrier cream, patient repositioning sheets.',
     category: 'Intensive',
-    color: '#475569',
+    color: '#64748B',
     bgColor: '#F1F5F9',
   },
   {
@@ -89,8 +89,8 @@ export const availableNursingServices = [
     shortDesc: 'Gentle, compassionate geriatric nursing, mobility assistance, fall prevention, and companion care.',
     equipmentProvided: 'Elderly safety assessment checklist, daily vitals register.',
     category: 'Geriatric',
-    color: '#EA580C',
-    bgColor: '#FFF7ED',
+    color: '#FF7F50',
+    bgColor: '#FFF2ED',
   },
   {
     id: 'ns-10',
@@ -99,8 +99,8 @@ export const availableNursingServices = [
     shortDesc: 'Transition care from hospital to home following ICU or acute illness discharge.',
     equipmentProvided: 'Transition care protocol, emergency escalation matrix.',
     category: 'Specialized',
-    color: '#2563EB',
-    bgColor: '#EFF6FF',
+    color: '#1E3A8A',
+    bgColor: '#E0F7FA',
   },
   {
     id: 'ns-11',
@@ -109,8 +109,8 @@ export const availableNursingServices = [
     shortDesc: 'Custom nursing requirements, IV cannula maintenance, stoma care, or Ryle’s tube feeding.',
     equipmentProvided: 'Custom nursing care kit as per requirement.',
     category: 'Custom',
-    color: '#0D9488',
-    bgColor: '#F0FDFA',
+    color: '#00C2CB',
+    bgColor: '#E0F7FA',
   },
 ];
 

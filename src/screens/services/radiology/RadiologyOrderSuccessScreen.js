@@ -3,12 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Linking,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 
@@ -26,7 +26,7 @@ const RadiologyOrderSuccessScreen = ({ route, navigation }) => {
   } = booking || {};
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* ==================================================
@@ -221,10 +221,10 @@ const RadiologyOrderSuccessScreen = ({ route, navigation }) => {
         <TouchableOpacity
           style={styles.viewBookingsButton}
           activeOpacity={0.88}
-          onPress={() => navigation.navigate('Bookings', { initialTab: 'Radiology Scans', timestamp: Date.now() })}
+          onPress={() => navigation.navigate('MyTests', { initialTab: 'radiology', timestamp: Date.now() })}
         >
           <Ionicons name="calendar-outline" size={18} color={colors.secondary} />
-          <Text style={styles.viewBookingsButtonText}>My Appointments</Text>
+          <Text style={styles.viewBookingsButtonText}>View in My Tests</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

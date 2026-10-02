@@ -8,7 +8,7 @@
     "web": "expo start --web",
     "predeploy": "npx expo export -p web && node scripts/patchGhPages.js && node -e \"require('fs').writeFileSync('dist/.nojekyll', '')\"",
     "deploy": "gh-pages -d dist -t",
-    "postinstall": "node scripts/patchExpoAsset.js"
+    "postinstall": "node scripts/patchExpoAsset.js && node scripts/patchExpoFont.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

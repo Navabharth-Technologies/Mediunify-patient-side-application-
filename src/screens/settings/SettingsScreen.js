@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Switch,
@@ -14,6 +13,7 @@ import {
   Platform,
   ToastAndroid,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -89,7 +89,7 @@ const SettingsScreen = ({ navigation }) => {
                 t('cache_cleared_title'),
                 t('cache_cleared_msg')
               );
-              showFeedback('Cache freed successfully! 🧹');
+              showFeedback('Cache freed successfully!');
             } catch (e) {
               console.log('Error clearing cache:', e);
             }
@@ -159,8 +159,8 @@ const SettingsScreen = ({ navigation }) => {
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      showAlert('Password Updated! 🔒', 'Your account password has been updated securely.');
-      showFeedback('Password changed successfully! 🔒');
+      showAlert('Password Updated!', 'Your account password has been updated securely.');
+      showFeedback('Password changed successfully!');
     } catch (e) {
       console.log('Error updating password:', e);
       showAlert('Error', 'Could not update password. Please try again.');
@@ -237,7 +237,7 @@ const SettingsScreen = ({ navigation }) => {
   const currentLangObj = LANGUAGES.find((l) => l.code === language) || LANGUAGES[0];
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, { backgroundColor: theme.background }]}>
       <StatusBar
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
         backgroundColor={theme.headerBg}
@@ -320,7 +320,7 @@ const SettingsScreen = ({ navigation }) => {
                         { color: isDarkMode ? '#34D399' : '#16A34A' },
                       ]}
                     >
-                      {isDarkMode ? 'ON 🌙' : 'OFF ☀️'}
+                      {isDarkMode ? 'ON' : 'OFF'}
                     </Text>
                   </View>
                 </View>
@@ -362,7 +362,7 @@ const SettingsScreen = ({ navigation }) => {
                   {t('app_language')}
                 </Text>
                 <Text style={[styles.settingSub, { color: theme.textSecondary }]}>
-                  {currentLangObj.flag} {currentLangObj.native} ({currentLangObj.name})
+                  {currentLangObj.native} ({currentLangObj.name})
                 </Text>
               </View>
             </View>
@@ -406,7 +406,7 @@ const SettingsScreen = ({ navigation }) => {
               value={notifications.push}
               onValueChange={(val) => {
                 updateNotifications('push', val);
-                showFeedback(val ? 'Push alerts enabled 🔔' : 'Push alerts disabled 🔕');
+                showFeedback(val ? 'Push alerts enabled' : 'Push alerts disabled');
               }}
               trackColor={{ false: '#CBD5E1', true: '#00B894' }}
               thumbColor="#FFFFFF"
@@ -434,7 +434,7 @@ const SettingsScreen = ({ navigation }) => {
               value={notifications.whatsapp}
               onValueChange={(val) => {
                 updateNotifications('whatsapp', val);
-                showFeedback(val ? 'WhatsApp updates on 💬' : 'WhatsApp updates off');
+                showFeedback(val ? 'WhatsApp updates on' : 'WhatsApp updates off');
               }}
               trackColor={{ false: '#CBD5E1', true: '#00B894' }}
               thumbColor="#FFFFFF"
@@ -467,7 +467,7 @@ const SettingsScreen = ({ navigation }) => {
               value={notifications.sms}
               onValueChange={(val) => {
                 updateNotifications('sms', val);
-                showFeedback(val ? 'SMS alerts enabled 📱' : 'SMS alerts disabled');
+                showFeedback(val ? 'SMS alerts enabled' : 'SMS alerts disabled');
               }}
               trackColor={{ false: '#CBD5E1', true: '#00B894' }}
               thumbColor="#FFFFFF"
@@ -492,10 +492,10 @@ const SettingsScreen = ({ navigation }) => {
               <View
                 style={[
                   styles.iconWrap,
-                  { backgroundColor: isDarkMode ? '#701A75' : '#FDF4FF' },
+                  { backgroundColor: isDarkMode ? '#1E293B' : '#E0F7FA' },
                 ]}
               >
-                <Ionicons name="key-outline" size={20} color="#A855F7" />
+                <Ionicons name="key-outline" size={20} color="#00C2CB" />
               </View>
               <View style={styles.settingInfo}>
                 <Text style={[styles.settingTitle, { color: theme.text }]}>
@@ -535,7 +535,7 @@ const SettingsScreen = ({ navigation }) => {
               value={biometricEnabled}
               onValueChange={(val) => {
                 toggleBiometric(val);
-                showFeedback(val ? 'Biometric login active 🔐' : 'Biometrics disabled');
+                showFeedback(val ? 'Biometric login active' : 'Biometrics disabled');
               }}
               trackColor={{ false: '#CBD5E1', true: '#00B894' }}
               thumbColor="#FFFFFF"
@@ -556,8 +556,8 @@ const SettingsScreen = ({ navigation }) => {
             onPress={handleClearCache}
           >
             <View style={styles.settingLeft}>
-              <View style={[styles.iconWrap, { backgroundColor: '#FEF2F2' }]}>
-                <Ionicons name="trash-bin-outline" size={20} color="#EF4444" />
+              <View style={[styles.iconWrap, { backgroundColor: '#FFF2ED' }]}>
+                <Ionicons name="trash-bin-outline" size={20} color="#FF7F50" />
               </View>
               <View style={styles.settingInfo}>
                 <Text style={[styles.settingTitle, { color: theme.text }]}>
@@ -576,11 +576,11 @@ const SettingsScreen = ({ navigation }) => {
             LOGOUT BUTTON
         ================================================== */}
         <TouchableOpacity
-          style={[styles.logoutBtn, { backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF', borderColor: '#FCA5A5' }]}
+          style={[styles.logoutBtn, { backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF', borderColor: '#FFD7C7' }]}
           activeOpacity={0.85}
           onPress={handleLogout}
         >
-          <Ionicons name="log-out-outline" size={20} color="#DC2626" />
+          <Ionicons name="log-out-outline" size={20} color="#FF7F50" />
           <Text style={styles.logoutText}>{t('logout_btn')}</Text>
         </TouchableOpacity>
 
@@ -641,11 +641,13 @@ const SettingsScreen = ({ navigation }) => {
                   onPress={() => {
                     changeLanguage(lang.code);
                     setShowLangModal(false);
-                    showFeedback(`${t('lang_changed_msg')} ${lang.native}! 🌐`);
+                    showFeedback(`${t('lang_changed_msg')} ${lang.native}!`);
                   }}
                 >
                   <View style={styles.langOptionLeft}>
-                    <Text style={styles.flagEmoji}>{lang.flag}</Text>
+                    <View style={[styles.langCodeBadge, { backgroundColor: isSelected ? colors.primary : (isDarkMode ? '#334155' : '#E2E8F0') }]}>
+                      <Text style={[styles.langCodeBadgeText, { color: isSelected ? '#FFFFFF' : theme.text }]}>{lang.flag}</Text>
+                    </View>
                     <View>
                       <Text
                         style={[
@@ -925,7 +927,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   logoutText: {
-    color: '#DC2626',
+    color: '#FF7F50',
     fontSize: 13,
     fontWeight: '800',
   },
@@ -983,8 +985,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  flagEmoji: {
-    fontSize: 22,
+  langCodeBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  langCodeBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
   },
   langNativeText: {
     fontSize: 14,

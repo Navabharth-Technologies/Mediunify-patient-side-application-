@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -13,6 +12,7 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showAlert } from '../../../utils/alert';
@@ -23,6 +23,12 @@ import { requestLocationPermissionWebSafe, getCurrentPositionWebSafe, reverseGeo
 import pharmacyProducts from '../../../data/pharmacyProducts';
 import { LAB_PACKAGES } from '../../../data/labTestData';
 import WebFooter from '../../../components/web/WebFooter';
+import { useAuthGuard } from '../../../context/AuthGuardContext';
+import {
+  getSlotStatus,
+  validateAndBookSlot,
+  subscribeToSlotChanges,
+} from '../../../services/slotBookingService';
 
 // PAYMENT CONSTANTS MATCHED TO CHECKOUT MODAL
 const UPI_APPS = [
@@ -42,18 +48,18 @@ const POPULAR_BANKS = [
 ];
 
 const PAYMENT_METHODS_CHECKOUT = [
-  { id: 'UPI', label: 'UPI / Google Pay / PhonePe', icon: 'phone-portrait-outline', iconColor: '#7C3AED' },
-  { id: 'CARD', label: 'Credit / Debit Card', icon: 'card-outline', iconColor: '#FF5252' },
-  { id: 'NETBANKING', label: 'Net Banking', icon: 'business-outline', iconColor: '#0369A1' },
-  { id: 'WALLET', label: 'Health Wallet Balance', icon: 'wallet-outline', iconColor: '#059669' },
-  { id: 'COD', label: 'Cash on Delivery (Pay at Doorstep)', icon: 'cash-outline', iconColor: '#D97706' },
+  { id: 'UPI', label: 'UPI / Google Pay / PhonePe', icon: 'phone-portrait-outline', iconColor: '#00B894' },
+  { id: 'CARD', label: 'Credit / Debit Card', icon: 'card-outline', iconColor: '#1E3A8A' },
+  { id: 'NETBANKING', label: 'Net Banking', icon: 'business-outline', iconColor: '#00C2CB' },
+  { id: 'WALLET', label: 'Health Wallet Balance', icon: 'wallet-outline', iconColor: '#7BC96F' },
+  { id: 'COD', label: 'Cash on Delivery (Pay at Doorstep)', icon: 'cash-outline', iconColor: '#64748B' },
 ];
 
 const RADIOLOGY_PAYMENT_METHODS = [
-  { id: 'UPI', label: 'Instant UPI (GPay / PhonePe / Paytm)', icon: 'phone-portrait-outline', iconColor: '#7C3AED' },
-  { id: 'CARD', label: 'Credit / Debit Card (Visa, MasterCard, RuPay)', icon: 'card-outline', iconColor: '#0284C7' },
-  { id: 'NETBANKING', label: 'Net Banking (All Indian Banks)', icon: 'business-outline', iconColor: '#0369A1' },
-  { id: 'WALLET', label: 'MediUnify Health Wallet', icon: 'wallet-outline', iconColor: '#059669' },
+  { id: 'UPI', label: 'Instant UPI (GPay / PhonePe / Paytm)', icon: 'phone-portrait-outline', iconColor: '#00B894' },
+  { id: 'CARD', label: 'Credit / Debit Card (Visa, MasterCard, RuPay)', icon: 'card-outline', iconColor: '#1E3A8A' },
+  { id: 'NETBANKING', label: 'Net Banking (All Indian Banks)', icon: 'business-outline', iconColor: '#00C2CB' },
+  { id: 'WALLET', label: 'MediUnify Health Wallet', icon: 'wallet-outline', iconColor: '#7BC96F' },
 ];
 
 const POPULAR_RADIOLOGY_RECOMMENDED = [
@@ -298,6 +304,7 @@ const DEFAULT_MOCKUP_ITEMS = [
 const CartScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
+  const { requireLogin } = useAuthGuard();
   const {
     pharmacyCart = [],
     labCart = [],
@@ -333,6 +340,7 @@ const CartScreen = ({ navigation, route }) => {
     applyCoupon,
     removeCoupon,
     selectedAddress,
+    selectedPharmacyStore,
     updateAddress,
     addOrder,
     clearCart,
@@ -353,9 +361,7 @@ const CartScreen = ({ navigation, route }) => {
     }
   }, [route?.params?.initialTab]);
 
-  const [checkoutModalVisible, setCheckoutModalVisible] = useState(
-    Boolean(route?.params?.openCheckout)
-  );
+  const [checkoutModalVisible, setCheckoutModalVisible] = useState(false);
 
   const [labCheckoutModalVisible, setLabCheckoutModalVisible] = useState(false);
   const [labCollectionMode, setLabCollectionMode] = useState('HOME');
@@ -375,9 +381,23 @@ const CartScreen = ({ navigation, route }) => {
   const [selectedRadiologyPaymentMethod, setSelectedRadiologyPaymentMethod] = useState('UPI');
   const [isSubmittingRadiologyOrder, setIsSubmittingRadiologyOrder] = useState(false);
 
+  // Real-time slot update ticker
+  const [, setSlotTick] = useState(0);
+  useEffect(() => {
+    const unsub = subscribeToSlotChanges(() => {
+      setSlotTick((t) => t + 1);
+    });
+    return unsub;
+  }, []);
+
   useEffect(() => {
     if (route?.params?.openCheckout) {
-      setCheckoutModalVisible(true);
+      (async () => {
+        const isAuthed = await ensureLoggedIn('order medicines & tablets');
+        if (isAuthed) {
+          setCheckoutModalVisible(true);
+        }
+      })();
     }
   }, [route?.params?.openCheckout]);
 
@@ -540,7 +560,15 @@ const CartScreen = ({ navigation, route }) => {
     }
   };
 
+  const ensureLoggedIn = () => true; // Replaced by AuthGuard — kept for compatibility
+
+
   const handleConfirmPharmacyOrder = () => {
+    requireLogin(() => _doConfirmPharmacyOrder());
+  };
+
+  const _doConfirmPharmacyOrder = async () => {
+
     if (!recipientName.trim()) {
       showAlert('Name Required', 'Please enter recipient name.');
       return;
@@ -557,7 +585,7 @@ const CartScreen = ({ navigation, route }) => {
     if (selectedPaymentMethod === 'WALLET') {
       if (walletBalance < netPayable) {
         showAlert(
-          'Insufficient Wallet Balance 💳',
+          'Insufficient Wallet Balance',
           `Your wallet balance is ₹${walletBalance.toLocaleString('en-IN')}, but the payable amount is ₹${netPayable.toLocaleString('en-IN')}.\n\nPlease top up or choose another payment method.`,
           [
             { text: 'Top Up Wallet', onPress: () => navigation.navigate('Wallet') },
@@ -624,30 +652,54 @@ const CartScreen = ({ navigation, route }) => {
         else if (selectedPaymentMethod === 'CARD') paymentLabel = `Card (Ending with ${cardNumber.slice(-4) || '4242'})`;
         else if (selectedPaymentMethod === 'NETBANKING') paymentLabel = `Net Banking (${selectedBank.toUpperCase()})`;
 
+        const orderCartItems = (pharmacyCart && pharmacyCart.length > 0) ? pharmacyCart : (typeof items !== 'undefined' ? items : []);
+        const storedUserId = (await AsyncStorage.getItem('@unnathi_user_phone')) || (await AsyncStorage.getItem('userPhone')) || 'patient-primary-001';
+        const cleanRecipient = recipientName.replace(/\s*\(Self\)$/i, '').trim() || 'Hemanth Gowda';
+        const nowFormatted = new Date().toLocaleString('en-US', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+
         const newOrder = {
           id: orderId,
           orderId: orderId,
-          date: new Date().toLocaleString('en-US', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
+          date: nowFormatted,
+          orderDate: nowFormatted,
           status: 'Confirmed',
+          orderStatus: 'Confirmed',
+          deliveryStatus: 'Preparing Order at Pharmacy Store',
           paymentMethod: paymentLabel,
           paymentStatus: selectedPaymentMethod === 'COD' ? 'Pay on Delivery' : 'Paid Online (Verified)',
           total: netPayable,
+          totalAmount: netPayable,
           subtotal: calculatedSubtotal,
-          deliveryFee: 0,
-          discountAmount: totalDiscount,
-          items: items.map((i) => ({
-            id: i.id,
-            name: i.name,
-            price: i.price,
-            quantity: i.quantity || 1,
-            brand: i.brand,
+          deliveryFee: pharmacyDeliveryFee || 0,
+          packagingFee: 5,
+          discountAmount: totalDiscount || 0,
+          pharmacyName: selectedPharmacyStore?.name || (orderCartItems[0]?.storeName) || 'Apollo Pharmacy - Kuvempunagar',
+          pharmacyAddress: selectedPharmacyStore?.address || '#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023',
+          pharmacyPhone: selectedPharmacyStore?.phone || '+91 821 2548901',
+          userId: storedUserId,
+          accountId: storedUserId,
+          patientName: cleanRecipient,
+          patientPhone: contactPhone,
+          items: orderCartItems.map((i, idx) => ({
+            id: i.id || `itm-${idx + 1}`,
+            name: i.name || 'Medicine',
+            brand: i.brand || i.manufacturer || 'MediUnify Certified',
+            strength: i.strength || i.packSize || 'Standard',
+            price: Number(i.price || 0),
+            quantity: Number(i.quantity || 1),
+            total: Number(i.price || 0) * Number(i.quantity || 1),
+            rxRequired: Boolean(i.rxRequired || i.requiresPrescription),
+            isReturnEligible: true,
+            returnedQuantity: 0,
+            returnStatus: 'Eligible',
           })),
+          deliveryAddress: deliveryAddress.trim(),
           address: {
             name: recipientName,
             phone: contactPhone,
@@ -655,9 +707,37 @@ const CartScreen = ({ navigation, route }) => {
           },
           prescriptionAttached: uploadedDocument ? uploadedDocument.name : null,
           deliverySlot: `${selectedSlot} (${deliveryMode})`,
+          expectedDelivery: 'Today (30-45 mins)',
+          isReturnEligible: false,
+          returnRequested: false,
+          returnRequests: [],
+          trackingStep: 1,
+          trackingHistory: [
+            { title: 'Order Placed', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), done: true },
+            { title: 'Confirmed by Pharmacist', time: 'Just now', done: true },
+            { title: 'Packed at Pharmacy Store', time: 'In Progress', done: false },
+            { title: 'Out for Delivery', time: 'Pending', done: false },
+            { title: 'Delivered', time: 'Pending', done: false },
+          ],
+          invoiceNumber: `INV-MU-${Date.now().toString().slice(-6)}`,
         };
 
         if (addOrder) await addOrder(newOrder);
+
+        try {
+          const storedStr = await AsyncStorage.getItem('@mediunify_patient_medicine_orders');
+          const currentList = storedStr ? JSON.parse(storedStr) : [];
+          const mergedList = [newOrder, ...currentList.filter((o) => o.id !== newOrder.id)];
+          await AsyncStorage.setItem('@mediunify_patient_medicine_orders', JSON.stringify(mergedList));
+          await AsyncStorage.setItem('@unnathi_pharmacy_orders', JSON.stringify(mergedList));
+          await AsyncStorage.setItem('@orders', JSON.stringify(mergedList));
+
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('mediunify_orders_updated', { detail: newOrder }));
+            window.dispatchEvent(new Event('storage'));
+          }
+        } catch (e) {}
+
         if (clearCart) clearCart();
 
         setTimeout(() => {
@@ -670,6 +750,9 @@ const CartScreen = ({ navigation, route }) => {
   };
 
   const handleConfirmLabBooking = async () => {
+    const isAuthed = await ensureLoggedIn('book diagnostic lab tests');
+    if (!isAuthed) return;
+
     if (!recipientName.trim()) {
       showAlert('Name Required', 'Please enter patient name.');
       return;
@@ -689,6 +772,23 @@ const CartScreen = ({ navigation, route }) => {
       const labBookingId = `LAB-${Date.now().toString().slice(-6)}`;
       const testsSummary = labCart.map((t) => t.name).join(', ');
       const centerTitle = labCart[0]?.centerName || labCart[0]?.labName || 'Unnathi Certified Diagnostics';
+
+      const slotValidation = await validateAndBookSlot({
+        date: labBookingDate,
+        time: labBookingSlot,
+        serviceType: 'lab',
+        providerId: centerTitle,
+        bookingDetails: {
+          bookingId: labBookingId,
+          patientName: recipientName,
+        },
+      });
+
+      if (!slotValidation.success) {
+        setIsSubmittingLabOrder(false);
+        showAlert('Slot Unavailable', slotValidation.message || 'This slot is no longer available. Please select another time.');
+        return;
+      }
 
       const newLabAppointment = {
         id: labBookingId,
@@ -743,12 +843,12 @@ const CartScreen = ({ navigation, route }) => {
       setLabCheckoutModalVisible(false);
 
       showAlert(
-        'Diagnostic Tests Booked! 🧪',
+        'Diagnostic Tests Booked',
         `Your lab tests appointment (${labBookingId}) has been successfully booked.\n\nTotal Paid: ₹${labFinalTotal.toLocaleString('en-IN')}\nMode: ${labCollectionMode === 'HOME' ? 'Home Sample Collection' : 'Lab Visit'}\nSlot: ${labBookingDate}, ${labBookingSlot}`,
         [
           {
-            text: 'View My Bookings',
-            onPress: () => navigation.navigate('Bookings', { initialTab: 'lab' }),
+            text: 'View My Tests',
+            onPress: () => navigation.navigate('MyTests', { initialTab: 'lab' }),
           },
           {
             text: 'OK',
@@ -760,6 +860,9 @@ const CartScreen = ({ navigation, route }) => {
   };
 
   const handleConfirmRadiologyBooking = async () => {
+    const isAuthed = await ensureLoggedIn('book radiology scans');
+    if (!isAuthed) return;
+
     if (!radiologyPatientName.trim() || !radiologyPatientPhone.trim()) {
       showAlert('Required Fields', 'Please fill patient name and mobile number.');
       return;
@@ -775,6 +878,23 @@ const CartScreen = ({ navigation, route }) => {
       const radiologyBookingId = `RAD-${Math.floor(100000 + Math.random() * 900000)}`;
       const centerTitle = radiologyCart[0]?.labName || radiologyCart[0]?.centerName || 'MediUnify Imaging & Scan Centre';
       const centerArea = radiologyCart[0]?.labArea || 'Kuvempunagar, Mysore';
+
+      const slotValidation = await validateAndBookSlot({
+        date: radiologyBookingDate,
+        time: radiologyBookingSlot,
+        serviceType: 'radiology',
+        providerId: centerTitle,
+        bookingDetails: {
+          bookingId: radiologyBookingId,
+          patientName: radiologyPatientName,
+        },
+      });
+
+      if (!slotValidation.success) {
+        setIsSubmittingRadiologyOrder(false);
+        showAlert('Slot Unavailable', slotValidation.message || 'This slot is no longer available. Please select another time.');
+        return;
+      }
 
       const newRadiologyAppointment = {
         id: radiologyBookingId,
@@ -828,12 +948,12 @@ const CartScreen = ({ navigation, route }) => {
       setRadiologyCheckoutModalVisible(false);
 
       showAlert(
-        'Radiology Scan Booked! 🩻',
+        'Radiology Scan Booked',
         `Your scan appointment (${radiologyBookingId}) has been successfully confirmed.\n\nCenter: ${centerTitle}\nTotal Paid Online: ₹${radiologyFinalTotal.toLocaleString('en-IN')}\nSlot: ${radiologyBookingDate}, ${radiologyBookingSlot}`,
         [
           {
-            text: 'View in My Bookings',
-            onPress: () => navigation.navigate('Bookings', { initialTab: 'radiology' }),
+            text: 'View in My Tests',
+            onPress: () => navigation.navigate('MyTests', { initialTab: 'radiology' }),
           },
           {
             text: 'OK',
@@ -902,7 +1022,7 @@ const CartScreen = ({ navigation, route }) => {
         },
       ]);
     }
-    showAlert('Added to Cart! 🛒', `${deal.name} has been added to your cart.`);
+    showAlert('Added to Cart', `${deal.name} has been added to your cart.`);
   };
 
   // Care Plan state
@@ -929,7 +1049,7 @@ const CartScreen = ({ navigation, route }) => {
     }
     const res = applyCoupon ? applyCoupon(promo) : { success: true, coupon: { code: promo, discount: 50 } };
     if (res && res.success) {
-      setCouponMessage({ success: true, text: `🎉 ${res.coupon?.code || promo} applied!` });
+      setCouponMessage({ success: true, text: `${res.coupon?.code || promo} applied!` });
       setTimeout(() => setCouponModalVisible(false), 1200);
     } else {
       setCouponMessage({ success: false, text: 'Invalid promo code. Try MEDI20 or HEALTH50.' });
@@ -938,7 +1058,7 @@ const CartScreen = ({ navigation, route }) => {
 
   const handleAddMembership = () => {
     setHasCarePlan(true);
-    showAlert('Care Plan Added! 🛡️', 'You have unlocked extra ₹92 savings on this order.');
+    showAlert('Care Plan Added', 'You have unlocked extra ₹92 savings on this order.');
   };
 
   const handleToggleHealthPackage = () => {
@@ -973,7 +1093,7 @@ const CartScreen = ({ navigation, route }) => {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         {/* BREADCRUMB ROW (Desktop) */}
         {isDesktop ? (
@@ -1044,7 +1164,7 @@ const CartScreen = ({ navigation, route }) => {
               <Ionicons
                 name="medkit"
                 size={16}
-                color={activeCartTab === 'pharmacy' ? '#FF5252' : '#64748B'}
+                color={activeCartTab === 'pharmacy' ? '#00B894' : '#64748B'}
               />
               <Text
                 style={[
@@ -1165,7 +1285,7 @@ const CartScreen = ({ navigation, route }) => {
                   </Text>
                   {radiologyCart.length > 0 && (
                     <TouchableOpacity onPress={() => clearCart && clearCart('radiology')} activeOpacity={0.7}>
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#EF4444' }}>Clear Radiology Cart</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#FF7F50' }}>Clear Radiology Cart</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -1230,12 +1350,12 @@ const CartScreen = ({ navigation, route }) => {
                                 style={styles.labRemoveItemBtn}
                                 activeOpacity={0.7}
                               >
-                                <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                                <Ionicons name="trash-outline" size={16} color="#FF7F50" />
                               </TouchableOpacity>
                             </View>
 
                             <Text style={styles.labItemCenterText} numberOfLines={1}>
-                              🏥 {item.centerName || item.labName || 'MediUnify Imaging Centre'} • {item.labArea || 'Mysuru'}
+                              {item.centerName || item.labName || 'MediUnify Imaging Centre'} • {item.labArea || 'Mysuru'}
                             </Text>
 
                             <View style={styles.labItemBadgesRow}>
@@ -1316,12 +1436,12 @@ const CartScreen = ({ navigation, route }) => {
                                 reportTime: scan.reportTime,
                                 itemType: 'radiology',
                               }, 1, 'radiology');
-                              showAlert('Added to Radiology Cart! 🩻', `${scan.name} added to your radiology cart.`);
+                              showAlert('Added to Radiology Cart', `${scan.name} added to your radiology cart.`);
                             }
                           }}
                           activeOpacity={0.85}
                         >
-                          <Text style={styles.dealAddBtnText}>{inCart ? '✓ In Cart' : '+ Add Scan'}</Text>
+                          <Text style={styles.dealAddBtnText}>{inCart ? 'In Cart' : '+ Add Scan'}</Text>
                         </TouchableOpacity>
                       </View>
                     );
@@ -1338,7 +1458,7 @@ const CartScreen = ({ navigation, route }) => {
                   </Text>
                   {labCart.length > 0 && (
                     <TouchableOpacity onPress={() => clearCart && clearCart('lab')} activeOpacity={0.7}>
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#EF4444' }}>Clear Lab Cart</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#FF7F50' }}>Clear Lab Cart</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -1403,12 +1523,12 @@ const CartScreen = ({ navigation, route }) => {
                                 style={styles.labRemoveItemBtn}
                                 activeOpacity={0.7}
                               >
-                                <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                                <Ionicons name="trash-outline" size={16} color="#FF7F50" />
                               </TouchableOpacity>
                             </View>
 
                             <Text style={styles.labItemCenterText} numberOfLines={1}>
-                              🏥 {item.centerName || item.labName || 'Unnathi Diagnostic Partner'}
+                              {item.centerName || item.labName || 'Unnathi Diagnostic Partner'}
                             </Text>
 
                             <View style={styles.labItemBadgesRow}>
@@ -1482,13 +1602,13 @@ const CartScreen = ({ navigation, route }) => {
                                   sampleType: `${pkg.includedCount} Parameters`,
                                   homeSample: true,
                                 }, 1, 'lab');
-                                showAlert('Added to Cart! 🧪', `${pkg.name} added to cart.`);
+                                showAlert('Added to Cart', `${pkg.name} added to cart.`);
                               }
                             }}
                             activeOpacity={0.85}
                           >
                             <Text style={[styles.addToCartBtnText, inCart && { color: '#FFFFFF' }]}>
-                              {inCart ? '✓ In Cart' : 'Add to cart'}
+                              {inCart ? 'In Cart' : 'Add to cart'}
                             </Text>
                           </TouchableOpacity>
                         </View>
@@ -1573,7 +1693,7 @@ const CartScreen = ({ navigation, route }) => {
                               {(item.quantity || 1) > 1 ? (
                                 <Text style={styles.qtyMinusText}>−</Text>
                               ) : (
-                                <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                                <Ionicons name="trash-outline" size={14} color="#FF7F50" />
                               )}
                             </TouchableOpacity>
 
@@ -1769,11 +1889,13 @@ const CartScreen = ({ navigation, route }) => {
                 { backgroundColor: '#0284C7' },
                 radiologyCart.length === 0 && { opacity: 0.5 },
               ]}
-              onPress={() => {
+              onPress={async () => {
                 if (radiologyCart.length === 0) {
                   showAlert('Cart is Empty', 'Please add radiology scans to your cart first.');
                   return;
                 }
+                const isAuthed = await ensureLoggedIn('book radiology scans');
+                if (!isAuthed) return;
                 const firstItem = radiologyCart[0];
                 navigation.navigate('RadiologyBooking', {
                   selectedTests: radiologyCart,
@@ -1898,11 +2020,13 @@ const CartScreen = ({ navigation, route }) => {
                 { backgroundColor: '#00B894' },
                 labCart.length === 0 && { opacity: 0.5 },
               ]}
-              onPress={() => {
+              onPress={async () => {
                 if (labCart.length === 0) {
                   showAlert('Cart is Empty', 'Please add diagnostic tests to your cart first.');
                   return;
                 }
+                const isAuthed = await ensureLoggedIn('schedule lab tests');
+                if (!isAuthed) return;
                 setLabCheckoutModalVisible(true);
               }}
               disabled={labCart.length === 0}
@@ -1943,7 +2067,7 @@ const CartScreen = ({ navigation, route }) => {
                   activeOpacity={0.88}
                 >
                   <Text style={styles.addMembershipBtnText}>
-                    {hasCarePlan ? '✓ Added' : 'Add membership'}
+                    {hasCarePlan ? 'Added' : 'Add membership'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1957,7 +2081,7 @@ const CartScreen = ({ navigation, route }) => {
             >
               <View style={styles.couponCardLeft}>
                 <View style={styles.couponIconBox}>
-                  <Ionicons name="pricetag" size={16} color="#475569" />
+                  <Ionicons name="pricetag" size={16} color="#00C2CB" />
                 </View>
                 <Text style={styles.couponCardText}>
                   {appliedCoupon ? `Applied: ${appliedCoupon.code} (-₹${appliedCoupon.discount})` : 'Apply coupon'}
@@ -2015,7 +2139,7 @@ const CartScreen = ({ navigation, route }) => {
                     <Text style={styles.billLabel}>Total discount</Text>
                     <Ionicons name="help-circle-outline" size={13} color="#94A3B8" />
                   </View>
-                  <Text style={[styles.billValue, { color: '#16A34A', fontWeight: '700' }]}>
+                  <Text style={[styles.billValue, { color: '#7BC96F', fontWeight: '700' }]}>
                     -₹{totalDiscount.toFixed(1)}
                   </Text>
                 </View>
@@ -2053,7 +2177,11 @@ const CartScreen = ({ navigation, route }) => {
             {/* 6. PRIMARY CONTINUE / CHECKOUT BUTTON */}
             <TouchableOpacity
               style={styles.continueBtn}
-              onPress={() => setCheckoutModalVisible(true)}
+              onPress={async () => {
+                const isAuthed = await ensureLoggedIn('order medicines & tablets');
+                if (!isAuthed) return;
+                setCheckoutModalVisible(true);
+              }}
               activeOpacity={0.88}
             >
               <Text style={styles.continueBtnText}>Continue</Text>
@@ -2199,7 +2327,7 @@ const CartScreen = ({ navigation, route }) => {
             <View style={styles.checkoutModalHeader}>
               <View>
                 <View style={styles.checkoutConfidentialPill}>
-                  <Ionicons name="lock-closed" size={11} color="#FF5252" />
+                  <Ionicons name="lock-closed" size={11} color="#00B894" />
                   <Text style={styles.checkoutConfidentialPillText}>100% SECURE & VERIFIED PHARMACY</Text>
                 </View>
                 <Text style={styles.checkoutModalTitle}>Confirm Pharmacy Order</Text>
@@ -2250,9 +2378,9 @@ const CartScreen = ({ navigation, route }) => {
                   activeOpacity={0.8}
                 >
                   {gpsLoading ? (
-                    <ActivityIndicator size="small" color="#FF5252" />
+                    <ActivityIndicator size="small" color="#00B894" />
                   ) : (
-                    <Ionicons name="navigate" size={12} color="#FF5252" />
+                    <Ionicons name="navigate" size={12} color="#00B894" />
                   )}
                   <Text style={styles.checkoutGpsText}>
                     {gpsLoading ? 'Locating...' : 'Auto-locate GPS'}
@@ -2277,7 +2405,7 @@ const CartScreen = ({ navigation, route }) => {
                 {items.map((item, idx) => (
                   <View key={item.id || idx} style={styles.checkoutTabletRow}>
                     <View style={styles.checkoutTabletIconWrap}>
-                      <Ionicons name="medkit-outline" size={16} color="#FF5252" />
+                      <Ionicons name="medkit-outline" size={16} color="#00B894" />
                     </View>
                     <View style={{ flex: 1, marginHorizontal: 8 }}>
                       <Text style={styles.checkoutTabletName} numberOfLines={1}>
@@ -2313,7 +2441,7 @@ const CartScreen = ({ navigation, route }) => {
                       onPress={() => handlePickDocument('image')}
                       activeOpacity={0.8}
                     >
-                      <Ionicons name="image" size={15} color="#FF5252" />
+                      <Ionicons name="image" size={15} color="#00C2CB" />
                       <Text style={styles.checkoutUploadBtnText}>Upload Image</Text>
                     </TouchableOpacity>
 
@@ -2336,7 +2464,7 @@ const CartScreen = ({ navigation, route }) => {
                     <Ionicons
                       name={uploadedDocument.type?.includes('pdf') ? 'document-text' : 'image'}
                       size={20}
-                      color="#FF5252"
+                      color="#00B894"
                     />
                   </View>
                   <View style={{ flex: 1, marginHorizontal: 8 }}>
@@ -2346,7 +2474,7 @@ const CartScreen = ({ navigation, route }) => {
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
                       <Text style={styles.checkoutUploadedFileSize}>{uploadedDocument.size}</Text>
                       <Text style={{ fontSize: 10, color: '#94A3B8' }}>•</Text>
-                      <Text style={styles.checkoutUploadedFileBadge}>✓ Attached to Order</Text>
+                      <Text style={styles.checkoutUploadedFileBadge}>Attached to Order</Text>
                     </View>
                   </View>
                   <TouchableOpacity
@@ -2354,7 +2482,7 @@ const CartScreen = ({ navigation, route }) => {
                     style={styles.checkoutRemoveFileBtn}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                    <Ionicons name="trash-outline" size={18} color="#FF7F50" />
                   </TouchableOpacity>
                 </View>
               )}
@@ -2406,7 +2534,7 @@ const CartScreen = ({ navigation, route }) => {
                       <Ionicons
                         name={pm.icon}
                         size={18}
-                        color={isSelected ? '#FF5252' : pm.iconColor || '#64748B'}
+                        color={isSelected ? '#00B894' : pm.iconColor || '#64748B'}
                       />
                       <Text
                         style={[
@@ -2439,7 +2567,7 @@ const CartScreen = ({ navigation, route }) => {
                         <Ionicons
                           name={app.icon}
                           size={15}
-                          color={selectedUpiApp === app.id ? '#FF5252' : app.color}
+                          color={selectedUpiApp === app.id ? '#00B894' : app.color}
                         />
                         <Text
                           style={[
@@ -2471,7 +2599,7 @@ const CartScreen = ({ navigation, route }) => {
                       activeOpacity={0.8}
                     >
                       <Text style={styles.checkoutUpiVerifyBtnText}>
-                        {isUpiVerified ? 'Verified ✓' : 'Verify'}
+                        {isUpiVerified ? 'Verified' : 'Verify'}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -2544,7 +2672,7 @@ const CartScreen = ({ navigation, route }) => {
                           {b.name}
                         </Text>
                         {selectedBank === b.id && (
-                          <Ionicons name="checkmark-circle" size={14} color="#FF5252" />
+                          <Ionicons name="checkmark-circle" size={14} color="#00B894" />
                         )}
                       </TouchableOpacity>
                     ))}
@@ -2560,7 +2688,7 @@ const CartScreen = ({ navigation, route }) => {
                       <Text
                         style={[
                           styles.checkoutWalletBalValue,
-                          walletBalance < netPayable && { color: '#EF4444' },
+                          walletBalance < netPayable && { color: '#FF7F50' },
                         ]}
                       >
                         ₹{walletBalance.toLocaleString('en-IN')}
@@ -2585,7 +2713,7 @@ const CartScreen = ({ navigation, route }) => {
                     </View>
                   ) : (
                     <View style={styles.checkoutWalletNoticeWarning}>
-                      <Ionicons name="warning" size={14} color="#EF4444" />
+                      <Ionicons name="warning" size={14} color="#FF7F50" />
                       <Text style={styles.checkoutWalletNoticeTextWarning}>
                         Insufficient balance. Please top up ₹{(netPayable - walletBalance).toLocaleString('en-IN')}.
                       </Text>
@@ -2615,7 +2743,7 @@ const CartScreen = ({ navigation, route }) => {
                   <Text style={styles.checkoutSummaryValue}>₹{netPayable.toLocaleString('en-IN')}</Text>
                 </View>
                 <Text style={styles.checkoutSummaryNote}>
-                  ✓ Zero cancellation fee • 100% genuine medicines • Instant confirmation
+                  Zero cancellation fee • 100% genuine medicines • Instant confirmation
                 </Text>
               </View>
 
@@ -2658,7 +2786,7 @@ const CartScreen = ({ navigation, route }) => {
           <View style={styles.processModal}>
             {orderProcessStep < 3 ? (
               <>
-                <ActivityIndicator size="large" color="#FF5252" />
+                <ActivityIndicator size="large" color="#00B894" />
                 <Text style={styles.processTitle}>
                   {orderProcessStep === 1 ? 'Connecting to Payment Gateway...' : 'Authorizing Payment...'}
                 </Text>
@@ -2681,7 +2809,7 @@ const CartScreen = ({ navigation, route }) => {
                 <View style={styles.successIconCircle}>
                   <Ionicons name="checkmark" size={36} color="#FFFFFF" />
                 </View>
-                <Text style={[styles.processTitle, { color: '#059669' }]}>Payment Successful! 🎉</Text>
+                <Text style={[styles.processTitle, { color: '#059669' }]}>Payment Successful</Text>
                 <Text style={styles.processSub}>Generating your official medicine order receipt...</Text>
               </>
             )}
@@ -2851,31 +2979,52 @@ const CartScreen = ({ navigation, route }) => {
                     '08:00 AM - 09:00 AM',
                     '09:00 AM - 10:00 AM',
                     '04:00 PM - 05:00 PM',
-                  ].map((slot) => (
-                    <TouchableOpacity
-                      key={slot}
-                      style={[
-                        styles.checkoutSlotRow,
-                        labBookingSlot === slot && styles.checkoutSlotRowActive,
-                      ]}
-                      onPress={() => setLabBookingSlot(slot)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons
-                        name={labBookingSlot === slot ? 'radio-button-on' : 'radio-button-off'}
-                        size={18}
-                        color={labBookingSlot === slot ? '#00B894' : '#94A3B8'}
-                      />
-                      <Text
+                  ].map((slot) => {
+                    const centerTitle = labCart[0]?.centerName || labCart[0]?.labName || 'Unnathi Certified Diagnostics';
+                    const status = getSlotStatus({
+                      date: labBookingDate,
+                      time: slot,
+                      serviceType: 'lab',
+                      providerId: centerTitle,
+                    });
+                    const isAvailable = status.available;
+                    const isSelected = labBookingSlot === slot;
+                    return (
+                      <TouchableOpacity
+                        key={slot}
                         style={[
-                          styles.checkoutSlotText,
-                          labBookingSlot === slot && styles.checkoutSlotTextActive,
+                          styles.checkoutSlotRow,
+                          isSelected && styles.checkoutSlotRowActive,
+                          !isAvailable && { opacity: 0.55, backgroundColor: '#F8FAFC' },
                         ]}
+                        disabled={!isAvailable}
+                        onPress={() => setLabBookingSlot(slot)}
+                        activeOpacity={0.8}
                       >
-                        {slot}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                        <Ionicons
+                          name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                          size={18}
+                          color={isSelected ? '#00B894' : isAvailable ? '#94A3B8' : '#CBD5E1'}
+                        />
+                        <Text
+                          style={[
+                            styles.checkoutSlotText,
+                            isSelected && styles.checkoutSlotTextActive,
+                            !isAvailable && { color: '#94A3B8', textDecorationLine: 'line-through' },
+                          ]}
+                        >
+                          {slot}
+                        </Text>
+                        {!isAvailable && (
+                          <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 'auto' }}>
+                            <Text style={{ fontSize: 9, fontWeight: '700', color: '#DC2626', textTransform: 'uppercase' }}>
+                              {status.status === 'PASSED' ? 'Passed' : 'Booked'}
+                            </Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </View>
 
@@ -2886,10 +3035,10 @@ const CartScreen = ({ navigation, route }) => {
                 </Text>
                 <View style={{ gap: 8, marginTop: 8 }}>
                   {[
-                    { id: 'UPI', label: 'UPI / Google Pay / PhonePe', icon: 'phone-portrait-outline', color: '#7C3AED' },
-                    { id: 'CARD', label: 'Credit / Debit Card', icon: 'card-outline', color: '#FF5252' },
-                    { id: 'NETBANKING', label: 'Net Banking', icon: 'business-outline', color: '#0369A1' },
-                    { id: 'WALLET', label: 'Health Wallet Balance', icon: 'wallet-outline', color: '#059669' },
+                    { id: 'UPI', label: 'UPI / Google Pay / PhonePe', icon: 'phone-portrait-outline', color: '#00B894' },
+                    { id: 'CARD', label: 'Credit / Debit Card', icon: 'card-outline', color: '#1E3A8A' },
+                    { id: 'NETBANKING', label: 'Net Banking', icon: 'business-outline', color: '#00C2CB' },
+                    { id: 'WALLET', label: 'Health Wallet Balance', icon: 'wallet-outline', color: '#7BC96F' },
                   ].map((pm) => (
                     <TouchableOpacity
                       key={pm.id}
@@ -2919,7 +3068,7 @@ const CartScreen = ({ navigation, route }) => {
                   </Text>
                 </View>
                 <Text style={styles.checkoutSummaryNote}>
-                  ✓ Free doorstep collection • Digital verified reports • NABL accredited partner labs
+                  Free doorstep collection • Digital verified reports • NABL accredited partner labs
                 </Text>
               </View>
             </ScrollView>
@@ -3090,31 +3239,52 @@ const CartScreen = ({ navigation, route }) => {
                     '10:30 AM - 11:30 AM (Peak Slot)',
                     '01:30 PM - 02:30 PM (Afternoon)',
                     '04:30 PM - 05:30 PM (Evening)',
-                  ].map((slot) => (
-                    <TouchableOpacity
-                      key={slot}
-                      style={[
-                        styles.checkoutSlotRow,
-                        radiologyBookingSlot === slot && { borderColor: '#0284C7', backgroundColor: '#F0F9FF' },
-                      ]}
-                      onPress={() => setRadiologyBookingSlot(slot)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons
-                        name={radiologyBookingSlot === slot ? 'radio-button-on' : 'radio-button-off'}
-                        size={18}
-                        color={radiologyBookingSlot === slot ? '#0284C7' : '#94A3B8'}
-                      />
-                      <Text
+                  ].map((slot) => {
+                    const centerTitle = radiologyCart[0]?.labName || radiologyCart[0]?.centerName || 'MediUnify Imaging & Scan Centre';
+                    const status = getSlotStatus({
+                      date: radiologyBookingDate,
+                      time: slot,
+                      serviceType: 'radiology',
+                      providerId: centerTitle,
+                    });
+                    const isAvailable = status.available;
+                    const isSelected = radiologyBookingSlot === slot;
+                    return (
+                      <TouchableOpacity
+                        key={slot}
                         style={[
-                          styles.checkoutSlotText,
-                          radiologyBookingSlot === slot && { color: '#0369A1', fontWeight: '700' },
+                          styles.checkoutSlotRow,
+                          isSelected && { borderColor: '#0284C7', backgroundColor: '#F0F9FF' },
+                          !isAvailable && { opacity: 0.55, backgroundColor: '#F8FAFC' },
                         ]}
+                        disabled={!isAvailable}
+                        onPress={() => setRadiologyBookingSlot(slot)}
+                        activeOpacity={0.8}
                       >
-                        {slot}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                        <Ionicons
+                          name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                          size={18}
+                          color={isSelected ? '#0284C7' : isAvailable ? '#94A3B8' : '#CBD5E1'}
+                        />
+                        <Text
+                          style={[
+                            styles.checkoutSlotText,
+                            isSelected && { color: '#0369A1', fontWeight: '700' },
+                            !isAvailable && { color: '#94A3B8', textDecorationLine: 'line-through' },
+                          ]}
+                        >
+                          {slot}
+                        </Text>
+                        {!isAvailable && (
+                          <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 'auto' }}>
+                            <Text style={{ fontSize: 9, fontWeight: '700', color: '#DC2626', textTransform: 'uppercase' }}>
+                              {status.status === 'PASSED' ? 'Passed' : 'Booked'}
+                            </Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </View>
 
@@ -3174,7 +3344,7 @@ const CartScreen = ({ navigation, route }) => {
                   </Text>
                 </View>
                 <Text style={styles.checkoutSummaryNote}>
-                  ✓ Verified Radiologist Reporting • Priority Slot Reservation • Digital DICOM Reports
+                  Verified Radiologist Reporting • Priority Slot Reservation • Digital DICOM Reports
                 </Text>
               </View>
             </ScrollView>
@@ -3245,16 +3415,16 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   cartCategoryTabActive: {
-    backgroundColor: '#FFF5F5',
-    borderColor: '#FF5252',
-  },
-  cartCategoryTabActiveLab: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#ECFDF5',
     borderColor: '#00B894',
   },
+  cartCategoryTabActiveLab: {
+    backgroundColor: '#E0F7FA',
+    borderColor: '#00C2CB',
+  },
   cartCategoryTabActiveRad: {
-    backgroundColor: '#F0F9FF',
-    borderColor: '#0284C7',
+    backgroundColor: '#EFF6FF',
+    borderColor: '#1E3A8A',
   },
   cartCategoryTabText: {
     fontSize: 13.5,
@@ -3262,15 +3432,15 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   cartCategoryTabTextActive: {
-    color: '#FF5252',
-    fontWeight: '800',
-  },
-  cartCategoryTabTextActiveLab: {
     color: '#00B894',
     fontWeight: '800',
   },
+  cartCategoryTabTextActiveLab: {
+    color: '#00C2CB',
+    fontWeight: '800',
+  },
   cartCategoryTabTextActiveRad: {
-    color: '#0284C7',
+    color: '#1E3A8A',
     fontWeight: '800',
   },
   cartTabBadge: {
@@ -3280,13 +3450,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   cartTabBadgeActive: {
-    backgroundColor: '#FF5252',
-  },
-  cartTabBadgeActiveLab: {
     backgroundColor: '#00B894',
   },
+  cartTabBadgeActiveLab: {
+    backgroundColor: '#00C2CB',
+  },
   cartTabBadgeActiveRad: {
-    backgroundColor: '#0284C7',
+    backgroundColor: '#1E3A8A',
   },
   cartTabBadgeText: {
     fontSize: 11,
@@ -3523,17 +3693,17 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   mobileAddMoreBtn: {
-    backgroundColor: '#FFF5F5',
+    backgroundColor: '#ECFDF5',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: '#A7F3D0',
   },
   mobileAddMoreText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#FF5252',
+    color: '#00B894',
   },
 
   // MAIN LAYOUT WRAPPER (2-Column Desktop Grid / 1-Col Mobile)
@@ -3584,7 +3754,7 @@ const styles = StyleSheet.create({
   cartHeaderTitle: {
     fontSize: 20,
     fontWeight: '900',
-    color: '#1E293B',
+    color: '#1E3A8A',
   },
   prescriptionNote: {
     fontSize: 12,
@@ -3611,7 +3781,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   browseProductsBtn: {
-    backgroundColor: '#FF5252',
+    backgroundColor: '#00B894',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -3688,16 +3858,16 @@ const styles = StyleSheet.create({
   itemDiscountVal: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#16A34A',
+    color: '#7BC96F',
   },
 
-  // Red Quantity Selector Box (Matching Reference Image)
+  // Quantity Selector Box
   qtySelectorBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#FED7AA',
-    backgroundColor: '#FFF7ED',
+    borderWidth: 1.5,
+    borderColor: '#00B894',
+    backgroundColor: '#ECFDF5',
     borderRadius: 6,
     height: 32,
   },
@@ -3709,18 +3879,18 @@ const styles = StyleSheet.create({
   },
   qtyMinusText: {
     fontSize: 16,
-    color: '#EF4444',
+    color: '#00B894',
     fontWeight: '800',
   },
   qtyPlusText: {
     fontSize: 16,
-    color: '#EF4444',
+    color: '#00B894',
     fontWeight: '800',
   },
   qtyValueText: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#1E293B',
+    color: '#1E3A8A',
     paddingHorizontal: 6,
   },
 
@@ -3735,7 +3905,7 @@ const styles = StyleSheet.create({
   dealsSectionTitle: {
     fontSize: 17,
     fontWeight: '900',
-    color: '#1E293B',
+    color: '#1E3A8A',
   },
   dealsScrollContainer: {
     gap: 14,
@@ -3765,7 +3935,7 @@ const styles = StyleSheet.create({
   dealNameText: {
     fontSize: 12.5,
     fontWeight: '700',
-    color: '#1E293B',
+    color: '#1E3A8A',
     lineHeight: 16,
     height: 32,
     marginBottom: 2,
@@ -3785,7 +3955,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
-    backgroundColor: '#16A34A',
+    backgroundColor: '#7BC96F',
     paddingHorizontal: 4,
     paddingVertical: 1,
     borderRadius: 4,
@@ -3814,7 +3984,7 @@ const styles = StyleSheet.create({
   dealPriceText: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#1E293B',
+    color: '#1E3A8A',
   },
   dealMrpText: {
     fontSize: 10.5,
@@ -3824,21 +3994,22 @@ const styles = StyleSheet.create({
   dealDiscountText: {
     fontSize: 10.5,
     fontWeight: '800',
-    color: '#16A34A',
+    color: '#7BC96F',
   },
   addToCartBtn: {
-    borderWidth: 1,
-    borderColor: '#EF4444',
+    borderWidth: 1.5,
+    borderColor: '#00B894',
     borderRadius: 6,
     paddingVertical: 6,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   addToCartBtnText: {
     fontSize: 11.5,
     fontWeight: '800',
-    color: '#EF4444',
+    color: '#00B894',
   },
 
   // ============================================================
@@ -3861,22 +4032,23 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   carePlanBadge: {
-    backgroundColor: '#7F1D1D',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    backgroundColor: '#FF7F50',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 4,
     alignSelf: 'flex-start',
     marginBottom: 2,
   },
   carePlanBadgeText: {
-    fontSize: 9.5,
+    fontSize: 10,
     fontWeight: '800',
     color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
   carePlanHeading: {
     fontSize: 14.5,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   carePlanSub: {
     fontSize: 12,
@@ -3884,7 +4056,7 @@ const styles = StyleSheet.create({
   },
   carePlanPriceText: {
     fontSize: 11.5,
-    color: '#475569',
+    color: '#64748B',
     marginTop: 2,
   },
   carePlanMrp: {
@@ -3892,7 +4064,7 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
   carePlanDiscount: {
-    color: '#16A34A',
+    color: '#7BC96F',
     fontWeight: '700',
   },
   carePlanActionsRow: {
@@ -3909,15 +4081,24 @@ const styles = StyleSheet.create({
   knowMoreText: {
     fontSize: 12.5,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   addMembershipBtn: {
     flex: 1.2,
-    backgroundColor: '#FF5252',
-    paddingVertical: 8,
+    backgroundColor: '#FF7F50',
+    paddingVertical: 9,
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
+    ...(Platform.OS === 'web'
+      ? { cursor: 'pointer', boxShadow: '0px 3px 8px rgba(255, 127, 80, 0.25)' }
+      : {
+          shadowColor: '#FF7F50',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.25,
+          shadowRadius: 4,
+          elevation: 2,
+        }),
   },
   addMembershipBtnText: {
     fontSize: 12,
@@ -3946,14 +4127,14 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 6,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#E0F7FA',
     alignItems: 'center',
     justifyContent: 'center',
   },
   couponCardText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
 
   // 3. VITAL ORGANS UPSELL CARD
@@ -3973,7 +4154,7 @@ const styles = StyleSheet.create({
   vitalHeaderTitle: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   vitalCheckboxRow: {
     flexDirection: 'row',
@@ -3992,8 +4173,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   customCheckboxChecked: {
-    backgroundColor: '#FF5252',
-    borderColor: '#FF5252',
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
   },
   vitalPackageTitle: {
     fontSize: 12.5,
@@ -4009,7 +4190,7 @@ const styles = StyleSheet.create({
   },
   vitalPackageSubText: {
     fontSize: 11,
-    color: '#2563EB',
+    color: '#00C2CB',
     fontWeight: '600',
   },
 
@@ -4025,7 +4206,7 @@ const styles = StyleSheet.create({
   billSummaryTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
     marginBottom: 4,
   },
   billRow: {
@@ -4056,12 +4237,12 @@ const styles = StyleSheet.create({
   toPayLabel: {
     fontSize: 14.5,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   toPayVal: {
     fontSize: 17,
     fontWeight: '900',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
 
   // 5. DELIVERING TO CARD
@@ -4096,21 +4277,31 @@ const styles = StyleSheet.create({
   addAddressLink: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#FF5252',
+    color: '#00B894',
   },
 
   // 6. PRIMARY CONTINUE BUTTON
   continueBtn: {
-    backgroundColor: '#FF5252',
+    backgroundColor: '#00B894',
     height: 48,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
+    ...(Platform.OS === 'web'
+      ? { cursor: 'pointer', boxShadow: '0px 4px 14px rgba(0, 184, 148, 0.3)' }
+      : {
+          shadowColor: '#00B894',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+          elevation: 4,
+        }),
   },
   continueBtnText: {
     fontSize: 15,
     fontWeight: '800',
     color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
 
   // MODALS
@@ -4165,7 +4356,7 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   modalApplyBtn: {
-    backgroundColor: '#FF5252',
+    backgroundColor: '#00B894',
     paddingHorizontal: 18,
     height: 42,
     borderRadius: 8,
@@ -4202,7 +4393,7 @@ const styles = StyleSheet.create({
   },
 
   // ==========================================
-  // CHECKOUT MODAL OVERLAY STYLES (MATCHED TO #FF5252)
+  // CHECKOUT MODAL OVERLAY STYLES (MATCHED TO BRAND TEAL)
   // ==========================================
   checkoutModalBackdrop: {
     flex: 1,
@@ -4219,16 +4410,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 12px 28px rgba(0, 0, 0, 0.25)' }
+      ? { boxShadow: '0px 12px 28px rgba(0, 0, 0, 0.18)' }
       : {
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 12 },
-          shadowOpacity: 0.25,
+          shadowOpacity: 0.18,
           shadowRadius: 28,
           elevation: 10,
         }),
     borderWidth: 1,
-    borderColor: '#FEE2E2',
+    borderColor: '#E2E8F0',
   },
   checkoutModalHeader: {
     flexDirection: 'row',
@@ -4238,36 +4429,36 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#FEE2E2',
+    borderBottomColor: '#E2E8F0',
     backgroundColor: '#FFFFFF',
   },
   checkoutConfidentialPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FFF5F5',
+    backgroundColor: '#ECFDF5',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
     alignSelf: 'flex-start',
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: '#A7F3D0',
   },
   checkoutConfidentialPillText: {
     fontSize: 9.5,
     fontWeight: '800',
-    color: '#FF5252',
+    color: '#00B894',
     letterSpacing: 0.3,
   },
   checkoutModalTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   checkoutModalSub: {
     fontSize: 12,
-    color: '#FF5252',
+    color: '#00B894',
     fontWeight: '600',
     maxWidth: 320,
     marginTop: 2,
@@ -4444,17 +4635,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FFF5F5',
+    backgroundColor: '#ECFDF5',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: '#A7F3D0',
   },
   checkoutGpsText: {
     fontSize: 10.5,
     fontWeight: '700',
-    color: '#FF5252',
+    color: '#00B894',
   },
 
   // TABLETS & MEDICINES SUMMARY
@@ -4468,7 +4659,7 @@ const styles = StyleSheet.create({
   checkoutTabletsSub: {
     fontSize: 10.5,
     fontWeight: '700',
-    color: '#059669',
+    color: '#00B894',
     backgroundColor: '#ECFDF5',
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -4496,7 +4687,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 6,
-    backgroundColor: '#FFF5F5',
+    backgroundColor: '#ECFDF5',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -4556,9 +4747,9 @@ const styles = StyleSheet.create({
   checkoutUploadedFileCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF5F5',
+    backgroundColor: '#ECFDF5',
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: '#A7F3D0',
     borderRadius: 10,
     padding: 10,
     marginBottom: 4,
@@ -4571,7 +4762,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: '#A7F3D0',
   },
   checkoutUploadedFileName: {
     fontSize: 12,
@@ -4585,7 +4776,7 @@ const styles = StyleSheet.create({
   checkoutUploadedFileBadge: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#059669',
+    color: '#00B894',
   },
   checkoutRemoveFileBtn: {
     padding: 6,
@@ -4609,8 +4800,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   checkoutModeBtnSelected: {
-    backgroundColor: '#FFF5F5',
-    borderColor: '#FF5252',
+    backgroundColor: '#ECFDF5',
+    borderColor: '#00B894',
   },
   checkoutModeBtnText: {
     fontSize: 11.5,
@@ -4618,7 +4809,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   checkoutModeBtnTextSelected: {
-    color: '#FF5252',
+    color: '#00B894',
     fontWeight: '800',
   },
 
@@ -4636,8 +4827,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   checkoutSlotChipSelected: {
-    backgroundColor: '#FFF5F5',
-    borderColor: '#FF5252',
+    backgroundColor: '#ECFDF5',
+    borderColor: '#00B894',
   },
   checkoutSlotChipText: {
     fontSize: 11.5,
@@ -4646,7 +4837,7 @@ const styles = StyleSheet.create({
   },
   checkoutSlotChipTextSelected: {
     fontWeight: '800',
-    color: '#FF5252',
+    color: '#00B894',
   },
 
   // PAYMENT METHODS
@@ -4666,8 +4857,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   checkoutPaymentMethodRowSelected: {
-    borderColor: '#FF5252',
-    backgroundColor: '#FFF5F5',
+    borderColor: '#00B894',
+    backgroundColor: '#ECFDF5',
   },
   checkoutPaymentRadio: {
     width: 18,
@@ -4679,13 +4870,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkoutPaymentRadioSelected: {
-    borderColor: '#FF5252',
+    borderColor: '#00B894',
   },
   checkoutPaymentRadioDot: {
     width: 9,
     height: 9,
     borderRadius: 4.5,
-    backgroundColor: '#FF5252',
+    backgroundColor: '#00B894',
   },
   checkoutPaymentMethodLabel: {
     flex: 1,
@@ -4694,7 +4885,7 @@ const styles = StyleSheet.create({
     color: '#334155',
   },
   checkoutPaymentMethodLabelSelected: {
-    color: '#FF5252',
+    color: '#00B894',
     fontWeight: '800',
   },
 
@@ -4725,8 +4916,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   checkoutUpiAppBtnActive: {
-    backgroundColor: '#FFF5F5',
-    borderColor: '#FF5252',
+    backgroundColor: '#ECFDF5',
+    borderColor: '#00B894',
   },
   checkoutUpiAppBtnText: {
     fontSize: 11,
@@ -4734,7 +4925,7 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
   checkoutUpiAppBtnTextActive: {
-    color: '#FF5252',
+    color: '#00B894',
     fontWeight: '800',
   },
   checkoutUpiInputRow: {
@@ -4772,8 +4963,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   checkoutBankChipActive: {
-    backgroundColor: '#FFF5F5',
-    borderColor: '#FF5252',
+    backgroundColor: '#ECFDF5',
+    borderColor: '#00B894',
   },
   checkoutBankChipText: {
     fontSize: 12,
@@ -4781,7 +4972,7 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
   checkoutBankChipTextActive: {
-    color: '#FF5252',
+    color: '#00B894',
     fontWeight: '800',
   },
 
@@ -4837,17 +5028,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#FFF5F0',
     padding: 8,
     borderRadius: 6,
     marginTop: 10,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: '#FFD3C4',
   },
   checkoutWalletNoticeTextWarning: {
     fontSize: 10.5,
     fontWeight: '600',
-    color: '#DC2626',
+    color: '#FF7F50',
     flex: 1,
   },
 
@@ -4900,19 +5091,19 @@ const styles = StyleSheet.create({
   checkoutModalFooter: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#FEE2E2',
+    borderTopColor: '#E2E8F0',
     backgroundColor: '#FFFFFF',
   },
   checkoutConfirmBtn: {
-    backgroundColor: '#FF5252',
+    backgroundColor: '#00B894',
     paddingVertical: 13,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 4px 12px rgba(255, 82, 82, 0.3)' }
+      ? { boxShadow: '0px 4px 12px rgba(0, 184, 148, 0.3)' }
       : {
-          shadowColor: '#FF5252',
+          shadowColor: '#00B894',
           shadowOffset: { width: 0, height: 4 },
           shadowOpacity: 0.3,
           shadowRadius: 8,
@@ -4980,7 +5171,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E2E8F0',
   },
   processDotActive: {
-    backgroundColor: '#FF5252',
+    backgroundColor: '#00B894',
   },
   successIconCircle: {
     width: 64,

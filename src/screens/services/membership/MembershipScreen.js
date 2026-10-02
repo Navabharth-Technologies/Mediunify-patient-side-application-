@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Modal,
@@ -12,6 +11,7 @@ import {
   useWindowDimensions,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -104,7 +104,7 @@ const MembershipScreen = ({ navigation }) => {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#D97706" />
         <Text style={styles.loadingText}>Loading MediUnify Care+ VIP...</Text>
       </SafeAreaView>
@@ -112,7 +112,7 @@ const MembershipScreen = ({ navigation }) => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
 
       {/* TOP HEADER */}
@@ -428,9 +428,9 @@ const MembershipScreen = ({ navigation }) => {
 
             <View style={styles.modalPerksBox}>
               <Text style={styles.modalPerksTitle}>Instant Benefits Unlocked:</Text>
-              <Text style={styles.modalPerksItem}>✓ Extra discounts applied across all carts</Text>
-              <Text style={styles.modalPerksItem}>✓ Free Doctor Consultation vouchers credited</Text>
-              <Text style={styles.modalPerksItem}>✓ ₹0 Delivery fee enabled on all medicines</Text>
+              <Text style={styles.modalPerksItem}>Extra discounts applied across all carts</Text>
+              <Text style={styles.modalPerksItem}>Free Doctor Consultation vouchers credited</Text>
+              <Text style={styles.modalPerksItem}>₹0 Delivery fee enabled on all medicines</Text>
             </View>
 
             <TouchableOpacity

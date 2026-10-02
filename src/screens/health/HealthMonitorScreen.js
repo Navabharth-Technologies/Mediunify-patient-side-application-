@@ -1,9 +1,8 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -11,6 +10,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -28,8 +28,8 @@ const INITIAL_VITALS = [
     unit: 'mg/dL',
     subType: 'Fasting',
     status: 'Normal',
-    statusColor: '#10B981',
-    statusBg: '#ECFDF5',
+    statusColor: '#7BC96F',
+    statusBg: '#F2FAF0',
     date: 'Today, 08:30 AM',
     timestamp: Date.now() - 3600000 * 2,
     patient: 'Self',
@@ -45,8 +45,8 @@ const INITIAL_VITALS = [
     pulse: '72',
     unit: 'mmHg',
     status: 'Optimal',
-    statusColor: '#10B981',
-    statusBg: '#ECFDF5',
+    statusColor: '#7BC96F',
+    statusBg: '#F2FAF0',
     date: 'Yesterday, 06:15 PM',
     timestamp: Date.now() - 86400000,
     patient: 'Self',
@@ -59,8 +59,8 @@ const INITIAL_VITALS = [
     value: '98',
     unit: '%',
     status: 'Healthy',
-    statusColor: '#0EA5E9',
-    statusBg: '#F0F9FF',
+    statusColor: '#00C2CB',
+    statusBg: '#E0F7FA',
     date: 'Yesterday, 06:15 PM',
     timestamp: Date.now() - 86400000,
     patient: 'Self',
@@ -73,8 +73,8 @@ const INITIAL_VITALS = [
     value: '98.4',
     unit: '°F',
     status: 'Normal',
-    statusColor: '#10B981',
-    statusBg: '#ECFDF5',
+    statusColor: '#7BC96F',
+    statusBg: '#F2FAF0',
     date: '28 Aug, 09:00 AM',
     timestamp: Date.now() - 86400000 * 4,
     patient: 'Self',
@@ -91,8 +91,8 @@ const INITIAL_VITALS = [
     bmi: '23.0',
     unit: 'kg',
     status: 'Normal BMI',
-    statusColor: '#10B981',
-    statusBg: '#ECFDF5',
+    statusColor: '#7BC96F',
+    statusBg: '#F2FAF0',
     date: '25 Aug, 07:30 AM',
     timestamp: Date.now() - 86400000 * 7,
     patient: 'Self',
@@ -104,40 +104,40 @@ const PARAM_CONFIG = {
   sugar: {
     name: 'Blood Sugar',
     icon: 'water',
-    iconColor: '#E11D48',
-    bg: '#FFE4E6',
+    iconColor: '#FF7F50',
+    bg: '#FFF2ED',
     units: 'mg/dL',
     description: 'Track Fasting, Post-Meal (PP), or Random glucose',
   },
   bp: {
     name: 'Blood Pressure',
     icon: 'heart',
-    iconColor: '#EF4444',
-    bg: '#FEE2E2',
+    iconColor: '#FF7F50',
+    bg: '#FFF2ED',
     units: 'mmHg',
     description: 'Systolic & Diastolic pressure with pulse',
   },
   spo2: {
     name: 'Oxygen (SpO2)',
     icon: 'pulse',
-    iconColor: '#0284C7',
-    bg: '#E0F2FE',
+    iconColor: '#00C2CB',
+    bg: '#E0F7FA',
     units: '%',
     description: 'Blood oxygen saturation percentage',
   },
   temp: {
     name: 'Temperature',
     icon: 'thermometer',
-    iconColor: '#D97706',
-    bg: '#FEF3C7',
+    iconColor: '#1E3A8A',
+    bg: '#E0F7FA',
     units: '°F',
     description: 'Body temperature from home thermometer',
   },
   weight: {
     name: 'Weight & BMI',
     icon: 'scale',
-    iconColor: '#16A34A',
-    bg: '#DCFCE7',
+    iconColor: '#7BC96F',
+    bg: '#F2FAF0',
     units: 'kg',
     description: 'Body mass & calculated BMI',
   },
@@ -261,16 +261,16 @@ const HealthMonitorScreen = ({ navigation }) => {
     const num = parseFloat(val);
     if (isNaN(num)) return { status: 'Unknown', color: '#64748B', bg: '#F1F5F9' };
     if (context === 'Fasting') {
-      if (num < 70) return { status: 'Low (Hypoglycemia)', color: '#DC2626', bg: '#FEE2E2' };
-      if (num <= 99) return { status: 'Normal', color: '#10B981', bg: '#ECFDF5' };
-      if (num <= 125) return { status: 'Pre-diabetes Range', color: '#D97706', bg: '#FEF3C7' };
-      return { status: 'High (Diabetic Range)', color: '#E11D48', bg: '#FFE4E6' };
+      if (num < 70) return { status: 'Low (Hypoglycemia)', color: '#FF7F50', bg: '#FFF2ED' };
+      if (num <= 99) return { status: 'Normal', color: '#7BC96F', bg: '#F2FAF0' };
+      if (num <= 125) return { status: 'Pre-diabetes Range', color: '#64748B', bg: '#F1F5F9' };
+      return { status: 'High (Diabetic Range)', color: '#FF7F50', bg: '#FFF2ED' };
     } else {
       // Post-Meal / Random
-      if (num < 70) return { status: 'Low Glucose', color: '#DC2626', bg: '#FEE2E2' };
-      if (num <= 140) return { status: 'Normal', color: '#10B981', bg: '#ECFDF5' };
-      if (num <= 199) return { status: 'Elevated Range', color: '#D97706', bg: '#FEF3C7' };
-      return { status: 'High Glucose', color: '#E11D48', bg: '#FFE4E6' };
+      if (num < 70) return { status: 'Low Glucose', color: '#FF7F50', bg: '#FFF2ED' };
+      if (num <= 140) return { status: 'Normal', color: '#7BC96F', bg: '#F2FAF0' };
+      if (num <= 199) return { status: 'Elevated Range', color: '#64748B', bg: '#F1F5F9' };
+      return { status: 'High Glucose', color: '#FF7F50', bg: '#FFF2ED' };
     }
   };
 
@@ -278,40 +278,40 @@ const HealthMonitorScreen = ({ navigation }) => {
     const s = parseInt(sys, 10);
     const d = parseInt(dia, 10);
     if (isNaN(s) || isNaN(d)) return { status: 'Unknown', color: '#64748B', bg: '#F1F5F9' };
-    if (s < 90 || d < 60) return { status: 'Low BP (Hypotension)', color: '#2563EB', bg: '#EFF6FF' };
-    if (s <= 120 && d <= 80) return { status: 'Optimal / Normal', color: '#10B981', bg: '#ECFDF5' };
-    if (s <= 129 && d <= 80) return { status: 'Elevated BP', color: '#D97706', bg: '#FEF3C7' };
-    if (s <= 139 || d <= 89) return { status: 'Stage 1 Hypertension', color: '#EA580C', bg: '#FFF7ED' };
-    return { status: 'Stage 2 High BP', color: '#DC2626', bg: '#FEE2E2' };
+    if (s < 90 || d < 60) return { status: 'Low BP (Hypotension)', color: '#1E3A8A', bg: '#E0F7FA' };
+    if (s <= 120 && d <= 80) return { status: 'Optimal / Normal', color: '#7BC96F', bg: '#F2FAF0' };
+    if (s <= 129 && d <= 80) return { status: 'Elevated BP', color: '#64748B', bg: '#F1F5F9' };
+    if (s <= 139 || d <= 89) return { status: 'Stage 1 Hypertension', color: '#FF7F50', bg: '#FFF2ED' };
+    return { status: 'Stage 2 High BP', color: '#FF7F50', bg: '#FFF2ED' };
   };
 
   const evaluateSpO2 = (val) => {
     const num = parseInt(val, 10);
     if (isNaN(num)) return { status: 'Unknown', color: '#64748B', bg: '#F1F5F9' };
-    if (num >= 95) return { status: 'Healthy & Normal', color: '#10B981', bg: '#ECFDF5' };
-    if (num >= 90) return { status: 'Mild Hypoxia - Monitor', color: '#D97706', bg: '#FEF3C7' };
-    return { status: 'Low - Consult Doctor', color: '#DC2626', bg: '#FEE2E2' };
+    if (num >= 95) return { status: 'Healthy & Normal', color: '#7BC96F', bg: '#F2FAF0' };
+    if (num >= 90) return { status: 'Mild Hypoxia - Monitor', color: '#64748B', bg: '#F1F5F9' };
+    return { status: 'Low - Consult Doctor', color: '#FF7F50', bg: '#FFF2ED' };
   };
 
   const evaluateTemp = (val) => {
     const num = parseFloat(val);
     if (isNaN(num)) return { status: 'Unknown', color: '#64748B', bg: '#F1F5F9' };
-    if (num <= 97.0) return { status: 'Slightly Low', color: '#2563EB', bg: '#EFF6FF' };
-    if (num <= 99.0) return { status: 'Normal', color: '#10B981', bg: '#ECFDF5' };
-    if (num <= 100.4) return { status: 'Low-grade Fever', color: '#D97706', bg: '#FEF3C7' };
-    return { status: 'Fever', color: '#DC2626', bg: '#FEE2E2' };
+    if (num <= 97.0) return { status: 'Slightly Low', color: '#1E3A8A', bg: '#E0F7FA' };
+    if (num <= 99.0) return { status: 'Normal', color: '#7BC96F', bg: '#F2FAF0' };
+    if (num <= 100.4) return { status: 'Low-grade Fever', color: '#FF7F50', bg: '#FFF2ED' };
+    return { status: 'Fever', color: '#FF7F50', bg: '#FFF2ED' };
   };
 
   const evaluateBMI = (weightKg, heightCm) => {
     const w = parseFloat(weightKg);
     const h = parseFloat(heightCm) / 100;
-    if (isNaN(w) || isNaN(h) || h <= 0) return { bmi: '22.0', status: 'Normal', color: '#10B981', bg: '#ECFDF5' };
+    if (isNaN(w) || isNaN(h) || h <= 0) return { bmi: '22.0', status: 'Normal', color: '#7BC96F', bg: '#F2FAF0' };
     const bmiVal = (w / (h * h)).toFixed(1);
     const num = parseFloat(bmiVal);
-    if (num < 18.5) return { bmi: bmiVal, status: 'Underweight', color: '#2563EB', bg: '#EFF6FF' };
-    if (num <= 24.9) return { bmi: bmiVal, status: 'Normal BMI', color: '#10B981', bg: '#ECFDF5' };
-    if (num <= 29.9) return { bmi: bmiVal, status: 'Overweight', color: '#D97706', bg: '#FEF3C7' };
-    return { bmi: bmiVal, status: 'Obese Range', color: '#DC2626', bg: '#FEE2E2' };
+    if (num < 18.5) return { bmi: bmiVal, status: 'Underweight', color: '#1E3A8A', bg: '#EFF6FF' };
+    if (num <= 24.9) return { bmi: bmiVal, status: 'Normal BMI', color: '#7BC96F', bg: '#F2FAF0' };
+    if (num <= 29.9) return { bmi: bmiVal, status: 'Overweight', color: '#FF7F50', bg: '#FFF2ED' };
+    return { bmi: bmiVal, status: 'Obese Range', color: '#FF7F50', bg: '#FFF2ED' };
   };
 
   // Get Latest Values for Dashboard Cards
@@ -514,7 +514,7 @@ const HealthMonitorScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -522,7 +522,7 @@ const HealthMonitorScreen = ({ navigation }) => {
           onPress={() => navigation.goBack()}
           activeOpacity={0.8}
         >
-          <Ionicons name="arrow-back" size={22} color={colors.secondary} />
+          <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
         </TouchableOpacity>
 
         <View style={styles.headerTitleWrap}>
@@ -535,7 +535,8 @@ const HealthMonitorScreen = ({ navigation }) => {
           onPress={() => setModalVisible(true)}
           activeOpacity={0.85}
         >
-          <Ionicons name="add-circle" size={28} color={colors.primary} />
+          <Ionicons name="add" size={18} color="#FFFFFF" />
+          <Text style={styles.addHeaderBtnText}>Log Vital</Text>
         </TouchableOpacity>
       </View>
 
@@ -543,7 +544,9 @@ const HealthMonitorScreen = ({ navigation }) => {
         {/* PATIENT PROFILE CHIP */}
         <View style={styles.patientBanner}>
           <View style={styles.patientInfo}>
-            <Ionicons name="person-circle" size={24} color={colors.primary} />
+            <View style={styles.patientAvatarIcon}>
+              <Ionicons name="person" size={16} color="#00B894" />
+            </View>
             <Text style={styles.patientText}>Monitoring for: <Text style={styles.patientBold}>{activePatient}</Text></Text>
           </View>
           <TouchableOpacity
@@ -553,7 +556,9 @@ const HealthMonitorScreen = ({ navigation }) => {
               const nextIdx = (options.indexOf(activePatient) + 1) % options.length;
               setActivePatient(options[nextIdx]);
             }}
+            activeOpacity={0.8}
           >
+            <Ionicons name="swap-horizontal" size={13} color="#00B894" />
             <Text style={styles.switchPatientText}>Switch Patient</Text>
           </TouchableOpacity>
         </View>
@@ -567,7 +572,7 @@ const HealthMonitorScreen = ({ navigation }) => {
         <View style={styles.gridContainer}>
           {/* BLOOD SUGAR */}
           <TouchableOpacity
-            style={[styles.vitalsCard, { borderColor: '#FECDD3' }]}
+            style={[styles.vitalsCard, { borderColor: '#FFD7C7' }]}
             onPress={() => {
               setFormType('sugar');
               setModalVisible(true);
@@ -575,11 +580,11 @@ const HealthMonitorScreen = ({ navigation }) => {
             activeOpacity={0.9}
           >
             <View style={styles.cardTop}>
-              <View style={[styles.iconCircle, { backgroundColor: '#FFE4E6' }]}>
-                <Ionicons name="water" size={20} color="#E11D48" />
+              <View style={[styles.iconCircle, { backgroundColor: '#FFF2ED' }]}>
+                <Ionicons name="water" size={20} color="#FF7F50" />
               </View>
-              <View style={[styles.badge, { backgroundColor: latestVitals.sugar.statusBg || '#ECFDF5' }]}>
-                <Text style={[styles.badgeText, { color: latestVitals.sugar.statusColor || '#10B981' }]}>
+              <View style={[styles.badge, { backgroundColor: latestVitals.sugar.statusBg || '#F2FAF0' }]}>
+                <Text style={[styles.badgeText, { color: latestVitals.sugar.statusColor || '#7BC96F' }]}>
                   {latestVitals.sugar.status}
                 </Text>
               </View>
@@ -594,7 +599,7 @@ const HealthMonitorScreen = ({ navigation }) => {
 
           {/* BLOOD PRESSURE */}
           <TouchableOpacity
-            style={[styles.vitalsCard, { borderColor: '#FECACA' }]}
+            style={[styles.vitalsCard, { borderColor: '#FFD7C7' }]}
             onPress={() => {
               setFormType('bp');
               setModalVisible(true);
@@ -602,11 +607,11 @@ const HealthMonitorScreen = ({ navigation }) => {
             activeOpacity={0.9}
           >
             <View style={styles.cardTop}>
-              <View style={[styles.iconCircle, { backgroundColor: '#FEE2E2' }]}>
-                <Ionicons name="heart" size={20} color="#EF4444" />
+              <View style={[styles.iconCircle, { backgroundColor: '#FFF2ED' }]}>
+                <Ionicons name="heart" size={20} color="#FF7F50" />
               </View>
-              <View style={[styles.badge, { backgroundColor: latestVitals.bp.statusBg || '#ECFDF5' }]}>
-                <Text style={[styles.badgeText, { color: latestVitals.bp.statusColor || '#10B981' }]}>
+              <View style={[styles.badge, { backgroundColor: latestVitals.bp.statusBg || '#F2FAF0' }]}>
+                <Text style={[styles.badgeText, { color: latestVitals.bp.statusColor || '#7BC96F' }]}>
                   {latestVitals.bp.status}
                 </Text>
               </View>
@@ -629,11 +634,11 @@ const HealthMonitorScreen = ({ navigation }) => {
             activeOpacity={0.9}
           >
             <View style={styles.cardTop}>
-              <View style={[styles.iconCircle, { backgroundColor: '#E0F2FE' }]}>
-                <Ionicons name="pulse" size={20} color="#0284C7" />
+              <View style={[styles.iconCircle, { backgroundColor: '#E0F7FA' }]}>
+                <Ionicons name="pulse" size={20} color="#00C2CB" />
               </View>
-              <View style={[styles.badge, { backgroundColor: latestVitals.spo2.statusBg || '#ECFDF5' }]}>
-                <Text style={[styles.badgeText, { color: latestVitals.spo2.statusColor || '#10B981' }]}>
+              <View style={[styles.badge, { backgroundColor: latestVitals.spo2.statusBg || '#F2FAF0' }]}>
+                <Text style={[styles.badgeText, { color: latestVitals.spo2.statusColor || '#7BC96F' }]}>
                   {latestVitals.spo2.status}
                 </Text>
               </View>
@@ -648,7 +653,7 @@ const HealthMonitorScreen = ({ navigation }) => {
 
           {/* TEMPERATURE */}
           <TouchableOpacity
-            style={[styles.vitalsCard, { borderColor: '#FDE68A' }]}
+            style={[styles.vitalsCard, { borderColor: '#BFDBFE' }]}
             onPress={() => {
               setFormType('temp');
               setModalVisible(true);
@@ -656,11 +661,11 @@ const HealthMonitorScreen = ({ navigation }) => {
             activeOpacity={0.9}
           >
             <View style={styles.cardTop}>
-              <View style={[styles.iconCircle, { backgroundColor: '#FEF3C7' }]}>
-                <Ionicons name="thermometer" size={20} color="#D97706" />
+              <View style={[styles.iconCircle, { backgroundColor: '#EFF6FF' }]}>
+                <Ionicons name="thermometer" size={20} color="#1E3A8A" />
               </View>
-              <View style={[styles.badge, { backgroundColor: latestVitals.temp.statusBg || '#ECFDF5' }]}>
-                <Text style={[styles.badgeText, { color: latestVitals.temp.statusColor || '#10B981' }]}>
+              <View style={[styles.badge, { backgroundColor: latestVitals.temp.statusBg || '#F2FAF0' }]}>
+                <Text style={[styles.badgeText, { color: latestVitals.temp.statusColor || '#7BC96F' }]}>
                   {latestVitals.temp.status}
                 </Text>
               </View>
@@ -684,16 +689,16 @@ const HealthMonitorScreen = ({ navigation }) => {
           >
             <View style={styles.cardTop}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <View style={[styles.iconCircle, { backgroundColor: '#DCFCE7' }]}>
-                  <Ionicons name="scale" size={20} color="#16A34A" />
+                <View style={[styles.iconCircle, { backgroundColor: '#F2FAF0' }]}>
+                  <Ionicons name="scale" size={20} color="#7BC96F" />
                 </View>
                 <View>
                   <Text style={styles.vitalsLabel}>Weight & Height</Text>
                   <Text style={styles.weightSubLabel}>Body Composition & BMI</Text>
                 </View>
               </View>
-              <View style={[styles.badge, { backgroundColor: latestVitals.weight.statusBg || '#ECFDF5' }]}>
-                <Text style={[styles.badgeText, { color: latestVitals.weight.statusColor || '#10B981' }]}>
+              <View style={[styles.badge, { backgroundColor: latestVitals.weight.statusBg || '#F2FAF0' }]}>
+                <Text style={[styles.badgeText, { color: latestVitals.weight.statusColor || '#7BC96F' }]}>
                   {latestVitals.weight.status || 'Normal'}
                 </Text>
               </View>
@@ -728,11 +733,11 @@ const HealthMonitorScreen = ({ navigation }) => {
               <View style={styles.metricColumn}>
                 <Text style={styles.metricTitle}>BMI Score</Text>
                 <View style={styles.valueRow}>
-                  <Text style={[styles.vitalsValue, { color: latestVitals.weight.statusColor || '#10B981' }]}>
+                  <Text style={[styles.vitalsValue, { color: latestVitals.weight.statusColor || '#7BC96F' }]}>
                     {latestVitals.weight.bmi || '23.0'}
                   </Text>
                 </View>
-                <Text style={[styles.metricSubInfo, { color: latestVitals.weight.statusColor || '#10B981', fontWeight: '700' }]}>
+                <Text style={[styles.metricSubInfo, { color: latestVitals.weight.statusColor || '#7BC96F', fontWeight: '700' }]}>
                   {latestVitals.weight.status || 'Normal'}
                 </Text>
               </View>
@@ -847,8 +852,8 @@ const HealthMonitorScreen = ({ navigation }) => {
                 <View style={styles.historyDetails}>
                   <View style={styles.historyTopRow}>
                     <Text style={styles.historyTitle}>{item.title}</Text>
-                    <View style={[styles.badge, { backgroundColor: item.statusBg || '#ECFDF5' }]}>
-                      <Text style={[styles.badgeText, { color: item.statusColor || '#10B981' }]}>
+                    <View style={[styles.badge, { backgroundColor: item.statusBg || '#F2FAF0' }]}>
+                      <Text style={[styles.badgeText, { color: item.statusColor || '#7BC96F' }]}>
                         {item.status}
                       </Text>
                     </View>
@@ -1253,30 +1258,55 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    paddingVertical: 14,
+    backgroundColor: '#1E3A8A', // Brand Navy
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: 'rgba(255, 255, 255, 0.12)',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 4,
   },
   backBtn: {
     padding: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
   headerTitleWrap: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 12,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#1E293B',
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.2,
   },
   headerSubtitle: {
     fontSize: 12,
-    color: '#64748B',
+    color: '#00C2CB', // Aqua accent
     marginTop: 2,
+    fontWeight: '600',
   },
   addHeaderBtn: {
-    padding: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#00B894', // Brand Teal
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  addHeaderBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   scrollContent: {
     padding: 16,
@@ -1287,35 +1317,54 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0', // Fresh Mint
     marginBottom: 16,
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
   patientInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
+  },
+  patientAvatarIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#ECFDF5',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   patientText: {
     fontSize: 13,
     color: '#64748B',
   },
   patientBold: {
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#1E293B',
   },
   switchPatientBtn: {
-    backgroundColor: colors.lightTeal,
-    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 16,
   },
   switchPatientText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primary,
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#00B894',
   },
   sectionHeader: {
     marginBottom: 12,

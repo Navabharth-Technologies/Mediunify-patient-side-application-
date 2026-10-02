@@ -11,6 +11,7 @@ import {
   Modal,
   Platform,
   useWindowDimensions,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -23,14 +24,44 @@ import {
   initialRentalRequests,
   initialActiveRentals,
 } from '../../../data/equipmentRentalData';
+import { useAuthGuard } from '../../../context/AuthGuardContext';
 
 const ASYNC_KEY_EQUIPMENT_REQUESTS = '@unnathi_equipment_rental_requests';
 const ASYNC_KEY_ACTIVE_RENTALS = '@unnathi_equipment_active_rentals';
+
+const EQUIPMENT_CARE_NEEDS = [
+  'Oxygen Concentrator (5L / 10L)',
+  'Motorized ICU Hospital Bed (3-Function / 5-Function)',
+  'BiPAP / CPAP Respiration Machine',
+  'Wheelchair (Manual / Electric Recliner)',
+  'Suction Machine (Electric / Portable)',
+  'DVT Prevention Pump & Sleeves',
+  'Patient Transfer Hoist / Lifter',
+  'Multipara Patient Cardiac Monitor',
+  'Air Mattress with Pressure Relief Pump',
+  'Nebulizer & Respiratory Therapy Kit',
+  'Infusion & Syringe Pump',
+  'Other Medical / Biomedical Equipment',
+];
+
+const EQUIPMENT_CITIES = [
+  'Bangalore',
+  'Mysore',
+  'Mumbai',
+  'Delhi NCR',
+  'Hyderabad',
+  'Chennai',
+  'Pune',
+  'Kolkata',
+  'Ahmedabad',
+  'Mangalore',
+];
 
 const EquipmentRentalScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 992;
   const isTablet = width >= 768 && width < 992;
+  const { requireLogin } = useAuthGuard();
 
   // Scroll Ref and Y Position for auto-scrolling to equipment section
   const homeScrollRef = useRef(null);
@@ -150,6 +181,207 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
     }
   };
 
+  // Quick Consultation Form State (matching HospitalCare reference)
+  const [selectedEquipmentNeed, setSelectedEquipmentNeed] = useState('');
+  const [selectedCity, setSelectedCity] = useState('Bangalore');
+  const [quickName, setQuickName] = useState('');
+  const [quickMobile, setQuickMobile] = useState('');
+  const [quickBookingLoading, setQuickBookingLoading] = useState(false);
+  const [equipmentNeedModalVisible, setEquipmentNeedModalVisible] = useState(false);
+  const [cityModalVisible, setCityModalVisible] = useState(false);
+  const [quickDate, setQuickDate] = useState('Today (Immediate)');
+  const [dateModalVisible, setDateModalVisible] = useState(false);
+  const [quickCalMonth, setQuickCalMonth] = useState(new Date().getMonth());
+  const [quickCalYear, setQuickCalYear] = useState(new Date().getFullYear());
+  const [selectedQuickCalDate, setSelectedQuickCalDate] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth(), day: d.getDate() };
+  });
+
+  const quickCalendarDays = useMemo(() => {
+    const firstDayIndex = new Date(quickCalYear, quickCalMonth, 1).getDay();
+    const totalDays = new Date(quickCalYear, quickCalMonth + 1, 0).getDate();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const cells = [];
+    for (let i = 0; i < firstDayIndex; i++) {
+      cells.push({ type: 'empty', key: `empty-${i}` });
+    }
+
+    for (let day = 1; day <= totalDays; day++) {
+      const cellDate = new Date(quickCalYear, quickCalMonth, day);
+      cellDate.setHours(0, 0, 0, 0);
+      const isPast = cellDate < today;
+      const isToday =
+        today.getDate() === day &&
+        today.getMonth() === quickCalMonth &&
+        today.getFullYear() === quickCalYear;
+      const isSelected =
+        selectedQuickCalDate.year === quickCalYear &&
+        selectedQuickCalDate.month === quickCalMonth &&
+        selectedQuickCalDate.day === day;
+
+      cells.push({
+        type: 'day',
+        day,
+        isPast,
+        isToday,
+        isSelected,
+        key: `qday-${day}`,
+      });
+    }
+
+    return cells;
+  }, [quickCalYear, quickCalMonth, selectedQuickCalDate]);
+
+  const handlePrevQuickMonth = () => {
+    const today = new Date();
+    if (quickCalYear === today.getFullYear() && quickCalMonth <= today.getMonth()) return;
+    if (quickCalMonth === 0) {
+      setQuickCalMonth(11);
+      setQuickCalYear((y) => y - 1);
+    } else {
+      setQuickCalMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextQuickMonth = () => {
+    if (quickCalMonth === 11) {
+      setQuickCalMonth(0);
+      setQuickCalYear((y) => y + 1);
+    } else {
+      setQuickCalMonth((m) => m + 1);
+    }
+  };
+
+  const handleSelectQuickCalDay = (day) => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const formatted = `${day} ${months[quickCalMonth]} ${quickCalYear}`;
+    setSelectedQuickCalDate({ year: quickCalYear, month: quickCalMonth, day });
+    setQuickDate(formatted);
+    setCustomStartDate(formatted);
+    setDateModalVisible(false);
+  };
+
+  const getPresetDates = () => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const today = new Date();
+    const tom = new Date(today);
+    tom.setDate(tom.getDate() + 1);
+    const dayAfter = new Date(today);
+    dayAfter.setDate(dayAfter.getDate() + 2);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+
+    return [
+      { label: 'Today (Immediate)', value: `Today (${today.getDate()} ${months[today.getMonth()]})` },
+      { label: 'Tomorrow', value: `Tomorrow (${tom.getDate()} ${months[tom.getMonth()]})` },
+      { label: `In 2 Days (${dayAfter.getDate()} ${months[dayAfter.getMonth()]})`, value: `${dayAfter.getDate()} ${months[dayAfter.getMonth()]} ${dayAfter.getFullYear()}` },
+      { label: `Next Week (${nextWeek.getDate()} ${months[nextWeek.getMonth()]})`, value: `${nextWeek.getDate()} ${months[nextWeek.getMonth()]} ${nextWeek.getFullYear()}` },
+    ];
+  };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const storedName = await AsyncStorage.getItem('userName');
+        const storedPhone = await AsyncStorage.getItem('userPhone');
+        const storedCity = await AsyncStorage.getItem('@mediunify_selected_city');
+        if (storedName) setQuickName(storedName);
+        if (storedPhone) setQuickMobile(storedPhone);
+        if (storedCity) setSelectedCity(storedCity);
+      } catch (e) {}
+    })();
+  }, []);
+
+  const handleQuickBookEquipment = () => {
+    requireLogin(() => _doQuickBookEquipment());
+  };
+
+  const _doQuickBookEquipment = async () => {
+
+    if (!quickName.trim()) {
+      showAlert('Name Required', 'Please enter your full name.');
+      return;
+    }
+    if (!quickMobile.trim() || quickMobile.trim().replace(/[^0-9]/g, '').length < 10) {
+      showAlert('Valid Mobile Required', 'Please enter a valid 10-digit mobile number to receive your callback.');
+      return;
+    }
+
+    setQuickBookingLoading(true);
+    try {
+      const equipmentNeed = selectedEquipmentNeed || 'General Medical Equipment Consultation';
+      const cleanPhone = quickMobile.trim();
+      const chosenDate = quickDate || 'Today (Immediate)';
+      const newId = `ER-${Date.now().toString().slice(-6)}`;
+
+      const newRequest = {
+        id: newId,
+        equipmentName: equipmentNeed,
+        category: 'Consultation & Rental',
+        categoryLabel: equipmentNeed,
+        durationLabel: 'Monthly / Custom Duration',
+        rentalDurationType: 'Monthly',
+        quantity: 1,
+        rentalPrice: 2499,
+        deposit: 0,
+        deliveryCharge: 0,
+        estimatedTotal: 2499,
+        status: 'Consultation Requested',
+        statusStageIndex: 1,
+        createdAt: 'Just now',
+        deliveryDate: chosenDate,
+        requiredDate: chosenDate,
+        deliveryName: quickName.trim(),
+        deliveryPhone: cleanPhone,
+        deliveryAddress: `${selectedCity} (Doorstep Delivery)`,
+        deliveryCity: selectedCity,
+        deliveryPincode: '',
+        deliveryInstructions: `Requested delivery: ${chosenDate}. Callback from biomedical equipment specialist`,
+        verifiedPartner: {
+          name: 'MediUnify Verified Biomedical Partner Network',
+          rating: 4.9,
+          serviceArea: selectedCity,
+        },
+        timeline: [
+          { stage: 'Request Placed', completed: true, timestamp: 'Just now' },
+          { stage: 'Biomedical Specialist Calling', completed: false, timestamp: 'Within 15 mins' },
+          { stage: 'Equipment Reserved & Sterilized', completed: false, timestamp: 'Pending confirmation' },
+          { stage: 'Doorstep Delivery & Demo', completed: false, timestamp: chosenDate },
+        ],
+      };
+
+      const updated = [newRequest, ...rentalRequests];
+      setRentalRequests(updated);
+      await saveRequests(updated);
+
+      setQuickBookingLoading(false);
+      showAlert(
+        'Consultation Booked Successfully',
+        `Thank you ${quickName.trim()}! Your request for ${equipmentNeed} on ${chosenDate} in ${selectedCity} has been received. Our Biomedical Equipment Specialist will call ${cleanPhone} within 15 minutes.`,
+        [{ text: 'OK', style: 'default' }]
+      );
+    } catch (e) {
+      setQuickBookingLoading(false);
+      showAlert('Request Received', 'Thank you! Our equipment coordinator will call you shortly.');
+    }
+  };
+
+  const handleCallHelpline = () => {
+    Linking.openURL('tel:+918045685554').catch(() => {
+      showAlert('Helpline', 'Please dial +91-8045685554 to reach our Equipment Care Desk.');
+    });
+  };
+
+  const handleWhatsAppCare = () => {
+    const text = encodeURIComponent('Hi, I would like to rent medical equipment on MediUnify.');
+    Linking.openURL(`https://wa.me/917353101441?text=${text}`).catch(() => {
+      showAlert('WhatsApp', 'Please message +91-7353101441 on WhatsApp.');
+    });
+  };
+
   // Filtered equipment list
   const filteredEquipment = useMemo(() => {
     return equipmentCatalog.filter((item) => {
@@ -252,6 +484,11 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
 
   // Start Request Flow
   const handleStartRentalRequest = (item) => {
+    requireLogin(() => _doStartRentalRequest(item));
+  };
+
+  const _doStartRentalRequest = (item) => {
+
     setSelectedEquipment(item);
     setFlowStep(1);
     setRentalDurationType('Monthly');
@@ -290,6 +527,11 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
 
   // Submit Rental Request (Step 3 -> Step 4)
   const handleSubmitRentalRequest = () => {
+    requireLogin(() => _doSubmitRentalRequest());
+  };
+
+  const _doSubmitRentalRequest = async () => {
+
     if (!selectedEquipment) return;
 
     const pricing = calculateEstimatedPricing(selectedEquipment, rentalDurationType, quantity, customDays);
@@ -311,6 +553,8 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
       deliveryCharge: pricing.delivery,
       installationIncluded: selectedEquipment.installationIncluded,
       estimatedTotal: pricing.total,
+      deliveryDate: customStartDate || quickDate || 'Immediate / Next Available',
+      requiredDate: customStartDate || quickDate || 'Immediate / Next Available',
       deliveryAddress: {
         name: deliveryName,
         contactNumber: deliveryPhone,
@@ -506,396 +750,297 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Clean Header Row */}
-        <View style={styles.topHeaderBar}>
-          <TouchableOpacity
-            style={styles.headerBackBtn}
-            onPress={() => {
-              if (navigation?.canGoBack()) navigation.goBack();
-            }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="arrow-back" size={22} color="#0F172A" />
-          </TouchableOpacity>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.mainScreenTitle}>Equipment Rental</Text>
-            <Text style={styles.mainScreenSubtitle}>
-              Rent healthcare equipment from verified partners
-            </Text>
-          </View>
-        </View>
+        {/* TWO-COLUMN HERO & QUICK BOOKING LAYOUT */}
+        <View style={styles.mainBody}>
+          <View style={[styles.layoutRow, isDesktopWeb && styles.layoutRowDesktop]}>
+            {/* ============================================================
+                LEFT COLUMN: HERO BANNER + WHY ASSURED SECTION
+            ============================================================ */}
+            <View style={[styles.leftColumn, isDesktopWeb && styles.leftColumnDesktop]}>
+              {/* 1. HERO NETWORK BANNER CARD */}
+              <View style={styles.heroCard}>
+                {/* Decorative Background Glow Discs */}
+                <View style={styles.heroGlowCircleTop} />
+                <View style={styles.heroGlowCircleBottom} />
 
-        {/* Quick Navigation Segmented Tabs */}
-        <View style={styles.segmentNavContainer}>
-          <TouchableOpacity
-            style={[styles.segmentBtn, currentView === 'HOME' && styles.segmentBtnActive]}
-            onPress={() => setCurrentView('HOME')}
-          >
-            <Ionicons
-              name="grid"
-              size={14}
-              color={currentView === 'HOME' ? '#00B894' : '#64748B'}
-            />
-            <Text
-              style={[
-                styles.segmentBtnText,
-                currentView === 'HOME' && styles.segmentBtnTextActive,
-              ]}
-              numberOfLines={1}
-            >
-              {isDesktopWeb ? 'Browse Equipment' : 'Browse'}
-            </Text>
-          </TouchableOpacity>
+                <Text style={styles.heroTitle}>India’s fastest growing medical equipment rental network</Text>
+                <Text style={styles.heroSubtitle}>
+                  Trusted across India for sanitized, certified hospital equipment delivered to your doorstep.
+                </Text>
 
-          <TouchableOpacity
-            style={[styles.segmentBtn, currentView === 'MY_RENTALS' && styles.segmentBtnActive]}
-            onPress={() => setCurrentView('MY_RENTALS')}
-          >
-            <Ionicons
-              name="cube"
-              size={14}
-              color={currentView === 'MY_RENTALS' ? '#00B894' : '#64748B'}
-            />
-            <Text
-              style={[
-                styles.segmentBtnText,
-                currentView === 'MY_RENTALS' && styles.segmentBtnTextActive,
-              ]}
-              numberOfLines={1}
-            >
-              {isDesktopWeb ? `My Rentals (${activeRentals.length})` : `Rentals (${activeRentals.length})`}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.segmentBtn,
-              currentView === 'RENTAL_REQUESTS' && styles.segmentBtnActive,
-            ]}
-            onPress={() => setCurrentView('RENTAL_REQUESTS')}
-          >
-            <Ionicons
-              name="clipboard"
-              size={14}
-              color={currentView === 'RENTAL_REQUESTS' ? '#00B894' : '#64748B'}
-            />
-            <Text
-              style={[
-                styles.segmentBtnText,
-                currentView === 'RENTAL_REQUESTS' && styles.segmentBtnTextActive,
-              ]}
-              numberOfLines={1}
-            >
-              {isDesktopWeb ? `Requests (${rentalRequests.length})` : `Requests (${rentalRequests.length})`}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Marketplace & Care Coordination Banner */}
-        <View style={styles.marketplaceBanner}>
-          <View style={styles.marketplaceIconWrap}>
-            <Ionicons name="shield-checkmark" size={22} color="#00B894" />
-          </View>
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={styles.marketplaceTitle}>
-              Verified Partner Fulfilment Model
-            </Text>
-            <Text style={styles.marketplaceDesc}>
-              MediUnify coordinates your rental request with verified biomedical partners. Equipment is thoroughly sterilized, delivered, and installed at your doorstep.
-            </Text>
-          </View>
-        </View>
-
-        {/* Search Bar & Filter Button */}
-        <View style={styles.searchFilterRow}>
-          <View style={styles.searchInputContainer}>
-            <Ionicons name="search" size={19} color="#64748B" style={{ marginLeft: 12 }} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search healthcare equipment (bed, oxygen, wheelchair...)"
-              placeholderTextColor="#94A3B8"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 8 }}>
-                <Ionicons name="close-circle" size={18} color="#94A3B8" />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <TouchableOpacity
-            style={[
-              styles.filterTriggerBtn,
-              (selectedCategory !== 'all' || filterDuration !== 'all' || filterInstallationOnly) && styles.filterTriggerBtnActive,
-            ]}
-            onPress={() => setFilterModalVisible(true)}
-          >
-            <Ionicons
-              name="options-outline"
-              size={19}
-              color={
-                selectedCategory !== 'all' || filterDuration !== 'all' || filterInstallationOnly
-                  ? '#FFFFFF'
-                  : '#0F172A'
-              }
-            />
-            <Text
-              style={[
-                styles.filterTriggerText,
-                (selectedCategory !== 'all' || filterDuration !== 'all' || filterInstallationOnly) && styles.filterTriggerTextActive,
-              ]}
-            >
-              Filters
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Equipment Categories (Section 2) */}
-        <View style={styles.sectionHeaderRow}>
-          <View>
-            <Text style={styles.sectionTitle}>Equipment Categories</Text>
-            <Text style={styles.sectionSub}>All categories are available from verified MediUnify partners</Text>
-          </View>
-          {selectedCategory !== 'all' && (
-            <TouchableOpacity onPress={() => handleSelectCategory('all')}>
-              <Text style={styles.clearFilterLink}>Show All ({equipmentCatalog.length})</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Category Cards Grid (All 10 Categories 100% Visible - No Cutoff!) */}
-        <View style={styles.categoryCardsGrid}>
-          {equipmentCategories.map((cat) => {
-            const isSelected = selectedCategory === cat.id;
-            const count = cat.id === 'all' ? equipmentCatalog.length : equipmentCatalog.filter(e => e.category === cat.id).length;
-            return (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.categoryCardTile,
-                  isDesktopWeb ? styles.categoryCardTileDesktop : isTablet ? styles.categoryCardTileTablet : styles.categoryCardTileMobile,
-                  isSelected && styles.categoryCardTileActive,
-                ]}
-                onPress={() => handleSelectCategory(cat.id)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.categoryCardIconBox, isSelected && styles.categoryCardIconBoxActive]}>
-                  <Text style={styles.categoryCardEmoji}>{cat.emoji}</Text>
-                </View>
-                <View style={styles.categoryCardTextBox}>
-                  <Text
-                    style={[styles.categoryCardTitle, isSelected && styles.categoryCardTitleActive]}
-                    numberOfLines={2}
-                  >
-                    {cat.label}
-                  </Text>
-                  <Text style={[styles.categoryCardCount, isSelected && styles.categoryCardCountActive]}>
-                    {count} Item{count !== 1 ? 's' : ''}
-                  </Text>
-                </View>
-                {isSelected && (
-                  <View style={styles.categoryActiveCheck}>
-                    <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+                {/* Equipment Visual with Surrounding 4 Badges */}
+                <View style={styles.doctorVisualSection}>
+                  {/* Central Circular Backdrop & Equipment Image */}
+                  <View style={styles.doctorCircleBackdrop}>
+                    <Image
+                      source={{
+                        uri: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=800&auto=format&fit=crop&q=80',
+                      }}
+                      style={styles.doctorImage}
+                      resizeMode="cover"
+                    />
                   </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
 
-        {/* Active Category Filter Tag Banner */}
-        {selectedCategory !== 'all' && (
-          <View style={styles.activeCategoryBanner}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ fontSize: 16, marginRight: 6 }}>
-                {equipmentCategories.find((c) => c.id === selectedCategory)?.emoji}
-              </Text>
-              <Text style={styles.activeCategoryBannerText}>
-                Filtering by: <Text style={{ fontWeight: '800', color: '#0F172A' }}>{equipmentCategories.find((c) => c.id === selectedCategory)?.label}</Text> ({filteredEquipment.length} items)
-              </Text>
-            </View>
-            <TouchableOpacity onPress={() => handleSelectCategory('all')} style={styles.clearCategoryPillBtn}>
-              <Text style={styles.clearCategoryPillBtnText}>✕ Show All</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Popular Equipment (when no active search/category filter) */}
-        {selectedCategory === 'all' && !searchQuery.trim() && (
-          <View style={styles.popularSectionWrap}>
-            <View style={styles.sectionHeaderRow}>
-              <View>
-                <Text style={styles.sectionTitle}>Popular Equipment</Text>
-                <Text style={styles.sectionSub}>Most requested home healthcare equipment</Text>
-              </View>
-            </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingVertical: 8, paddingHorizontal: 2, gap: 12 }}
-            >
-              {popularList.map((item) => (
-                <View key={`pop-${item.id}`} style={styles.popularCardItem}>
-                  <Image source={{ uri: item.image }} style={styles.popularCardImg} />
-                  <View style={styles.popularCardBadge}>
-                    <Ionicons name="flame" size={11} color="#EA580C" />
-                    <Text style={styles.popularCardBadgeText}>Popular</Text>
-                  </View>
-                  <View style={{ padding: 12, flex: 1, justifyContent: 'space-between' }}>
+                  {/* 4 Floating Badges Around Visual */}
+                  {/* Top Left: 25,000+ Equipments Delivered */}
+                  <View style={[styles.floatingBadge, styles.badgeTopLeft]}>
+                    <View style={[styles.badgeIconWrap, { backgroundColor: '#F0FDFA' }]}>
+                      <Ionicons name="cube" size={16} color="#00C2CB" />
+                    </View>
                     <View>
-                      <Text style={styles.popularCardCategory}>{item.categoryLabel}</Text>
-                      <Text style={styles.popularCardName} numberOfLines={2}>{item.name}</Text>
+                      <Text style={styles.badgeBoldText}>25,000+</Text>
+                      <Text style={styles.badgeSubText}>Equipments Delivered</Text>
                     </View>
-                    <View style={styles.popularCardPriceRow}>
-                      <View>
-                        <Text style={styles.popularPriceVal}>₹{item.rentalPrices.monthly.toLocaleString()}</Text>
-                        <Text style={styles.popularPriceUnit}>/ month</Text>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.popularViewBtn}
-                        onPress={() => handleOpenEquipmentDetails(item)}
-                      >
-                        <Text style={styles.popularViewBtnText}>View</Text>
-                      </TouchableOpacity>
+                  </View>
+
+                  {/* Top Right: 500+ Biomedical Engineers */}
+                  <View style={[styles.floatingBadge, styles.badgeTopRight]}>
+                    <View style={[styles.badgeIconWrap, { backgroundColor: '#FFF5F0' }]}>
+                      <Ionicons name="build" size={16} color="#FF7F50" />
+                    </View>
+                    <View>
+                      <Text style={styles.badgeBoldText}>500+</Text>
+                      <Text style={styles.badgeSubText}>Biomedical Engineers</Text>
+                    </View>
+                  </View>
+
+                  {/* Bottom Left: 25+ Cities */}
+                  <View style={[styles.floatingBadge, styles.badgeBottomLeft]}>
+                    <View style={[styles.badgeIconWrap, { backgroundColor: '#ECFDF5' }]}>
+                      <Ionicons name="business" size={16} color="#00B894" />
+                    </View>
+                    <View>
+                      <Text style={styles.badgeBoldText}>25+</Text>
+                      <Text style={styles.badgeSubText}>Cities</Text>
+                    </View>
+                  </View>
+
+                  {/* Bottom Right: 100% Sanitized & Calibrated */}
+                  <View style={[styles.floatingBadge, styles.badgeBottomRight]}>
+                    <View style={[styles.badgeIconWrap, { backgroundColor: '#EFF6FF' }]}>
+                      <Ionicons name="shield-checkmark" size={16} color="#1E3A8A" />
+                    </View>
+                    <View>
+                      <Text style={styles.badgeBoldText}>100%</Text>
+                      <Text style={styles.badgeSubText}>Sanitized & Calibrated</Text>
                     </View>
                   </View>
                 </View>
-              ))}
-            </ScrollView>
-          </View>
-        )}
+              </View>
 
-        {/* Equipment Listing (Section 4) with onLayout & nativeID for smooth scroll target on web & mobile */}
-        <View
-          nativeID="equipment-listing-section"
-          id="equipment-listing-section"
-          style={styles.sectionHeaderRow}
-          onLayout={(e) => {
-            equipmentListingY.current = e.nativeEvent.layout.y;
-          }}
-        >
-          <View>
-            <Text style={styles.sectionTitle}>
-              {selectedCategory === 'all' ? 'All Equipment' : `${equipmentCategories.find((c) => c.id === selectedCategory)?.label || 'Equipment'}`}
-            </Text>
-            <Text style={styles.sectionSub}>
-              Showing {filteredEquipment.length} verified healthcare items
-            </Text>
-          </View>
-        </View>
+              {/* 2. WHY MEDIUNIFY ASSURED CARD */}
+              <View style={styles.assuredCard}>
+                <Text style={styles.assuredSectionHeader}>Why MediUnify Assured?</Text>
 
-        {/* Empty State when no results */}
-        {filteredEquipment.length === 0 ? (
-          <View style={styles.emptyStateBox}>
-            <Ionicons name="search-outline" size={54} color="#94A3B8" />
-            <Text style={styles.emptyStateTitle}>No equipment found</Text>
-            <Text style={styles.emptyStateDesc}>
-              No healthcare equipment matched "{searchQuery}" in the selected filters.
-            </Text>
-            <TouchableOpacity style={styles.emptyStateBtn} onPress={handleResetFilters}>
-              <Text style={styles.emptyStateBtnText}>Clear Search & Filters</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={isDesktopWeb ? styles.equipmentGridWeb : styles.equipmentListMobile}>
-            {filteredEquipment.map((item) => (
-              <View key={item.id} style={isDesktopWeb ? styles.equipmentCardWeb : styles.equipmentCardMobile}>
-                {/* Equipment Image & Partner Badge */}
-                <View style={styles.cardImageWrap}>
-                  <Image source={{ uri: item.image }} style={styles.cardImg} resizeMode="cover" />
-                  <View style={styles.verifiedPartnerBadge}>
-                    <Ionicons name="checkmark-circle" size={13} color="#059669" />
-                    <Text style={styles.verifiedPartnerBadgeText}>Verified Partner</Text>
-                  </View>
-                  <View style={styles.availabilityTag}>
-                    <View style={styles.availDot} />
-                    <Text style={styles.availabilityTagText}>{item.availability}</Text>
-                  </View>
-                </View>
+                {/* Sub-header 1: MediUnify Assured Benefits */}
+                <Text style={styles.assuredSubHeader}>MediUnify Assured Benefits</Text>
 
-                {/* Content */}
-                <View style={styles.cardBody}>
-                  <View style={styles.cardCategoryRow}>
-                    <Text style={styles.cardCategoryText}>{item.categoryEmoji} {item.categoryLabel}</Text>
-                    <Text style={styles.cardDeliverySpeed}>{item.deliverySpeed}</Text>
-                  </View>
-
-                  <Text style={styles.cardTitle} numberOfLines={2}>{item.name}</Text>
-                  <Text style={styles.cardDesc} numberOfLines={2}>{item.shortDescription}</Text>
-
-                  {/* Pricing and Deposit Summary */}
-                  <View style={styles.cardPricingBox}>
-                    <View style={styles.priceRowItem}>
-                      <Text style={styles.rentalPriceLabel}>Rental</Text>
-                      <Text style={styles.rentalPriceVal}>
-                        ₹{item.rentalPrices.monthly.toLocaleString()}
-                        <Text style={styles.rentalPriceUnit}> / month</Text>
-                      </Text>
+                {/* Grid of 3 Benefits */}
+                <View style={styles.benefitsGrid}>
+                  {/* Card 1: 4.9/5 Quality Rating */}
+                  <View style={styles.benefitItemCard}>
+                    <View style={styles.benefitTopRow}>
+                      <Ionicons name="star" size={20} color="#1E3A8A" />
+                      <Text style={styles.benefitScoreText}>4.9/5</Text>
                     </View>
-
-                    <View style={styles.priceRowItem}>
-                      <Text style={styles.depositLabel}>Deposit: </Text>
-                      <Text style={styles.depositVal}>₹{item.deposit.toLocaleString()}</Text>
-                    </View>
-
-                    <View style={styles.deliveryMetaRow}>
-                      <Text style={styles.deliveryMetaText}>
-                        🚚 Delivery: ₹{item.deliveryCharge} • 🛠️ Installation: {item.installationIncluded ? 'Included' : 'On Request'}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Partner snippet */}
-                  <View style={styles.partnerSnippetRow}>
-                    <Ionicons name="business-outline" size={13} color="#64748B" />
-                    <Text style={styles.partnerSnippetText} numberOfLines={1}>
-                      Supplied by: <Text style={{ fontWeight: '600', color: '#1E3A8A' }}>{item.verifiedPartner?.name}</Text>
+                    <Text style={styles.benefitItemTitle}>Hospital-Grade Calibration</Text>
+                    <Text style={styles.benefitItemDesc}>
+                      Every device passes 24-point biomedical testing, calibration checks, and clinical hospital certification before dispatch.
                     </Text>
                   </View>
 
-                  {/* Action Buttons */}
-                  <View style={styles.cardActionRow}>
-                    <TouchableOpacity
-                      style={styles.cardViewDetailsBtn}
-                      onPress={() => handleOpenEquipmentDetails(item)}
-                    >
-                      <Text style={styles.cardViewDetailsText}>View Details</Text>
-                    </TouchableOpacity>
+                  {/* Card 2: 100% Sterilized & Sanitized */}
+                  <View style={styles.benefitItemCard}>
+                    <View style={styles.benefitTopRow}>
+                      <Ionicons name="shield-checkmark-outline" size={20} color="#1E3A8A" />
+                      <Text style={styles.benefitScoreText}>100%</Text>
+                    </View>
+                    <Text style={styles.benefitItemTitle}>Sterilized & Sanitized</Text>
+                    <Text style={styles.benefitItemDesc}>
+                      Hospital-grade autoclave & UV sterilization protocols ensuring infection-free, safe recovery at home.
+                    </Text>
+                  </View>
 
-                    <TouchableOpacity
-                      style={styles.cardRequestBtn}
-                      onPress={() => handleStartRentalRequest(item)}
-                    >
-                      <Text style={styles.cardRequestBtnText}>Request Rental →</Text>
-                    </TouchableOpacity>
+                  {/* Card 3: 2-4 Hrs Doorstep Setup */}
+                  <View style={styles.benefitItemCard}>
+                    <View style={styles.benefitTopRow}>
+                      <Ionicons name="time-outline" size={20} color="#1E3A8A" />
+                      <Text style={styles.benefitScoreText}>2-4 Hrs</Text>
+                    </View>
+                    <Text style={styles.benefitItemTitle}>Doorstep Setup & Demo</Text>
+                    <Text style={styles.benefitItemDesc}>
+                      Trained technicians install, assemble, and demonstrate safe operation to family members with 24/7 breakdown replacement.
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Sub-header 2: MediUnify's Assured Network */}
+                <Text style={[styles.assuredSubHeader, { marginTop: 24 }]}>MediUnify's Assured Network</Text>
+
+                {/* 3 Column Stat Strip */}
+                <View style={styles.networkStatsStrip}>
+                  <View style={styles.networkStatCol}>
+                    <Text style={styles.networkStatNum}>50,000+</Text>
+                    <Text style={styles.networkStatLabel}>Patients Served</Text>
+                  </View>
+                  <View style={styles.networkStatDivider} />
+                  <View style={styles.networkStatCol}>
+                    <Text style={styles.networkStatNum}>1,200+</Text>
+                    <Text style={styles.networkStatLabel}>Equipment Models</Text>
+                  </View>
+                  <View style={styles.networkStatDivider} />
+                  <View style={styles.networkStatCol}>
+                    <Text style={styles.networkStatNum}>25+</Text>
+                    <Text style={styles.networkStatLabel}>Cities</Text>
                   </View>
                 </View>
               </View>
-            ))}
-          </View>
-        )}
-
-        {/* Customer Support & Care Notice Card */}
-        <View style={styles.supportContactCard}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Ionicons name="headset-outline" size={24} color="#00B894" style={{ marginRight: 10 }} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.supportTitle}>Need assistance choosing equipment?</Text>
-              <Text style={styles.supportDesc}>
-                MediUnify care coordinators guide you to choose the right clinical bed, respiratory, or mobility aid.
-              </Text>
             </View>
-          </View>
-          <View style={styles.supportActionRow}>
-            <TouchableOpacity
-              style={styles.supportCallBtn}
-              onPress={() => showAlert('Care Coordinator', 'Calling MediUnify Home Equipment Support at 1800-425-0099...')}
-            >
-              <Ionicons name="call" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
-              <Text style={styles.supportCallText}>Call 1800-425-0099</Text>
-            </TouchableOpacity>
+
+            {/* ============================================================
+                RIGHT COLUMN: CONSULTATION BOOKING FORM & DIRECT CONTACTS
+            ============================================================ */}
+            <View style={[styles.rightColumn, isDesktopWeb && styles.rightColumnDesktop]}>
+              {/* BOOKING CARD */}
+              <View style={styles.formCard}>
+                <Text style={styles.formTitle}>Rent equipment or book consultation today</Text>
+                <Text style={styles.formSubtitle}>Get a Call Back Within 15 Minutes</Text>
+
+                <View style={styles.formBody}>
+                  {/* Field 1: Equipment Need Selector */}
+                  <TouchableOpacity
+                    style={styles.dropdownField}
+                    onPress={() => setEquipmentNeedModalVisible(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownFieldText,
+                        !selectedEquipmentNeed && styles.placeholderText,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {selectedEquipmentNeed || 'Select Equipment Needed'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={18} color="#64748B" />
+                  </TouchableOpacity>
+
+                  {/* Field 2: City Selector */}
+                  <TouchableOpacity
+                    style={styles.dropdownField}
+                    onPress={() => setCityModalVisible(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.dropdownFieldText} numberOfLines={1}>
+                      {selectedCity || 'Bangalore'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={18} color="#64748B" />
+                  </TouchableOpacity>
+
+                  {/* Field 3: Equipment Required / Delivery Date */}
+                  <TouchableOpacity
+                    style={styles.dropdownField}
+                    onPress={() => setDateModalVisible(true)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                      <Ionicons name="calendar-outline" size={17} color="#00B894" />
+                      <Text
+                        style={[
+                          styles.dropdownFieldText,
+                          !quickDate && styles.placeholderText,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {quickDate ? `Delivery Date: ${quickDate}` : 'When do you need equipment? (Select Date)'}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-down" size={18} color="#64748B" />
+                  </TouchableOpacity>
+
+                  {/* Field 4: Name */}
+                  <View style={styles.inputField}>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="Name"
+                      placeholderTextColor="#94A3B8"
+                      value={quickName}
+                      onChangeText={setQuickName}
+                    />
+                  </View>
+
+                  {/* Field 4: Mobile Number */}
+                  <View style={styles.inputField}>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="Mobile Number"
+                      placeholderTextColor="#94A3B8"
+                      value={quickMobile}
+                      onChangeText={setQuickMobile}
+                      keyboardType="phone-pad"
+                      maxLength={15}
+                    />
+                  </View>
+
+                  {/* Submit Button */}
+                  <TouchableOpacity
+                    style={styles.submitBtn}
+                    onPress={handleQuickBookEquipment}
+                    activeOpacity={0.9}
+                    disabled={quickBookingLoading}
+                  >
+                    <Text style={styles.submitBtnText}>
+                      {quickBookingLoading ? 'Submitting...' : 'Book Equipment Consultation'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* T&C Disclaimer */}
+                  <Text style={styles.termsText}>
+                    By submitting the form, you agree to MediUnify's <Text style={styles.termsLink}>T&C</Text>
+                  </Text>
+                </View>
+              </View>
+
+              {/* OR DIVIDER */}
+              <View style={styles.orDividerContainer}>
+                <View style={styles.orDividerLine} />
+                <Text style={styles.orText}>OR</Text>
+                <View style={styles.orDividerLine} />
+              </View>
+
+              {/* DIRECT CONTACT CARD */}
+              <View style={styles.contactCard}>
+                <TouchableOpacity
+                  style={styles.contactRow}
+                  onPress={handleCallHelpline}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.contactLeft}>
+                    <View style={styles.phoneIconWrap}>
+                      <Ionicons name="call" size={16} color="#FFFFFF" />
+                    </View>
+                    <Text style={styles.contactLabel}>Reach Out to Us</Text>
+                  </View>
+                  <Text style={styles.contactNumber}>+91-8045685554</Text>
+                </TouchableOpacity>
+
+                <View style={styles.contactDivider} />
+
+                <TouchableOpacity
+                  style={styles.contactRow}
+                  onPress={handleWhatsAppCare}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.contactLeft}>
+                    <View style={styles.whatsappIconWrap}>
+                      <Ionicons name="logo-whatsapp" size={18} color="#FFFFFF" />
+                    </View>
+                    <Text style={styles.contactLabel}>Chat with Us</Text>
+                  </View>
+                  <Text style={styles.contactNumber}>+91-7353101441</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
 
@@ -903,6 +1048,7 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
       </ScrollView>
     );
   };
+
 
   // ==========================================================
   // VIEW: 2. EQUIPMENT DETAILS SCREEN
@@ -948,7 +1094,7 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
         <View style={styles.detailsHeaderCard}>
           <View style={styles.detailsCategoryRow}>
             <Text style={styles.detailsCategoryPill}>
-              {item.categoryEmoji} {item.categoryLabel}
+              {item.categoryLabel}
             </Text>
             <View style={styles.detailsAvailabilityBadge}>
               <View style={styles.availDot} />
@@ -1031,16 +1177,20 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
                 <Text style={styles.vendorName}>{item.verifiedPartner?.name}</Text>
                 <Ionicons name="checkmark-circle" size={16} color="#00B894" style={{ marginLeft: 4 }} />
               </View>
-              <Text style={styles.vendorSub}>
-                ⭐ {item.verifiedPartner?.rating} • {item.verifiedPartner?.serviceArea}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                <Ionicons name="star" size={12} color="#FF7F50" />
+                <Text style={styles.vendorSub}>
+                  {item.verifiedPartner?.rating} • {item.verifiedPartner?.serviceArea}
+                </Text>
+              </View>
             </View>
           </View>
 
           <View style={styles.vendorBadgesRow}>
             {item.verifiedPartner?.badges.map((b, i) => (
-              <View key={i} style={styles.vendorBadgeChip}>
-                <Text style={styles.vendorBadgeChipText}>✓ {b}</Text>
+              <View key={i} style={[styles.vendorBadgeChip, { flexDirection: 'row', alignItems: 'center' }]}>
+                <Ionicons name="checkmark-circle" size={11} color="#00B894" style={{ marginRight: 4 }} />
+                <Text style={styles.vendorBadgeChipText}>{b}</Text>
               </View>
             ))}
           </View>
@@ -1157,9 +1307,13 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
             const isCurr = flowStep === stepNum;
             return (
               <View key={sName} style={[styles.stepPillBox, isCurr && styles.stepPillBoxActive]}>
-                <Text style={[styles.stepPillNum, (isDone || isCurr) && styles.stepPillNumActive]}>
-                  {isDone ? '✓' : stepNum}
-                </Text>
+                {isDone ? (
+                  <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+                ) : (
+                  <Text style={[styles.stepPillNum, isCurr && styles.stepPillNumActive]}>
+                    {stepNum}
+                  </Text>
+                )}
                 <Text
                   style={[styles.stepPillLabel, isCurr && styles.stepPillLabelActive]}
                   numberOfLines={1}
@@ -1394,6 +1548,24 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
                 </View>
               </View>
 
+              {/* Preferred Delivery Date */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Preferred Delivery Date</Text>
+                <TouchableOpacity
+                  style={[styles.formInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 }]}
+                  onPress={() => setDateModalVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="calendar-outline" size={17} color="#00B894" />
+                    <Text style={{ fontSize: 13.5, color: '#0F172A', fontWeight: '600' }}>
+                      {customStartDate || quickDate || 'Select Preferred Delivery Date'}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={18} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
               {/* Delivery Instructions */}
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Delivery Instructions (Optional)</Text>
@@ -1471,6 +1643,10 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
                 <View style={styles.reviewRow}>
                   <Text style={styles.reviewLabel}>Address</Text>
                   <Text style={styles.reviewVal}>{deliveryAddress}, {deliveryCity} - {deliveryPincode}</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Delivery Date</Text>
+                  <Text style={styles.reviewVal}>{customStartDate || quickDate || 'Immediate / Next Available'}</Text>
                 </View>
                 {deliveryInstructions ? (
                   <View style={styles.reviewRow}>
@@ -1742,7 +1918,7 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
                     style={styles.rentalPickupBtn}
                     onPress={() => handleOpenPickupModal(rental)}
                   >
-                    <Ionicons name="arrow-undo-outline" size={15} color="#EF4444" style={{ marginRight: 4 }} />
+                    <Ionicons name="arrow-undo-outline" size={15} color="#FF7F50" style={{ marginRight: 4 }} />
                     <Text style={styles.rentalPickupBtnText}>Request Pickup</Text>
                   </TouchableOpacity>
                 </View>
@@ -2048,7 +2224,10 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
               <Ionicons name="shield-checkmark" size={24} color="#00B894" />
               <View style={{ marginLeft: 10 }}>
                 <Text style={styles.offerPartnerName}>{req.verifiedPartner?.name}</Text>
-                <Text style={styles.offerPartnerSub}>⭐ {req.verifiedPartner?.rating} • Verified MediUnify Partner</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                  <Ionicons name="star" size={12} color="#FF7F50" />
+                  <Text style={styles.offerPartnerSub}>{req.verifiedPartner?.rating} • Verified MediUnify Partner</Text>
+                </View>
               </View>
             </View>
 
@@ -2205,12 +2384,258 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
             <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setPickupModalVisible(false)}>
               <Text style={styles.modalCancelBtnText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.modalSubmitBtn, { backgroundColor: '#EF4444' }]} onPress={handleSubmitPickupRequest}>
+            <TouchableOpacity style={[styles.modalSubmitBtn, { backgroundColor: '#FF7F50' }]} onPress={handleSubmitPickupRequest}>
               <Text style={styles.modalSubmitBtnText}>Request Pickup</Text>
             </TouchableOpacity>
           </View>
         </View>
       </View>
+    </Modal>
+  );
+
+  // 5. EQUIPMENT NEED SELECTION MODAL
+  const renderEquipmentNeedModal = () => (
+    <Modal
+      visible={equipmentNeedModalVisible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setEquipmentNeedModalVisible(false)}
+    >
+      <TouchableOpacity
+        style={styles.modalBackdrop}
+        activeOpacity={1}
+        onPress={() => setEquipmentNeedModalVisible(false)}
+      >
+        <View style={styles.modalContentCard} onStartShouldSetResponder={() => true}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Select Medical Equipment Need</Text>
+            <TouchableOpacity onPress={() => setEquipmentNeedModalVisible(false)}>
+              <Ionicons name="close" size={22} color="#64748B" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ maxHeight: 340 }} showsVerticalScrollIndicator={true}>
+            {EQUIPMENT_CARE_NEEDS.map((need, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={[
+                  styles.modalListItem,
+                  selectedEquipmentNeed === need && styles.modalListItemSelected,
+                ]}
+                onPress={() => {
+                  setSelectedEquipmentNeed(need);
+                  setEquipmentNeedModalVisible(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.modalListItemText,
+                    selectedEquipmentNeed === need && styles.modalListItemTextSelected,
+                  ]}
+                >
+                  {need}
+                </Text>
+                {selectedEquipmentNeed === need && (
+                  <Ionicons name="checkmark-circle" size={18} color="#1E3A8A" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+
+  // 6. CITY SELECTION MODAL
+  const renderCityModal = () => (
+    <Modal
+      visible={cityModalVisible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setCityModalVisible(false)}
+    >
+      <TouchableOpacity
+        style={styles.modalBackdrop}
+        activeOpacity={1}
+        onPress={() => setCityModalVisible(false)}
+      >
+        <View style={styles.modalContentCard} onStartShouldSetResponder={() => true}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Select City</Text>
+            <TouchableOpacity onPress={() => setCityModalVisible(false)}>
+              <Ionicons name="close" size={22} color="#64748B" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ maxHeight: 340 }} showsVerticalScrollIndicator={true}>
+            {EQUIPMENT_CITIES.map((city, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={[
+                  styles.modalListItem,
+                  selectedCity === city && styles.modalListItemSelected,
+                ]}
+                onPress={() => {
+                  setSelectedCity(city);
+                  setCityModalVisible(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.modalListItemText,
+                    selectedCity === city && styles.modalListItemTextSelected,
+                  ]}
+                >
+                  {city}
+                </Text>
+                {selectedCity === city && (
+                  <Ionicons name="checkmark-circle" size={18} color="#1E3A8A" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+
+  // 7. DATE SELECTION MODAL
+  const renderDateModal = () => (
+    <Modal
+      visible={dateModalVisible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setDateModalVisible(false)}
+    >
+      <TouchableOpacity
+        style={styles.modalBackdrop}
+        activeOpacity={1}
+        onPress={() => setDateModalVisible(false)}
+      >
+        <View style={[styles.modalContentCard, { maxWidth: 460 }]} onStartShouldSetResponder={() => true}>
+          <View style={styles.modalHeader}>
+            <View>
+              <Text style={styles.modalTitle}>When do you need the equipment?</Text>
+              <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                Choose a quick delivery option or pick a preferred date
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => setDateModalVisible(false)}>
+              <Ionicons name="close" size={22} color="#64748B" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Quick Preset Chips */}
+          <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A', marginTop: 8, marginBottom: 8 }}>
+            Quick Selection:
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+            {getPresetDates().map((preset, idx) => {
+              const isSelected = (quickDate === preset.value) || (customStartDate === preset.value);
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    styles.modalPresetChip,
+                    isSelected && styles.modalPresetChipSelected,
+                  ]}
+                  onPress={() => {
+                    setQuickDate(preset.value);
+                    setCustomStartDate(preset.value);
+                    setDateModalVisible(false);
+                  }}
+                >
+                  <Ionicons
+                    name="flash"
+                    size={13}
+                    color={isSelected ? '#00B894' : '#64748B'}
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text
+                    style={[
+                      styles.modalPresetChipText,
+                      isSelected && styles.modalPresetChipTextSelected,
+                    ]}
+                  >
+                    {preset.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Interactive Calendar Header */}
+          <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A', marginBottom: 8 }}>
+            Or Select Specific Delivery Date:
+          </Text>
+          <View style={styles.calendarContainer}>
+            <View style={styles.calNavHeader}>
+              <TouchableOpacity
+                style={styles.calNavBtn}
+                onPress={handlePrevQuickMonth}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="chevron-back" size={16} color="#0F172A" />
+              </TouchableOpacity>
+
+              <View style={styles.calMonthYearBox}>
+                <Text style={styles.calMonthYearText}>
+                  {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][quickCalMonth]} {quickCalYear}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.calNavBtn}
+                onPress={handleNextQuickMonth}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="chevron-forward" size={16} color="#0F172A" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Weekdays */}
+            <View style={styles.calWeekdaysRow}>
+              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d, i) => (
+                <View key={i} style={styles.calWeekdayCell}>
+                  <Text style={styles.calWeekdayText}>{d}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Days Grid */}
+            <View style={styles.calGrid}>
+              {quickCalendarDays.map((cell) => {
+                if (cell.type === 'empty') {
+                  return <View key={cell.key} style={styles.calDayCell} />;
+                }
+                return (
+                  <TouchableOpacity
+                    key={cell.key}
+                    style={[
+                      styles.calDayCell,
+                      cell.isSelected && styles.calDayCellSelected,
+                      cell.isToday && !cell.isSelected && styles.calDayCellToday,
+                    ]}
+                    onPress={() => !cell.isPast && handleSelectQuickCalDay(cell.day)}
+                    disabled={cell.isPast}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.calDayText,
+                        cell.isPast && styles.calDayTextPast,
+                        cell.isToday && !cell.isSelected && styles.calDayTextToday,
+                        cell.isSelected && styles.calDayTextSelected,
+                      ]}
+                    >
+                      {cell.day}
+                    </Text>
+                    {cell.isToday && !cell.isSelected && <View style={styles.calTodayDot} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
     </Modal>
   );
 
@@ -2227,6 +2652,9 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
       {renderOfferModal()}
       {renderExtendModal()}
       {renderPickupModal()}
+      {renderEquipmentNeedModal()}
+      {renderCityModal()}
+      {renderDateModal()}
     </SafeAreaView>
   );
 };
@@ -2237,11 +2665,11 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FAFCFD',
   },
   scrollContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FAFCFD',
   },
   scrollContent: {
     paddingBottom: 40,
@@ -2261,20 +2689,20 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#DCE7EC',
   },
   headerBackBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F1F8FB',
     alignItems: 'center',
     justifyContent: 'center',
   },
   mainScreenTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
     letterSpacing: -0.3,
   },
   mainScreenSubtitle: {
@@ -2290,7 +2718,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#DCE7EC',
     gap: 6,
   },
   segmentBtn: {
@@ -2301,12 +2729,12 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     paddingHorizontal: 6,
     borderRadius: 10,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FAFCFD',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DCE7EC',
   },
   segmentBtnActive: {
-    backgroundColor: '#E6F9F4',
+    backgroundColor: '#ECFDF5',
     borderColor: '#00B894',
   },
   segmentBtnText: {
@@ -2561,7 +2989,7 @@ const styles = StyleSheet.create({
   popularCardBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#EA580C',
+    color: '#FF7F50',
     marginLeft: 3,
   },
   popularCardCategory: {
@@ -3366,11 +3794,11 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   formInputError: {
-    borderColor: '#EF4444',
+    borderColor: '#FF7F50',
   },
   errorText: {
     fontSize: 11,
-    color: '#EF4444',
+    color: '#FF7F50',
     marginTop: 3,
   },
 
@@ -3708,14 +4136,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#FFF2ED',
     borderWidth: 1,
-    borderColor: '#FCA5A5',
+    borderColor: '#FFD7C7',
   },
   rentalPickupBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#EF4444',
+    color: '#FF7F50',
   },
 
   // Rental Requests Tracking Screen
@@ -4264,6 +4692,707 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+
+  // Desktop Breadcrumbs
+  desktopBreadcrumbWrap: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    marginBottom: 20,
+    width: '100%',
+  },
+  desktopBreadcrumbInner: {
+    maxWidth: 1240,
+    alignSelf: 'center',
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  breadcrumbLink: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  breadcrumbCurrent: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  breadcrumbActive: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E3A8A',
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  verifiedBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+
+  // LAYOUT
+  mainBody: {
+    width: '100%',
+    paddingTop: 20,
+    paddingBottom: 24,
+  },
+  layoutRow: {
+    flexDirection: 'column',
+    gap: 24,
+  },
+  layoutRowDesktop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 24,
+  },
+  leftColumn: {
+    width: '100%',
+    gap: 24,
+  },
+  leftColumnDesktop: {
+    flex: 1.35,
+  },
+  rightColumn: {
+    width: '100%',
+    gap: 16,
+  },
+  rightColumnDesktop: {
+    flex: 0.9,
+    maxWidth: 420,
+    position: Platform.OS === 'web' ? 'sticky' : 'relative',
+    top: Platform.OS === 'web' ? 20 : 0,
+  },
+
+  // 1. HERO NETWORK BANNER CARD
+  heroCard: {
+    backgroundColor: '#0F172A', // Deep Slate Navy
+    borderRadius: 20,
+    padding: 28,
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 194, 203, 0.25)',
+    shadowColor: '#00C2CB',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 4,
+    alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  heroGlowCircleTop: {
+    position: 'absolute',
+    top: -60,
+    right: -60,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(0, 194, 203, 0.22)', // Aqua glow
+    pointerEvents: 'none',
+  },
+  heroGlowCircleBottom: {
+    position: 'absolute',
+    bottom: -70,
+    left: -70,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: 'rgba(30, 58, 138, 0.35)', // Navy glow
+    pointerEvents: 'none',
+  },
+  heroTitle: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 8,
+    letterSpacing: -0.3,
+    zIndex: 2,
+    textShadow: '0px 2px 4px rgba(0, 0, 0, 0.25)',
+  },
+  heroSubtitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#00C2CB', // Aqua accent
+    textAlign: 'center',
+    marginBottom: 26,
+    zIndex: 2,
+  },
+
+  // Equipment Visual with surrounding badges
+  doctorVisualSection: {
+    width: '100%',
+    maxWidth: 480,
+    height: 320,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    zIndex: 2,
+  },
+  doctorCircleBackdrop: {
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: '#00C2CB',
+    shadowColor: '#00C2CB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  doctorImage: {
+    width: 210,
+    height: 210,
+  },
+
+  // 4 Badges
+  floatingBadge: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#BFDBFE',
+    borderRadius: 24,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    gap: 8,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
+    zIndex: 10,
+  },
+  badgeIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeBoldText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E3A8A',
+    lineHeight: 16,
+  },
+  badgeSubText: {
+    fontSize: 11,
+    color: '#64748B',
+    lineHeight: 13,
+  },
+  badgeTopLeft: {
+    top: 20,
+    left: 10,
+  },
+  badgeTopRight: {
+    top: 20,
+    right: 10,
+  },
+  badgeBottomLeft: {
+    bottom: 25,
+    left: 15,
+  },
+  badgeBottomRight: {
+    bottom: 25,
+    right: 15,
+  },
+
+  // 2. WHY MEDIUNIFY ASSURED SECTION
+  assuredCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 26,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  assuredSectionHeader: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 16,
+  },
+  assuredSubHeader: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 14,
+  },
+  benefitsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  benefitItemCard: {
+    flex: 1,
+    minWidth: Platform.OS === 'web' ? 180 : '100%',
+    backgroundColor: '#F0F8FF',
+    borderWidth: 1,
+    borderColor: '#DCEEFF',
+    borderRadius: 12,
+    padding: 16,
+  },
+  benefitTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  benefitScoreText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#1E3A8A',
+  },
+  benefitItemTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+    lineHeight: 18,
+  },
+  benefitItemDesc: {
+    fontSize: 11,
+    color: '#475569',
+    lineHeight: 16,
+  },
+  networkStatsStrip: {
+    flexDirection: 'row',
+    backgroundColor: '#F0F8FF',
+    borderWidth: 1,
+    borderColor: '#DCEEFF',
+    borderRadius: 12,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  networkStatCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  networkStatNum: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#1E3A8A',
+    marginBottom: 2,
+  },
+  networkStatLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  networkStatDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: '#CBD5E1',
+  },
+
+  // RIGHT COLUMN: FORM CARD
+  formCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  formTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  formSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    marginBottom: 20,
+  },
+  formBody: {
+    gap: 14,
+  },
+  dropdownField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    height: 46,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  dropdownFieldText: {
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '500',
+    flex: 1,
+  },
+  placeholderText: {
+    color: '#94A3B8',
+  },
+  inputField: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    height: 46,
+    justifyContent: 'center',
+  },
+  textInput: {
+    fontSize: 14,
+    color: '#0F172A',
+    height: '100%',
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+  },
+  submitBtn: {
+    backgroundColor: '#1E293B',
+    height: 48,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 6,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  submitBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  termsText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  termsLink: {
+    color: '#2563EB',
+    fontWeight: '600',
+  },
+
+  // OR DIVIDER
+  orDividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  orDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E2E8F0',
+  },
+  orText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontWeight: '700',
+    paddingHorizontal: 12,
+  },
+
+  // DIRECT CONTACT CARD
+  contactCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+    gap: 12,
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  contactLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  phoneIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#00B894',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  whatsappIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#25D366',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  contactLabel: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  contactNumber: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E3A8A',
+  },
+  contactDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+  },
+
+  // STATS RIBBON
+  statsRibbon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 24,
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  statBox: {
+    alignItems: 'center',
+    minWidth: 140,
+  },
+  statValue: {
+    fontSize: 21,
+    fontWeight: '900',
+    color: '#00B894',
+    letterSpacing: -0.5,
+  },
+  statLabel: {
+    fontSize: 11.5,
+    color: '#64748B',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  statDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: '#E2E8F0',
+  },
+
+  // MODALS
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContentCard: {
+    width: '100%',
+    maxWidth: 440,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    marginBottom: 8,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  modalListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  modalListItemSelected: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 8,
+  },
+  modalListItemText: {
+    fontSize: 14,
+    color: '#334155',
+  },
+  modalListItemTextSelected: {
+    color: '#1E3A8A',
+    fontWeight: '700',
+  },
+  modalPresetChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  modalPresetChipSelected: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#00B894',
+  },
+  modalPresetChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  modalPresetChipTextSelected: {
+    color: '#00B894',
+    fontWeight: '700',
+  },
+
+  // Interactive Calendar Widget Styles
+  calendarContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    padding: 14,
+    marginTop: 10,
+  },
+  calNavHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  calNavBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  calNavBtnDisabled: {
+    opacity: 0.35,
+  },
+  calMonthYearBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  calMonthYearText: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  calWeekdaysRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 6,
+    marginBottom: 4,
+  },
+  calWeekdayCell: {
+    width: '14.28%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calWeekdayText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  calGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  calDayCell: {
+    width: '14.28%',
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    borderRadius: 10,
+    marginVertical: 1,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  calDayCellSelected: {
+    backgroundColor: '#00B894',
+  },
+  calDayCellToday: {
+    borderWidth: 1.5,
+    borderColor: '#00B894',
+    backgroundColor: '#F0FDF4',
+  },
+  calDayText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  calDayTextPast: {
+    color: '#CBD5E1',
+  },
+  calDayTextToday: {
+    color: '#00B894',
+    fontWeight: '800',
+  },
+  calDayTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  calTodayDot: {
+    position: 'absolute',
+    bottom: 3,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#00B894',
   },
 });
 

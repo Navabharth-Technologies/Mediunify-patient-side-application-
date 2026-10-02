@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -14,24 +13,76 @@ import {
   KeyboardAvoidingView,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuthGuard } from '../../../context/AuthGuardContext';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { pushAppointment } from '../../../services/dataSyncService';
 import WebFooter from '../../../components/web/WebFooter';
+import { getAvailableDates, getSlotsForDate } from '../../../utils/appointmentSlotHelper';
+import { validateAndBookSlot, subscribeToSlotChanges } from '../../../services/slotBookingService';
 
 const DoctorBookingScreen = ({ route, navigation }) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   const doctor = route?.params?.doctor;
+  const { requireLogin } = useAuthGuard();
 
-  const [selectedTime, setSelectedTime] = useState('Tomorrow, 10:30 AM');
+  const [slotTick, setSlotTick] = useState(0);
 
-  // Patient Info (prefilled matching screenshot)
-  const [patientName, setPatientName] = useState('Ramesh (Self)');
-  const [patientPhone, setPatientPhone] = useState('+91 98450 12345');
+  // Subscribe to real-time clock advancement & slot booking updates
+  useEffect(() => {
+    const unsub = subscribeToSlotChanges(() => {
+      setSlotTick((prev) => prev + 1);
+    });
+    return unsub;
+  }, []);
+
+  const availableDates = getAvailableDates();
+  const [selectedDateIndex, setSelectedDateIndex] = useState(0);
+
+  const currentDateObj = availableDates[selectedDateIndex] || availableDates[0];
+  const currentSlots = getSlotsForDate(currentDateObj, false, doctor);
+
+  const getDefaultSlotForDate = (dateObj) => {
+    const slots = getSlotsForDate(dateObj, false, doctor);
+    const availMorning = slots.morning?.find((s) => s.available);
+    if (availMorning) return availMorning.fullLabel;
+    const availAfternoon = slots.afternoon?.find((s) => s.available);
+    if (availAfternoon) return availAfternoon.fullLabel;
+    const availEvening = slots.evening?.find((s) => s.available);
+    if (availEvening) return availEvening.fullLabel;
+    return '';
+  };
+
+  const [selectedTime, setSelectedTime] = useState(getDefaultSlotForDate(availableDates[0]));
+
+  // Auto-switch to next available slot if selected slot expired or was booked in real-time
+  useEffect(() => {
+    if (!selectedTime) return;
+    const allSlots = [
+      ...currentSlots.morning,
+      ...currentSlots.afternoon,
+      ...currentSlots.evening,
+    ];
+    const match = allSlots.find((s) => s.fullLabel === selectedTime);
+    if (match && !match.available) {
+      setSelectedTime(getDefaultSlotForDate(currentDateObj));
+    }
+  }, [currentSlots, selectedTime, currentDateObj]);
+
+  const handleSelectDate = (idx) => {
+    setSelectedDateIndex(idx);
+    const targetDate = availableDates[idx];
+    setSelectedTime(getDefaultSlotForDate(targetDate));
+  };
+
+  // Patient Info (prefilled for current account user)
+  const [patientName, setPatientName] = useState('Hemanth Gowda (Self)');
+  const [patientPhone, setPatientPhone] = useState('+91 97414 22544');
   const [healthConcern, setHealthConcern] = useState('Stress, Joint Pain & Wellness');
 
   // Uploaded Medical Document / PDF / Image
@@ -65,11 +116,16 @@ const DoctorBookingScreen = ({ route, navigation }) => {
     try {
       const storedName = await AsyncStorage.getItem('userName');
       if (storedName && storedName.trim()) {
-        setPatientName(`${storedName.trim()} (Self)`);
+        const clean = storedName.trim().replace(/\s*\(Self\)$/i, '');
+        setPatientName(`${clean} (Self)`);
+      } else {
+        setPatientName('Hemanth Gowda (Self)');
       }
-      const storedPhone = await AsyncStorage.getItem('userPhone');
+      const storedPhone = (await AsyncStorage.getItem('userPhone')) || (await AsyncStorage.getItem('@unnathi_user_phone'));
       if (storedPhone && storedPhone.trim()) {
         setPatientPhone(storedPhone.trim().startsWith('+91') ? storedPhone.trim() : `+91 ${storedPhone.trim()}`);
+      } else {
+        setPatientPhone('+91 97414 22544');
       }
     } catch (e) {
       console.log('Error loading user data:', e);
@@ -171,7 +227,7 @@ const DoctorBookingScreen = ({ route, navigation }) => {
 
   if (!doctor) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
         <View style={styles.scrollContent}>
           <View style={styles.modalCard}>
             <View style={styles.errorContainer}>
@@ -193,7 +249,12 @@ const DoctorBookingScreen = ({ route, navigation }) => {
 
   const feeAmount = doctor.fee || 400;
 
-  const handleBooking = async () => {
+  const handleBooking = () => {
+    requireLogin(() => _doBooking(), 'You need to login first to book an appointment with the doctor.');
+  };
+
+  const _doBooking = async () => {
+
     if (!patientName.trim()) {
       showAlert('Patient Name Required', 'Please enter patient full name.');
       return;
@@ -210,6 +271,20 @@ const DoctorBookingScreen = ({ route, navigation }) => {
     setIsBooking(true);
 
     try {
+      // Real-Time Atomic Slot Validation (Rules 2, 3, 6)
+      const slotValidation = await validateAndBookSlot({
+        date: currentDateObj,
+        time: selectedTime,
+        serviceType: 'doctor',
+        providerId: doctor?.id || doctor?.name || 'doctor',
+        patientName: patientName.trim(),
+      });
+
+      if (!slotValidation.success) {
+        showAlert('Slot Unavailable', 'This slot is no longer available. Please select another time.');
+        setIsBooking(false);
+        return;
+      }
       await new Promise((resolve) => setTimeout(resolve, 800));
 
       const bookingId = `DOC-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -252,24 +327,41 @@ const DoctorBookingScreen = ({ route, navigation }) => {
         }
       }
 
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + (currentDateObj?.offset || 0));
+      const cleanDateStr = targetDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+      const cleanTimeStr = selectedTime.includes(',') ? selectedTime.split(',')[1].trim() : selectedTime;
+
       const newAppointment = {
         id: bookingId,
         tokenNumber,
         type: 'In-Person',
+        serviceType: 'In-Clinic Consultation',
         doctor: {
+          id: doctor.id,
           name: doctor.name,
           specialty: doctor.specialty,
+          qualification: doctor.qualification || 'MBBS, MD',
           clinicName: doctor.clinicName || 'Unnathi Multispeciality Clinic',
           clinicAddress: doctor.clinicAddress || 'No. 24, 5th Cross, Kuvempunagar, Mysore',
           clinicArea: doctor.clinicArea || 'Kuvempunagar, Mysore',
           phone: doctor.phone || '+91 821 245 9901',
           distance: doctor.distance || '0.8 km away',
+          image: doctor.image,
         },
-        day: selectedTime.includes('Tomorrow') ? 'Tomorrow' : 'Day After',
-        date: selectedTime,
-        time: selectedTime.split(', ')[1] || selectedTime,
-        status: 'Confirmed',
+        facilityName: doctor.clinicName || 'Unnathi Multispeciality Clinic',
+        department: doctor.specialty,
+        day: currentDateObj?.displayTitle || 'Today',
+        date: cleanDateStr,
+        formattedDate: cleanDateStr,
+        time: cleanTimeStr,
+        timeSlot: selectedTime,
+        status: 'Upcoming',
+        isUpcoming: true,
         paidAmount: feeAmount,
+        amount: feeAmount,
+        location: doctor.clinicArea || 'Mysore',
+        address: doctor.clinicAddress || 'No. 24, 5th Cross, Kuvempunagar, Mysore',
         paymentStatus:
           paymentOption === 'WALLET'
             ? 'Paid via MediUnify Wallet'
@@ -290,15 +382,18 @@ const DoctorBookingScreen = ({ route, navigation }) => {
           reportName: uploadedDocument?.name || null,
           reportType: uploadedDocument?.type || null,
         },
+        patientName,
+        bookingDate: new Date().toISOString().split('T')[0],
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
+        createdAt: new Date().toISOString(),
       };
 
-      // Save to AsyncStorage
+      // Save strictly to physical appointments storage
       const existingJson = await AsyncStorage.getItem('@unnathi_appointments');
-      const existing = existingJson ? JSON.parse(existingJson) : [];
-      await AsyncStorage.setItem(
-        '@unnathi_appointments',
-        JSON.stringify([newAppointment, ...existing])
-      );
+      const existing = existingJson ? JSON.parse(existingJson).filter((a) => a.id !== bookingId) : [];
+      const updatedAppts = [newAppointment, ...existing];
+      await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updatedAppts));
+      await AsyncStorage.setItem('@mediunify_patient_physical_appointments', JSON.stringify(updatedAppts));
 
       // Server push
       try {
@@ -307,16 +402,20 @@ const DoctorBookingScreen = ({ route, navigation }) => {
         console.warn('Could not push doctor appointment to server:', pushErr);
       }
 
+      if (typeof window !== 'undefined' && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent('mediunify_appointments_updated', { detail: { appointment: newAppointment } }));
+      }
+
       setIsBooking(false);
 
       showAlert(
-        'Appointment Confirmed! 🎉',
+        'Appointment Confirmed',
         `Your clinic consultation with ${doctor.name} has been confirmed for ${selectedTime}.${uploadedDocument ? '\n\nAttached Record: ' + uploadedDocument.name : ''}\n\nToken: ${tokenNumber}`,
         [
           {
             text: 'View Appointments',
             onPress: () => {
-              navigation.navigate('Bookings', {
+              navigation.navigate('MyAppointments', {
                 newAppointment,
                 initialTab: 'Doctor Visits',
                 timestamp: Date.now(),
@@ -339,7 +438,7 @@ const DoctorBookingScreen = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <KeyboardAvoidingView
@@ -494,21 +593,199 @@ const DoctorBookingScreen = ({ route, navigation }) => {
                 </View>
               )}
 
-              {/* PREFERRED APPOINTMENT SLOT (EXACT STACKED PILLS MATCHING SCREENSHOT) */}
-              <Text style={styles.inputLabel}>Preferred Appointment Slot</Text>
-              <View style={styles.slotPickerRow}>
-                {['Tomorrow, 10:30 AM', 'Tomorrow, 04:30 PM', 'Day After, 11:00 AM'].map((slot, i) => (
-                  <TouchableOpacity
-                    key={i}
-                    style={[styles.slotChip, selectedTime === slot && styles.slotChipSelected]}
-                    onPress={() => setSelectedTime(slot)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.slotChipText, selectedTime === slot && styles.slotChipTextSelected]}>
-                      {slot}
+              {/* PREFERRED APPOINTMENT SLOT */}
+              <View style={styles.slotPickerSection}>
+                <View style={styles.slotHeaderRow}>
+                  <Text style={styles.inputLabel}>Choose Date & Time Slot</Text>
+                  <View style={styles.selectedSlotSummaryBadge}>
+                    <Ionicons name="checkmark-circle" size={12} color="#059669" />
+                    <Text style={styles.selectedSlotSummaryText} numberOfLines={1}>
+                      {selectedTime}
                     </Text>
-                  </TouchableOpacity>
-                ))}
+                  </View>
+                </View>
+
+                {/* HORIZONTAL DATE PICKER TABS */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.datePickerScroll}
+                  contentContainerStyle={styles.datePickerContainer}
+                >
+                  {availableDates.map((dateItem, idx) => {
+                    const isSelected = selectedDateIndex === idx;
+                    return (
+                      <TouchableOpacity
+                        key={dateItem.id}
+                        style={[styles.dateChip, isSelected && styles.dateChipSelected]}
+                        onPress={() => handleSelectDate(idx)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.dateChipTitle, isSelected && styles.dateChipTitleSelected]}>
+                          {dateItem.displayTitle}
+                        </Text>
+                        <Text style={[styles.dateChipSub, isSelected && styles.dateChipSubSelected]}>
+                          {dateItem.displaySub}
+                        </Text>
+                        <View style={[styles.dateChipBadge, isSelected && styles.dateChipBadgeSelected]}>
+                          <Text style={[styles.dateChipBadgeText, isSelected && styles.dateChipBadgeTextSelected]}>
+                            Available
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* SLOTS GROUPED BY SESSION */}
+                <View style={styles.slotsGroupCard}>
+                  {/* MORNING SLOTS */}
+                  <View style={styles.sessionSection}>
+                    <View style={styles.sessionHeaderRow}>
+                      <Ionicons name="sunny-outline" size={13} color="#D97706" />
+                      <Text style={styles.sessionHeaderTitle}>
+                        Morning OPD ({currentSlots.morning.filter((s) => s.available).length} available)
+                      </Text>
+                    </View>
+                    <View style={styles.slotsGrid}>
+                      {currentSlots.morning.map((slot) => {
+                        const isSel = selectedTime === slot.fullLabel;
+                        const isAvail = slot.available !== false;
+                        return (
+                          <TouchableOpacity
+                            key={slot.id}
+                            disabled={!isAvail}
+                            style={[
+                              styles.slotChipGrid,
+                              isSel && styles.slotChipGridSelected,
+                              !isAvail && styles.slotChipGridDisabled,
+                            ]}
+                            onPress={() => isAvail && setSelectedTime(slot.fullLabel)}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons
+                              name="time-outline"
+                              size={12}
+                              color={!isAvail ? '#94A3B8' : isSel ? '#FFFFFF' : '#0D9488'}
+                            />
+                            <Text
+                              style={[
+                                styles.slotChipGridText,
+                                isSel && styles.slotChipGridTextSelected,
+                                !isAvail && styles.slotChipGridTextDisabled,
+                              ]}
+                            >
+                              {slot.time}
+                            </Text>
+                            {!isAvail && (
+                              <Text style={styles.slotStatusTagText}>
+                                {slot.isBooked ? 'Booked' : 'Passed'}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  {/* AFTERNOON SLOTS */}
+                  <View style={styles.sessionSection}>
+                    <View style={styles.sessionHeaderRow}>
+                      <Ionicons name="partly-sunny-outline" size={13} color="#2563EB" />
+                      <Text style={styles.sessionHeaderTitle}>
+                        Afternoon OPD ({currentSlots.afternoon.filter((s) => s.available).length} available)
+                      </Text>
+                    </View>
+                    <View style={styles.slotsGrid}>
+                      {currentSlots.afternoon.map((slot) => {
+                        const isSel = selectedTime === slot.fullLabel;
+                        const isAvail = slot.available !== false;
+                        return (
+                          <TouchableOpacity
+                            key={slot.id}
+                            disabled={!isAvail}
+                            style={[
+                              styles.slotChipGrid,
+                              isSel && styles.slotChipGridSelected,
+                              !isAvail && styles.slotChipGridDisabled,
+                            ]}
+                            onPress={() => isAvail && setSelectedTime(slot.fullLabel)}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons
+                              name="time-outline"
+                              size={12}
+                              color={!isAvail ? '#94A3B8' : isSel ? '#FFFFFF' : '#0D9488'}
+                            />
+                            <Text
+                              style={[
+                                styles.slotChipGridText,
+                                isSel && styles.slotChipGridTextSelected,
+                                !isAvail && styles.slotChipGridTextDisabled,
+                              ]}
+                            >
+                              {slot.time}
+                            </Text>
+                            {!isAvail && (
+                              <Text style={styles.slotStatusTagText}>
+                                {slot.isBooked ? 'Booked' : 'Passed'}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  {/* EVENING SLOTS */}
+                  <View style={[styles.sessionSection, { marginBottom: 0 }]}>
+                    <View style={styles.sessionHeaderRow}>
+                      <Ionicons name="moon-outline" size={13} color="#1E3A8A" />
+                      <Text style={styles.sessionHeaderTitle}>
+                        Evening OPD ({currentSlots.evening.filter((s) => s.available).length} available)
+                      </Text>
+                    </View>
+                    <View style={styles.slotsGrid}>
+                      {currentSlots.evening.map((slot) => {
+                        const isSel = selectedTime === slot.fullLabel;
+                        const isAvail = slot.available !== false;
+                        return (
+                          <TouchableOpacity
+                            key={slot.id}
+                            disabled={!isAvail}
+                            style={[
+                              styles.slotChipGrid,
+                              isSel && styles.slotChipGridSelected,
+                              !isAvail && styles.slotChipGridDisabled,
+                            ]}
+                            onPress={() => isAvail && setSelectedTime(slot.fullLabel)}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons
+                              name="time-outline"
+                              size={12}
+                              color={!isAvail ? '#94A3B8' : isSel ? '#FFFFFF' : '#0D9488'}
+                            />
+                            <Text
+                              style={[
+                                styles.slotChipGridText,
+                                isSel && styles.slotChipGridTextSelected,
+                                !isAvail && styles.slotChipGridTextDisabled,
+                              ]}
+                            >
+                              {slot.time}
+                            </Text>
+                            {!isAvail && (
+                              <Text style={styles.slotStatusTagText}>
+                                {slot.isBooked ? 'Booked' : 'Passed'}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </View>
               </View>
 
               {/* PAYMENT OPTION PILLS */}
@@ -554,7 +831,7 @@ const DoctorBookingScreen = ({ route, navigation }) => {
                   <Text style={styles.summaryValue}>₹{feeAmount}</Text>
                 </View>
                 <Text style={styles.summaryNote}>
-                  ✓ Zero cancellation fee • Digital prescription included • Instant confirmation
+                  Zero cancellation fee • Digital prescription included • Instant confirmation
                 </Text>
               </View>
 
@@ -809,6 +1086,169 @@ const styles = StyleSheet.create({
   },
 
   // PREFERRED APPOINTMENT SLOTS
+  slotPickerSection: {
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  slotHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  selectedSlotSummaryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    maxWidth: '55%',
+  },
+  selectedSlotSummaryText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  datePickerScroll: {
+    marginBottom: 8,
+  },
+  datePickerContainer: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  dateChip: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+    minWidth: 84,
+  },
+  dateChipSelected: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#059669',
+    borderWidth: 1.5,
+  },
+  dateChipTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  dateChipTitleSelected: {
+    color: '#065F46',
+    fontWeight: '800',
+  },
+  dateChipSub: {
+    fontSize: 10,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  dateChipSubSelected: {
+    color: '#059669',
+    fontWeight: '600',
+  },
+  dateChipBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  dateChipBadgeSelected: {
+    backgroundColor: '#D1FAE5',
+  },
+  dateChipBadgeText: {
+    fontSize: 9,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  dateChipBadgeTextSelected: {
+    color: '#047857',
+    fontWeight: '700',
+  },
+  slotsGroupCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 10,
+  },
+  sessionSection: {
+    marginBottom: 10,
+  },
+  sessionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 6,
+  },
+  sessionHeaderTitle: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#475569',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  slotsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  slotChipGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  slotChipGridSelected: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  slotChipGridDisabled: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+    opacity: 0.65,
+    cursor: 'not-allowed',
+  },
+  slotChipGridTextDisabled: {
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  slotStatusTagText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#EF4444',
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    marginLeft: 2,
+  },
+  slotChipGridText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  slotChipGridTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
   slotPickerRow: {
     gap: 6,
     marginTop: 4,

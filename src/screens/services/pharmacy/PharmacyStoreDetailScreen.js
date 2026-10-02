@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -14,6 +13,7 @@ import {
   useWindowDimensions,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -103,7 +103,7 @@ const PharmacyStoreDetailScreen = ({ navigation, route }) => {
       if (!result.canceled && result.assets?.[0]) {
         setPrescriptionUploaded(true);
         showAlert(
-          'Prescription Uploaded! 📄',
+          'Prescription Uploaded',
           `Your prescription has been assigned to ${store.name}. The registered pharmacist will verify the order upon checkout.`
         );
       }
@@ -114,7 +114,7 @@ const PharmacyStoreDetailScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* TOP HEADER */}
@@ -238,7 +238,7 @@ const PharmacyStoreDetailScreen = ({ navigation, route }) => {
                     prescriptionUploaded && { color: '#FF5252' },
                   ]}
                 >
-                  {prescriptionUploaded ? 'Rx Attached ✓' : 'Upload Rx to Shop'}
+                  {prescriptionUploaded ? 'Rx Attached' : 'Upload Rx to Shop'}
                 </Text>
               </TouchableOpacity>
             </View>

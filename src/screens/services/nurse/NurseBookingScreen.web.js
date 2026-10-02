@@ -10,6 +10,8 @@ import {
   Image,
   Platform,
   useWindowDimensions,
+  Modal,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -23,8 +25,36 @@ import {
   assignedNursesData,
   initialNursingRequests,
 } from '../../../data/homeNursingData';
+import { useAuthGuard } from '../../../context/AuthGuardContext';
 
 const ASYNC_KEY_NURSING_REQUESTS = '@unnathi_home_nursing_requests';
+
+const NURSING_CARE_NEEDS = [
+  'General Nursing Consultation',
+  'Post-Surgical Wound Dressing',
+  'Daily Injection Administration (IM/IV)',
+  'Catheter Care & Changing',
+  'IV Infusion & Drip Management',
+  '12-Hour Day Shift Nursing',
+  '12-Hour Night Shift Nursing',
+  '24-Hour Critical Bedridden Care',
+  'Elderly Care & Vitals Monitoring',
+  'Tracheostomy & Suctioning Care',
+  'Mother & Newborn Care',
+];
+
+const NURSING_CITIES = [
+  'Bangalore',
+  'Mysore',
+  'Hyderabad',
+  'Chennai',
+  'Mumbai',
+  'Delhi NCR',
+  'Pune',
+  'Kolkata',
+  'Ahmedabad',
+  'Mangalore',
+];
 
 // Extended pricing and duration metadata for services
 const SERVICE_METADATA = {
@@ -138,9 +168,195 @@ const NurseBookingScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 992;
   const isTablet = width >= 768 && width < 992;
+  const { requireLogin } = useAuthGuard();
 
   // Active top-level view: 'LANDING' | 'REQUEST_FLOW' | 'MY_REQUESTS' | 'REQUEST_DETAILS'
   const [currentView, setCurrentView] = useState('LANDING');
+
+  // Quick Consultation Form State (matching HospitalCare reference)
+  const [selectedCareNeed, setSelectedCareNeed] = useState('');
+  const [selectedCity, setSelectedCity] = useState('Bangalore');
+  const [quickName, setQuickName] = useState('');
+  const [quickMobile, setQuickMobile] = useState('');
+  const [quickBookingLoading, setQuickBookingLoading] = useState(false);
+  const [careNeedModalVisible, setCareNeedModalVisible] = useState(false);
+  const [cityModalVisible, setCityModalVisible] = useState(false);
+  const [quickDate, setQuickDate] = useState('Today (Immediate)');
+  const [dateModalVisible, setDateModalVisible] = useState(false);
+  const [quickCalMonth, setQuickCalMonth] = useState(new Date().getMonth());
+  const [quickCalYear, setQuickCalYear] = useState(new Date().getFullYear());
+  const [selectedQuickCalDate, setSelectedQuickCalDate] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth(), day: d.getDate() };
+  });
+
+  const quickCalendarDays = useMemo(() => {
+    const firstDayIndex = new Date(quickCalYear, quickCalMonth, 1).getDay();
+    const totalDays = new Date(quickCalYear, quickCalMonth + 1, 0).getDate();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const cells = [];
+    for (let i = 0; i < firstDayIndex; i++) {
+      cells.push({ type: 'empty', key: `empty-${i}` });
+    }
+
+    for (let day = 1; day <= totalDays; day++) {
+      const cellDate = new Date(quickCalYear, quickCalMonth, day);
+      cellDate.setHours(0, 0, 0, 0);
+      const isPast = cellDate < today;
+      const isToday =
+        today.getDate() === day &&
+        today.getMonth() === quickCalMonth &&
+        today.getFullYear() === quickCalYear;
+      const isSelected =
+        selectedQuickCalDate.year === quickCalYear &&
+        selectedQuickCalDate.month === quickCalMonth &&
+        selectedQuickCalDate.day === day;
+
+      cells.push({
+        type: 'day',
+        day,
+        isPast,
+        isToday,
+        isSelected,
+        key: `qday-${day}`,
+      });
+    }
+
+    return cells;
+  }, [quickCalYear, quickCalMonth, selectedQuickCalDate]);
+
+  const handlePrevQuickMonth = () => {
+    const today = new Date();
+    if (quickCalYear === today.getFullYear() && quickCalMonth <= today.getMonth()) return;
+    if (quickCalMonth === 0) {
+      setQuickCalMonth(11);
+      setQuickCalYear((y) => y - 1);
+    } else {
+      setQuickCalMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextQuickMonth = () => {
+    if (quickCalMonth === 11) {
+      setQuickCalMonth(0);
+      setQuickCalYear((y) => y + 1);
+    } else {
+      setQuickCalMonth((m) => m + 1);
+    }
+  };
+
+  const handleSelectQuickCalDay = (day) => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const formatted = `${day} ${months[quickCalMonth]} ${quickCalYear}`;
+    setSelectedQuickCalDate({ year: quickCalYear, month: quickCalMonth, day });
+    setQuickDate(formatted);
+    setDateModalVisible(false);
+  };
+
+  const getPresetDates = () => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const today = new Date();
+    const tom = new Date(today);
+    tom.setDate(tom.getDate() + 1);
+    const dayAfter = new Date(today);
+    dayAfter.setDate(dayAfter.getDate() + 2);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+
+    return [
+      { label: 'Today (Immediate)', value: `Today (${today.getDate()} ${months[today.getMonth()]})` },
+      { label: 'Tomorrow', value: `Tomorrow (${tom.getDate()} ${months[tom.getMonth()]})` },
+      { label: `In 2 Days (${dayAfter.getDate()} ${months[dayAfter.getMonth()]})`, value: `${dayAfter.getDate()} ${months[dayAfter.getMonth()]} ${dayAfter.getFullYear()}` },
+      { label: `Next Week (${nextWeek.getDate()} ${months[nextWeek.getMonth()]})`, value: `${nextWeek.getDate()} ${months[nextWeek.getMonth()]} ${nextWeek.getFullYear()}` },
+    ];
+  };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const storedName = await AsyncStorage.getItem('userName');
+        const storedPhone = await AsyncStorage.getItem('userPhone');
+        const storedCity = await AsyncStorage.getItem('@mediunify_selected_city');
+        if (storedName) setQuickName(storedName);
+        if (storedPhone) setQuickMobile(storedPhone);
+        if (storedCity) setSelectedCity(storedCity);
+      } catch (e) {}
+    })();
+  }, []);
+
+  const handleQuickBookNurse = () => {
+    requireLogin(() => _doQuickBookNurse());
+  };
+
+  const _doQuickBookNurse = async () => {
+
+    if (!quickName.trim()) {
+      showAlert('Name Required', 'Please enter your full name.');
+      return;
+    }
+    if (!quickMobile.trim() || quickMobile.trim().replace(/[^0-9]/g, '').length < 10) {
+      showAlert('Valid Mobile Required', 'Please enter a valid 10-digit mobile number to receive your callback.');
+      return;
+    }
+
+    setQuickBookingLoading(true);
+    try {
+      const careNeed = selectedCareNeed || 'General Nursing Consultation';
+      const cleanPhone = quickMobile.trim();
+      const chosenDate = quickDate || 'Today (Immediate)';
+      const newRequest = {
+        id: `NR-${Date.now().toString().slice(-6)}`,
+        serviceName: careNeed,
+        services: [careNeed],
+        patientName: quickName.trim(),
+        contactNumber: cleanPhone,
+        address: `${selectedCity} (Home Visit)`,
+        city: selectedCity,
+        shiftDuration: 'General Visit',
+        preferredTimeSlot: 'Within 2-4 Hours',
+        startDate: chosenDate,
+        requiredDate: chosenDate,
+        careDays: 1,
+        totalPrice: '₹349',
+        status: 'Care Team Will Call You',
+        createdAt: new Date().toISOString(),
+        timeline: [
+          { stage: 'Request Placed', completed: true, timestamp: 'Just now' },
+          { stage: 'Coordinator Connecting', completed: false, timestamp: 'Within 15 mins' },
+          { stage: 'Nurse Assigned', completed: false, timestamp: 'Pending qualification match' },
+        ],
+      };
+
+      const updated = [newRequest, ...requestsList];
+      setRequestsList(updated);
+      await saveRequests(updated, newRequest);
+
+      setQuickBookingLoading(false);
+      showAlert(
+        'Consultation Booked Successfully',
+        `Thank you ${quickName.trim()}! Your request for ${careNeed} on ${chosenDate} in ${selectedCity} has been received. Our dedicated Clinical Coordinator will call ${cleanPhone} within 15 minutes.`,
+        [{ text: 'OK', style: 'default' }]
+      );
+    } catch (e) {
+      setQuickBookingLoading(false);
+      showAlert('Request Received', 'Thank you! Our nursing care coordinator will call you shortly.');
+    }
+  };
+
+  const handleCallHelpline = () => {
+    Linking.openURL('tel:+918045685554').catch(() => {
+      showAlert('Helpline', 'Please dial +91-8045685554 to reach our Nursing Care Desk.');
+    });
+  };
+
+  const handleWhatsAppCare = () => {
+    const text = encodeURIComponent('Hi, I would like to book a certified home nurse on MediUnify.');
+    Linking.openURL(`https://wa.me/917353101441?text=${text}`).catch(() => {
+      showAlert('WhatsApp', 'Please message +91-7353101441 on WhatsApp.');
+    });
+  };
 
   // Multi-step request flow: 1: Services, 2: Patient, 3: Preferences & Timing, 4: Review, 5: Confirmation
   const [flowStep, setFlowStep] = useState(1);
@@ -385,6 +601,11 @@ const NurseBookingScreen = ({ navigation, route }) => {
 
   // Start booking with specific service
   const handleStartBookingWithService = (serviceName) => {
+    requireLogin(() => _doStartBookingWithService(serviceName));
+  };
+
+  const _doStartBookingWithService = (serviceName) => {
+
     setSelectedServices([serviceName]);
     setShowAllServices(false);
     setServiceError(null);
@@ -458,11 +679,16 @@ const NurseBookingScreen = ({ navigation, route }) => {
     ];
     const picked = mockFiles[Math.floor(Math.random() * mockFiles.length)];
     setUploadedDoc(picked);
-    showAlert('Document Attached 📄', `Attached "${picked.name}" to your care request.`);
+    showAlert('Document Attached', `Attached "${picked.name}" to your care request.`);
   };
 
   // Submit Care Request
   const handleSubmitCareRequest = () => {
+    requireLogin(() => _doSubmitCareRequest());
+  };
+
+  const _doSubmitCareRequest = async () => {
+
     const newId = `HN-2026-${Math.floor(10000 + Math.random() * 90000).toString().slice(0, 5)}`;
     const nowStr = 'Just now';
 
@@ -586,515 +812,295 @@ const NurseBookingScreen = ({ navigation, route }) => {
       contentContainerStyle={[styles.scrollContent, isDesktopWeb && styles.desktopContainer]}
       showsVerticalScrollIndicator={false}
     >
-      {/* Top Breadcrumb & Actions Bar */}
-      <View style={styles.topBarRow}>
-        <View style={styles.breadcrumbRow}>
-          <TouchableOpacity onPress={() => navigation?.navigate('Home')}>
-            <Text style={styles.breadcrumbLink}>Home</Text>
-          </TouchableOpacity>
-          <Text style={styles.breadcrumbDivider}>›</Text>
-          <Text style={styles.breadcrumbCurrent}>Home Care & Nursing</Text>
-          <View style={styles.liveVerifiedPill}>
-            <View style={styles.livePulseDot} />
-            <Text style={styles.liveVerifiedPillText}>24/7 Verified Care Active</Text>
-          </View>
-        </View>
+      <View style={[styles.mainBody, isDesktopWeb && styles.desktopContainer]}>
+        <View style={[styles.layoutRow, isDesktopWeb && styles.layoutRowDesktop]}>
+          {/* ============================================================
+              LEFT COLUMN: HERO BANNER + WHY ASSURED SECTION
+          ============================================================ */}
+          <View style={[styles.leftColumn, isDesktopWeb && styles.leftColumnDesktop]}>
+            {/* 1. HERO NETWORK BANNER CARD */}
+            <View style={styles.heroCard}>
+              {/* Decorative Background Glow Discs */}
+              <View style={styles.heroGlowCircleTop} />
+              <View style={styles.heroGlowCircleBottom} />
 
-        <View style={styles.topActionsGroup}>
-          <TouchableOpacity
-            style={styles.helplineBtn}
-            onPress={() => showAlert('Care Helpline', 'Connecting to 24/7 Clinical Support: 1800-425-0099')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="call" size={14} color="#0D9488" />
-            <Text style={styles.helplineBtnText}>1800-425-0099</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.myRequestsPillBtn}
-            onPress={() => setCurrentView('MY_REQUESTS')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="receipt-outline" size={15} color="#00B894" />
-            <Text style={styles.myRequestsPillBtnText}>
-              My Requests ({requestsList.length})
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* =====================================================================
-          HERO BANNER: GRADIENT & HIGH-TRUST HERO CARD
-      ===================================================================== */}
-      <View style={styles.heroBannerCard}>
-        <View style={styles.heroContentCol}>
-          <View style={styles.heroBadgePill}>
-            <Ionicons name="shield-checkmark" size={13} color="#5EEAD4" />
-            <Text style={styles.heroBadgePillText}>NABH PROTOCOL ALIGNED • KARNATAKA NURSING COUNCIL</Text>
-          </View>
-
-          <Text style={styles.heroHeadline}>
-            Hospital-Grade Nursing Care{'\n'}
-            <Text style={styles.heroHeadlineAccent}>at the Comfort of Your Home</Text>
-          </Text>
-
-          <Text style={styles.heroSubheadline}>
-            From post-surgical wound dressings and daily injections to 24/7 elderly and bedridden care.
-            Qualified GNM & B.Sc nurses visit your home within 2 to 4 hours in Mysuru and Bengaluru.
-          </Text>
-
-          {/* Value Props Strip */}
-          <View style={styles.heroValuePropsRow}>
-            <View style={styles.heroValueItem}>
-              <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-              <Text style={styles.heroValueItemText}>Zero Advance Deposit</Text>
-            </View>
-            <View style={styles.heroValueItem}>
-              <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-              <Text style={styles.heroValueItemText}>Clinical Coordinator Guided</Text>
-            </View>
-            <View style={styles.heroValueItem}>
-              <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-              <Text style={styles.heroValueItemText}>Sterile Consumables Included</Text>
-            </View>
-          </View>
-
-          {/* Dual Action Buttons */}
-          <View style={styles.heroActionsRow}>
-            <TouchableOpacity
-              style={styles.heroPrimaryBtn}
-              onPress={() => {
-                setFlowStep(1);
-                setCurrentView('REQUEST_FLOW');
-              }}
-              activeOpacity={0.88}
-            >
-              <Ionicons name="calendar" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <Text style={styles.heroPrimaryBtnText}>Request Home Nursing</Text>
-              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.heroSecondaryBtn}
-              onPress={() => setCurrentView('MY_REQUESTS')}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="time-outline" size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
-              <Text style={styles.heroSecondaryBtnText}>Track Existing Request</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Floating Fast-Estimate Box (Desktop) */}
-        {isDesktopWeb && (
-          <View style={styles.heroFloatingCard}>
-            <View style={styles.floatingCardHeader}>
-              <View style={styles.floatingPulseBox}>
-                <Ionicons name="flash" size={16} color="#F59E0B" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.floatingCardTitle}>Need Quick Nursing?</Text>
-                <Text style={styles.floatingCardSub}>Coordinator calls in 15 mins</Text>
-              </View>
-            </View>
-
-            <View style={styles.floatingServicesList}>
-              {['Wound Dressing', 'Injection Administration', 'Vital Monitoring', 'Elderly Care'].map((srvName) => (
-                <TouchableOpacity
-                  key={srvName}
-                  style={styles.floatingChip}
-                  onPress={() => handleStartBookingWithService(srvName)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.floatingChipText}>{srvName}</Text>
-                  <Ionicons name="arrow-forward" size={12} color="#0D9488" />
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <TouchableOpacity
-              style={styles.floatingCtaBtn}
-              onPress={() => {
-                setFlowStep(1);
-                setCurrentView('REQUEST_FLOW');
-              }}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.floatingCtaBtnText}>Start Care Request →</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.floatingGuaranteeText}>
-              🔒 100% Confidential • Verified Clinicians
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* =====================================================================
-          TRUST & STATS RIBBON
-      ===================================================================== */}
-      <View style={styles.statsRibbon}>
-        <View style={styles.statBox}>
-          <Text style={styles.statValue}>15,000+</Text>
-          <Text style={styles.statLabel}>Home Care Visits Completed</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statBox}>
-          <Text style={styles.statValue}>4.9 / 5.0 ★</Text>
-          <Text style={styles.statLabel}>Average Family Rating</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statBox}>
-          <Text style={styles.statValue}>100% KNC</Text>
-          <Text style={styles.statLabel}>Licensed Registered Nurses</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statBox}>
-          <Text style={styles.statValue}>&lt; 15 Mins</Text>
-          <Text style={styles.statLabel}>Care Coordinator Callback</Text>
-        </View>
-      </View>
-
-      {/* =====================================================================
-          SEARCH & CATEGORY FILTER TABS
-      ===================================================================== */}
-      <View style={styles.searchSectionWrap}>
-        <View style={styles.sectionHeaderRow}>
-          <View>
-            <Text style={styles.sectionHeading}>Available Nursing Services & Procedures</Text>
-            <Text style={styles.sectionSubheading}>
-              Select any procedure or care package to request a certified nurse
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            style={styles.allRequestsLinkBtn}
-            onPress={() => setCurrentView('MY_REQUESTS')}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.allRequestsLinkText}>View My Active Requests ({requestsList.length}) →</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Search Input */}
-        <View style={styles.searchInputRow}>
-          <Ionicons name="search" size={19} color="#64748B" style={{ marginLeft: 14 }} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search dressing, injection, post-op, catheter, glucose check..."
-            placeholderTextColor="#94A3B8"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 10 }}>
-              <Ionicons name="close-circle" size={18} color="#94A3B8" />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Horizontal Category Filter Pills */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryPillsScroll}
-        >
-          {SERVICE_CATEGORIES.map((cat) => {
-            const isSelected = activeCategory === cat;
-            return (
-              <TouchableOpacity
-                key={cat}
-                style={[styles.categoryPillBtn, isSelected && styles.categoryPillBtnActive]}
-                onPress={() => setActiveCategory(cat)}
-                activeOpacity={0.75}
-              >
-                <Text style={[styles.categoryPillBtnText, isSelected && styles.categoryPillBtnTextActive]}>
-                  {cat}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* =====================================================================
-          SERVICES GRID (ELEVATED CARDS WITH PRICING & DETAILS)
-      ===================================================================== */}
-      <View style={[styles.servicesGrid, isDesktopWeb && styles.desktopServicesGrid]}>
-        {filteredServices.map((srv) => {
-          const meta = SERVICE_METADATA[srv.id] || { price: 'From ₹299', duration: '30 mins', shiftType: 'Per Visit' };
-          const isSelected = selectedServices.includes(srv.name);
-
-          return (
-            <View
-              key={srv.id}
-              style={[
-                styles.serviceElevatedCard,
-                isDesktopWeb && styles.desktopServiceElevatedCard,
-                isSelected && styles.serviceElevatedCardSelected,
-              ]}
-            >
-              {/* Card Top Row: Category + Popular Tag */}
-              <View style={styles.cardHeaderRow}>
-                <View style={[styles.categoryBadge, { backgroundColor: srv.bgColor }]}>
-                  <Text style={[styles.categoryBadgeText, { color: srv.color }]}>{srv.category}</Text>
-                </View>
-
-                {meta.tag && (
-                  <View style={styles.tagBadge}>
-                    <Ionicons name="sparkles" size={10} color="#0D9488" />
-                    <Text style={styles.tagBadgeText}>{meta.tag}</Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Service Icon & Title */}
-              <View style={styles.serviceTitleRow}>
-                <View style={[styles.serviceIconContainer, { backgroundColor: srv.bgColor }]}>
-                  <Ionicons name={srv.icon} size={24} color={srv.color} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.serviceCardTitle}>{srv.name}</Text>
-                  <Text style={styles.serviceCardDuration}>
-                    <Ionicons name="time-outline" size={12} color="#64748B" /> {meta.duration} • {meta.shiftType}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Description */}
-              <Text style={styles.serviceCardDesc} numberOfLines={3}>
-                {srv.shortDesc}
+              <Text style={styles.heroTitle}>India’s fastest growing home nursing network</Text>
+              <Text style={styles.heroSubtitle}>
+                Trusted across India for safe, verified home nursing care.
               </Text>
 
-              {/* Equipment Kit Included Pill */}
-              <View style={styles.consumablesPill}>
-                <Ionicons name="medkit-outline" size={13} color="#00B894" />
-                <Text style={styles.consumablesText} numberOfLines={1}>
-                  <Text style={{ fontWeight: '700' }}>Kit:</Text> {srv.equipmentProvided}
-                </Text>
-              </View>
-
-              {/* Footer: Indicative Pricing + Book CTA */}
-              <View style={styles.serviceCardFooter}>
-                <View style={styles.pricingCol}>
-                  <Text style={styles.priceSub}>Starting from</Text>
-                  <Text style={styles.priceValue}>{meta.price}</Text>
+              {/* Nurse Visual with Surrounding 4 Badges */}
+              <View style={styles.doctorVisualSection}>
+                {/* Central Circular Backdrop & Nurse Image */}
+                <View style={styles.doctorCircleBackdrop}>
+                  <Image
+                    source={require('../../../../assets/images/home-nursing-banner.jpg')}
+                    style={styles.doctorImage}
+                    resizeMode="cover"
+                  />
                 </View>
 
-                <TouchableOpacity
-                  style={styles.bookServiceBtn}
-                  onPress={() => handleStartBookingWithService(srv.name)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.bookServiceBtnText}>Book Visit</Text>
-                  <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          );
-        })}
-      </View>
-
-      {/* =====================================================================
-          MEET OUR CERTIFIED NURSES (SHOWCASING REAL CLINICAL TRUST)
-      ===================================================================== */}
-      <View style={styles.nursesShowcaseSection}>
-        <View style={styles.nursesSectionHeader}>
-          <View style={styles.nurseHeaderBadge}>
-            <Ionicons name="ribbon" size={14} color="#00B894" />
-            <Text style={styles.nurseHeaderBadgeText}>CLINICALLY VERIFIED NURSES</Text>
-          </View>
-          <Text style={styles.nursesMainTitle}>Meet Our Dedicated Home Care Nurses</Text>
-          <Text style={styles.nursesSubTitle}>
-            Trained in top tertiary hospitals with rigorous background verification, empathetic communication, and specialized clinical certifications.
-          </Text>
-        </View>
-
-        <View style={styles.nursesGrid}>
-          {Object.values(assignedNursesData).map((nurse) => (
-            <View key={nurse.id} style={styles.nurseCard}>
-              <View style={styles.nursePhotoWrapper}>
-                <Image source={{ uri: nurse.photo }} style={styles.nursePhoto} />
-                <View style={styles.nurseVerifiedCheck}>
-                  <Ionicons name="checkmark" size={12} color="#FFFFFF" />
-                </View>
-              </View>
-
-              <View style={styles.nurseInfoCol}>
-                <View style={styles.nurseNameRow}>
-                  <Text style={styles.nurseName}>{nurse.name}</Text>
-                  <View style={styles.nurseRatingPill}>
-                    <Ionicons name="star" size={12} color="#F59E0B" />
-                    <Text style={styles.nurseRatingText}>{nurse.rating}</Text>
+                {/* 4 Floating Badges Around Nurse */}
+                {/* Top Left: 50,000+ Home Visits */}
+                <View style={[styles.floatingBadge, styles.badgeTopLeft]}>
+                  <View style={[styles.badgeIconWrap, { backgroundColor: '#ECFDF5' }]}>
+                    <Ionicons name="person" size={16} color="#00B894" />
+                  </View>
+                  <View>
+                    <Text style={styles.badgeBoldText}>50,000+</Text>
+                    <Text style={styles.badgeSubText}>Home Visits</Text>
                   </View>
                 </View>
 
-                <Text style={styles.nurseQualification}>
-                  {nurse.qualification} • {nurse.experience} Exp
-                </Text>
+                {/* Top Right: 2,500+ Nurses */}
+                <View style={[styles.floatingBadge, styles.badgeTopRight]}>
+                  <View style={[styles.badgeIconWrap, { backgroundColor: '#EFF6FF' }]}>
+                    <Ionicons name="medkit" size={16} color="#1E3A8A" />
+                  </View>
+                  <View>
+                    <Text style={styles.badgeBoldText}>2,500+</Text>
+                    <Text style={styles.badgeSubText}>Verified Nurses</Text>
+                  </View>
+                </View>
 
-                <View style={styles.nurseSpecializationRow}>
-                  <Ionicons name="medical" size={12} color="#00B894" />
-                  <Text style={styles.nurseSpecializationText} numberOfLines={1}>
-                    {nurse.specialization}
+                {/* Bottom Left: 25+ Cities */}
+                <View style={[styles.floatingBadge, styles.badgeBottomLeft]}>
+                  <View style={[styles.badgeIconWrap, { backgroundColor: '#FFF5F0' }]}>
+                    <Ionicons name="business" size={16} color="#FF7F50" />
+                  </View>
+                  <View>
+                    <Text style={styles.badgeBoldText}>25+</Text>
+                    <Text style={styles.badgeSubText}>Cities</Text>
+                  </View>
+                </View>
+
+                {/* Bottom Right: 100% Hospital Protocol */}
+                <View style={[styles.floatingBadge, styles.badgeBottomRight]}>
+                  <View style={[styles.badgeIconWrap, { backgroundColor: '#F0FDFA' }]}>
+                    <Ionicons name="shield-checkmark" size={16} color="#00C2CB" />
+                  </View>
+                  <View>
+                    <Text style={styles.badgeBoldText}>100%</Text>
+                    <Text style={styles.badgeSubText}>Hospital Protocol</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* 2. WHY MEDIUNIFY ASSURED CARD */}
+            <View style={styles.assuredCard}>
+              <Text style={styles.assuredSectionHeader}>Why MediUnify Assured?</Text>
+
+              {/* Sub-header 1: MediUnify Assured Benefits */}
+              <Text style={styles.assuredSubHeader}>MediUnify Assured Benefits</Text>
+
+              {/* Grid of 3 Benefits */}
+              <View style={styles.benefitsGrid}>
+                {/* Card 1: 4.9/5 Clinical Excellence */}
+                <View style={styles.benefitItemCard}>
+                  <View style={styles.benefitTopRow}>
+                    <Ionicons name="star" size={20} color="#1E3A8A" />
+                    <Text style={styles.benefitScoreText}>4.9/5</Text>
+                  </View>
+                  <Text style={styles.benefitItemTitle}>Clinical Excellence Rating</Text>
+                  <Text style={styles.benefitItemDesc}>
+                    Evaluated for sterile protocols, GNM/B.Sc licensure, hygiene compliance, and audited clinical standards.
                   </Text>
                 </View>
 
-                <View style={styles.nurseMetaRow}>
-                  <Text style={styles.nurseCouncilText}>Reg: {nurse.councilReg}</Text>
-                  <Text style={styles.nurseLanguagesText}>
-                    🗣 {nurse.languages.join(', ')}
+                {/* Card 2: 2,500+ Assured Nurses */}
+                <View style={styles.benefitItemCard}>
+                  <View style={styles.benefitTopRow}>
+                    <Ionicons name="shield-checkmark-outline" size={20} color="#1E3A8A" />
+                    <Text style={styles.benefitScoreText}>2,500+</Text>
+                  </View>
+                  <Text style={styles.benefitItemTitle}>Assured Nurses</Text>
+                  <Text style={styles.benefitItemDesc}>
+                    Carefully vetted & police-verified clinicians with certified hospital background checks.
                   </Text>
                 </View>
 
+                {/* Card 3: 15+ Years of Expertise */}
+                <View style={styles.benefitItemCard}>
+                  <View style={styles.benefitTopRow}>
+                    <Ionicons name="business-outline" size={20} color="#1E3A8A" />
+                    <Text style={styles.benefitScoreText}>15+</Text>
+                  </View>
+                  <Text style={styles.benefitItemTitle}>Years of Expertise</Text>
+                  <Text style={styles.benefitItemDesc}>
+                    Standardized care protocols, sterile consumable kits, and zero advance deposit.
+                  </Text>
+                </View>
+              </View>
+
+              {/* Sub-header 2: MediUnify's Assured Network */}
+              <Text style={[styles.assuredSubHeader, { marginTop: 24 }]}>MediUnify's Assured Network</Text>
+
+              {/* 3 Column Stat Strip */}
+              <View style={styles.networkStatsStrip}>
+                <View style={styles.networkStatCol}>
+                  <Text style={styles.networkStatNum}>1 Lakh+</Text>
+                  <Text style={styles.networkStatLabel}>Patients Nursed</Text>
+                </View>
+                <View style={styles.networkStatDivider} />
+                <View style={styles.networkStatCol}>
+                  <Text style={styles.networkStatNum}>2,500+</Text>
+                  <Text style={styles.networkStatLabel}>Verified Nurses</Text>
+                </View>
+                <View style={styles.networkStatDivider} />
+                <View style={styles.networkStatCol}>
+                  <Text style={styles.networkStatNum}>25+</Text>
+                  <Text style={styles.networkStatLabel}>Cities</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* ============================================================
+              RIGHT COLUMN: CONSULTATION BOOKING FORM & DIRECT CONTACTS
+          ============================================================ */}
+          <View style={[styles.rightColumn, isDesktopWeb && styles.rightColumnDesktop]}>
+            {/* BOOKING CARD */}
+            <View style={styles.formCard}>
+              <Text style={styles.formTitle}>Book your consultation today</Text>
+              <Text style={styles.formSubtitle}>Get a Call Back Within 15 Minutes</Text>
+
+              <View style={styles.formBody}>
+                {/* Field 1: Nursing Care Need Selector */}
                 <TouchableOpacity
-                  style={styles.requestThisNurseBtn}
-                  onPress={() => {
-                    setFlowStep(1);
-                    setCurrentView('REQUEST_FLOW');
-                  }}
+                  style={styles.dropdownField}
+                  onPress={() => setCareNeedModalVisible(true)}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.requestThisNurseBtnText}>Request Similar Nurse →</Text>
+                  <Text
+                    style={[
+                      styles.dropdownFieldText,
+                      !selectedCareNeed && styles.placeholderText,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {selectedCareNeed || 'Home Nursing Need'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={18} color="#64748B" />
                 </TouchableOpacity>
+
+                {/* Field 2: City Selector */}
+                <TouchableOpacity
+                  style={styles.dropdownField}
+                  onPress={() => setCityModalVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.dropdownFieldText} numberOfLines={1}>
+                    {selectedCity || 'Bangalore'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={18} color="#64748B" />
+                </TouchableOpacity>
+
+                {/* Field 3: Service Required Date */}
+                <TouchableOpacity
+                  style={styles.dropdownField}
+                  onPress={() => setDateModalVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                    <Ionicons name="calendar-outline" size={17} color="#00B894" />
+                    <Text
+                      style={[
+                        styles.dropdownFieldText,
+                        !quickDate && styles.placeholderText,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {quickDate ? `Service Date: ${quickDate}` : 'When do you need care? (Select Date)'}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={18} color="#64748B" />
+                </TouchableOpacity>
+
+                {/* Field 4: Name */}
+                <View style={styles.inputField}>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Name"
+                    placeholderTextColor="#94A3B8"
+                    value={quickName}
+                    onChangeText={setQuickName}
+                  />
+                </View>
+
+                {/* Field 4: Mobile Number */}
+                <View style={styles.inputField}>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Mobile Number"
+                    placeholderTextColor="#94A3B8"
+                    value={quickMobile}
+                    onChangeText={setQuickMobile}
+                    keyboardType="phone-pad"
+                    maxLength={15}
+                  />
+                </View>
+
+                {/* Submit Button */}
+                <TouchableOpacity
+                  style={styles.submitBtn}
+                  onPress={handleQuickBookNurse}
+                  activeOpacity={0.9}
+                  disabled={quickBookingLoading}
+                >
+                  <Text style={styles.submitBtnText}>
+                    {quickBookingLoading ? 'Submitting...' : 'Book Appointment'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* T&C Disclaimer */}
+                <Text style={styles.termsText}>
+                  By submitting the form, you agree to MediUnify's <Text style={styles.termsLink}>T&C</Text>
+                </Text>
               </View>
             </View>
-          ))}
-        </View>
-      </View>
 
-      {/* =====================================================================
-          HOW IT WORKS (INTERACTIVE 4-STEP WORKFLOW)
-      ===================================================================== */}
-      <View style={styles.howItWorksSection}>
-        <View style={styles.howItWorksHeader}>
-          <Text style={styles.howTitle}>How MediUnify Home Nursing Works</Text>
-          <Text style={styles.howSubtitle}>A doctor-guided, transparent clinical journey from request to full recovery</Text>
-        </View>
-
-        <View style={styles.howStepsGrid}>
-          {howItWorksSteps.map((item) => (
-            <View key={item.step} style={styles.howStepCard}>
-              <View style={styles.howStepNumPill}>
-                <Text style={styles.howStepNumText}>Step {item.step}</Text>
-              </View>
-              <View style={styles.howIconCircle}>
-                <Ionicons name={item.icon} size={24} color="#00B894" />
-              </View>
-              <Text style={styles.howStepTitle}>{item.title}</Text>
-              <Text style={styles.howStepDesc}>{item.desc}</Text>
+            {/* OR DIVIDER */}
+            <View style={styles.orDividerContainer}>
+              <View style={styles.orDividerLine} />
+              <Text style={styles.orText}>OR</Text>
+              <View style={styles.orDividerLine} />
             </View>
-          ))}
-        </View>
-      </View>
 
-      {/* =====================================================================
-          PATIENT FAMILY TESTIMONIALS
-      ===================================================================== */}
-      <View style={styles.testimonialsSection}>
-        <View style={styles.testimonialsHeader}>
-          <Text style={styles.testimonialsTitle}>Trusted by Families Across Karnataka</Text>
-          <Text style={styles.testimonialsSub}>Real experiences from patient relatives and caregivers</Text>
-        </View>
-
-        <View style={styles.testimonialsGrid}>
-          {PATIENT_TESTIMONIALS.map((t) => (
-            <View key={t.id} style={styles.testimonialCard}>
-              <View style={styles.testimonialStarsRow}>
-                {[...Array(t.rating)].map((_, i) => (
-                  <Ionicons key={i} name="star" size={15} color="#F59E0B" style={{ marginRight: 2 }} />
-                ))}
-                <View style={styles.testimonialVerifiedPill}>
-                  <Ionicons name="checkmark-circle" size={11} color="#059669" />
-                  <Text style={styles.testimonialVerifiedText}>Verified Care</Text>
-                </View>
-              </View>
-
-              <Text style={styles.testimonialQuote}>"{t.text}"</Text>
-
-              <View style={styles.testimonialAuthorRow}>
-                <View style={styles.authorAvatarCircle}>
-                  <Text style={styles.authorAvatarText}>{t.patient.charAt(0)}</Text>
-                </View>
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={styles.authorName}>{t.patient}</Text>
-                  <Text style={styles.authorFamily}>{t.family} • {t.location}</Text>
-                  <Text style={styles.authorServiceTag}>{t.service}</Text>
-                </View>
-              </View>
-            </View>
-          ))}
-        </View>
-      </View>
-
-      {/* =====================================================================
-          FREQUENTLY ASKED QUESTIONS ACCORDION
-      ===================================================================== */}
-      <View style={styles.faqSection}>
-        <View style={styles.faqHeader}>
-          <Text style={styles.faqTitle}>Frequently Asked Questions</Text>
-          <Text style={styles.faqSub}>Clear answers about pricing, nurse verification, and clinical safety</Text>
-        </View>
-
-        <View style={styles.faqList}>
-          {FAQS.map((faq, idx) => {
-            const isOpen = activeFaqIndex === idx;
-            return (
+            {/* DIRECT CONTACT CARD */}
+            <View style={styles.contactCard}>
               <TouchableOpacity
-                key={idx}
-                style={[styles.faqItemCard, isOpen && styles.faqItemCardOpen]}
-                onPress={() => setActiveFaqIndex(isOpen ? null : idx)}
+                style={styles.contactRow}
+                onPress={handleCallHelpline}
                 activeOpacity={0.8}
               >
-                <View style={styles.faqQuestionRow}>
-                  <Ionicons
-                    name="help-circle"
-                    size={18}
-                    color={isOpen ? '#00B894' : '#64748B'}
-                    style={{ marginRight: 10 }}
-                  />
-                  <Text style={[styles.faqQuestionText, isOpen && styles.faqQuestionTextActive]}>
-                    {faq.q}
-                  </Text>
-                  <Ionicons
-                    name={isOpen ? 'chevron-up' : 'chevron-down'}
-                    size={18}
-                    color={isOpen ? '#00B894' : '#94A3B8'}
-                  />
-                </View>
-
-                {isOpen && (
-                  <View style={styles.faqAnswerWrap}>
-                    <Text style={styles.faqAnswerText}>{faq.a}</Text>
+                <View style={styles.contactLeft}>
+                  <View style={styles.phoneIconWrap}>
+                    <Ionicons name="call" size={16} color="#FFFFFF" />
                   </View>
-                )}
+                  <Text style={styles.contactLabel}>Reach Out to Us</Text>
+                </View>
+                <Text style={styles.contactNumber}>+91-8045685554</Text>
               </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
 
-      {/* =====================================================================
-          EMERGENCY COORDINATOR HELPLINE STRIP
-      ===================================================================== */}
-      <View style={styles.emergencyStrip}>
-        <View style={styles.emergencyIconWrap}>
-          <Ionicons name="call" size={26} color="#FFFFFF" />
+              <View style={styles.contactDivider} />
+
+              <TouchableOpacity
+                style={styles.contactRow}
+                onPress={handleWhatsAppCare}
+                activeOpacity={0.8}
+              >
+                <View style={styles.contactLeft}>
+                  <View style={styles.whatsappIconWrap}>
+                    <Ionicons name="logo-whatsapp" size={18} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.contactLabel}>Chat with Us</Text>
+                </View>
+                <Text style={styles.contactNumber}>+91-7353101441</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
-        <View style={{ flex: 1, marginLeft: 16 }}>
-          <Text style={styles.emergencyTitle}>Have Questions or Need Urgent Home Care?</Text>
-          <Text style={styles.emergencySub}>
-            Our clinical triage desk is active 24/7. Call our care coordinator directly at{' '}
-            <Text style={{ fontWeight: '800', color: '#FFFFFF' }}>1800-425-0099</Text>.
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={styles.emergencyCallNowBtn}
-          onPress={() => showAlert('Calling Care Coordinator', 'Dialing MediUnify Home Care Desk: 1800-425-0099')}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.emergencyCallNowBtnText}>Call Coordinator Now</Text>
-        </TouchableOpacity>
       </View>
 
       {isDesktopWeb && <WebFooter />}
@@ -1316,9 +1322,10 @@ const NurseBookingScreen = ({ navigation, route }) => {
                     </Text>
                     <TouchableOpacity
                       onPress={() => setShowAllServices(false)}
-                      style={styles.doneAddingPill}
+                      style={[styles.doneAddingPill, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}
                     >
-                      <Text style={styles.doneAddingPillText}>Done Selecting ✓</Text>
+                      <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+                      <Text style={styles.doneAddingPillText}>Done Selecting</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -1357,9 +1364,12 @@ const NurseBookingScreen = ({ navigation, route }) => {
                             <Text style={styles.selectCardPrice}>{meta.price}</Text>
                           </View>
                           <Text style={styles.selectCardDesc}>{item.shortDesc}</Text>
-                          <Text style={styles.selectCardKit}>
-                            🩺 <Text style={{ fontWeight: '600' }}>Kit:</Text> {item.equipmentProvided}
-                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                            <Ionicons name="medkit-outline" size={12} color="#00B894" />
+                            <Text style={styles.selectCardKit}>
+                              <Text style={{ fontWeight: '600' }}>Kit:</Text> {item.equipmentProvided}
+                            </Text>
+                          </View>
                         </View>
                       </TouchableOpacity>
                     );
@@ -2102,7 +2112,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
                 style={[styles.trackRequestBtn, { backgroundColor: '#10B981' }]}
                 onPress={() => {
                   if (navigation?.navigate) {
-                    navigation.navigate('Bookings', { initialTab: 'upcoming', newAppointment: newlyCreatedRequest });
+                    navigation.navigate('MyAppointments', { initialTab: 'upcoming', newAppointment: newlyCreatedRequest });
                   } else {
                     setSelectedRequestDetail(newlyCreatedRequest);
                     setCurrentView('MY_REQUESTS');
@@ -2413,6 +2423,245 @@ const NurseBookingScreen = ({ navigation, route }) => {
       {currentView === 'REQUEST_FLOW' && renderRequestFlowView()}
       {currentView === 'MY_REQUESTS' && renderMyRequestsView()}
       {currentView === 'REQUEST_DETAILS' && renderRequestDetailsView()}
+
+      {/* CARE NEED SELECTION MODAL */}
+      <Modal
+        visible={careNeedModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setCareNeedModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setCareNeedModalVisible(false)}
+        >
+          <View style={styles.modalContentCard} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Nursing Care Need</Text>
+              <TouchableOpacity onPress={() => setCareNeedModalVisible(false)}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 340 }} showsVerticalScrollIndicator={true}>
+              {NURSING_CARE_NEEDS.map((need, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    styles.modalListItem,
+                    selectedCareNeed === need && styles.modalListItemSelected,
+                  ]}
+                  onPress={() => {
+                    setSelectedCareNeed(need);
+                    setCareNeedModalVisible(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.modalListItemText,
+                      selectedCareNeed === need && styles.modalListItemTextSelected,
+                    ]}
+                  >
+                    {need}
+                  </Text>
+                  {selectedCareNeed === need && (
+                    <Ionicons name="checkmark-circle" size={18} color="#1E3A8A" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* CITY SELECTION MODAL */}
+      <Modal
+        visible={cityModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setCityModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setCityModalVisible(false)}
+        >
+          <View style={styles.modalContentCard} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select City</Text>
+              <TouchableOpacity onPress={() => setCityModalVisible(false)}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 340 }} showsVerticalScrollIndicator={true}>
+              {NURSING_CITIES.map((city, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    styles.modalListItem,
+                    selectedCity === city && styles.modalListItemSelected,
+                  ]}
+                  onPress={() => {
+                    setSelectedCity(city);
+                    setCityModalVisible(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.modalListItemText,
+                      selectedCity === city && styles.modalListItemTextSelected,
+                    ]}
+                  >
+                    {city}
+                  </Text>
+                  {selectedCity === city && (
+                    <Ionicons name="checkmark-circle" size={18} color="#1E3A8A" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* SERVICE REQUIRED DATE SELECTION MODAL */}
+      <Modal
+        visible={dateModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setDateModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setDateModalVisible(false)}
+        >
+          <View style={[styles.modalContentCard, { maxWidth: 460 }]} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>When do you need the service?</Text>
+                <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                  Choose a quick option or pick a preferred date
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setDateModalVisible(false)}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Quick Preset Chips */}
+            <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A', marginTop: 8, marginBottom: 8 }}>
+              Quick Selection:
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+              {getPresetDates().map((preset, idx) => {
+                const isSelected = quickDate === preset.value;
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    style={[
+                      styles.modalPresetChip,
+                      isSelected && styles.modalPresetChipSelected,
+                    ]}
+                    onPress={() => {
+                      setQuickDate(preset.value);
+                      setDateModalVisible(false);
+                    }}
+                  >
+                    <Ionicons
+                      name="flash"
+                      size={13}
+                      color={isSelected ? '#00B894' : '#64748B'}
+                      style={{ marginRight: 4 }}
+                    />
+                    <Text
+                      style={[
+                        styles.modalPresetChipText,
+                        isSelected && styles.modalPresetChipTextSelected,
+                      ]}
+                    >
+                      {preset.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Interactive Calendar Header */}
+            <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A', marginBottom: 8 }}>
+              Or Select Specific Date:
+            </Text>
+            <View style={styles.calendarContainer}>
+              <View style={styles.calNavHeader}>
+                <TouchableOpacity
+                  style={styles.calNavBtn}
+                  onPress={handlePrevQuickMonth}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="chevron-back" size={16} color="#0F172A" />
+                </TouchableOpacity>
+
+                <View style={styles.calMonthYearBox}>
+                  <Text style={styles.calMonthYearText}>
+                    {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][quickCalMonth]} {quickCalYear}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.calNavBtn}
+                  onPress={handleNextQuickMonth}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="chevron-forward" size={16} color="#0F172A" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Weekdays */}
+              <View style={styles.calWeekdaysRow}>
+                {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d, i) => (
+                  <View key={i} style={styles.calWeekdayCell}>
+                    <Text style={styles.calWeekdayText}>{d}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Days Grid */}
+              <View style={styles.calGrid}>
+                {quickCalendarDays.map((cell) => {
+                  if (cell.type === 'empty') {
+                    return <View key={cell.key} style={styles.calDayCell} />;
+                  }
+                  return (
+                    <TouchableOpacity
+                      key={cell.key}
+                      style={[
+                        styles.calDayCell,
+                        cell.isSelected && styles.calDayCellSelected,
+                        cell.isToday && !cell.isSelected && styles.calDayCellToday,
+                      ]}
+                      onPress={() => !cell.isPast && handleSelectQuickCalDay(cell.day)}
+                      disabled={cell.isPast}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.calDayText,
+                          cell.isPast && styles.calDayTextPast,
+                          cell.isToday && !cell.isSelected && styles.calDayTextToday,
+                          cell.isSelected && styles.calDayTextSelected,
+                        ]}
+                      >
+                        {cell.day}
+                      </Text>
+                      {cell.isToday && !cell.isSelected && <View style={styles.calTodayDot} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -2423,7 +2672,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FAFCFD',
   },
   scrollContainer: {
     flex: 1,
@@ -2445,7 +2694,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#DCE7EC',
     marginBottom: 20,
     flexWrap: 'wrap',
     gap: 12,
@@ -2467,7 +2716,7 @@ const styles = StyleSheet.create({
   },
   breadcrumbCurrent: {
     fontSize: 13,
-    color: '#0F172A',
+    color: '#1E3A8A',
     fontWeight: '700',
   },
   liveVerifiedPill: {
@@ -2478,19 +2727,19 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#DCE7EC',
     gap: 5,
   },
   livePulseDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#10B981',
+    backgroundColor: '#7BC96F',
   },
   liveVerifiedPillText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#047857',
+    color: '#00B894',
   },
   topActionsGroup: {
     flexDirection: 'row',
@@ -2500,19 +2749,19 @@ const styles = StyleSheet.create({
   helplineBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0FDFA',
+    backgroundColor: '#F1F8FB',
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#99F6E4',
+    borderColor: '#DCE7EC',
     gap: 6,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   helplineBtnText: {
     fontSize: 12.5,
     fontWeight: '700',
-    color: '#0D9488',
+    color: '#00B894',
   },
   myRequestsPillBtn: {
     flexDirection: 'row',
@@ -2534,7 +2783,7 @@ const styles = StyleSheet.create({
 
   // Hero Banner Card
   heroBannerCard: {
-    backgroundColor: '#0F172A',
+    backgroundColor: '#F1F8FB',
     borderRadius: 20,
     padding: 32,
     flexDirection: 'row',
@@ -2544,12 +2793,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
     borderWidth: 1,
-    borderColor: '#1E293B',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 8,
+    borderColor: '#DCE7EC',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 4,
   },
   heroContentCol: {
     flex: 1,
@@ -2558,36 +2807,36 @@ const styles = StyleSheet.create({
   heroBadgePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(94, 234, 212, 0.12)',
+    backgroundColor: '#ECFDF5',
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(94, 234, 212, 0.25)',
+    borderColor: '#DCE7EC',
     gap: 6,
     marginBottom: 14,
   },
   heroBadgePillText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#5EEAD4',
+    color: '#00B894',
     letterSpacing: 0.4,
   },
   heroHeadline: {
     fontSize: 32,
     fontWeight: '900',
-    color: '#FFFFFF',
+    color: '#1E3A8A',
     lineHeight: 40,
     letterSpacing: -0.6,
     marginBottom: 12,
   },
   heroHeadlineAccent: {
-    color: '#2DD4BF',
+    color: '#00B894',
   },
   heroSubheadline: {
     fontSize: 14.5,
-    color: '#CBD5E1',
+    color: '#64748B',
     lineHeight: 22,
     marginBottom: 20,
     maxWidth: 680,
@@ -2605,7 +2854,7 @@ const styles = StyleSheet.create({
   },
   heroValueItemText: {
     fontSize: 13,
-    color: '#E2E8F0',
+    color: '#334155',
     fontWeight: '600',
   },
   heroActionsRow: {
@@ -2623,8 +2872,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     shadowColor: '#00B894',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
     elevation: 4,
     ...(Platform.OS === 'web' ? { cursor: 'pointer', transition: 'all 0.2s ease' } : {}),
   },
@@ -2636,18 +2885,22 @@ const styles = StyleSheet.create({
   heroSecondaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 18,
     paddingVertical: 13,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: '#DCE7EC',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   heroSecondaryBtnText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#1E3A8A',
   },
 
   // Hero Floating Quick Estimate Card (Desktop)
@@ -4963,6 +5216,559 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '600',
     color: '#00B894',
+  },
+
+  // Reference Hero & Form Layout matching HospitalCareScreen
+  desktopBreadcrumbWrap: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    marginBottom: 20,
+    width: '100%',
+  },
+  desktopBreadcrumbInner: {
+    maxWidth: 1240,
+    alignSelf: 'center',
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  breadcrumbActive: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E3A8A',
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  verifiedBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+
+  // LAYOUT
+  mainBody: {
+    width: '100%',
+    paddingTop: 20,
+    paddingBottom: 24,
+  },
+  layoutRow: {
+    flexDirection: 'column',
+    gap: 24,
+  },
+  layoutRowDesktop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 24,
+  },
+  leftColumn: {
+    width: '100%',
+    gap: 24,
+  },
+  leftColumnDesktop: {
+    flex: 1.35,
+  },
+  rightColumn: {
+    width: '100%',
+    gap: 16,
+  },
+  rightColumnDesktop: {
+    flex: 0.9,
+    maxWidth: 420,
+    position: Platform.OS === 'web' ? 'sticky' : 'relative',
+    top: Platform.OS === 'web' ? 20 : 0,
+  },
+
+  // 1. HERO NETWORK BANNER CARD
+  heroCard: {
+    backgroundColor: '#00B894', // Brand Teal
+    borderRadius: 20,
+    padding: 28,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 18,
+    elevation: 4,
+    alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  heroGlowCircleTop: {
+    position: 'absolute',
+    top: -60,
+    right: -60,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(0, 194, 203, 0.25)', // Aqua glow
+    pointerEvents: 'none',
+  },
+  heroGlowCircleBottom: {
+    position: 'absolute',
+    bottom: -70,
+    left: -70,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: 'rgba(123, 201, 111, 0.22)', // Fresh Green glow
+    pointerEvents: 'none',
+  },
+  heroTitle: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 8,
+    letterSpacing: -0.3,
+    zIndex: 2,
+    textShadow: '0px 2px 4px rgba(0, 0, 0, 0.15)',
+  },
+  heroSubtitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#ECFDF5', // Soft Mint White
+    textAlign: 'center',
+    marginBottom: 26,
+    zIndex: 2,
+  },
+
+  // Nurse Visual with surrounding badges
+  doctorVisualSection: {
+    width: '100%',
+    maxWidth: 480,
+    height: 320,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    zIndex: 2,
+  },
+  doctorCircleBackdrop: {
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  doctorImage: {
+    width: 210,
+    height: 210,
+  },
+
+  // 4 Badges
+  floatingBadge: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#BFDBFE',
+    borderRadius: 24,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    gap: 8,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
+    zIndex: 10,
+  },
+  badgeIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeBoldText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E3A8A',
+    lineHeight: 16,
+  },
+  badgeSubText: {
+    fontSize: 11,
+    color: '#64748B',
+    lineHeight: 13,
+  },
+  badgeTopLeft: {
+    top: 20,
+    left: 10,
+  },
+  badgeTopRight: {
+    top: 20,
+    right: 10,
+  },
+  badgeBottomLeft: {
+    bottom: 25,
+    left: 15,
+  },
+  badgeBottomRight: {
+    bottom: 25,
+    right: 15,
+  },
+
+  // 2. WHY MEDIUNIFY ASSURED SECTION
+  assuredCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 26,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  assuredSectionHeader: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 16,
+  },
+  assuredSubHeader: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 14,
+  },
+  benefitsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  benefitItemCard: {
+    flex: 1,
+    minWidth: Platform.OS === 'web' ? 180 : '100%',
+    backgroundColor: '#F0F8FF',
+    borderWidth: 1,
+    borderColor: '#DCEEFF',
+    borderRadius: 12,
+    padding: 16,
+  },
+  benefitTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  benefitScoreText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#1E3A8A',
+  },
+  benefitItemTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+    lineHeight: 18,
+  },
+  benefitItemDesc: {
+    fontSize: 11,
+    color: '#475569',
+    lineHeight: 16,
+  },
+  networkStatsStrip: {
+    flexDirection: 'row',
+    backgroundColor: '#F0F8FF',
+    borderWidth: 1,
+    borderColor: '#DCEEFF',
+    borderRadius: 12,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  networkStatCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  networkStatNum: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#1E3A8A',
+    marginBottom: 2,
+  },
+  networkStatLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  networkStatDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: '#CBD5E1',
+  },
+
+  // RIGHT COLUMN: FORM CARD
+  formCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  formTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  formSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    marginBottom: 20,
+  },
+  formBody: {
+    gap: 14,
+  },
+  dropdownField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    height: 46,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  dropdownFieldText: {
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '500',
+    flex: 1,
+  },
+  placeholderText: {
+    color: '#94A3B8',
+  },
+  inputField: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    height: 46,
+    justifyContent: 'center',
+  },
+  textInput: {
+    fontSize: 14,
+    color: '#0F172A',
+    height: '100%',
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+  },
+  submitBtn: {
+    backgroundColor: '#1E293B',
+    height: 48,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 6,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  submitBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  termsText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  termsLink: {
+    color: '#2563EB',
+    fontWeight: '600',
+  },
+
+  // OR DIVIDER
+  orDividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  orDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E2E8F0',
+  },
+  orText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontWeight: '700',
+    paddingHorizontal: 12,
+  },
+
+  // DIRECT CONTACT CARD
+  contactCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+    gap: 12,
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  contactLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  phoneIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#00B894',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  whatsappIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#25D366',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  contactLabel: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  contactNumber: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E3A8A',
+  },
+  contactDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+  },
+
+  // MODALS
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContentCard: {
+    width: '100%',
+    maxWidth: 440,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    marginBottom: 8,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  modalListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  modalListItemSelected: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 8,
+  },
+  modalListItemText: {
+    fontSize: 14,
+    color: '#334155',
+  },
+  modalListItemTextSelected: {
+    color: '#1E3A8A',
+    fontWeight: '700',
+  },
+  modalPresetChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  modalPresetChipSelected: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#00B894',
+  },
+  modalPresetChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  modalPresetChipTextSelected: {
+    color: '#00B894',
+    fontWeight: '700',
   },
 });
 

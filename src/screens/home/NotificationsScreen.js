@@ -3,11 +3,11 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   ScrollView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../theme/colors';
 
@@ -22,7 +22,7 @@ const NOTIFICATIONS_DATA = [
     icon: 'calendar',
     iconColor: '#00B894',
     iconBg: '#E6F9F4',
-    route: 'Bookings',
+    route: 'MyAppointments',
     ctaText: 'View Appointment',
   },
   {
@@ -59,8 +59,8 @@ const NOTIFICATIONS_DATA = [
     time: 'Yesterday',
     unread: false,
     icon: 'wallet',
-    iconColor: '#8B5CF6',
-    iconBg: '#F5F3FF',
+    iconColor: '#00B894',
+    iconBg: '#E6F8F5',
     route: 'Wallet',
     ctaText: 'View Wallet',
   },
@@ -72,9 +72,9 @@ const NOTIFICATIONS_DATA = [
     time: '2 days ago',
     unread: false,
     icon: 'videocam',
-    iconColor: '#10B981',
-    iconBg: '#ECFDF5',
-    route: 'Bookings',
+    iconColor: '#7BC96F',
+    iconBg: '#F2FAF0',
+    route: 'MyAppointments',
     ctaText: 'Consultation Details',
   },
 ];
@@ -107,7 +107,7 @@ const NotificationsScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <View style={styles.contentWrap}>
         {/* Header */}
         <View style={styles.header}>

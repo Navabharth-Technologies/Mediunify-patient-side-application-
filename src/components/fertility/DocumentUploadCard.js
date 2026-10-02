@@ -21,7 +21,7 @@ const DocumentUploadCard = ({
       {document ? (
         <View style={styles.filePreviewBox}>
           <View style={styles.fileIconWrap}>
-            <Ionicons name="document-text" size={24} color="#E11D48" />
+            <Ionicons name="document-text" size={24} color="#00B894" />
           </View>
           <View style={styles.fileInfo}>
             <Text style={styles.fileName} numberOfLines={1}>
@@ -36,7 +36,7 @@ const DocumentUploadCard = ({
             onPress={onRemove}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="trash-outline" size={18} color="#EF4444" />
+            <Ionicons name="trash-outline" size={18} color="#FF7F50" />
           </TouchableOpacity>
         </View>
       ) : (
@@ -46,7 +46,7 @@ const DocumentUploadCard = ({
           activeOpacity={0.8}
         >
           <View style={styles.uploadIconCircle}>
-            <Ionicons name="cloud-upload-outline" size={20} color="#E11D48" />
+            <Ionicons name="cloud-upload-outline" size={20} color="#00B894" />
           </View>
           <Text style={styles.uploadPrompt}>Tap to select or take photo</Text>
           <Text style={styles.uploadSub}>Confidential HIPAA vault storage</Text>
@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
   },
   requiredStar: {
     fontSize: 14,
-    color: '#E11D48',
+    color: '#FF7F50',
     fontWeight: '800',
   },
   subtitle: {
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#FFF1F2',
+    backgroundColor: '#E6F8F5',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 6,
@@ -118,11 +118,11 @@ const styles = StyleSheet.create({
   filePreviewBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF1F2',
+    backgroundColor: '#E6F8F5',
     padding: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#FECDD3',
+    borderColor: '#B2EBF2',
     gap: 10,
   },
   fileIconWrap: {

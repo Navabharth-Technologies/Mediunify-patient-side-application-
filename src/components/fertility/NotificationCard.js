@@ -14,13 +14,13 @@ const NotificationCard = ({ notification, onMarkRead, onPress }) => {
       <View
         style={[
           styles.iconCircle,
-          { backgroundColor: `${notification.color || '#E11D48'}15` },
+          { backgroundColor: `${notification.color || '#00B894'}15` },
         ]}
       >
         <Ionicons
           name={notification.icon || 'notifications-outline'}
           size={18}
-          color={notification.color || '#E11D48'}
+          color={notification.color || '#00B894'}
         />
       </View>
 
@@ -62,8 +62,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   cardUnread: {
-    backgroundColor: '#FFF1F2',
-    borderColor: '#FECDD3',
+    backgroundColor: '#E6F8F5',
+    borderColor: '#B2EBF2',
   },
   iconCircle: {
     width: 38,
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#E11D48',
+    backgroundColor: '#00B894',
   },
   message: {
     fontSize: 12,

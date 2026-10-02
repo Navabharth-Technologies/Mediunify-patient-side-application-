@@ -4,8 +4,8 @@
 
 export const labCategories = [
   { id: 'all', name: 'All Tests', icon: 'flask-outline' },
-  { id: 'home', name: '🏠 Home Collection', icon: 'home-outline' },
-  { id: 'hospital', name: '🏥 Lab Visit Only', icon: 'business-outline' },
+  { id: 'home', name: 'Home Collection', icon: 'home-outline' },
+  { id: 'hospital', name: 'Lab Visit Only', icon: 'business-outline' },
   { id: 'packages', name: 'Health Packages', icon: 'fitness-outline' },
   { id: 'blood', name: 'Blood & CBC', icon: 'water-outline' },
   { id: 'diabetes', name: 'Diabetes & Sugar', icon: 'pulse-outline' },
@@ -232,7 +232,7 @@ const labTests = [
       'Free Home Sample Collection at Doorstep',
       'Verified Digital Report Sync',
     ],
-    badge: '🔥 Smart Value: 6 Tests @ ₹666',
+    badge: 'Smart Value: 6 Tests @ ₹666',
   },
   {
     id: '9',
@@ -258,7 +258,7 @@ const labTests = [
       'Urine Routine Examination (18 parameters)',
       'Doctor Consultation Follow-up (Free)',
     ],
-    badge: '⭐ Best Seller Package',
+    badge: 'Best Seller Package',
   },
   {
     id: '10',
@@ -306,7 +306,7 @@ const labTests = [
     reportTime: 'Same Day Evening',
     parametersCount: 3,
     parametersList: ['Fasting Plasma Glucose', '1-Hour Post 75g Glucose', '2-Hour Post 75g Glucose'],
-    badge: '🏥 Lab Visit Required',
+    badge: 'Lab Visit Required',
   },
   {
     id: '12',
@@ -324,7 +324,7 @@ const labTests = [
     reportTime: 'Reports in 30 minutes',
     parametersCount: 7,
     parametersList: ['pH Balance', 'pCO2 (Carbon Dioxide Partial Pressure)', 'pO2 (Oxygen Partial Pressure)', 'HCO3 (Bicarbonate)', 'Base Excess', 'Oxygen Saturation (SaO2)', 'Lactate'],
-    badge: '🏥 Hospital Visit Required',
+    badge: 'Hospital Visit Required',
   },
   {
     id: '13',
@@ -342,7 +342,7 @@ const labTests = [
     reportTime: 'Same Day Evening',
     parametersCount: 12,
     parametersList: ['Total Sperm Count', 'Active Motility Percentage', 'Sluggish / Non-motile Count', 'Normal Morphology Index', 'Volume & pH', 'Liquefaction Time'],
-    badge: '🏥 Lab Visit Required',
+    badge: 'Lab Visit Required',
   },
   {
     id: '14',
@@ -360,7 +360,7 @@ const labTests = [
     reportTime: 'Reports in 48-72 hours',
     parametersCount: 6,
     parametersList: ['Gross Pathological Description', 'Microscopic Histology', 'Margin Clearance Assessment', 'Malignancy / Benign Staining', 'Pathologist Clinical Impression'],
-    badge: '🏥 Hospital Visit Required',
+    badge: 'Hospital Visit Required',
   },
 ];
 

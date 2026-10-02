@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -11,12 +10,15 @@ import {
   Alert,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../../utils/alert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import { useCart } from '../../../context/CartContext';
 import { pushAppointment } from '../../../services/dataSyncService';
+import { useAuthGuard } from '../../../context/AuthGuardContext';
+import { validateAndBookSlot } from '../../../services/slotBookingService';
 
 const PROMO_CHIPS = ['MEDI20', 'HEALTH50'];
 
@@ -32,7 +34,7 @@ const NET_BANKS = ['HDFC Bank', 'State Bank of India', 'ICICI Bank', 'Axis Bank'
 const RadiologyPaymentScreen = ({ route, navigation }) => {
   const { bookingDetails } = route.params || {};
   const { lab, tests = [], date, timeSlot, patient, pricing } = bookingDetails || {};
-
+  const { requireLogin } = useAuthGuard();
   const { removeFromCart } = useCart();
 
   const [paymentMethod, setPaymentMethod] = useState('WALLET');
@@ -98,11 +100,16 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
   };
 
   // Process & Confirm Booking
-  const handleConfirmAndPay = async () => {
+  const handleConfirmAndPay = () => {
+    requireLogin(() => _doConfirmAndPay());
+  };
+
+  const _doConfirmAndPay = async () => {
+
     if (paymentMethod === 'WALLET') {
       if (walletBalance < finalPayable) {
         showAlert(
-          'Insufficient Wallet Balance 💳',
+          'Insufficient Wallet Balance',
           `Your MediUnify Wallet has ₹${walletBalance.toLocaleString('en-IN')}, but the test fee is ₹${finalPayable.toLocaleString('en-IN')}.\n\nPlease top up or select Instant UPI / Credit or Debit Card / Net Banking.`,
           [
             { text: 'Top Up Wallet', onPress: () => navigation.navigate('Wallet') },
@@ -116,11 +123,30 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
     setIsProcessing(true);
 
     try {
-      // Simulate secure transaction network delay
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
       const bookingId = `RAD-${Math.floor(100000 + Math.random() * 900000)}`;
       const tokenNumber = `TK-${Math.floor(10 + Math.random() * 90)}`;
+
+      // Re-verify and atomically book the slot
+      const slotValidation = await validateAndBookSlot({
+        date: date?.dateStr || date?.fullDateText,
+        time: timeSlot,
+        serviceType: 'radiology',
+        providerId: lab?.id || lab?.name,
+        bookingDetails: {
+          bookingId,
+          testNames: tests.map((t) => t.name).join(', '),
+          patientName: patient?.name,
+        },
+      });
+
+      if (!slotValidation.success) {
+        setIsProcessing(false);
+        showAlert('Slot Unavailable', slotValidation.message || 'This slot is no longer available. Please select another time.');
+        return;
+      }
+
+      // Simulate secure transaction network delay
+      await new Promise((resolve) => setTimeout(resolve, 1200));
 
       // Deduct from wallet if paid via wallet
       if (paymentMethod === 'WALLET') {
@@ -254,7 +280,7 @@ const RadiologyPaymentScreen = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* ==================================================

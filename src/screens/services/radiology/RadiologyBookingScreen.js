@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -13,6 +12,7 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../../utils/alert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +20,11 @@ import * as ImagePicker from 'expo-image-picker';
 import colors from '../../../theme/colors';
 import { getLabById } from '../../../data/radiologyLabsData';
 import WebFooter from '../../../components/web/WebFooter';
+import { useAuthGuard } from '../../../context/AuthGuardContext';
+import {
+  getSlotStatus,
+  subscribeToSlotChanges,
+} from '../../../services/slotBookingService';
 
 // Generate next 14 days for appointment scheduling
 const generateDates = () => {
@@ -64,6 +69,7 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   const { lab, test, selectedTests = [] } = route.params || {};
+  const { requireLogin } = useAuthGuard();
 
   const activeLab =
     lab ||
@@ -100,6 +106,58 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
   const availableDates = generateDates();
   const [selectedDate, setSelectedDate] = useState(availableDates[0]);
   const [selectedSlot, setSelectedSlot] = useState(TIME_SLOTS.morning[1].time);
+
+  // Real-time slot update ticker
+  const [slotTick, setSlotTick] = useState(0);
+  useEffect(() => {
+    const unsub = subscribeToSlotChanges(() => {
+      setSlotTick((t) => t + 1);
+    });
+    return unsub;
+  }, []);
+
+  const allTimeSlots = [
+    ...TIME_SLOTS.morning,
+    ...TIME_SLOTS.afternoon,
+    ...TIME_SLOTS.evening,
+  ];
+
+  const getFirstAvailableSlot = (dateStr, labId, preferred = null) => {
+    if (preferred) {
+      const prefSt = getSlotStatus({
+        date: dateStr,
+        time: preferred,
+        serviceType: 'radiology',
+        providerId: labId,
+      });
+      if (prefSt.available) return preferred;
+    }
+    for (const item of allTimeSlots) {
+      const st = getSlotStatus({
+        date: dateStr,
+        time: item.time,
+        serviceType: 'radiology',
+        providerId: labId,
+      });
+      if (st.available) return item.time;
+    }
+    return '';
+  };
+
+  useEffect(() => {
+    if (selectedDate?.dateStr) {
+      const currentSt = getSlotStatus({
+        date: selectedDate.dateStr,
+        time: selectedSlot,
+        serviceType: 'radiology',
+        providerId: activeLab?.id,
+      });
+      if (!currentSt.available) {
+        const nextSlot = getFirstAvailableSlot(selectedDate.dateStr, activeLab?.id);
+        setSelectedSlot(nextSlot);
+      }
+    }
+  }, [selectedDate, slotTick, activeLab]);
 
   // Patient Info State
   const [patientName, setPatientName] = useState('Patient');
@@ -238,6 +296,11 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
   };
 
   const handleProceedToPayment = () => {
+    requireLogin(() => _doProceedToPayment());
+  };
+
+  const _doProceedToPayment = async () => {
+
     if (!patientName.trim()) {
       showAlert('Patient Name Required', 'Please enter the patient full name.');
       return;
@@ -248,6 +311,17 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
     }
     if (!selectedSlot) {
       showAlert('Select Time Slot', 'Please choose an appointment time slot.');
+      return;
+    }
+
+    const slotCheck = getSlotStatus({
+      date: selectedDate?.dateStr,
+      time: selectedSlot,
+      serviceType: 'radiology',
+      providerId: activeLab?.id,
+    });
+    if (!slotCheck.available) {
+      showAlert('Slot Unavailable', 'This slot is no longer available. Please select another time.');
       return;
     }
 
@@ -280,7 +354,7 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* ==================================================
@@ -362,7 +436,7 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                  <Ionicons name="trash-outline" size={16} color="#FF7F50" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -430,6 +504,13 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
           <Text style={styles.slotGroupTitle}>Morning Slots (07:00 AM - 12:00 PM)</Text>
           <View style={styles.slotsGrid}>
             {TIME_SLOTS.morning.map((slot) => {
+              const status = getSlotStatus({
+                date: selectedDate?.dateStr,
+                time: slot.time,
+                serviceType: 'radiology',
+                providerId: activeLab?.id,
+              });
+              const isAvailable = status.available;
               const isSelected = selectedSlot === slot.time;
               return (
                 <TouchableOpacity
@@ -437,22 +518,32 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
                   style={[
                     styles.slotPill,
                     isSelected && styles.slotPillActive,
+                    !isAvailable && styles.slotPillDisabled,
                   ]}
+                  disabled={!isAvailable}
                   onPress={() => setSelectedSlot(slot.time)}
                 >
                   <Ionicons
                     name="sunny-outline"
                     size={13}
-                    color={isSelected ? '#FFFFFF' : colors.primary}
+                    color={isSelected ? '#FFFFFF' : isAvailable ? colors.primary : '#94A3B8'}
                   />
                   <Text
                     style={[
                       styles.slotPillText,
                       isSelected && styles.slotPillTextActive,
+                      !isAvailable && styles.slotPillTextDisabled,
                     ]}
                   >
                     {slot.time}
                   </Text>
+                  {!isAvailable && (
+                    <View style={styles.slotStatusBadge}>
+                      <Text style={styles.slotStatusBadgeText}>
+                        {status.status === 'PASSED' ? 'Passed' : 'Booked'}
+                      </Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -462,6 +553,13 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
           <Text style={styles.slotGroupTitle}>Afternoon Slots (12:00 PM - 05:00 PM)</Text>
           <View style={styles.slotsGrid}>
             {TIME_SLOTS.afternoon.map((slot) => {
+              const status = getSlotStatus({
+                date: selectedDate?.dateStr,
+                time: slot.time,
+                serviceType: 'radiology',
+                providerId: activeLab?.id,
+              });
+              const isAvailable = status.available;
               const isSelected = selectedSlot === slot.time;
               return (
                 <TouchableOpacity
@@ -469,22 +567,32 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
                   style={[
                     styles.slotPill,
                     isSelected && styles.slotPillActive,
+                    !isAvailable && styles.slotPillDisabled,
                   ]}
+                  disabled={!isAvailable}
                   onPress={() => setSelectedSlot(slot.time)}
                 >
                   <Ionicons
                     name="partly-sunny-outline"
                     size={13}
-                    color={isSelected ? '#FFFFFF' : colors.primary}
+                    color={isSelected ? '#FFFFFF' : isAvailable ? colors.primary : '#94A3B8'}
                   />
                   <Text
                     style={[
                       styles.slotPillText,
                       isSelected && styles.slotPillTextActive,
+                      !isAvailable && styles.slotPillTextDisabled,
                     ]}
                   >
                     {slot.time}
                   </Text>
+                  {!isAvailable && (
+                    <View style={styles.slotStatusBadge}>
+                      <Text style={styles.slotStatusBadgeText}>
+                        {status.status === 'PASSED' ? 'Passed' : 'Booked'}
+                      </Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -494,6 +602,13 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
           <Text style={styles.slotGroupTitle}>Evening Slots (05:00 PM - 09:00 PM)</Text>
           <View style={styles.slotsGrid}>
             {TIME_SLOTS.evening.map((slot) => {
+              const status = getSlotStatus({
+                date: selectedDate?.dateStr,
+                time: slot.time,
+                serviceType: 'radiology',
+                providerId: activeLab?.id,
+              });
+              const isAvailable = status.available;
               const isSelected = selectedSlot === slot.time;
               return (
                 <TouchableOpacity
@@ -501,22 +616,32 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
                   style={[
                     styles.slotPill,
                     isSelected && styles.slotPillActive,
+                    !isAvailable && styles.slotPillDisabled,
                   ]}
+                  disabled={!isAvailable}
                   onPress={() => setSelectedSlot(slot.time)}
                 >
                   <Ionicons
                     name="moon-outline"
                     size={13}
-                    color={isSelected ? '#FFFFFF' : colors.primary}
+                    color={isSelected ? '#FFFFFF' : isAvailable ? colors.primary : '#94A3B8'}
                   />
                   <Text
                     style={[
                       styles.slotPillText,
                       isSelected && styles.slotPillTextActive,
+                      !isAvailable && styles.slotPillTextDisabled,
                     ]}
                   >
                     {slot.time}
                   </Text>
+                  {!isAvailable && (
+                    <View style={styles.slotStatusBadge}>
+                      <Text style={styles.slotStatusBadgeText}>
+                        {status.status === 'PASSED' ? 'Passed' : 'Booked'}
+                      </Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -689,7 +814,7 @@ const RadiologyBookingScreen = ({ route, navigation }) => {
                   style={styles.removeImageBtn}
                   onPress={() => setPrescriptionImage(null)}
                 >
-                  <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                  <Ionicons name="trash-outline" size={14} color="#FF7F50" />
                   <Text style={styles.removeImageText}>Remove</Text>
                 </TouchableOpacity>
               </View>
@@ -959,11 +1084,11 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 6,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#FFF2ED',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#FEE2E2',
+    borderColor: '#FFD7C7',
   },
 
   // SECTION BOX
@@ -1083,6 +1208,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
+  slotPillDisabled: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+    opacity: 0.6,
+  },
   slotPillText: {
     fontSize: 12,
     fontWeight: '700',
@@ -1090,6 +1220,23 @@ const styles = StyleSheet.create({
   },
   slotPillTextActive: {
     color: '#FFFFFF',
+  },
+  slotPillTextDisabled: {
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  slotStatusBadge: {
+    backgroundColor: '#FFF2ED',
+    paddingHorizontal: 4,
+    paddingVertical: 1.5,
+    borderRadius: 3,
+    marginLeft: 2,
+  },
+  slotStatusBadgeText: {
+    fontSize: 8.5,
+    fontWeight: '700',
+    color: '#FF7F50',
+    textTransform: 'uppercase',
   },
 
   // FORM INPUTS
@@ -1244,7 +1391,7 @@ const styles = StyleSheet.create({
   removeImageText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#EF4444',
+    color: '#FF7F50',
   },
 
   // BILL BREAKDOWN

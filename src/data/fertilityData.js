@@ -705,7 +705,7 @@ export const fertilityTreatments = [
     discount: 'Save ₹25,000',
     icon: 'snow-outline',
     badge: 'FERTILITY FREEDOM',
-    badgeColor: '#7C3AED',
+    badgeColor: '#00C2CB',
     category: 'Preservation',
     emiAvailable: true,
     emiStartsAt: '₹4,722/mo (18 Mos 0% EMI)',
@@ -1126,7 +1126,7 @@ export const sampleFertilityNotifications = [
     timestamp: '15 mins ago',
     type: 'medication',
     icon: 'alarm-outline',
-    color: '#E11D48',
+    color: '#FF7F50',
     unread: true,
   },
   {
@@ -1136,7 +1136,7 @@ export const sampleFertilityNotifications = [
     timestamp: '2 hours ago',
     type: 'appointment',
     icon: 'calendar-outline',
-    color: '#7C3AED',
+    color: '#00C2CB',
     unread: true,
   },
   {
@@ -1146,7 +1146,7 @@ export const sampleFertilityNotifications = [
     timestamp: 'Yesterday',
     type: 'report',
     icon: 'document-text-outline',
-    color: '#059669',
+    color: '#7BC96F',
     unread: false,
   },
   {
@@ -1156,7 +1156,7 @@ export const sampleFertilityNotifications = [
     timestamp: '2 days ago',
     type: 'coordinator',
     icon: 'chatbubble-ellipses-outline',
-    color: '#0284C7',
+    color: '#1E3A8A',
     unread: false,
   },
 ];

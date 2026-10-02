@@ -17,7 +17,7 @@ const CoordinatorCard = ({
         <View style={styles.infoCol}>
           <View style={styles.badgeRow}>
             <View style={styles.verifiedPill}>
-              <Ionicons name="checkmark-circle" size={11} color="#059669" />
+              <Ionicons name="checkmark-circle" size={11} color="#7BC96F" />
               <Text style={styles.verifiedText}>DEDICATED CARE BUDDY</Text>
             </View>
           </View>
@@ -63,7 +63,7 @@ const CoordinatorCard = ({
             onPress={onScheduleCall}
             activeOpacity={0.8}
           >
-            <Ionicons name="calendar-outline" size={15} color="#7C3AED" />
+            <Ionicons name="calendar-outline" size={15} color="#1E3A8A" />
             <Text style={styles.schedBtnText}>Schedule Call</Text>
           </TouchableOpacity>
         )}
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     borderRadius: 34,
     backgroundColor: '#F8FAFC',
     borderWidth: 2,
-    borderColor: '#FFE4E6',
+    borderColor: '#B2EBF2',
   },
   infoCol: {
     flex: 1,
@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F2FAF0',
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 4,
@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
   verifiedText: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#059669',
+    color: '#7BC96F',
     letterSpacing: 0.3,
   },
   name: {
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   },
   role: {
     fontSize: 12,
-    color: '#E11D48',
+    color: '#00B894',
     fontWeight: '600',
     marginTop: 1,
   },
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   },
   chatBtn: {
     flex: 1.2,
-    backgroundColor: '#E11D48',
+    backgroundColor: '#00B894',
     paddingVertical: 10,
     borderRadius: 10,
     flexDirection: 'row',
@@ -195,9 +195,9 @@ const styles = StyleSheet.create({
   },
   schedBtn: {
     flex: 1.1,
-    backgroundColor: '#F5F3FF',
+    backgroundColor: '#EFF6FF',
     borderWidth: 1,
-    borderColor: '#DDD6FE',
+    borderColor: '#BFDBFE',
     paddingVertical: 10,
     borderRadius: 10,
     flexDirection: 'row',
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   schedBtnText: {
-    color: '#7C3AED',
+    color: '#1E3A8A',
     fontWeight: '700',
     fontSize: 11,
   },

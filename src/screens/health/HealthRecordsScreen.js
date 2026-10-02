@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Platform,
@@ -13,6 +12,7 @@ import {
   Share,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../theme/colors';
@@ -174,11 +174,11 @@ const HealthRecordsScreen = ({ navigation }) => {
         date: '25 Aug 2026',
         fileSize: '14.2 MB DICOM/PDF',
         status: 'Doctor Reviewed',
-        statusColor: '#7C3AED',
-        statusBg: '#F5F3FF',
+        statusColor: '#00C2CB',
+        statusBg: '#E0F7FA',
         icon: 'scan',
-        iconColor: '#7C3AED',
-        iconBg: '#EDE9FE',
+        iconColor: '#00C2CB',
+        iconBg: '#E0F7FA',
         summary: 'No acute intracranial hemorrhage or infarct. Age-related normal cerebral findings.',
       },
       {
@@ -250,11 +250,11 @@ const HealthRecordsScreen = ({ navigation }) => {
         date: '05 Aug 2026',
         fileSize: '450 KB PDF',
         status: 'Paid ₹1,240',
-        statusColor: '#D97706',
-        statusBg: '#FEF3C7',
+        statusColor: '#00B894',
+        statusBg: '#E6F8F5',
         icon: 'receipt',
-        iconColor: '#EA580C',
-        iconBg: '#FFEDD5',
+        iconColor: '#00B894',
+        iconBg: '#E6F8F5',
         summary: 'GST Invoice #INV-883492 • Delivered to Kuvempunagar, Mysore • 20% Discount Applied.',
       },
     ];
@@ -356,7 +356,7 @@ const HealthRecordsScreen = ({ navigation }) => {
     try {
       await Share.share({
         title: doc.title,
-        message: `📄 MediUnify Verified Health Record:\n${doc.title}\nPatient: ${doc.patientName}\nDate: ${doc.date}\nDoctor: ${doc.doctor}\nView PDF: https://hemanthgowdatn2003.github.io/mediunify-patient/`,
+        message: `MediUnify Verified Health Record:\n${doc.title}\nPatient: ${doc.patientName}\nDate: ${doc.date}\nDoctor: ${doc.doctor}\nView PDF: https://hemanthgowdatn2003.github.io/mediunify-patient/`,
       });
     } catch (e) {
       console.log('Share error:', e);
@@ -369,7 +369,7 @@ const HealthRecordsScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* 1. TOP APP BAR */}
@@ -480,18 +480,18 @@ const HealthRecordsScreen = ({ navigation }) => {
           <View style={styles.quickHubGrid}>
             {/* Tile 1: Vitals */}
             <TouchableOpacity
-              style={[styles.quickTile, { backgroundColor: '#FFF1F2', borderColor: '#FFE4E6' }]}
+              style={[styles.quickTile, { backgroundColor: '#FFF2ED', borderColor: '#FFD7C7' }]}
               onPress={() => navigation.navigate('HealthMonitor')}
               activeOpacity={0.82}
             >
-              <View style={[styles.quickTileIconCircle, { backgroundColor: '#FFE4E6' }]}>
-                <Ionicons name="heart" size={18} color="#E11D48" />
+              <View style={[styles.quickTileIconCircle, { backgroundColor: '#FFE6DC' }]}>
+                <Ionicons name="heart" size={18} color="#FF7F50" />
               </View>
               <View style={styles.quickTileContent}>
                 <View style={styles.quickTileHeader}>
                   <Text style={styles.quickTileTitle}>Daily Vitals</Text>
-                  <View style={[styles.quickTileMiniBadge, { backgroundColor: '#FEE2E2' }]}>
-                    <Text style={[styles.quickTileMiniBadgeText, { color: '#BE123C' }]}>Live</Text>
+                  <View style={[styles.quickTileMiniBadge, { backgroundColor: '#FFE6DC' }]}>
+                    <Text style={[styles.quickTileMiniBadgeText, { color: '#FF7F50' }]}>Live</Text>
                   </View>
                 </View>
                 <Text style={styles.quickTileSubtitle}>BP 120/80 • Sugar 95</Text>
@@ -540,18 +540,18 @@ const HealthRecordsScreen = ({ navigation }) => {
 
             {/* Tile 4: Scans & X-Ray */}
             <TouchableOpacity
-              style={[styles.quickTile, { backgroundColor: '#FAF5FF', borderColor: '#F3E8FF' }]}
+              style={[styles.quickTile, { backgroundColor: '#E0F7FA', borderColor: '#B2EBF2' }]}
               onPress={() => setSelectedTab('scans')}
               activeOpacity={0.82}
             >
-              <View style={[styles.quickTileIconCircle, { backgroundColor: '#F3E8FF' }]}>
-                <Ionicons name="scan" size={18} color="#7C3AED" />
+              <View style={[styles.quickTileIconCircle, { backgroundColor: '#B2EBF2' }]}>
+                <Ionicons name="scan" size={18} color="#00C2CB" />
               </View>
               <View style={styles.quickTileContent}>
                 <View style={styles.quickTileHeader}>
                   <Text style={styles.quickTileTitle}>3T Scans</Text>
-                  <View style={[styles.quickTileMiniBadge, { backgroundColor: '#F3E8FF' }]}>
-                    <Text style={[styles.quickTileMiniBadgeText, { color: '#6D28D9' }]}>{categoryCounts.scans} Scans</Text>
+                  <View style={[styles.quickTileMiniBadge, { backgroundColor: '#B2EBF2' }]}>
+                    <Text style={[styles.quickTileMiniBadgeText, { color: '#00C2CB' }]}>{categoryCounts.scans} Scans</Text>
                   </View>
                 </View>
                 <Text style={styles.quickTileSubtitle}>MRI, CT & X-Ray</Text>
@@ -937,8 +937,8 @@ const HealthRecordsScreen = ({ navigation }) => {
               }}
               activeOpacity={0.85}
             >
-              <View style={[styles.uploadOptionIcon, { backgroundColor: '#FAF5FF' }]}>
-                <Ionicons name="cloud-download" size={22} color="#9333EA" />
+              <View style={[styles.uploadOptionIcon, { backgroundColor: '#E6F8F5' }]}>
+                <Ionicons name="cloud-download" size={22} color="#00B894" />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={styles.uploadOptionTitle}>Auto-Fetch from Hospital/Lab</Text>

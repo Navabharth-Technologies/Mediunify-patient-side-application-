@@ -4,11 +4,11 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../../utils/alert';
 
 import {
@@ -197,7 +197,7 @@ const ImagingScreen = (props) => {
   if (!cameraPermission) {
 
     return (
-      <SafeAreaView
+      <SafeAreaView edges={['top', 'left', 'right']}
         style={styles.container}
       >
 
@@ -226,7 +226,7 @@ const ImagingScreen = (props) => {
   if (!cameraPermission.granted) {
 
     return (
-      <SafeAreaView
+      <SafeAreaView edges={['top', 'left', 'right']}
         style={styles.container}
       >
 
@@ -310,7 +310,7 @@ const ImagingScreen = (props) => {
   // --------------------------------------------------
 
   return (
-    <SafeAreaView
+    <SafeAreaView edges={['top', 'left', 'right']}
       style={styles.container}
     >
 

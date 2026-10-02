@@ -14,7 +14,7 @@ import colors from '../../theme/colors';
 
 const OUR_SERVICES = [
   { label: 'Lab Tests', route: 'LabTests' },
-  { label: 'Radiology', route: 'Imaging' },
+  { label: 'Scans & X-Ray', route: 'Imaging' },
   { label: 'Consultation', route: 'VideoConsultation' },
   { label: 'Pharmacy', route: 'Pharmacy' },
   { label: 'Hospital & Surgery', route: 'HospitalCare' },
@@ -67,7 +67,7 @@ const WebFooter = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.footerWrapper}>
+    <View style={styles.footerWrapper} nativeID="mediunify-footer">
       <View style={styles.footerContainer}>
         {/* ============================================================
             MAIN 5-COLUMN ROW
@@ -76,11 +76,6 @@ const WebFooter = ({ navigation }) => {
           {/* Column 1: MediUnify Brand Info & Socials */}
           <View style={[styles.footerCol, { flex: 1.4 }]}>
             <View style={styles.brandRow}>
-              <Image
-                source={require('../../../assets/logo.png')}
-                style={styles.logoImg}
-                resizeMode="contain"
-              />
               <View>
                 <View style={styles.brandTitleRow}>
                   <Text style={styles.brandTitle}>Medi</Text>
@@ -98,16 +93,16 @@ const WebFooter = ({ navigation }) => {
 
             {/* Social Icons */}
             <View style={styles.socialRow}>
-              <TouchableOpacity style={[styles.socialIconBtn, { backgroundColor: '#0077B5' }]}>
+              <TouchableOpacity style={[styles.socialIconBtn, { backgroundColor: '#1E3A8A' }]}>
                 <Ionicons name="logo-linkedin" size={15} color="#FFFFFF" />
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.socialIconBtn, { backgroundColor: '#E4405F' }]}>
+              <TouchableOpacity style={[styles.socialIconBtn, { backgroundColor: '#00B894' }]}>
                 <Ionicons name="logo-instagram" size={15} color="#FFFFFF" />
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.socialIconBtn, { backgroundColor: '#1877F2' }]}>
+              <TouchableOpacity style={[styles.socialIconBtn, { backgroundColor: '#1E3A8A' }]}>
                 <Ionicons name="logo-facebook" size={15} color="#FFFFFF" />
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.socialIconBtn, { backgroundColor: '#FF0000' }]}>
+              <TouchableOpacity style={[styles.socialIconBtn, { backgroundColor: '#00C2CB' }]}>
                 <Ionicons name="logo-youtube" size={15} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
@@ -189,9 +184,12 @@ const WebFooter = ({ navigation }) => {
               </TouchableOpacity>
             </View>
             {subscribed && (
-              <Text style={styles.subscribedSuccess}>
-                ✓ Thank you for subscribing!
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 }}>
+                <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+                <Text style={styles.subscribedSuccess}>
+                  Thank you for subscribing!
+                </Text>
+              </View>
             )}
           </View>
         </View>
@@ -204,9 +202,11 @@ const WebFooter = ({ navigation }) => {
             © 2025 MediUnify. All rights reserved.
           </Text>
 
-          <Text style={styles.madeWithText}>
-            Made with <Text style={{ color: '#EF4444' }}>❤️</Text> for a healthier tomorrow.
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Text style={styles.madeWithText}>Made with</Text>
+            <Ionicons name="heart" size={13} color="#EF4444" />
+            <Text style={styles.madeWithText}>for a healthier tomorrow.</Text>
+          </View>
 
           <TouchableOpacity
             style={styles.scrollTopBtn}
@@ -223,9 +223,10 @@ const WebFooter = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   footerWrapper: {
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    backgroundColor: '#E0ECF6',
+    backgroundImage: 'linear-gradient(180deg, #DDEAF5 0%, #E5F0F8 45%, #DCE8F3 100%)',
+    borderTopWidth: 1.5,
+    borderTopColor: '#C4D8E7',
     width: '100%',
     paddingTop: 54,
     paddingBottom: 30,
@@ -264,19 +265,19 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   brandTitle: {
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: '900',
     color: '#1E3A8A',
   },
   brandTitleAccent: {
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: '900',
     color: '#00B894',
   },
   brandTagline: {
-    fontSize: 9.5,
-    color: '#64748B',
-    fontWeight: '500',
+    fontSize: 10,
+    color: '#475569',
+    fontWeight: '600',
     marginTop: -1,
   },
   brandDesc: {
@@ -301,17 +302,18 @@ const styles = StyleSheet.create({
 
   // Headings & Links
   colHeading: {
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 14.5,
+    fontWeight: '900',
     color: '#1E3A8A',
     marginBottom: 16,
+    letterSpacing: -0.2,
   },
   footerLinkItem: {
     paddingVertical: 5.5,
   },
   footerLinkText: {
     fontSize: 13,
-    color: '#64748B',
+    color: '#475569',
     fontWeight: '500',
   },
 
@@ -328,7 +330,7 @@ const styles = StyleSheet.create({
   },
   storeBadgeSmall: {
     fontSize: 9,
-    color: '#E2E8F0',
+    color: '#DCE7EC',
     fontWeight: '600',
     letterSpacing: 0.3,
   },
@@ -347,7 +349,7 @@ const styles = StyleSheet.create({
   subscribeInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -355,11 +357,12 @@ const styles = StyleSheet.create({
     paddingRight: 4,
     paddingVertical: 4,
     height: 44,
+    boxShadow: '0 2px 6px rgba(12, 59, 107, 0.05)',
   },
   newsletterInput: {
     flex: 1,
     fontSize: 13,
-    color: '#1E3A8A',
+    color: '#0C3B6B',
     outlineStyle: 'none',
   },
   subscribeBtn: {
@@ -380,7 +383,7 @@ const styles = StyleSheet.create({
   // Bottom Strip
   bottomStrip: {
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: '#C4D8E7',
     paddingTop: 24,
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -391,6 +394,7 @@ const styles = StyleSheet.create({
   copyrightText: {
     fontSize: 12.5,
     color: '#64748B',
+    fontWeight: '500',
   },
   madeWithText: {
     fontSize: 12.5,
@@ -400,7 +404,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 8,
-    backgroundColor: '#1E3A8A',
+    backgroundColor: '#00B894',
     justifyContent: 'center',
     alignItems: 'center',
   },

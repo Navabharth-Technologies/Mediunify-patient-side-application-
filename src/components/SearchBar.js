@@ -7,6 +7,8 @@ import {
   StyleSheet,
 } from 'react-native';
 
+import { Ionicons } from '@expo/vector-icons';
+
 const SearchBar = ({
   value,
   onChangeText,
@@ -14,10 +16,7 @@ const SearchBar = ({
 }) => {
   return (
     <View style={styles.container}>
-
-      <Text style={styles.icon}>
-        🔍
-      </Text>
+      <Ionicons name="search-outline" size={18} color="#64748B" style={{ marginRight: 10 }} />
 
       <TextInput
         style={styles.input}

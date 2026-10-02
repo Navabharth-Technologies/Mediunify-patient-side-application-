@@ -143,19 +143,34 @@ export const saveUserToLocalStorage = async (user) => {
         }
       });
       const consolidatedAppts = Array.from(apptMap.values());
-      await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(consolidatedAppts));
 
-      // 3a. Video Consultations
+      // 3a. Video Consultations (Online Consultant)
       const vidAppts = consolidatedAppts.filter((a) =>
         a.serviceType === 'video' ||
         a.type === 'Video Consultation' ||
         a.type === 'Video' ||
         a.type === 'TeleConsultation' ||
+        Boolean(a.videoRoomLink) ||
         (typeof a.type === 'string' && a.type.toLowerCase().includes('video'))
       );
       if (vidAppts.length > 0) {
         await AsyncStorage.setItem('@videoBookings', JSON.stringify(vidAppts));
+        await AsyncStorage.setItem('@mediunify_patient_online_consultations', JSON.stringify(vidAppts));
       }
+
+      // 3b. Physical Clinic / Hospital Appointments (My Appointments)
+      const physAppts = consolidatedAppts.filter((a) =>
+        !(
+          a.serviceType === 'video' ||
+          a.type === 'Video Consultation' ||
+          a.type === 'Video' ||
+          a.type === 'TeleConsultation' ||
+          Boolean(a.videoRoomLink) ||
+          (typeof a.type === 'string' && a.type.toLowerCase().includes('video'))
+        )
+      );
+      await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(physAppts));
+      await AsyncStorage.setItem('@mediunify_patient_physical_appointments', JSON.stringify(physAppts));
 
       // 3b. Diagnostic Lab Tests
       const labAppts = consolidatedAppts.filter((a) =>
@@ -427,21 +442,42 @@ export const pushAppointment = async (appointmentData) => {
 
   // Fallback: save to local storage
   try {
-    const existingStr = await AsyncStorage.getItem('@unnathi_appointments');
-    const existing = existingStr ? JSON.parse(existingStr) : [];
-    const filtered = existing.filter((a) => a.id !== appointmentData.id);
-    const updated = [appointmentData, ...filtered];
-    await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updated));
-
-    // Also update the specialized key based on appointment type
     const isVid =
       appointmentData.type === 'Video Consultation' ||
       appointmentData.type === 'Video' ||
-      appointmentData.serviceType === 'video';
+      appointmentData.serviceType === 'video' ||
+      Boolean(appointmentData.videoRoomLink);
+
     if (isVid) {
+      // 1. Save strictly to video consultations storage
       const vStr = await AsyncStorage.getItem('@videoBookings');
       const vList = vStr ? JSON.parse(vStr).filter((a) => a.id !== appointmentData.id) : [];
-      await AsyncStorage.setItem('@videoBookings', JSON.stringify([appointmentData, ...vList]));
+      const updatedV = [appointmentData, ...vList];
+      await AsyncStorage.setItem('@videoBookings', JSON.stringify(updatedV));
+      await AsyncStorage.setItem('@mediunify_patient_online_consultations', JSON.stringify(updatedV));
+
+      // Remove from physical appointments if present
+      const existingStr = await AsyncStorage.getItem('@unnathi_appointments');
+      if (existingStr) {
+        const existing = JSON.parse(existingStr).filter((a) => a.id !== appointmentData.id);
+        await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(existing));
+        await AsyncStorage.setItem('@mediunify_patient_physical_appointments', JSON.stringify(existing));
+      }
+
+      if (typeof window !== 'undefined' && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent('mediunify_consultations_updated', { detail: { consultation: appointmentData } }));
+      }
+    } else {
+      // 2. Save strictly to physical appointments storage
+      const existingStr = await AsyncStorage.getItem('@unnathi_appointments');
+      const existing = existingStr ? JSON.parse(existingStr).filter((a) => a.id !== appointmentData.id) : [];
+      const updated = [appointmentData, ...existing];
+      await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updated));
+      await AsyncStorage.setItem('@mediunify_patient_physical_appointments', JSON.stringify(updated));
+
+      if (typeof window !== 'undefined' && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent('mediunify_appointments_updated', { detail: { appointment: appointmentData } }));
+      }
     }
 
     const isLab =

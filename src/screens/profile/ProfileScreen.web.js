@@ -10,6 +10,8 @@ import {
   StatusBar,
   Linking,
   useWindowDimensions,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +20,19 @@ import colors from '../../theme/colors';
 import { useTheme } from '../../context/ThemeContext';
 import { syncActiveUser } from '../../services/dataSyncService';
 import WebFooter from '../../components/web/WebFooter';
+import PatientPageBanner from '../../components/web/PatientPageBanner';
+
+const BLOOD_GROUPS = [
+  'O+ Positive',
+  'O- Negative',
+  'A+ Positive',
+  'A- Negative',
+  'B+ Positive',
+  'B- Negative',
+  'AB+ Positive',
+  'AB- Negative',
+];
+const GENDERS = ['Male', 'Female', 'Other'];
 
 const ProfileScreenWeb = ({ navigation, route }) => {
   const { isDarkMode, language, LANGUAGES } = useTheme();
@@ -28,20 +43,53 @@ const ProfileScreenWeb = ({ navigation, route }) => {
 
   // User Profile State
   const [user, setUser] = useState({
-    name: route?.params?.updatedUser?.name || 'Ramesh Kumar',
-    email: route?.params?.updatedUser?.email || 'ramesh.kumar@example.com',
-    phone: route?.params?.updatedUser?.phone || '+91 98450 12345',
-    bloodGroup: 'O+ Positive',
-    age: '32 Yrs',
+    name: route?.params?.updatedUser?.name || 'Hemanth Gowda T N',
+    email: route?.params?.updatedUser?.email || 'hemanthtn888@gmail.com',
+    phone: route?.params?.updatedUser?.phone || '+91 9741422544',
+    bloodGroup: 'B+ Positive',
+    age: '23 Yrs',
     gender: 'Male',
-    emergencyContact: '+91 98450 11223 (Family)',
+    dob: '2003-07-02',
+    address: '#42, 4th Cross, Green Glen Layout, Bellandur, Bengaluru - 560103',
+    emergencyContact: '+91 8061452468 (Emergency)',
     uhid: 'MU-84920',
+    photoUri: null,
   });
+
+  // View / Edit Mode State
+  const [isEditMode, setIsEditMode] = useState(Boolean(route?.params?.editMode));
+  const [editForm, setEditForm] = useState({
+    name: route?.params?.updatedUser?.name || 'Hemanth Gowda T N',
+    email: route?.params?.updatedUser?.email || 'hemanthtn888@gmail.com',
+    phone: route?.params?.updatedUser?.phone || '+91 9741422544',
+    bloodGroup: 'B+ Positive',
+    age: '23 Yrs',
+    gender: 'Male',
+    dob: '2003-07-02',
+    address: '#42, 4th Cross, Green Glen Layout, Bellandur, Bengaluru - 560103',
+    emergencyContact: '+91 8061452468 (Emergency)',
+    photoUri: null,
+  });
+  const [formErrors, setFormErrors] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
 
   const [walletBalance, setWalletBalance] = useState(1250);
   const [carePoints, setCarePoints] = useState(500);
   const [familyCount, setFamilyCount] = useState(1);
   const [membershipData, setMembershipData] = useState(null);
+
+  // Self Health Monitoring & Family Profiles State
+  const [familyMembers, setFamilyMembers] = useState([
+    { id: 'self', name: 'Hemanth Gowda (Self)', relation: 'Self', age: '28 Yrs', gender: 'Male', bloodGroup: 'B+' },
+    { id: 'spouse', name: 'Kavitha Gowda', relation: 'Spouse', age: '26 Yrs', gender: 'Female', bloodGroup: 'O+' },
+  ]);
+  const [latestVitals, setLatestVitals] = useState([
+    { id: 'v-1', type: 'bp', title: 'Blood Pressure', value: '120/80', unit: 'mmHg', sub: 'Pulse: 72 bpm', status: 'Optimal', icon: 'heart-outline' },
+    { id: 'v-2', type: 'sugar', title: 'Blood Sugar (Fasting)', value: '95', unit: 'mg/dL', sub: 'Fasting 8h', status: 'Normal', icon: 'water-outline' },
+    { id: 'v-3', type: 'spo2', title: 'Blood Oxygen (SpO2)', value: '98', unit: '%', sub: 'Resting pulse', status: 'Healthy', icon: 'speedometer-outline' },
+    { id: 'v-4', type: 'temp', title: 'Body Temperature', value: '98.4', unit: '°F', sub: 'Normal range', status: 'Optimal', icon: 'thermometer-outline' },
+  ]);
 
   // Load Saved Data on Mount & Screen Focus
   useEffect(() => {
@@ -95,12 +143,20 @@ const ProfileScreenWeb = ({ navigation, route }) => {
         } catch (e) {}
       }
 
-      const activeEmail = (parsedUser?.email || storedEmail || '').toLowerCase().trim();
+      const activePatientStr = await AsyncStorage.getItem('@unnathi_active_patient');
+      let activePatient = null;
+      if (activePatientStr) {
+        try { activePatient = JSON.parse(activePatientStr); } catch (e) {}
+      }
+
+      const activeEmail = (parsedUser?.email || activePatient?.email || storedEmail || '').toLowerCase().trim();
       const regUser = registeredUsers[activeEmail];
 
       let resolvedFullName = '';
       if (parsedUser?.name && !parsedUser.name.includes('@') && parsedUser.name.trim()) {
         resolvedFullName = parsedUser.name.trim();
+      } else if (activePatient?.name && !activePatient.name.includes('@') && activePatient.name.trim()) {
+        resolvedFullName = activePatient.name.trim();
       } else if (regUser?.name && !regUser.name.includes('@') && regUser.name.trim()) {
         resolvedFullName = regUser.name.trim();
       } else if (storedName && !storedName.includes('@') && storedName.trim()) {
@@ -117,17 +173,22 @@ const ProfileScreenWeb = ({ navigation, route }) => {
             .join(' ') || '';
       }
 
-      setUser((prev) => ({
-        ...prev,
-        name: resolvedFullName || prev.name,
-        email: parsedUser?.email || (storedEmail && storedEmail.trim() ? storedEmail.trim() : prev.email),
-        phone: parsedUser?.phone || (storedPhone && storedPhone.trim() ? storedPhone.trim() : prev.phone),
-        bloodGroup: parsedUser?.bloodGroup || regUser?.bloodGroup || prev.bloodGroup,
-        age: parsedUser?.age || regUser?.age || prev.age,
-        gender: parsedUser?.gender || regUser?.gender || prev.gender,
-        emergencyContact: parsedUser?.emergencyContact || regUser?.emergencyContact || prev.emergencyContact,
-        dob: parsedUser?.dob || regUser?.dob || prev.dob || '',
-      }));
+      const resolvedProfile = {
+        name: resolvedFullName || parsedUser?.name || activePatient?.name || storedName || 'Hemanth Gowda T N',
+        email: parsedUser?.email || activePatient?.email || (storedEmail && storedEmail.trim() ? storedEmail.trim() : 'hemanthtn888@gmail.com'),
+        phone: parsedUser?.phone || activePatient?.phone || (storedPhone && storedPhone.trim() ? storedPhone.trim() : '+91 9741422544'),
+        bloodGroup: parsedUser?.bloodGroup || activePatient?.bloodGroup || regUser?.bloodGroup || 'B+ Positive',
+        age: parsedUser?.age || activePatient?.age || regUser?.age || '23 Yrs',
+        gender: parsedUser?.gender || activePatient?.gender || regUser?.gender || 'Male',
+        emergencyContact: parsedUser?.emergencyContact || activePatient?.emergencyContact || regUser?.emergencyContact || '+91 8061452468 (Emergency)',
+        dob: parsedUser?.dob || activePatient?.dob || regUser?.dob || '2003-07-02',
+        address: parsedUser?.address || activePatient?.address || regUser?.address || '#42, 4th Cross, Green Glen Layout, Bellandur, Bengaluru - 560103',
+        uhid: parsedUser?.uhid || activePatient?.uhid || 'MU-84920',
+        photoUri: parsedUser?.photoUri || activePatient?.photoUri || null,
+      };
+
+      setUser((prev) => ({ ...prev, ...resolvedProfile }));
+      setEditForm((prev) => ({ ...prev, ...resolvedProfile }));
 
       if (savedWallet) {
         setWalletBalance(parseInt(savedWallet, 10) || 1250);
@@ -138,7 +199,18 @@ const ProfileScreenWeb = ({ navigation, route }) => {
         if (famStr) {
           const parsedFam = JSON.parse(famStr);
           if (Array.isArray(parsedFam) && parsedFam.length > 0) {
+            setFamilyMembers(parsedFam);
             setFamilyCount(parsedFam.length);
+          }
+        }
+      } catch (e) {}
+
+      try {
+        const vitalsStr = await AsyncStorage.getItem('@unnathi_health_vitals');
+        if (vitalsStr) {
+          const parsedVitals = JSON.parse(vitalsStr);
+          if (Array.isArray(parsedVitals) && parsedVitals.length > 0) {
+            setLatestVitals(parsedVitals.slice(0, 4));
           }
         }
       } catch (e) {}
@@ -153,21 +225,25 @@ const ProfileScreenWeb = ({ navigation, route }) => {
       try {
         syncActiveUser().then((latest) => {
           if (latest) {
-            setUser((prev) => ({
-              ...prev,
-              name: latest.name || prev.name,
-              email: latest.email || prev.email,
-              phone: latest.phone || prev.phone,
-              bloodGroup: latest.bloodGroup || prev.bloodGroup,
-              age: latest.age || prev.age,
-              gender: latest.gender || prev.gender,
-              emergencyContact: latest.emergencyContact || prev.emergencyContact,
-              dob: latest.dob || prev.dob || '',
-            }));
+            const syncedProfile = {
+              name: latest.name || resolvedProfile.name,
+              email: latest.email || resolvedProfile.email,
+              phone: latest.phone || resolvedProfile.phone,
+              bloodGroup: latest.bloodGroup || resolvedProfile.bloodGroup,
+              age: latest.age || resolvedProfile.age,
+              gender: latest.gender || resolvedProfile.gender,
+              emergencyContact: latest.emergencyContact || resolvedProfile.emergencyContact,
+              dob: latest.dob || resolvedProfile.dob,
+              address: latest.address || resolvedProfile.address,
+              photoUri: latest.photoUri || resolvedProfile.photoUri,
+            };
+            setUser((prev) => ({ ...prev, ...syncedProfile }));
+            setEditForm((prev) => ({ ...prev, ...syncedProfile }));
             if (latest.walletBalance !== undefined) {
               setWalletBalance(latest.walletBalance);
             }
             if (latest.familyMembers && Array.isArray(latest.familyMembers) && latest.familyMembers.length > 0) {
+              setFamilyMembers(latest.familyMembers);
               setFamilyCount(latest.familyMembers.length);
             }
           }
@@ -179,7 +255,88 @@ const ProfileScreenWeb = ({ navigation, route }) => {
   };
 
   const handleEditProfile = () => {
-    navigation?.navigate('EditProfile', { user });
+    setEditForm({
+      name: user.name || 'Hemanth Gowda T N',
+      email: user.email || 'hemanthtn888@gmail.com',
+      phone: user.phone || '+91 9741422544',
+      bloodGroup: user.bloodGroup || 'B+ Positive',
+      age: user.age || '23 Yrs',
+      gender: user.gender || 'Male',
+      dob: user.dob || '2003-07-02',
+      address: user.address || '#42, 4th Cross, Green Glen Layout, Bellandur, Bengaluru - 560103',
+      emergencyContact: user.emergencyContact || '+91 8061452468 (Emergency)',
+      photoUri: user.photoUri || null,
+    });
+    setFormErrors({});
+    setIsEditMode(true);
+  };
+
+  const handleCancelEdit = () => {
+    setFormErrors({});
+    setIsEditMode(false);
+  };
+
+  const handleSaveProfile = async () => {
+    const errors = {};
+    if (!editForm.name || editForm.name.trim().length < 2) {
+      errors.name = 'Please enter a valid full name (at least 2 characters)';
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!editForm.email || !emailRegex.test(editForm.email.trim())) {
+      errors.email = 'Please enter a valid email address';
+    }
+    const phoneDigits = (editForm.phone || '').replace(/[^0-9]/g, '');
+    if (phoneDigits.length < 10) {
+      errors.phone = 'Please enter a valid 10-digit mobile number';
+    }
+    if (!editForm.emergencyContact || editForm.emergencyContact.trim().length < 5) {
+      errors.emergencyContact = 'Please provide an emergency contact name & phone';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+
+    setFormErrors({});
+    setIsSaving(true);
+
+    try {
+      const updatedUserObj = {
+        ...user,
+        name: editForm.name.trim(),
+        email: editForm.email.trim(),
+        phone: editForm.phone.trim(),
+        bloodGroup: editForm.bloodGroup,
+        age: editForm.age.trim(),
+        gender: editForm.gender,
+        dob: editForm.dob.trim(),
+        address: editForm.address.trim(),
+        emergencyContact: editForm.emergencyContact.trim(),
+        photoUri: editForm.photoUri,
+      };
+
+      setUser(updatedUserObj);
+
+      await AsyncStorage.setItem('@unnathi_primary_user', JSON.stringify(updatedUserObj));
+      await AsyncStorage.setItem('user', JSON.stringify(updatedUserObj));
+      await AsyncStorage.setItem('userName', updatedUserObj.name);
+      await AsyncStorage.setItem('userEmail', updatedUserObj.email);
+      await AsyncStorage.setItem('userPhone', updatedUserObj.phone);
+      await AsyncStorage.setItem('@unnathi_active_patient', JSON.stringify(updatedUserObj));
+
+      try {
+        await syncActiveUser();
+      } catch (e) {}
+
+      setIsSaving(false);
+      setIsEditMode(false);
+      setSaveSuccessMsg('Profile updated successfully!');
+      setTimeout(() => setSaveSuccessMsg(''), 4000);
+    } catch (err) {
+      setIsSaving(false);
+      showAlert('Error', 'Failed to save profile changes. Please try again.');
+    }
   };
 
   const handleLogout = () => {
@@ -287,75 +444,341 @@ const ProfileScreenWeb = ({ navigation, route }) => {
         </View>
 
         <View style={styles.webContainer}>
+          {/* Page Header Banner */}
+          <PatientPageBanner
+            title="My Health Profile & Account"
+            subtitle="Manage your primary identity, linked family health records, digital emergency card, and login security credentials."
+            badgeText="AUTHENTICATED PATIENT IDENTITY • NABH SECURE"
+            badgeIcon="shield-checkmark"
+            iconName="person"
+            theme="navy"
+            pills={[
+              {
+                label: 'Account Verified',
+                bgColor: '#DCFCE7',
+                borderColor: '#86EFAC',
+                textColor: '#166534',
+                icon: 'checkmark-circle',
+              },
+              {
+                label: `Family Members: ${familyCount}`,
+                bgColor: '#E0F2FE',
+                borderColor: '#BAE6FD',
+                textColor: '#0369A1',
+                icon: 'people-outline',
+              },
+            ]}
+            rightContent={
+              <TouchableOpacity
+                style={styles.primaryEditBtn}
+                onPress={handleEditProfile}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="create-outline" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.primaryEditBtnText}>Update Profile</Text>
+              </TouchableOpacity>
+            }
+          />
+
           {/* ============================================================
               2. HERO IDENTITY & HEALTH WALLET DUAL BANNER (HOMESCREEN STYLE)
           ============================================================ */}
           <View style={[styles.heroDualRow, isDesktop ? styles.heroDualRowDesktop : null]}>
             {/* Left Card: Patient Digital Health Card */}
             <View style={[styles.patientIdentityCard, isDesktop ? { flex: 1.1 } : null]}>
-              <View style={styles.cardHeaderRow}>
-                <View style={styles.brandPillWeb}>
-                  <Ionicons name="finger-print" size={13} color="#00B894" />
-                  <Text style={styles.brandPillWebText}>DIGITAL HEALTH ID</Text>
+              {saveSuccessMsg ? (
+                <View style={styles.successAlertBanner}>
+                  <Ionicons name="checkmark-circle" size={18} color="#059669" />
+                  <Text style={styles.successAlertText}>{saveSuccessMsg}</Text>
                 </View>
-                <View style={styles.uhidBadgePill}>
-                  <Text style={styles.uhidBadgePillText}>UHID: {user.uhid || 'MU-84920'}</Text>
-                </View>
-              </View>
+              ) : null}
 
-              <View style={styles.userMainInfoRow}>
-                <View style={styles.avatarWrapWeb}>
-                  <View style={styles.avatarCircleWeb}>
-                    <Text style={styles.avatarTextWeb}>{userInitial}</Text>
+              {!isEditMode ? (
+                <>
+                  <View style={styles.cardHeaderRow}>
+                    <View style={styles.brandPillWeb}>
+                      <Ionicons name="finger-print" size={13} color="#00B894" />
+                      <Text style={styles.brandPillWebText}>DIGITAL HEALTH ID</Text>
+                    </View>
+                    <View style={styles.uhidBadgePill}>
+                      <Text style={styles.uhidBadgePillText}>UHID: {user.uhid || 'MU-84920'}</Text>
+                    </View>
                   </View>
-                  <View style={styles.verifiedCheckBadge}>
-                    <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+
+                  <View style={styles.userMainInfoRow}>
+                    <View style={styles.avatarWrapWeb}>
+                      <View style={styles.avatarCircleWeb}>
+                        <Text style={styles.avatarTextWeb}>{userInitial}</Text>
+                      </View>
+                      <View style={styles.verifiedCheckBadge}>
+                        <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                      </View>
+                    </View>
+
+                    <View style={styles.userInfoColWeb}>
+                      <Text style={styles.userNameWeb} numberOfLines={1}>{user.name}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                        <Ionicons name="call-outline" size={13} color="#64748B" />
+                        <Text style={styles.userSubTextWeb}>{user.phone}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                        <Ionicons name="mail-outline" size={13} color="#64748B" />
+                        <Text style={styles.userSubTextWeb} numberOfLines={1}>{user.email}</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Patient Vitals & Demographics Chips */}
+                  <View style={styles.vitalsPillRow}>
+                    <View style={styles.vitalTag}>
+                      <Ionicons name="water" size={13} color="#FF7F50" />
+                      <Text style={styles.vitalTagText}>{user.bloodGroup || 'O+ Positive'}</Text>
+                    </View>
+                    <View style={styles.vitalTag}>
+                      <Ionicons name="person" size={13} color="#1E3A8A" />
+                      <Text style={styles.vitalTagText}>{user.age} • {user.gender}</Text>
+                    </View>
+                    <View style={styles.vitalTag}>
+                      <Ionicons name="calendar-outline" size={13} color="#00C2CB" />
+                      <Text style={styles.vitalTagText}>DOB: {user.dob || '14 May 1992'}</Text>
+                    </View>
+                    <View style={styles.vitalTag}>
+                      <Ionicons name="call" size={13} color="#FF7F50" />
+                      <Text style={styles.vitalTagText}>SOS: {user.emergencyContact || 'Active'}</Text>
+                    </View>
+                  </View>
+
+                  {/* Address Summary */}
+                  <View style={styles.profileAddressCard}>
+                    <Ionicons name="location-outline" size={16} color="#00B894" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.profileAddressTitle}>Registered Patient Address</Text>
+                      <Text style={styles.profileAddressText}>{user.address || '#42, 4th Cross, Green Glen Layout, Bellandur, Bengaluru - 560103'}</Text>
+                    </View>
+                  </View>
+
+                  {/* Action Buttons */}
+                  <View style={styles.identityActionsRow}>
+                    <TouchableOpacity
+                      style={styles.primaryEditBtn}
+                      onPress={handleEditProfile}
+                      activeOpacity={0.88}
+                    >
+                      <Ionicons name="create-outline" size={15} color="#FFFFFF" />
+                      <Text style={styles.primaryEditBtnText}>Edit Profile Details</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.secondarySecurityBtn}
+                      onPress={() => navigation?.navigate('EditProfile', { user, openPassword: true })}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="lock-closed-outline" size={14} color="#1E3A8A" />
+                      <Text style={styles.secondarySecurityBtnText}>Security & Password</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                /* ============================================================
+                   INTERACTIVE PATIENT PROFILE EDIT MODE
+                ============================================================ */
+                <View style={styles.editModeContainer}>
+                  <View style={styles.editModeHeaderRow}>
+                    <View style={styles.editModeTitleBadge}>
+                      <Ionicons name="pencil" size={14} color="#00B894" />
+                      <Text style={styles.editModeTitleText}>EDIT PATIENT PROFILE</Text>
+                    </View>
+                    <TouchableOpacity onPress={handleCancelEdit} style={styles.editCancelIconBtn}>
+                      <Ionicons name="close" size={18} color="#64748B" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Profile Avatar Bar with Change Photo Action */}
+                  <View style={styles.editAvatarRow}>
+                    <View style={styles.avatarWrapWeb}>
+                      <View style={[styles.avatarCircleWeb, { width: 56, height: 56 }]}>
+                        <Text style={[styles.avatarTextWeb, { fontSize: 22 }]}>{userInitial}</Text>
+                      </View>
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 14 }}>
+                      <Text style={styles.editAvatarTitle}>Profile Photo / Picture</Text>
+                      <Text style={styles.editAvatarSub}>JPG, PNG up to 5MB. Visible to attending clinicians.</Text>
+                      <TouchableOpacity
+                        style={styles.changePhotoBtn}
+                        onPress={() => showAlert('Upload Photo', 'Patient photo upload dialog is ready. Using profile avatar.')}
+                      >
+                        <Ionicons name="camera-outline" size={13} color="#00B894" />
+                        <Text style={styles.changePhotoBtnText}>Update Photo</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Form Fields */}
+                  <View style={styles.editFormGrid}>
+                    {/* Full Name */}
+                    <View style={styles.formFieldGroup}>
+                      <Text style={styles.formLabel}>Full Name *</Text>
+                      <TextInput
+                        style={[styles.formInput, formErrors.name && styles.formInputError]}
+                        value={editForm.name}
+                        onChangeText={(txt) => {
+                          setEditForm((prev) => ({ ...prev, name: txt }));
+                          if (formErrors.name) setFormErrors((prev) => ({ ...prev, name: null }));
+                        }}
+                        placeholder="e.g. Ramesh Kumar"
+                        placeholderTextColor="#94A3B8"
+                      />
+                      {formErrors.name ? <Text style={styles.errorSubText}>{formErrors.name}</Text> : null}
+                    </View>
+
+                    {/* Email */}
+                    <View style={styles.formFieldGroup}>
+                      <Text style={styles.formLabel}>Email Address *</Text>
+                      <TextInput
+                        style={[styles.formInput, formErrors.email && styles.formInputError]}
+                        value={editForm.email}
+                        onChangeText={(txt) => {
+                          setEditForm((prev) => ({ ...prev, email: txt }));
+                          if (formErrors.email) setFormErrors((prev) => ({ ...prev, email: null }));
+                        }}
+                        placeholder="patient@example.com"
+                        placeholderTextColor="#94A3B8"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                      />
+                      {formErrors.email ? <Text style={styles.errorSubText}>{formErrors.email}</Text> : null}
+                    </View>
+
+                    {/* Phone Number */}
+                    <View style={styles.formFieldGroup}>
+                      <Text style={styles.formLabel}>Mobile Number *</Text>
+                      <TextInput
+                        style={[styles.formInput, formErrors.phone && styles.formInputError]}
+                        value={editForm.phone}
+                        onChangeText={(txt) => {
+                          setEditForm((prev) => ({ ...prev, phone: txt }));
+                          if (formErrors.phone) setFormErrors((prev) => ({ ...prev, phone: null }));
+                        }}
+                        placeholder="+91 98450 12345"
+                        placeholderTextColor="#94A3B8"
+                        keyboardType="phone-pad"
+                      />
+                      {formErrors.phone ? <Text style={styles.errorSubText}>{formErrors.phone}</Text> : null}
+                    </View>
+
+                    {/* Date of Birth & Age */}
+                    <View style={styles.formFieldRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.formLabel}>Date of Birth</Text>
+                        <TextInput
+                          style={styles.formInput}
+                          value={editForm.dob}
+                          onChangeText={(txt) => setEditForm((prev) => ({ ...prev, dob: txt }))}
+                          placeholder="YYYY-MM-DD"
+                          placeholderTextColor="#94A3B8"
+                        />
+                      </View>
+                      <View style={{ width: 100 }}>
+                        <Text style={styles.formLabel}>Age</Text>
+                        <TextInput
+                          style={styles.formInput}
+                          value={editForm.age}
+                          onChangeText={(txt) => setEditForm((prev) => ({ ...prev, age: txt }))}
+                          placeholder="32 Yrs"
+                          placeholderTextColor="#94A3B8"
+                        />
+                      </View>
+                    </View>
+
+                    {/* Gender Selector */}
+                    <View style={styles.formFieldGroup}>
+                      <Text style={styles.formLabel}>Gender</Text>
+                      <View style={styles.chipsRow}>
+                        {GENDERS.map((g) => (
+                          <TouchableOpacity
+                            key={g}
+                            style={[styles.genderChip, editForm.gender === g && styles.genderChipActive]}
+                            onPress={() => setEditForm((prev) => ({ ...prev, gender: g }))}
+                          >
+                            <Text style={[styles.genderChipText, editForm.gender === g && styles.genderChipTextActive]}>{g}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+
+                    {/* Blood Group Selector */}
+                    <View style={styles.formFieldGroup}>
+                      <Text style={styles.formLabel}>Blood Group</Text>
+                      <View style={styles.chipsRow}>
+                        {BLOOD_GROUPS.map((bg) => (
+                          <TouchableOpacity
+                            key={bg}
+                            style={[styles.bloodChip, editForm.bloodGroup === bg && styles.bloodChipActive]}
+                            onPress={() => setEditForm((prev) => ({ ...prev, bloodGroup: bg }))}
+                          >
+                            <Text style={[styles.bloodChipText, editForm.bloodGroup === bg && styles.bloodChipTextActive]}>{bg}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+
+                    {/* Address */}
+                    <View style={styles.formFieldGroup}>
+                      <Text style={styles.formLabel}>Residential Delivery Address</Text>
+                      <TextInput
+                        style={[styles.formInput, { minHeight: 60, textAlignVertical: 'top' }]}
+                        value={editForm.address}
+                        onChangeText={(txt) => setEditForm((prev) => ({ ...prev, address: txt }))}
+                        placeholder="House no, street, locality, pincode"
+                        placeholderTextColor="#94A3B8"
+                        multiline
+                      />
+                    </View>
+
+                    {/* Emergency Contact */}
+                    <View style={styles.formFieldGroup}>
+                      <Text style={styles.formLabel}>Emergency SOS Contact *</Text>
+                      <TextInput
+                        style={[styles.formInput, formErrors.emergencyContact && styles.formInputError]}
+                        value={editForm.emergencyContact}
+                        onChangeText={(txt) => {
+                          setEditForm((prev) => ({ ...prev, emergencyContact: txt }));
+                          if (formErrors.emergencyContact) setFormErrors((prev) => ({ ...prev, emergencyContact: null }));
+                        }}
+                        placeholder="e.g. +91 98450 11223 (Family)"
+                        placeholderTextColor="#94A3B8"
+                      />
+                      {formErrors.emergencyContact ? <Text style={styles.errorSubText}>{formErrors.emergencyContact}</Text> : null}
+                    </View>
+                  </View>
+
+                  {/* Edit Form Actions */}
+                  <View style={styles.editFormActionsRow}>
+                    <TouchableOpacity
+                      style={styles.cancelEditBtn}
+                      onPress={handleCancelEdit}
+                      disabled={isSaving}
+                    >
+                      <Text style={styles.cancelEditBtnText}>Cancel</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.saveEditBtn}
+                      onPress={handleSaveProfile}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Ionicons name="save-outline" size={15} color="#FFFFFF" />
+                          <Text style={styles.saveEditBtnText}>Save Profile Changes</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
                   </View>
                 </View>
-
-                <View style={styles.userInfoColWeb}>
-                  <Text style={styles.userNameWeb} numberOfLines={1}>{user.name}</Text>
-                  <Text style={styles.userSubTextWeb}>📞 {user.phone}</Text>
-                  <Text style={styles.userSubTextWeb} numberOfLines={1}>✉️ {user.email}</Text>
-                </View>
-              </View>
-
-              {/* Patient Vitals Chips */}
-              <View style={styles.vitalsPillRow}>
-                <View style={styles.vitalTag}>
-                  <Ionicons name="water" size={13} color="#DC2626" />
-                  <Text style={styles.vitalTagText}>{user.bloodGroup || 'O+ Positive'}</Text>
-                </View>
-                <View style={styles.vitalTag}>
-                  <Ionicons name="person" size={13} color="#2563EB" />
-                  <Text style={styles.vitalTagText}>{user.age} • {user.gender}</Text>
-                </View>
-                <View style={styles.vitalTag}>
-                  <Ionicons name="call" size={13} color="#D97706" />
-                  <Text style={styles.vitalTagText}>SOS Contact Active</Text>
-                </View>
-              </View>
-
-              {/* Action Buttons */}
-              <View style={styles.identityActionsRow}>
-                <TouchableOpacity
-                  style={styles.primaryEditBtn}
-                  onPress={handleEditProfile}
-                  activeOpacity={0.88}
-                >
-                  <Ionicons name="create-outline" size={15} color="#FFFFFF" />
-                  <Text style={styles.primaryEditBtnText}>Edit Profile Details</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.secondarySecurityBtn}
-                  onPress={() => navigation?.navigate('EditProfile', { user, openPassword: true })}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="lock-closed-outline" size={14} color="#1E3A8A" />
-                  <Text style={styles.secondarySecurityBtnText}>Security & Password</Text>
-                </TouchableOpacity>
-              </View>
+              )}
             </View>
 
             {/* Right Card: Health Wallet & Care Points (Exact HomeScreen.web.js Aesthetic) */}
@@ -383,13 +806,19 @@ const ProfileScreenWeb = ({ navigation, route }) => {
                 </View>
                 <View style={styles.carePointsCard}>
                   <Text style={styles.carePointsLabel}>Care Points</Text>
-                  <Text style={styles.carePointsValue}>🪙 {carePoints} Pts</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                    <Ionicons name="ribbon-outline" size={14} color="#00B894" />
+                    <Text style={styles.carePointsValue}>{carePoints} Pts</Text>
+                  </View>
                 </View>
               </View>
 
-              <Text style={styles.walletBenefitNote}>
-                ⚡ Save 5% cashback on medicine orders, full body health packages & clinic consultation fees.
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginVertical: 8 }}>
+                <Ionicons name="flash-outline" size={14} color="#00B894" />
+                <Text style={styles.walletBenefitNote}>
+                  Save 5% cashback on medicine orders, full body health packages & clinic consultation fees.
+                </Text>
+              </View>
 
               <View style={styles.walletActionButtonsRow}>
                 <TouchableOpacity
@@ -455,202 +884,137 @@ const ProfileScreenWeb = ({ navigation, route }) => {
           </View>
 
           {/* ============================================================
-              3. 4 MAJOR HEALTHCARE HUBS (HOMESCREEN.WEB.JS 2x2 / 4-COL GRID)
+              3. SELF HEALTH MONITORING & DAILY VITALS
           ============================================================ */}
           <View style={styles.sectionHeaderWeb}>
-            <View>
-              <Text style={styles.sectionHeadingTitle}>Healthcare Services & Telemetry</Text>
-              <Text style={styles.sectionSubHeading}>Access your appointments, prescriptions, diagnostic records and daily vitals</Text>
+            <View style={styles.sectionHeaderLeft}>
+              <View style={styles.sectionBadgePill}>
+                <Ionicons name="pulse" size={13} color="#00B894" />
+                <Text style={styles.sectionBadgeText}>SELF HEALTH MONITORING</Text>
+              </View>
+              <Text style={styles.sectionHeadingTitle}>Daily Health Vitals & Telemetry</Text>
+              <Text style={styles.sectionSubHeading}>
+                Monitor your essential clinical metrics, blood pressure, fasting sugar, and blood oxygen levels.
+              </Text>
             </View>
+            <TouchableOpacity
+              style={styles.sectionCtaBtn}
+              onPress={() => navigation?.navigate('HealthMonitor')}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="analytics-outline" size={16} color="#00B894" />
+              <Text style={styles.sectionCtaBtnText}>Open Health Monitor</Text>
+              <Ionicons name="arrow-forward" size={14} color="#00B894" />
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.hubsGridWeb}>
-            {/* Hub 1: Doctor Consultations */}
-            <TouchableOpacity
-              style={styles.hubTileCard}
-              onPress={() => navigation?.navigate('Bookings')}
-              activeOpacity={0.9}
-            >
-              <View style={styles.hubTileTop}>
-                <View style={[styles.hubTileIconCircle, { backgroundColor: '#EFF6FF' }]}>
-                  <Ionicons name="calendar" size={24} color="#2563EB" />
+          {/* Vitals 4-Card Responsive Grid */}
+          <View style={styles.vitalsGridWeb}>
+            {latestVitals.map((vital) => (
+              <TouchableOpacity
+                key={vital.id}
+                style={styles.vitalCardWeb}
+                onPress={() => navigation?.navigate('HealthMonitor')}
+                activeOpacity={0.88}
+              >
+                <View style={styles.vitalCardHeader}>
+                  <View style={styles.vitalIconWrap}>
+                    <Ionicons name={vital.icon || 'pulse-outline'} size={20} color="#00B894" />
+                  </View>
+                  <View style={styles.vitalStatusBadge}>
+                    <View style={styles.vitalStatusDot} />
+                    <Text style={styles.vitalStatusText}>{vital.status || 'Normal'}</Text>
+                  </View>
                 </View>
-                <View style={[styles.hubTagPill, { backgroundColor: '#EFF6FF' }]}>
-                  <Text style={[styles.hubTagText, { color: '#2563EB' }]}>Active Slips</Text>
+                <Text style={styles.vitalCardTitle}>{vital.title}</Text>
+                <View style={styles.vitalValueRow}>
+                  <Text style={styles.vitalValueNumber}>{vital.value}</Text>
+                  <Text style={styles.vitalValueUnit}>{vital.unit}</Text>
                 </View>
-              </View>
-              <Text style={styles.hubTileTitle}>My Appointments</Text>
-              <Text style={styles.hubTileSub}>In-clinic appointments, video calls, doctor token status & prescription slips</Text>
-              <View style={styles.hubTileFooter}>
-                <Text style={[styles.hubTileActionText, { color: '#2563EB' }]}>View Bookings ›</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Hub 2: Diagnostic Lab Reports */}
-            <TouchableOpacity
-              style={styles.hubTileCard}
-              onPress={() => navigation?.navigate('HealthRecords')}
-              activeOpacity={0.9}
-            >
-              <View style={styles.hubTileTop}>
-                <View style={[styles.hubTileIconCircle, { backgroundColor: '#F0FDF4' }]}>
-                  <Ionicons name="flask" size={24} color="#16A34A" />
-                </View>
-                <View style={[styles.hubTagPill, { backgroundColor: '#DCFCE7' }]}>
-                  <Text style={[styles.hubTagText, { color: '#15803D' }]}>NABL Certified</Text>
-                </View>
-              </View>
-              <Text style={styles.hubTileTitle}>Medical Records & Tests</Text>
-              <Text style={styles.hubTileSub}>Blood test PDF reports, digital prescriptions, vaccination charts & 3T MRI scans</Text>
-              <View style={styles.hubTileFooter}>
-                <Text style={[styles.hubTileActionText, { color: '#16A34A' }]}>Open Records ›</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Hub 3: Pharmacy Orders */}
-            <TouchableOpacity
-              style={styles.hubTileCard}
-              onPress={() => navigation?.navigate('MyOrders')}
-              activeOpacity={0.9}
-            >
-              <View style={styles.hubTileTop}>
-                <View style={[styles.hubTileIconCircle, { backgroundColor: '#FFF7ED' }]}>
-                  <Ionicons name="cart" size={24} color="#EA580C" />
-                </View>
-                <View style={[styles.hubTagPill, { backgroundColor: '#FFEDD5' }]}>
-                  <Text style={[styles.hubTagText, { color: '#C2410C' }]}>60-Min Express</Text>
-                </View>
-              </View>
-              <Text style={styles.hubTileTitle}>Pharmacy Orders</Text>
-              <Text style={styles.hubTileSub}>Active deliveries, monthly medicine refill schedule, order invoices & Jan Aushadhi</Text>
-              <View style={styles.hubTileFooter}>
-                <Text style={[styles.hubTileActionText, { color: '#EA580C' }]}>Track Orders ›</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Hub 4: Health Monitor & Vitals */}
-            <TouchableOpacity
-              style={styles.hubTileCard}
-              onPress={() => navigation?.navigate('HealthMonitor')}
-              activeOpacity={0.9}
-            >
-              <View style={styles.hubTileTop}>
-                <View style={[styles.hubTileIconCircle, { backgroundColor: '#FAF5FF' }]}>
-                  <Ionicons name="pulse" size={24} color="#7C3AED" />
-                </View>
-                <View style={[styles.hubTagPill, { backgroundColor: '#F3E8FF' }]}>
-                  <Text style={[styles.hubTagText, { color: '#7E22CE' }]}>Telemetry Log</Text>
-                </View>
-              </View>
-              <Text style={styles.hubTileTitle}>Health Monitor & Vitals</Text>
-              <Text style={styles.hubTileSub}>Track blood pressure, fasting glucose, SpO2 pulse and BMI with telemetry graphs</Text>
-              <View style={styles.hubTileFooter}>
-                <Text style={[styles.hubTileActionText, { color: '#7C3AED' }]}>Log Vitals ›</Text>
-              </View>
-            </TouchableOpacity>
+                <Text style={styles.vitalCardSub}>{vital.sub || 'Clinical Range'}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
           {/* ============================================================
-              4. BENEFITS, INSURANCE & FAMILY SHOWCASE (HOMESCREEN 2-COLUMN)
+              4. FAMILY MEMBERS & DEPENDENTS (LINKED PROFILES)
           ============================================================ */}
-          <View style={styles.sectionHeaderWeb}>
-            <View>
-              <Text style={styles.sectionHeadingTitle}>Benefits, Insurance & Family</Text>
-              <Text style={styles.sectionSubHeading}>Manage health insurance claims, family dependents and GST invoices</Text>
+          <View style={[styles.sectionHeaderWeb, { marginTop: 28 }]}>
+            <View style={styles.sectionHeaderLeft}>
+              <View style={styles.sectionBadgePill}>
+                <Ionicons name="people" size={13} color="#00B894" />
+                <Text style={styles.sectionBadgeText}>LINKED FAMILY PROFILES</Text>
+              </View>
+              <Text style={styles.sectionHeadingTitle}>Family Members & Dependents</Text>
+              <Text style={styles.sectionSubHeading}>
+                Book clinic visits, video consultations, and diagnostic tests for parents, spouse, or children under secure profiles.
+              </Text>
             </View>
+            <TouchableOpacity
+              style={styles.sectionPrimaryBtn}
+              onPress={() => navigation?.navigate('FamilyProfiles')}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="person-add-outline" size={15} color="#FFFFFF" />
+              <Text style={styles.sectionPrimaryBtnText}>+ Add Family Member</Text>
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.secondaryGridWeb}>
-            {/* 1. Cashless Health Insurance */}
-            <TouchableOpacity
-              style={styles.secondaryCardWeb}
-              onPress={() => navigation?.navigate('HealthInsurance')}
-              activeOpacity={0.9}
-            >
-              <View style={styles.secondaryCardHeader}>
-                <View style={[styles.secondaryIconCircle, { backgroundColor: '#ECFDF5' }]}>
-                  <Ionicons name="shield-checkmark" size={22} color="#059669" />
+          {/* Family Members Grid */}
+          <View style={styles.familyGridWeb}>
+            {familyMembers.map((member, idx) => (
+              <TouchableOpacity
+                key={member.id || idx}
+                style={styles.familyMemberCardWeb}
+                onPress={() => navigation?.navigate('FamilyProfiles')}
+                activeOpacity={0.88}
+              >
+                <View style={styles.familyAvatarWrap}>
+                  <Text style={styles.familyAvatarText}>
+                    {(member.name || 'M').charAt(0).toUpperCase()}
+                  </Text>
                 </View>
-                <View style={[styles.badgePillWeb, { backgroundColor: '#DCFCE7' }]}>
-                  <Text style={[styles.badgePillWebText, { color: '#15803D' }]}>IRDAI Cashless</Text>
+                <View style={styles.familyInfoCol}>
+                  <View style={styles.familyNameRow}>
+                    <Text style={styles.familyMemberName} numberOfLines={1}>{member.name}</Text>
+                    <View style={styles.familyRelationPill}>
+                      <Text style={styles.familyRelationText}>{member.relation || 'Member'}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.familyTagsRow}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons name="calendar-outline" size={12} color="#64748B" />
+                      <Text style={styles.familyDetailTagText}>{member.age || 'Adult'}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons name="person-outline" size={12} color="#64748B" />
+                      <Text style={styles.familyDetailTagText}>{member.gender || 'Not specified'}</Text>
+                    </View>
+                    {member.bloodGroup ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Ionicons name="water" size={12} color="#00B894" />
+                        <Text style={[styles.familyDetailTagText, { color: '#00B894', fontWeight: '700' }]}>
+                          {member.bloodGroup}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
                 </View>
-              </View>
-              <Text style={styles.secondaryTitleWeb}>Health Insurance & TPA Desk</Text>
-              <Text style={styles.secondaryDescWeb}>
-                Guaranteed cashless hospital admission across 10,000+ top hospitals with fast 20-min pre-authorization.
-              </Text>
-              <View style={styles.secondaryCardFooter}>
-                <Text style={[styles.secondaryActionText, { color: '#059669' }]}>View Coverage & E-Card ›</Text>
-              </View>
-            </TouchableOpacity>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            ))}
 
-            {/* 2. Family Health Profiles */}
+            {/* Quick Add Member Shortcut Card */}
             <TouchableOpacity
-              style={styles.secondaryCardWeb}
+              style={styles.addMemberCardWeb}
               onPress={() => navigation?.navigate('FamilyProfiles')}
-              activeOpacity={0.9}
+              activeOpacity={0.85}
             >
-              <View style={styles.secondaryCardHeader}>
-                <View style={[styles.secondaryIconCircle, { backgroundColor: '#EFF6FF' }]}>
-                  <Ionicons name="people" size={22} color="#2563EB" />
-                </View>
-                <View style={[styles.badgePillWeb, { backgroundColor: '#DBEAFE' }]}>
-                  <Text style={[styles.badgePillWebText, { color: '#1D4ED8' }]}>{familyCount} Profiles</Text>
-                </View>
+              <View style={styles.addMemberIconCircle}>
+                <Ionicons name="add" size={24} color="#00B894" />
               </View>
-              <Text style={styles.secondaryTitleWeb}>Family Members & Dependents</Text>
-              <Text style={styles.secondaryDescWeb}>
-                Book appointments and medical orders for parents, spouse, or children with separate encrypted profiles.
-              </Text>
-              <View style={styles.secondaryCardFooter}>
-                <Text style={[styles.secondaryActionText, { color: '#2563EB' }]}>Manage Family ({familyCount}) ›</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* 3. Invoices & GST Receipts */}
-            <TouchableOpacity
-              style={styles.secondaryCardWeb}
-              onPress={() => navigation?.navigate('TransactionHistory')}
-              activeOpacity={0.9}
-            >
-              <View style={styles.secondaryCardHeader}>
-                <View style={[styles.secondaryIconCircle, { backgroundColor: '#FEF3C7' }]}>
-                  <Ionicons name="receipt" size={22} color="#D97706" />
-                </View>
-                <View style={[styles.badgePillWeb, { backgroundColor: '#FEF3C7' }]}>
-                  <Text style={[styles.badgePillWebText, { color: '#B45309' }]}>Tax Deductible</Text>
-                </View>
-              </View>
-              <Text style={styles.secondaryTitleWeb}>Invoices & Medical Bills</Text>
-              <Text style={styles.secondaryDescWeb}>
-                Download tax receipts and token statements eligible for 80D medical expenditure tax deductions.
-              </Text>
-              <View style={styles.secondaryCardFooter}>
-                <Text style={[styles.secondaryActionText, { color: '#D97706' }]}>Download Tax Invoices ›</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* 4. Refer Friends & Rewards */}
-            <TouchableOpacity
-              style={styles.secondaryCardWeb}
-              onPress={() => navigation?.navigate('ReferEarn')}
-              activeOpacity={0.9}
-            >
-              <View style={styles.secondaryCardHeader}>
-                <View style={[styles.secondaryIconCircle, { backgroundColor: '#FDF2F8' }]}>
-                  <Ionicons name="gift" size={22} color="#DB2777" />
-                </View>
-                <View style={[styles.badgePillWeb, { backgroundColor: '#FCE7F3' }]}>
-                  <Text style={[styles.badgePillWebText, { color: '#BE185D' }]}>Get ₹250</Text>
-                </View>
-              </View>
-              <Text style={styles.secondaryTitleWeb}>Refer Friends & Earn Health Cash</Text>
-              <Text style={styles.secondaryDescWeb}>
-                Invite friends and family to MediUnify. You each get ₹250 wallet credit on their first completed booking.
-              </Text>
-              <View style={styles.secondaryCardFooter}>
-                <Text style={[styles.secondaryActionText, { color: '#DB2777' }]}>Invite & Earn Now ›</Text>
-              </View>
+              <Text style={styles.addMemberTitle}>Add Another Member</Text>
+              <Text style={styles.addMemberSub}>Parent, Child or Spouse profile</Text>
             </TouchableOpacity>
           </View>
 
@@ -707,7 +1071,7 @@ const ProfileScreenWeb = ({ navigation, route }) => {
               onPress={handleLogout}
               activeOpacity={0.88}
             >
-              <Ionicons name="log-out-outline" size={19} color="#DC2626" />
+              <Ionicons name="log-out-outline" size={19} color="#FF7F50" />
               <Text style={styles.webLogoutBtnText}>Log Out of Account</Text>
             </TouchableOpacity>
           </View>
@@ -725,18 +1089,20 @@ const ProfileScreenWeb = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#E8F1F8',
+    backgroundImage: 'linear-gradient(180deg, #E6F0F7 0%, #EBF4FA 35%, #F0F6FA 100%)',
   },
   scrollContent: {
     flexGrow: 1,
+    backgroundColor: 'transparent',
   },
 
   // 1. BREADCRUMB BAR
   breadcrumbBarWrap: {
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    paddingVertical: 10,
+    backgroundColor: 'transparent',
+    borderBottomWidth: 0,
+    paddingTop: 16,
+    paddingBottom: 4,
     paddingHorizontal: 24,
   },
   breadcrumbBarInner: {
@@ -767,17 +1133,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#F0FDFA',
+    backgroundColor: '#ECFDF5',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#CCFBF1',
+    borderColor: '#DCE7EC',
   },
   securityBadgeWebText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#0D9488',
+    color: '#00B894',
   },
 
   // 2. MAIN WEB CONTAINER
@@ -839,7 +1205,7 @@ const styles = StyleSheet.create({
   webVipTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   webVipBadgePill: {
     backgroundColor: '#FEF3C7',
@@ -878,7 +1244,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DCE7EC',
     shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
@@ -896,12 +1262,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#F0FDFA',
+    backgroundColor: '#ECFDF5',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#CCFBF1',
+    borderColor: '#DCE7EC',
   },
   brandPillWebText: {
     fontSize: 11,
@@ -910,12 +1276,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   uhidBadgePill: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F1F8FB',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DCE7EC',
   },
   uhidBadgePillText: {
     fontSize: 11,
@@ -938,7 +1304,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
-    borderColor: '#E6FAF5',
+    borderColor: '#ECFDF5',
     shadowColor: '#00B894',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
@@ -956,7 +1322,7 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: '#1E3A8A',
+    backgroundColor: '#7BC96F',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -985,24 +1351,24 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: '#DCE7EC',
     marginBottom: 14,
   },
   vitalTag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F1F8FB',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DCE7EC',
   },
   vitalTagText: {
     fontSize: 11.5,
     fontWeight: '700',
-    color: '#334155',
+    color: '#1E3A8A',
   },
   identityActionsRow: {
     flexDirection: 'row',
@@ -1030,9 +1396,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F1F8FB',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DCE7EC',
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 8,
@@ -1042,6 +1408,243 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontWeight: '700',
     color: '#1E3A8A',
+  },
+
+  // SUCCESS ALERT & ADDRESS CARD
+  successAlertBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginBottom: 14,
+  },
+  successAlertText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  profileAddressCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14,
+  },
+  profileAddressTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  profileAddressText: {
+    fontSize: 12.5,
+    color: '#1E293B',
+    fontWeight: '500',
+    marginTop: 2,
+    lineHeight: 18,
+  },
+
+  // EDIT MODE STYLES
+  editModeContainer: {
+    width: '100%',
+  },
+  editModeHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  editModeTitleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  editModeTitleText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#00B894',
+    letterSpacing: 0.5,
+  },
+  editCancelIconBtn: {
+    padding: 4,
+  },
+  editAvatarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    backgroundColor: '#F8FAFC',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  editAvatarTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  editAvatarSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  changePhotoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#E6FAF5',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginTop: 6,
+  },
+  changePhotoBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  editFormGrid: {
+    gap: 12,
+  },
+  formFieldGroup: {
+    marginBottom: 2,
+  },
+  formFieldRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  formLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 4,
+  },
+  formInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: '#0F172A',
+  },
+  formInputError: {
+    borderColor: '#EF4444',
+    backgroundColor: '#FEF2F2',
+  },
+  errorSubText: {
+    fontSize: 11,
+    color: '#EF4444',
+    marginTop: 3,
+    fontWeight: '600',
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+  },
+  genderChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  genderChipActive: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
+  },
+  genderChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  genderChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  bloodChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  bloodChipActive: {
+    backgroundColor: '#DC2626',
+    borderColor: '#DC2626',
+  },
+  bloodChipText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  bloodChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  editFormActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  cancelEditBtn: {
+    flex: 0.8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    cursor: 'pointer',
+  },
+  cancelEditBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  saveEditBtn: {
+    flex: 1.2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#00B894',
+    paddingVertical: 10,
+    borderRadius: 8,
+    cursor: 'pointer',
+  },
+  saveEditBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 
   // HEALTH WALLET CARD
@@ -1148,7 +1751,7 @@ const styles = StyleSheet.create({
   carePointsValue: {
     fontSize: 13,
     fontWeight: '900',
-    color: '#EA580C',
+    color: '#FF7F50',
     marginTop: 1,
   },
   walletBenefitNote: {
@@ -1197,158 +1800,275 @@ const styles = StyleSheet.create({
     color: '#1E3A8A',
   },
 
-  // 3. SECTION HEADINGS (HOMESCREEN STYLE)
+  // 3 & 4. SELF HEALTH MONITORING & FAMILY PROFILES (CLEAN, USER-FRIENDLY SHOWCASE)
   sectionHeaderWeb: {
-    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 24,
     marginBottom: 14,
   },
+  sectionHeaderLeft: {
+    flex: 1,
+    minWidth: 280,
+  },
+  sectionBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    marginBottom: 6,
+  },
+  sectionBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#00B894',
+    letterSpacing: 0.5,
+  },
   sectionHeadingTitle: {
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: '900',
-    color: '#1E3A8A',
+    color: '#0C3B6B',
     letterSpacing: -0.4,
   },
   sectionSubHeading: {
     fontSize: 13,
     color: '#64748B',
-    marginTop: 2,
-    fontWeight: '500',
+    marginTop: 3,
+    maxWidth: 680,
+    lineHeight: 18,
+  },
+  sectionCtaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 10,
+    cursor: 'pointer',
+    boxShadow: '0 2px 6px rgba(0, 184, 148, 0.08)',
+  },
+  sectionCtaBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  sectionPrimaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#00B894',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    cursor: 'pointer',
+    boxShadow: '0 4px 12px rgba(0, 184, 148, 0.25)',
+  },
+  sectionPrimaryBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 
-  // HUBS 4-COLUMN / 2x2 GRID
-  hubsGridWeb: {
+  // VITALS GRID
+  vitalsGridWeb: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 16,
-    marginBottom: 26,
+    marginBottom: 10,
   },
-  hubTileCard: {
+  vitalCardWeb: {
     flex: 1,
-    minWidth: 260,
+    minWidth: 230,
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     padding: 18,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    shadowColor: '#1E3A8A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-    justifyContent: 'space-between',
+    boxShadow: '0 2px 8px rgba(12, 59, 107, 0.04)',
     cursor: 'pointer',
   },
-  hubTileTop: {
+  vitalCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 12,
   },
-  hubTileIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+  vitalIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#E6F8F4',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  hubTagPill: {
+  vitalStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#D1FAE5',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
-  hubTagText: {
+  vitalStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#00B894',
+  },
+  vitalStatusText: {
     fontSize: 10.5,
     fontWeight: '800',
-    letterSpacing: 0.3,
+    color: '#00B894',
   },
-  hubTileTitle: {
-    fontSize: 15.5,
-    fontWeight: '800',
-    color: '#1E3A8A',
+  vitalCardTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 6,
+  },
+  vitalValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 5,
     marginBottom: 4,
   },
-  hubTileSub: {
+  vitalValueNumber: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#0C3B6B',
+  },
+  vitalValueUnit: {
     fontSize: 12,
+    fontWeight: '600',
     color: '#64748B',
-    lineHeight: 18,
-    marginBottom: 14,
   },
-  hubTileFooter: {
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingTop: 10,
-  },
-  hubTileActionText: {
-    fontSize: 12.5,
-    fontWeight: '800',
+  vitalCardSub: {
+    fontSize: 11.5,
+    color: '#94A3B8',
   },
 
-  // SECONDARY 4-CARD BENEFITS GRID
-  secondaryGridWeb: {
+  // FAMILY MEMBERS GRID
+  familyGridWeb: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 16,
     marginBottom: 24,
   },
-  secondaryCardWeb: {
+  familyMemberCardWeb: {
     flex: 1,
-    minWidth: 260,
+    minWidth: 310,
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
-    padding: 18,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    shadowColor: '#1E3A8A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-    justifyContent: 'space-between',
-    cursor: 'pointer',
-  },
-  secondaryCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
+    gap: 14,
+    boxShadow: '0 2px 8px rgba(12, 59, 107, 0.04)',
+    cursor: 'pointer',
   },
-  secondaryIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+  familyAvatarWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#E6F8F4',
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgePillWeb: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+  familyAvatarText: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#00B894',
   },
-  badgePillWebText: {
-    fontSize: 10.5,
-    fontWeight: '800',
+  familyInfoCol: {
+    flex: 1,
   },
-  secondaryTitleWeb: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#1E3A8A',
+  familyNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginBottom: 4,
   },
-  secondaryDescWeb: {
+  familyMemberName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0C3B6B',
+  },
+  familyRelationPill: {
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  familyRelationText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#00B894',
+  },
+  familyTagsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  familyDetailTag: {
     fontSize: 12,
     color: '#64748B',
-    lineHeight: 18,
-    marginBottom: 14,
   },
-  secondaryCardFooter: {
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingTop: 10,
+  familyDetailTagText: {
+    fontSize: 12,
+    color: '#64748B',
   },
-  secondaryActionText: {
-    fontSize: 12.5,
+  addMemberCardWeb: {
+    minWidth: 240,
+    backgroundColor: '#F8FCFA',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+  },
+  addMemberIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E6F8F4',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  addMemberTitle: {
+    fontSize: 13,
     fontWeight: '800',
+    color: '#00B894',
   },
+  addMemberSub: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+
+
 
   // EMERGENCY ROW
   emergencyBannerRowWeb: {
@@ -1428,14 +2148,14 @@ const styles = StyleSheet.create({
     gap: 10,
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#FECACA',
+    borderColor: '#FFD7C7',
     borderRadius: 12,
     paddingVertical: 13,
     paddingHorizontal: 36,
     minWidth: 260,
-    shadowColor: '#DC2626',
+    shadowColor: '#FF7F50',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 2,
     cursor: 'pointer',
@@ -1443,7 +2163,7 @@ const styles = StyleSheet.create({
   webLogoutBtnText: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#DC2626',
+    color: '#FF7F50',
     letterSpacing: 0.2,
   },
 });

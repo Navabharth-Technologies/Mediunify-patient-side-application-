@@ -1,11 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 const ProgressTracker = ({
   currentStep = 1,
   totalSteps = 5,
   stepLabels = [],
-  activeColor = '#E11D48',
+  activeColor = '#00B894',
 }) => {
   return (
     <View style={styles.container}>
@@ -25,15 +26,18 @@ const ProgressTracker = ({
                     isCurrent && { backgroundColor: '#FFFFFF', borderColor: activeColor, borderWidth: 3 },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.stepNumberText,
-                      isDone && { color: '#FFFFFF' },
-                      isCurrent && { color: activeColor, fontWeight: '900' },
-                    ]}
-                  >
-                    {isDone ? '✓' : stepNumber}
-                  </Text>
+                  {isDone ? (
+                    <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.stepNumberText,
+                        isCurrent && { color: activeColor, fontWeight: '900' },
+                      ]}
+                    >
+                      {stepNumber}
+                    </Text>
+                  )}
                 </View>
                 {stepLabels[index] && (
                   <Text

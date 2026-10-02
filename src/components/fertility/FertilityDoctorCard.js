@@ -15,7 +15,7 @@ const FertilityDoctorCard = ({ doctor, onPress, onBook }) => {
         <Image source={{ uri: doctor.image }} style={styles.avatar} />
         <View style={styles.infoCol}>
           <View style={styles.ratingBadge}>
-            <Ionicons name="star" size={12} color="#F59E0B" />
+            <Ionicons name="star" size={12} color="#00B894" />
             <Text style={styles.ratingText}>{doctor.rating}</Text>
             <Text style={styles.reviewsText}>({doctor.reviewsCount})</Text>
           </View>
@@ -40,7 +40,7 @@ const FertilityDoctorCard = ({ doctor, onPress, onBook }) => {
 
       <View style={styles.successPillRow}>
         <View style={styles.successPill}>
-          <Ionicons name="ribbon-outline" size={12} color="#E11D48" />
+          <Ionicons name="ribbon-outline" size={12} color="#7BC96F" />
           <Text style={styles.successText}>{doctor.successRate}</Text>
         </View>
         <View style={styles.expPill}>
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
   },
   specialtyText: {
     fontSize: 12,
-    color: '#E11D48',
+    color: '#00B894',
     fontWeight: '600',
     marginTop: 1,
   },
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FFF1F2',
+    backgroundColor: '#F2FAF0',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
   successText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#BE123C',
+    color: '#7BC96F',
   },
   expPill: {
     backgroundColor: '#F1F5F9',
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   bookBtn: {
-    backgroundColor: '#E11D48',
+    backgroundColor: '#00B894',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 10,

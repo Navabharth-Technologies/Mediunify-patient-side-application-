@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Platform,
@@ -11,6 +10,7 @@ import {
   Linking,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -253,7 +253,7 @@ const ProfileScreen = ({ navigation, route }) => {
   const userInitial = user.name?.trim() ? user.name.trim().charAt(0).toUpperCase() : 'U';
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDarkMode ? '#0B0F19' : '#F8FAFC' }]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, { backgroundColor: isDarkMode ? '#0B0F19' : '#F8FAFC' }]}>
       <StatusBar
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
         backgroundColor={isDarkMode ? '#0B0F19' : '#FFFFFF'}
@@ -319,9 +319,9 @@ const ProfileScreen = ({ navigation, route }) => {
                   </Text>
                   <Ionicons name="checkmark-circle" size={18} color="#0D9488" />
                 </View>
-                <Text style={styles.userContactText}>📞 {user.phone}</Text>
+                <Text style={styles.userContactText}>{user.phone}</Text>
                 <Text style={styles.userContactText} numberOfLines={1}>
-                  ✉️ {user.email}
+                  {user.email}
                 </Text>
 
                 <View style={styles.uhidPill}>
@@ -334,15 +334,15 @@ const ProfileScreen = ({ navigation, route }) => {
             {/* QUICK HEALTH TAGS */}
             <View style={styles.healthTagsRow}>
               <View style={styles.healthTag}>
-                <Ionicons name="water" size={12} color="#DC2626" />
+                <Ionicons name="water" size={12} color="#FF7F50" />
                 <Text style={styles.healthTagText}>{user.bloodGroup || 'O+'}</Text>
               </View>
               <View style={styles.healthTag}>
-                <Ionicons name="person" size={12} color="#2563EB" />
+                <Ionicons name="person" size={12} color="#1E3A8A" />
                 <Text style={styles.healthTagText}>{user.age} • {user.gender}</Text>
               </View>
               <View style={styles.healthTag}>
-                <Ionicons name="call" size={12} color="#D97706" />
+                <Ionicons name="call" size={12} color="#FF7F50" />
                 <Text style={styles.healthTagText}>SOS Contact</Text>
               </View>
             </View>
@@ -379,7 +379,7 @@ const ProfileScreen = ({ navigation, route }) => {
           >
             <View style={styles.profileVipLeft}>
               <View style={styles.profileVipIconCircle}>
-                <Ionicons name="ribbon" size={22} color="#D97706" />
+                <Ionicons name="ribbon" size={22} color="#00B894" />
               </View>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -399,7 +399,7 @@ const ProfileScreen = ({ navigation, route }) => {
                 </Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#D97706" />
+            <Ionicons name="chevron-forward" size={18} color="#00B894" />
           </TouchableOpacity>
 
           {/* ============================================================
@@ -426,12 +426,12 @@ const ProfileScreen = ({ navigation, route }) => {
               onPress={() => navigation.navigate('ReferEarn')}
               activeOpacity={0.85}
             >
-              <View style={[styles.metricIconBox, { backgroundColor: '#FEF3C7' }]}>
-                <Ionicons name="ribbon" size={20} color="#D97706" />
+              <View style={[styles.metricIconBox, { backgroundColor: '#E0F7FA' }]}>
+                <Ionicons name="ribbon" size={20} color="#00C2CB" />
               </View>
               <Text style={styles.metricLabel}>Care Points</Text>
               <Text style={styles.metricValue}>{carePoints} Pts</Text>
-              <Text style={[styles.metricSub, { color: '#D97706' }]}>Redeem ›</Text>
+              <Text style={[styles.metricSub, { color: '#00C2CB' }]}>Redeem ›</Text>
             </TouchableOpacity>
 
             {/* FAMILY MEMBERS */}
@@ -440,12 +440,12 @@ const ProfileScreen = ({ navigation, route }) => {
               onPress={() => navigation.navigate('FamilyProfiles')}
               activeOpacity={0.85}
             >
-              <View style={[styles.metricIconBox, { backgroundColor: '#FAF5FF' }]}>
-                <Ionicons name="people" size={20} color="#7C3AED" />
+              <View style={[styles.metricIconBox, { backgroundColor: '#EFF6FF' }]}>
+                <Ionicons name="people" size={20} color="#1E3A8A" />
               </View>
               <Text style={styles.metricLabel}>Family</Text>
               <Text style={styles.metricValue}>{familyCount} Members</Text>
-              <Text style={[styles.metricSub, { color: '#7C3AED' }]}>+ Add ›</Text>
+              <Text style={[styles.metricSub, { color: '#1E3A8A' }]}>+ Add ›</Text>
             </TouchableOpacity>
           </View>
 
@@ -457,15 +457,31 @@ const ProfileScreen = ({ navigation, route }) => {
             {/* 1. APPOINTMENTS */}
             <TouchableOpacity
               style={styles.menuRow}
-              onPress={() => navigation.navigate('Bookings')}
+              onPress={() => navigation.navigate('MyAppointments')}
               activeOpacity={0.75}
             >
-              <View style={[styles.menuIconCircle, { backgroundColor: '#E0F2FE' }]}>
-                <Ionicons name="calendar-outline" size={19} color="#0284C7" />
+              <View style={[styles.menuIconCircle, { backgroundColor: '#EFF6FF' }]}>
+                <Ionicons name="calendar-outline" size={19} color="#1E3A8A" />
               </View>
               <View style={styles.menuTextCol}>
                 <Text style={styles.menuItemTitle}>My Appointments & Visits</Text>
                 <Text style={styles.menuItemSubtitle}>Doctor consultations, token slips & video calls</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={17} color="#CBD5E1" />
+            </TouchableOpacity>
+
+            {/* 1b. MY TESTS & SCANS */}
+            <TouchableOpacity
+              style={styles.menuRow}
+              onPress={() => navigation.navigate('MyTests')}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.menuIconCircle, { backgroundColor: '#E0F7FA' }]}>
+                <Ionicons name="flask-outline" size={19} color="#00C2CB" />
+              </View>
+              <View style={styles.menuTextCol}>
+                <Text style={styles.menuItemTitle}>My Tests & Radiology Scans</Text>
+                <Text style={styles.menuItemSubtitle}>Lab test appointments, MRI, CT & scans</Text>
               </View>
               <Ionicons name="chevron-forward" size={17} color="#CBD5E1" />
             </TouchableOpacity>
@@ -476,8 +492,8 @@ const ProfileScreen = ({ navigation, route }) => {
               onPress={() => navigation.navigate('HealthRecords')}
               activeOpacity={0.75}
             >
-              <View style={[styles.menuIconCircle, { backgroundColor: '#FAF5FF' }]}>
-                <Ionicons name="folder-open-outline" size={19} color="#7C3AED" />
+              <View style={[styles.menuIconCircle, { backgroundColor: '#E6F8F5' }]}>
+                <Ionicons name="folder-open-outline" size={19} color="#00B894" />
               </View>
               <View style={styles.menuTextCol}>
                 <Text style={styles.menuItemTitle}>Medical Records & Prescriptions</Text>
@@ -489,11 +505,11 @@ const ProfileScreen = ({ navigation, route }) => {
             {/* 3. PHARMACY ORDERS */}
             <TouchableOpacity
               style={styles.menuRow}
-              onPress={() => navigation.navigate('MyOrders')}
+              onPress={() => navigation.navigate('MyMedicineOrders')}
               activeOpacity={0.75}
             >
-              <View style={[styles.menuIconCircle, { backgroundColor: '#FFF7ED' }]}>
-                <Ionicons name="cart-outline" size={19} color="#EA580C" />
+              <View style={[styles.menuIconCircle, { backgroundColor: '#E6F8F5' }]}>
+                <Ionicons name="cart-outline" size={19} color="#00B894" />
               </View>
               <View style={styles.menuTextCol}>
                 <Text style={styles.menuItemTitle}>Pharmacy & Medicine Orders</Text>
@@ -508,8 +524,8 @@ const ProfileScreen = ({ navigation, route }) => {
               onPress={() => navigation.navigate('HealthMonitor')}
               activeOpacity={0.75}
             >
-              <View style={[styles.menuIconCircle, { backgroundColor: '#FEE2E2' }]}>
-                <Ionicons name="pulse-outline" size={19} color="#DC2626" />
+              <View style={[styles.menuIconCircle, { backgroundColor: '#FFF2ED' }]}>
+                <Ionicons name="pulse-outline" size={19} color="#FF7F50" />
               </View>
               <View style={styles.menuTextCol}>
                 <Text style={styles.menuItemTitle}>Health Monitor & Vitals</Text>
@@ -562,8 +578,8 @@ const ProfileScreen = ({ navigation, route }) => {
               onPress={() => navigation.navigate('TransactionHistory')}
               activeOpacity={0.75}
             >
-              <View style={[styles.menuIconCircle, { backgroundColor: '#FEF3C7' }]}>
-                <Ionicons name="receipt-outline" size={19} color="#D97706" />
+              <View style={[styles.menuIconCircle, { backgroundColor: '#E0F7FA' }]}>
+                <Ionicons name="receipt-outline" size={19} color="#00C2CB" />
               </View>
               <View style={styles.menuTextCol}>
                 <Text style={styles.menuItemTitle}>Invoices & GST Receipts</Text>
@@ -584,8 +600,8 @@ const ProfileScreen = ({ navigation, route }) => {
               onPress={() => navigation.navigate('Notifications')}
               activeOpacity={0.75}
             >
-              <View style={[styles.menuIconCircle, { backgroundColor: '#EEF2FF' }]}>
-                <Ionicons name="notifications-outline" size={19} color="#4F46E5" />
+              <View style={[styles.menuIconCircle, { backgroundColor: '#EFF6FF' }]}>
+                <Ionicons name="notifications-outline" size={19} color="#1E3A8A" />
               </View>
               <View style={styles.menuTextCol}>
                 <Text style={styles.menuItemTitle}>Notification Preferences</Text>
@@ -640,15 +656,15 @@ const ProfileScreen = ({ navigation, route }) => {
               onPress={() => Linking.openURL('tel:108')}
               activeOpacity={0.75}
             >
-              <View style={[styles.menuIconCircle, { backgroundColor: '#FEE2E2' }]}>
-                <Ionicons name="medical" size={19} color="#DC2626" />
+              <View style={[styles.menuIconCircle, { backgroundColor: '#FFF2ED' }]}>
+                <Ionicons name="medical" size={19} color="#FF7F50" />
               </View>
               <View style={styles.menuTextCol}>
                 <Text style={styles.menuItemTitle}>Call 108 Ambulance SOS</Text>
                 <Text style={styles.menuItemSubtitle}>Government Emergency Transport (Free)</Text>
               </View>
               <View style={styles.sosCallPill}>
-                <Ionicons name="call" size={12} color="#DC2626" />
+                <Ionicons name="call" size={12} color="#FF7F50" />
                 <Text style={styles.sosCallPillText}>108</Text>
               </View>
             </TouchableOpacity>
@@ -680,7 +696,7 @@ const ProfileScreen = ({ navigation, route }) => {
             onPress={handleLogout}
             activeOpacity={0.85}
           >
-            <Ionicons name="log-out-outline" size={20} color="#DC2626" />
+            <Ionicons name="log-out-outline" size={20} color="#FF7F50" />
             <Text style={styles.logoutBtnText}>Sign Out of Account</Text>
           </TouchableOpacity>
 
@@ -688,7 +704,7 @@ const ProfileScreen = ({ navigation, route }) => {
           <View style={styles.footerContainer}>
             <Text style={styles.footerVersion}>MediUnify Healthcare • Version 2.4.0 (Build 120)</Text>
             <Text style={styles.footerSecurity}>
-              🔒 256-Bit SSL Encrypted • NABH & NABL Partnered 🇮🇳
+              256-Bit SSL Encrypted • NABH & NABL Partnered
             </Text>
           </View>
         </View>
@@ -706,8 +722,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
@@ -729,15 +745,15 @@ const styles = StyleSheet.create({
     color: '#0D9488',
   },
   headerBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '900',
     color: '#0F172A',
     letterSpacing: -0.3,
@@ -748,7 +764,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: Platform.OS === 'ios' ? 95 : 85,
   },
   pageInnerContainer: {
     maxWidth: 720,
@@ -774,16 +790,16 @@ const styles = StyleSheet.create({
   },
   // VIP MEMBERSHIP PROFILE CARD
   profileVipCard: {
-    backgroundColor: '#FFFBEB',
+    backgroundColor: '#F0FDFA',
     borderRadius: 16,
     padding: 14,
     borderWidth: 1.5,
-    borderColor: '#FDE68A',
+    borderColor: '#99F6E4',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 14,
-    shadowColor: '#D97706',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
@@ -799,7 +815,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#CCFBF1',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -809,7 +825,7 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   profileVipBadge: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#00B894',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
@@ -817,7 +833,7 @@ const styles = StyleSheet.create({
   profileVipBadgeText: {
     fontSize: 9.5,
     fontWeight: '900',
-    color: '#B45309',
+    color: '#FFFFFF',
   },
   profileVipSub: {
     fontSize: 11,
@@ -1085,7 +1101,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FFF2ED',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -1093,7 +1109,7 @@ const styles = StyleSheet.create({
   sosCallPillText: {
     fontSize: 11,
     fontWeight: '900',
-    color: '#DC2626',
+    color: '#FF7F50',
   },
   helplineCallPill: {
     backgroundColor: '#F0FDFA',
@@ -1113,9 +1129,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#FFF2ED',
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: '#FFD7C7',
     borderRadius: 14,
     paddingVertical: 13,
     marginTop: 4,
@@ -1124,7 +1140,7 @@ const styles = StyleSheet.create({
   logoutBtnText: {
     fontSize: 13.5,
     fontWeight: '800',
-    color: '#DC2626',
+    color: '#FF7F50',
   },
 
   // FOOTER

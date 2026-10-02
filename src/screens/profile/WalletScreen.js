@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -11,6 +10,7 @@ import {
   Alert,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -109,11 +109,11 @@ const WalletScreen = ({ navigation }) => {
     await AsyncStorage.setItem('@unnathi_wallet_transactions', JSON.stringify(updatedTxList));
 
     setTopUpModalVisible(false);
-    showAlert('Top-Up Successful! 💳', `₹${num.toLocaleString('en-IN')} has been added to your MediUnify Wallet.`);
+    showAlert('Top-Up Successful', `₹${num.toLocaleString('en-IN')} has been added to your MediUnify Wallet.`);
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* HEADER */}

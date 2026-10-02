@@ -22,6 +22,8 @@ const CustomInput = ({
   autoCapitalize = 'none',
   maxLength,
   rightComponent,
+  autoComplete,
+  ...restProps
 }) => {
   const isPasswordField = secureTextEntry || isPassword;
   const [hidePassword, setHidePassword] = useState(isPasswordField);
@@ -41,6 +43,8 @@ const CustomInput = ({
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           maxLength={maxLength}
+          autoComplete={autoComplete || (isPasswordField ? 'new-password' : 'off')}
+          {...restProps}
         />
 
         {isPasswordField && (

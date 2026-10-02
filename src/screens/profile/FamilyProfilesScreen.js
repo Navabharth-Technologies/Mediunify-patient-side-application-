@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Modal,
@@ -14,6 +13,7 @@ import {
   KeyboardAvoidingView,
   TouchableWithoutFeedback,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -29,6 +29,24 @@ const RELATIONSHIPS = ['Spouse', 'Father', 'Mother', 'Son', 'Daughter', 'Sibling
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 const FamilyProfilesScreen = ({ navigation }) => {
+  const modalScrollRef = useRef(null);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardVisible(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardVisible(false)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   const [members, setMembers] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeMemberId, setActiveMemberId] = useState('self');
@@ -235,7 +253,7 @@ const FamilyProfilesScreen = ({ navigation }) => {
     if (Platform.OS === 'web') {
       // Non-blocking banner or subtle feedback on web
     } else {
-      showAlert('Active Patient Selected 🩺', `${member.name} is now selected for appointments & orders.`);
+      showAlert('Active Patient Selected', `${member.name} is now selected for appointments & orders.`);
     }
   };
 
@@ -256,8 +274,8 @@ const FamilyProfilesScreen = ({ navigation }) => {
       allergies: allergies.trim() || 'None',
       conditions: conditions.trim() || 'None',
       icon: relation === 'Spouse' ? 'heart' : relation === 'Father' ? 'shield-checkmark' : relation === 'Mother' ? 'rose' : relation === 'Son' || relation === 'Daughter' ? 'happy' : 'person',
-      themeColor: relation === 'Spouse' ? '#EC4899' : relation === 'Father' ? '#3B82F6' : relation === 'Mother' ? '#8B5CF6' : '#00B894',
-      bgLight: '#F0FDFA',
+      themeColor: relation === 'Spouse' ? '#FF7F50' : relation === 'Father' ? '#1E3A8A' : relation === 'Mother' ? '#00C2CB' : '#00B894',
+      bgLight: relation === 'Spouse' ? '#FFF2ED' : relation === 'Father' ? '#EFF6FF' : relation === 'Mother' ? '#E0F7FA' : '#E6F8F5',
       isPrimary: false,
     };
 
@@ -280,7 +298,7 @@ const FamilyProfilesScreen = ({ navigation }) => {
       await syncSaveFamilyMembers(updated);
     } catch (e) {}
 
-    showAlert('Family Member Added! 👨‍👩‍👧', `${newMember.name} is now linked and set as active patient for appointments.`);
+    showAlert('Family Member Added', `${newMember.name} is now linked and set as active patient for appointments.`);
   };
 
   const executeDeleteMember = async (member) => {
@@ -325,7 +343,7 @@ const FamilyProfilesScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -489,6 +507,7 @@ const FamilyProfilesScreen = ({ navigation }) => {
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
           style={{ flex: 1 }}
         >
           <TouchableOpacity
@@ -515,9 +534,12 @@ const FamilyProfilesScreen = ({ navigation }) => {
               </View>
 
               <ScrollView
+                ref={modalScrollRef}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
+                automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+                contentContainerStyle={{ paddingBottom: isKeyboardVisible ? 160 : 20 }}
               >
                 <Text style={styles.inputLabel}>Full Name *</Text>
                 <TextInput
@@ -526,6 +548,11 @@ const FamilyProfilesScreen = ({ navigation }) => {
                   placeholderTextColor={colors.slate}
                   value={name}
                   onChangeText={setName}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      modalScrollRef.current?.scrollTo({ y: 0, animated: true });
+                    }, 100);
+                  }}
                 />
 
                 <Text style={styles.inputLabel}>Relationship</Text>
@@ -574,6 +601,11 @@ const FamilyProfilesScreen = ({ navigation }) => {
                       placeholderTextColor={colors.slate}
                       value={age}
                       onChangeText={setAge}
+                      onFocus={() => {
+                        setTimeout(() => {
+                          modalScrollRef.current?.scrollTo({ y: 100, animated: true });
+                        }, 100);
+                      }}
                       keyboardType="number-pad"
                     />
                   </View>
@@ -643,6 +675,11 @@ const FamilyProfilesScreen = ({ navigation }) => {
                   placeholderTextColor={colors.slate}
                   value={allergies}
                   onChangeText={setAllergies}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      modalScrollRef.current?.scrollTo({ y: 220, animated: true });
+                    }, 100);
+                  }}
                 />
 
                 <TouchableOpacity

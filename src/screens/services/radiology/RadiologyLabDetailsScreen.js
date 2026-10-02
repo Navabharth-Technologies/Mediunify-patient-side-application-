@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -12,6 +11,7 @@ import {
   StatusBar,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import { getLabById, radiologyCategories } from '../../../data/radiologyLabsData';
@@ -97,7 +97,7 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* HEADER */}
@@ -401,7 +401,7 @@ const RadiologyLabDetailsScreen = ({ route, navigation }) => {
 
                     {test.fastingRequired ? (
                       <View style={styles.fastingRequiredBadge}>
-                        <Ionicons name="alert-circle" size={12} color="#D97706" />
+                        <Ionicons name="alert-circle" size={12} color="#FF7F50" />
                         <Text style={styles.fastingRequiredText}>Fasting Required</Text>
                       </View>
                     ) : (
@@ -1009,7 +1009,7 @@ const styles = StyleSheet.create({
   fastingRequiredBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#FFF2ED',
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
@@ -1018,7 +1018,7 @@ const styles = StyleSheet.create({
   fastingRequiredText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#D97706',
+    color: '#FF7F50',
   },
   noFastingBadge: {
     flexDirection: 'row',
@@ -1150,7 +1150,7 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
   },
   discountBadge: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#FFF2ED',
     paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 4,
@@ -1160,7 +1160,7 @@ const styles = StyleSheet.create({
   discountText: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#D97706',
+    color: '#FF7F50',
   },
 
   testActionButtons: {

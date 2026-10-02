@@ -2,21 +2,21 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 const STATUS_CONFIG = {
-  active: { bg: '#ECFDF5', text: '#059669', border: '#A7F3D0', label: 'Active' },
-  in_progress: { bg: '#EFF6FF', text: '#2563EB', border: '#BFDBFE', label: 'In Progress' },
-  completed: { bg: '#F0FDF4', text: '#16A34A', border: '#BBF7D0', label: 'Completed' },
-  pending: { bg: '#FFFBEB', text: '#D97706', border: '#FDE68A', label: 'Pending' },
-  scheduled: { bg: '#F5F3FF', text: '#7C3AED', border: '#DDD6FE', label: 'Scheduled' },
-  urgent: { bg: '#FFF1F2', text: '#E11D48', border: '#FECDD3', label: 'Action Required' },
-  verified: { bg: '#F0FDF4', text: '#059669', border: '#86EFAC', label: 'Verified' },
+  active: { bg: '#E6F8F5', text: '#00B894', border: '#B2EBF2', label: 'Active' },
+  in_progress: { bg: '#EFF6FF', text: '#1E3A8A', border: '#BFDBFE', label: 'In Progress' },
+  completed: { bg: '#F2FAF0', text: '#7BC96F', border: '#C6F6D5', label: 'Completed' },
+  pending: { bg: '#EFF6FF', text: '#1E3A8A', border: '#BFDBFE', label: 'Pending' },
+  scheduled: { bg: '#E0F7FA', text: '#00C2CB', border: '#B2EBF2', label: 'Scheduled' },
+  urgent: { bg: '#FFF2ED', text: '#FF7F50', border: '#FFD7C7', label: 'Action Required' },
+  verified: { bg: '#F2FAF0', text: '#7BC96F', border: '#C6F6D5', label: 'Verified' },
 };
 
 const StatusBadge = ({ status = 'pending', label, size = 'medium' }) => {
   const normalizedKey = (status || '').toLowerCase().replace(/[\s-]/g, '_');
   const config = STATUS_CONFIG[normalizedKey] || {
-    bg: '#F1F5F9',
-    text: '#475569',
-    border: '#CBD5E1',
+    bg: '#F8FAFC',
+    text: '#64748B',
+    border: '#E2E8F0',
     label: label || status,
   };
 

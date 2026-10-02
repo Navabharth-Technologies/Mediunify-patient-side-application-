@@ -3,347 +3,133 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   Modal,
   ActivityIndicator,
   Platform,
   Linking,
   Image,
   StatusBar,
-  Animated,
-  PanResponder,
-  Keyboard,
-  KeyboardAvoidingView,
-  TouchableWithoutFeedback,
-  FlatList,
   useWindowDimensions,
+  FlatList,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showAlert } from '../../utils/alert';
-import { requestLocationPermissionWebSafe, getCurrentPositionWebSafe, reverseGeocodeWebSafe } from '../../utils/locationHelper';
+import {
+  requestLocationPermissionWebSafe,
+  getCurrentPositionWebSafe,
+  reverseGeocodeWebSafe,
+  detectAutoLocation,
+  normalizeCityName,
+} from '../../utils/locationHelper';
 
 import colors from '../../theme/colors';
 import { useCart } from '../../context/CartContext';
-import doctors from '../../data/doctors';
-import { radiologyLabs } from '../../data/radiologyLabsData';
-import { labPackages, consultationServices, moreServices } from '../../data/homeData';
 
 const CITIES = ['Mysuru', 'Bengaluru', 'Mangaluru', 'Hubballi', 'Belagavi'];
 
-const POPULAR_MYSORE_AREAS = [
-  'Kuvempunagar, Mysore',
-  'Jayalakshmipuram, Mysore',
-  'Saraswathipuram, Mysore',
-  'Vijayanagar, Mysore',
-  'Gokulam, Mysore',
-  'V.V. Mohalla, Mysore',
-  'Bannimantap, Mysore',
-  'Nazarbad, Mysore',
-  'Hebbal, Mysore',
-  'Mysore Central',
-  'Indiranagar, Bangalore',
-  'Koramangala, Bangalore',
-];
-
-
-const SEARCH_KEYWORD_DICTIONARY = [
-  // Doctors & Specialists
-  { query: 'General Physician', label: 'General Physician (Fever, Cold, Cough)', category: 'Doctor', icon: 'person', route: 'DoctorList', aliases: ['dr', 'physician', 'fever', 'cold', 'cough', 'headache', 'general doctor', 'doc', 'docter', 'clinic'] },
-  { query: 'Cardiologist', label: 'Cardiologist (Heart Care & ECG)', category: 'Doctor', icon: 'heart', route: 'DoctorList', aliases: ['cardio', 'heart', 'cardiology', 'ecg', 'bp', 'cardiologists', 'chest pain', 'cardiac'] },
-  { query: 'Dermatologist', label: 'Dermatologist (Skin & Hair Care)', category: 'Doctor', icon: 'sparkles', route: 'DoctorList', aliases: ['skin', 'derma', 'dermatology', 'hair fall', 'acne', 'rash', 'dermitologist', 'eczema'] },
-  { query: 'Pediatrician', label: 'Pediatrician (Child & Baby Care)', category: 'Doctor', icon: 'happy', route: 'DoctorList', aliases: ['child', 'baby', 'kids', 'pediatric', 'pedia', 'vaccination', 'infant', 'newborn'] },
-  { query: 'Gynecologist', label: 'Gynecologist (Women Health & Pregnancy)', category: 'Doctor', icon: 'woman', route: 'DoctorList', aliases: ['gynae', 'gyno', 'women', 'pregnancy', 'period', 'gynecology'] },
-  { query: 'Orthopedic', label: 'Orthopedic (Bone & Joint Pain)', category: 'Doctor', icon: 'fitness', route: 'DoctorList', aliases: ['ortho', 'bone', 'joint', 'knee pain', 'fracture', 'back pain'] },
-  { query: 'Online Video Consult', label: 'Video Consult (Instant 10 Min Call)', category: 'Doctor', icon: 'videocam', route: 'VideoConsultation', aliases: ['video call', 'online consult', 'teleconsult', 'video doctor'] },
-
-  // Medicines & Pharmacy
-  { query: 'Dolo 650', label: 'Dolo 650mg Tablet (Paracetamol)', category: 'Medicine', icon: 'medkit', route: 'Pharmacy', aliases: ['dolo', 'paracetamol', 'fever tablet', 'dola', 'dolo650', 'paracetmol', 'crocin', 'calpol'] },
-  { query: 'Azithromycin', label: 'Azithromycin 500mg Antibiotic', category: 'Medicine', icon: 'medkit', route: 'Pharmacy', aliases: ['azithro', 'azithral', 'antibiotic', 'throat', 'infection'] },
-  { query: 'Vitamin C & Zinc', label: 'Vitamin C + Zinc Chewable Tablets', category: 'Medicine', icon: 'medkit', route: 'Pharmacy', aliases: ['vitamin c', 'limcee', 'immunity', 'zinc', 'vitamind', 'vitamins', 'multivitamin'] },
-  { query: 'Pantocid 40', label: 'Pantocid 40mg (Acidity & Gas Relief)', category: 'Medicine', icon: 'medkit', route: 'Pharmacy', aliases: ['acidity', 'gas', 'pantoprazole', 'pan d', 'digene', 'antacid'] },
-  { query: 'Online Pharmacy', label: 'Order Medicines (Flat 20% OFF)', category: 'Medicine', icon: 'medkit', route: 'Pharmacy', aliases: ['medicine', 'pharmacy', 'tablets', 'syrup', 'medicines', 'capsules', 'drugs'] },
-
-  // Lab Tests & Diagnostic Packages
-  { query: 'Complete Blood Count (CBC)', label: 'Complete Blood Count (CBC Test)', category: 'Lab Test', icon: 'flask', route: 'LabBooking', aliases: ['cbc', 'blood test', 'hemoglobin', 'platelets', 'wbc', 'rbc', 'blood'] },
-  { query: 'Thyroid Profile', label: 'Thyroid Profile Total (T3, T4, TSH)', category: 'Lab Test', icon: 'flask', route: 'LabBooking', aliases: ['thyroid', 'tsh', 't3', 't4', 'thyrod', 'thyrocare'] },
-  { query: 'Diabetes HbA1c', label: 'Diabetes HbA1c & Fasting Glucose', category: 'Lab Test', icon: 'flask', route: 'LabBooking', aliases: ['diabetes', 'sugar test', 'glucose', 'hba1c', 'fasting sugar', 'diabtes', 'suger'] },
-  { query: 'Lipid Profile', label: 'Lipid Profile (Cholesterol Check)', category: 'Lab Test', icon: 'flask', route: 'LabBooking', aliases: ['lipid', 'cholesterol', 'triglycerides', 'heart test'] },
-  { query: 'Full Body Health Checkup', label: 'Comprehensive Full Body Checkup (82 Tests)', category: 'Lab Test', icon: 'flask', route: 'LabBooking', aliases: ['full body', 'health package', 'master checkup', 'body test', 'checkup'] },
-
-  // Scans & Radiology
-  { query: 'MRI Scan Brain / Spine', label: 'MRI Scan (Brain, Spine, Joints)', category: 'Scan', icon: 'scan', route: 'Radiology', aliases: ['mri', 'mri scan', 'magnetic resonance', 'mri brain', 'mri spine'] },
-  { query: 'CT Scan Chest / Abdomen', label: 'CT Scan (Chest, Abdomen, Head)', category: 'Scan', icon: 'scan', route: 'Radiology', aliases: ['ct scan', 'computed tomography', 'ct chest', 'hrct'] },
-  { query: 'Digital X-Ray', label: 'Digital X-Ray (Chest, Bones, Joint)', category: 'Scan', icon: 'scan', route: 'Radiology', aliases: ['xray', 'x ray', 'chest xray', 'bone xray'] },
-  { query: 'Ultrasound Scan', label: 'Ultrasound Sonography (USG)', category: 'Scan', icon: 'scan', route: 'Radiology', aliases: ['ultrasound', 'usg', 'sonography', 'abdomen usg', 'scan'] },
-
-  // Care & Services
-  { query: 'Home Nursing Care', label: 'Home Nursing & Attendant Care', category: 'Service', icon: 'bandage', route: 'NurseBooking', aliases: ['nurse', 'nursing', 'elderly care', 'attendant', 'home care', 'injection at home', 'nurce'] },
-  { query: 'Ambulance SOS', label: 'Emergency 24/7 Ambulance SOS', category: 'Service', icon: 'car', route: 'Ambulance', aliases: ['ambulance', 'emergency', 'sos', 'urgent', '108', 'emergeny', 'ambulanc'] },
-  { query: 'Ayurveda & Wellness', label: 'Ayurveda & Panchakarma (Nadi Pariksha)', category: 'Service', icon: 'leaf', route: 'AyurvedaWellness', aliases: ['ayurveda', 'ayurvedic', 'panchakarma', 'vaidya', 'nadi pariksha', 'shirodhara', 'abhyanga', 'dosha', 'vata', 'pitta', 'kapha', 'herbal', 'shilajit', 'ashwagandha'] },
-  { query: 'Fertility & IVF Care', label: 'Fertility & IVF Specialists (0% EMI)', category: 'Service', icon: 'heart', route: 'FertilityIvf', aliases: ['fertility', 'ivf', 'iui', 'icsi', 'pregnancy', 'conceive', 'egg freezing', 'sperm', 'semen analysis', 'infertility', 'andrology', 'baby planning'] },
-  { query: 'Medical Equipment Rental', label: 'Equipment Rental (Hospital Beds, Oxygen, Wheelchairs)', category: 'Service', icon: 'fitness', route: 'EquipmentRental', aliases: ['equipment', 'rental', 'wheelchair', 'oxygen', 'oxygen concentrator', 'hospital bed', 'bipap', 'cpap', 'walker', 'patient bed', 'medical equipment'] },
-];
-
-const COMMON_TYPOS_MAP = {
-  dola: 'Dolo 650',
-  dolo650: 'Dolo 650',
-  paracetmol: 'Dolo 650 (Paracetamol)',
-  paracitamol: 'Dolo 650 (Paracetamol)',
-  crocin: 'Dolo 650',
-  docter: 'General Physician',
-  doctur: 'General Physician',
-  doc: 'General Physician',
-  cardio: 'Cardiologist',
-  dermitologist: 'Dermatologist',
-  pedia: 'Pediatrician',
-  pediatric: 'Pediatrician',
-  thyrod: 'Thyroid Profile',
-  diabtes: 'Diabetes HbA1c',
-  sugartest: 'Diabetes HbA1c',
-  suger: 'Diabetes HbA1c',
-  xray: 'Digital X-Ray',
-  scane: 'MRI & CT Scan',
-  nurce: 'Home Nursing Care',
-  emergeny: 'Ambulance SOS',
-  ambulanc: 'Ambulance SOS',
-};
-
-const CITY_AREAS_MAP = {
-  Mysore: [
-    { area: 'Kuvempunagar', cross: '3rd Cross, Vishwamanava Double Road', district: 'Mysuru District', pincode: '570023' },
-    { area: 'Jayalakshmipuram', cross: 'Kalidasa Road, Premier Studio', district: 'Mysuru District', pincode: '570012' },
-    { area: 'Saraswathipuram', cross: '7th Main Road, Near Swimming Pool', district: 'Mysuru District', pincode: '570009' },
-    { area: 'Vijayanagar 2nd Stage', cross: 'High Tension Double Road', district: 'Mysuru District', pincode: '570017' },
-    { area: 'Gokulam 3rd Stage', cross: 'Contour Road, Doctor Corner', district: 'Mysuru District', pincode: '570002' },
-    { area: 'V.V. Mohalla', cross: 'Temple Road, Post Office Cross', district: 'Mysuru District', pincode: '570002' },
-    { area: 'Bannimantap', cross: 'Highway Circle, Near St. Joseph', district: 'Mysuru District', pincode: '570015' },
-    { area: 'Hebbal Industrial Area', cross: 'Ring Road Cross, Infosys Gate', district: 'Mysuru District', pincode: '570016' },
-  ],
-  Bangalore: [
-    { area: 'Indiranagar', cross: '100 Feet Road, 12th Main Cross', district: 'Bengaluru Urban', pincode: '560038' },
-    { area: 'Koramangala', cross: '5th Block, 80 Feet Road Cross', district: 'Bengaluru Urban', pincode: '560095' },
-    { area: 'Jayanagar', cross: '4th Block, 11th Main Road', district: 'Bengaluru Urban', pincode: '560011' },
-    { area: 'Whitefield', cross: 'ITPB Main Road, Hope Farm', district: 'Bengaluru Urban', pincode: '560066' },
-    { area: 'HSR Layout', cross: 'Sector 2, 27th Main Cross', district: 'Bengaluru Urban', pincode: '560102' },
-  ],
-  Mangalore: [
-    { area: 'Kodialbail', cross: 'MG Road, Near Lalbagh', district: 'Dakshina Kannada', pincode: '575003' },
-    { area: 'Kadri', cross: 'Kadri Temple Road', district: 'Dakshina Kannada', pincode: '575002' },
-    { area: 'Bejai', cross: 'KSRTC Bus Stand Road', district: 'Dakshina Kannada', pincode: '575004' },
-  ],
-  Mandya: [
-    { area: 'Mandya City', cross: 'VV Road, Sugar Town Cross', district: 'Mandya District', pincode: '571401' },
-    { area: 'Maddur', cross: 'Old Bus Stand Road', district: 'Mandya District', pincode: '571428' },
-  ],
-  Hassan: [
-    { area: 'Hassan Central', cross: 'BM Road, Near Shankara Math', district: 'Hassan District', pincode: '573201' },
-    { area: 'Vidyanagar', cross: 'Ring Road Cross', district: 'Hassan District', pincode: '573202' },
-  ],
-};
-
-const MOBILE_HERO_ADS = [
+const SPECIALIZED_PROGRAMS = [
   {
-    id: 'm-ad-1',
-    pillText: 'HEALTH CHECK',
-    pillBg: '#FFE11B',
-    pillColor: '#0F172A',
-    title: 'Full Body Health Checkup',
-    priceText: 'From ₹999*',
-    priceColor: '#0071DC',
-    subTitle: '68 Vital Tests • Free Home Sample Pickup',
-    badgeText: 'Digital Reports in 12h',
-    bgColor: '#FDF7E7',
-    image: 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=400',
-    route: 'LabTests',
-  },
-  {
-    id: 'm-ad-2',
-    pillText: '60-MIN EXPRESS',
-    pillBg: '#EA580C',
-    pillColor: '#FFFFFF',
-    title: 'Doorstep Medicines',
-    priceText: 'Flat 20% OFF',
-    priceColor: '#EA580C',
-    subTitle: '100% Genuine Branded Drugs & Jan Aushadhi',
-    badgeText: 'Order with Prescription',
-    bgColor: '#FFF7ED',
-    image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400',
-    route: 'Pharmacy',
-  },
-  {
-    id: 'm-ad-3',
-    pillText: 'VERIFIED DOCTORS',
-    pillBg: '#2563EB',
-    pillColor: '#FFFFFF',
-    title: 'Instant Video Consult',
-    priceText: 'From ₹299*',
-    priceColor: '#38BDF8',
-    titleColor: '#FFFFFF',
-    subColor: '#94A3B8',
-    subTitle: 'Zero Waiting • Top Specialists across Karnataka',
-    badgeText: 'Connect in 10 mins',
-    bgColor: '#0B0F19',
-    image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400',
-    route: 'VideoConsultation',
-  },
-  {
-    id: 'm-ad-4',
-    pillText: '3T SCANS & CARDIOLOGY',
-    pillBg: '#7C3AED',
-    pillColor: '#FFFFFF',
-    title: 'Scans & 2D Echo Tests',
-    priceText: 'Up to 40% OFF',
-    priceColor: '#7C3AED',
-    subTitle: '2D Echo, 12-Lead ECG, 3T MRI & CT Scans',
-    badgeText: 'Instant Slot Confirmation',
-    bgColor: '#FAF5FF',
-    image: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=400',
-    route: 'RadiologyLabs',
-  },
-  {
-    id: 'm-ad-5',
-    pillText: 'CASHLESS CARE',
-    pillBg: '#059669',
-    pillColor: '#FFFFFF',
-    title: 'Health Insurance Claims',
-    priceText: 'Zero Deposit',
-    priceColor: '#059669',
-    subTitle: 'Pre-Approved Hospitalization & Instant E-Card',
-    badgeText: '100% Cashless Support',
-    bgColor: '#ECFDF5',
-    image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400',
-    route: 'HealthInsurance',
-  },
-  {
-    id: 'm-ad-6',
-    pillText: 'AYUSH VAIDYA',
-    pillBg: '#059669',
-    pillColor: '#FFFFFF',
-    title: 'Ayurveda & Panchakarma',
-    priceText: 'From ₹400',
-    priceColor: '#059669',
-    subTitle: 'Nadi Pariksha, Shirodhara & Classical Therapies',
-    badgeText: 'AYUSH Certified',
-    bgColor: '#F0FDF4',
-    image: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=400',
-    route: 'AyurvedaWellness',
-  },
-  {
-    id: 'm-ad-7',
-    pillText: 'IVF & FERTILITY',
-    pillBg: '#DB2777',
-    pillColor: '#FFFFFF',
-    title: 'Fertility & IVF Care',
-    priceText: '0% EMI Plans',
-    priceColor: '#DB2777',
-    subTitle: 'High 73% Success Rate • Confidential Guidance',
-    badgeText: 'Zero Cost EMI',
-    bgColor: '#FDF2F8',
-    image: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=400',
+    id: 'prog-ivf',
+    pillText: '0% EMI PLANS',
+    pillBg: '#FFF2ED',
+    pillColor: '#EA580C',
+    title: 'Fertility & IVF Specialists',
+    subtitle: '73% Success Rate • Confidential Counseling Program',
+    priceText: 'From ₹1,200',
+    badgeText: 'Explore IVF',
+    bgColor: '#FFF8F5',
+    borderColor: '#FFDBC8',
     route: 'FertilityIvf',
   },
   {
-    id: 'm-ad-8',
-    pillText: 'EQUIPMENT RENTAL',
-    pillBg: '#7C3AED',
-    pillColor: '#FFFFFF',
-    title: 'Hospital Beds & Oxygen',
+    id: 'prog-checkup',
+    pillText: 'FLAT 50% OFF',
+    pillBg: '#E0F2FE',
+    pillColor: '#0284C7',
+    title: 'Executive Health Checkup',
+    subtitle: '68 Vital Tests • Free Home Sample Pickup',
+    priceText: 'From ₹999*',
+    badgeText: 'Book Test',
+    bgColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
+    route: 'LabTests',
+  },
+  {
+    id: 'prog-ayurveda',
+    pillText: 'AYUSH CERTIFIED',
+    pillBg: '#DCFCE7',
+    pillColor: '#16A34A',
+    title: 'Ayurveda & Panchakarma',
+    subtitle: 'Nadi Pariksha, Shirodhara & Dosha Balancing',
+    priceText: 'From ₹400',
+    badgeText: 'Consult Vaidya',
+    bgColor: '#F2FBF4',
+    borderColor: '#BBF7D0',
+    route: 'AyurvedaWellness',
+  },
+  {
+    id: 'prog-equipment',
+    pillText: 'FREE SETUP IN 4H',
+    pillBg: '#E0F7F4',
+    pillColor: '#0F766E',
+    title: 'ICU Beds & Oxygen Rental',
+    subtitle: 'Electric Hospital Beds & 10L Concentrators',
     priceText: 'From ₹80/day',
-    priceColor: '#7C3AED',
-    subTitle: 'Electric ICU Beds, 10L Oxygen & Wheelchairs',
-    badgeText: 'Free Setup in 4h',
-    bgColor: '#FAF5FF',
-    image: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=400',
+    badgeText: 'Rent Equipment',
+    bgColor: '#F0FDFB',
+    borderColor: '#99F6E4',
     route: 'EquipmentRental',
   },
 ];
 
 const HomeScreen = ({ navigation }) => {
-  const { totalCartCount } = useCart();
   const { width } = useWindowDimensions();
   const isTablet = width >= 600;
   const isLargeTablet = width >= 900;
-  const maxContentWidth = 880;
-  const adCardWidth = isLargeTablet
-    ? (Math.min(width, maxContentWidth) - 48) / 3
-    : isTablet
-    ? (Math.min(width, maxContentWidth) - 36) / 2
-    : width - 32;
-  const adCardInterval = adCardWidth + (isTablet ? 12 : 0);
+  const maxContentWidth = 780;
 
-  // Auto-scrolling ads state & ref
-  const [activeMobileAdIndex, setActiveMobileAdIndex] = useState(0);
-  const mobileAdScrollRef = useRef(null);
+  // Single Banner width: Available width with 16px margins on each side
+  const contentWidth = isTablet ? Math.min(width, maxContentWidth) : width;
+  const bannerWidth = contentWidth - 32;
 
+  // Carousel State & Ref for Specialized Care & Programs
+  const [activeProgramIndex, setActiveProgramIndex] = useState(0);
+  const programCarouselRef = useRef(null);
+
+  // Automatic Rotating Carousel: Rotates every 4 seconds
   useEffect(() => {
     const timer = setInterval(() => {
-      setActiveMobileAdIndex((prev) => {
-        const next = (prev + 1) % MOBILE_HERO_ADS.length;
-        if (mobileAdScrollRef.current) {
-          try {
-            mobileAdScrollRef.current.scrollToIndex({ index: next, animated: true });
-          } catch (e) {}
-        }
+      setActiveProgramIndex((prev) => {
+        const next = (prev + 1) % SPECIALIZED_PROGRAMS.length;
+        try {
+          programCarouselRef.current?.scrollToIndex({ index: next, animated: true });
+        } catch (e) {}
         return next;
       });
-    }, 3500);
+    }, 4000);
     return () => clearInterval(timer);
   }, []);
 
-  // State
-  const [search, setSearch] = useState('');
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [userName, setUserName] = useState('Ramesh');
+  // User & Profile State
+  const [userName, setUserName] = useState('Hemanth');
   const [selectedCity, setSelectedCity] = useState('Mysuru');
   const [locationName, setLocationName] = useState('Mysuru');
   const [locationModalVisible, setLocationModalVisible] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [locationToast, setLocationToast] = useState(null);
 
-  // Wallet State
-  const [walletBalance, setWalletBalance] = useState(1250);
+  // Wallet & Emergency State
+  const [walletBalance, setWalletBalance] = useState(744);
   const [carePoints, setCarePoints] = useState(500);
   const [walletModalVisible, setWalletModalVisible] = useState(false);
   const [quickTopUpAmount, setQuickTopUpAmount] = useState('500');
   const [emergencyModalVisible, setEmergencyModalVisible] = useState(false);
-
-  // Draggable Floating AI Chatbot
-  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: (_, gestureState) => {
-          return Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3;
-        },
-        onPanResponderGrant: () => {
-          pan.setOffset({
-            x: pan.x._value,
-            y: pan.y._value,
-          });
-          pan.setValue({ x: 0, y: 0 });
-        },
-        onPanResponderMove: Animated.event(
-          [null, { dx: pan.x, dy: pan.y }],
-          { useNativeDriver: false }
-        ),
-        onPanResponderRelease: (_, gestureState) => {
-          pan.flattenOffset();
-          // If tap without significant drag, open Chatbot
-          if (Math.abs(gestureState.dx) < 6 && Math.abs(gestureState.dy) < 6) {
-            navigation.navigate('Chatbot');
-          }
-        },
-      }),
-    [navigation, pan]
-  );
 
   // Load User Info & Sync on Screen Focus
   useEffect(() => {
@@ -356,7 +142,6 @@ const HomeScreen = ({ navigation }) => {
 
   const loadUserData = async () => {
     try {
-      // 1. Check for active selected family member profile
       const savedActive = await AsyncStorage.getItem('@unnathi_active_patient');
       let foundName = '';
       if (savedActive) {
@@ -393,10 +178,19 @@ const HomeScreen = ({ navigation }) => {
         } else {
           setLocationName(savedLoc.trim());
         }
+      } else {
+        try {
+          const autoLoc = await detectAutoLocation();
+          if (autoLoc && autoLoc.city) {
+            setSelectedCity(autoLoc.city);
+            setLocationName(autoLoc.city);
+          }
+        } catch (e) {}
       }
+
       const savedWallet = await AsyncStorage.getItem('@unnathi_wallet_balance');
       if (savedWallet) {
-        setWalletBalance(parseInt(savedWallet, 10) || 1250);
+        setWalletBalance(parseInt(savedWallet, 10) || 744);
       }
     } catch (e) {
       console.log('Error loading home user data:', e);
@@ -417,10 +211,10 @@ const HomeScreen = ({ navigation }) => {
     setWalletBalance(newBal);
     await AsyncStorage.setItem('@unnathi_wallet_balance', newBal.toString());
     setWalletModalVisible(false);
-    showToast(`₹${num.toLocaleString('en-IN')} added to Wallet!`);
+    showToast(`₹${num.toLocaleString('en-IN')} added to Care Wallet!`);
   };
 
-  // GPS Location Fetch
+  // GPS Location Detection
   const handleDetectGPSLocation = async () => {
     try {
       setLoadingLocation(true);
@@ -439,17 +233,12 @@ const HomeScreen = ({ navigation }) => {
       const geocode = addresses && addresses.length > 0 ? addresses[0] : null;
       if (geocode) {
         const rawCity = geocode.city || geocode.subregion || geocode.district || 'Mysuru';
-        const matchedCity = CITIES.find((c) => rawCity.toLowerCase().includes(c.toLowerCase().slice(0, 4))) || rawCity;
+        const normalized = normalizeCityName(rawCity);
+        const matchedCity = CITIES.find((c) => normalized.toLowerCase().includes(c.toLowerCase().slice(0, 4))) || normalized;
         setSelectedCity(matchedCity);
         setLocationName(matchedCity);
         await AsyncStorage.setItem('@mediunify_selected_city', matchedCity);
         await AsyncStorage.setItem('@unnathi_user_location', matchedCity);
-        try {
-          await AsyncStorage.setItem('@unnathi_user_coords', JSON.stringify({
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-          }));
-        } catch (e) {}
         setLocationModalVisible(false);
         showToast(`City set to ${matchedCity}`);
       }
@@ -460,99 +249,47 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-  // Filtered live keyword suggestions & typo auto-corrections
-  const searchSuggestions = useMemo(() => {
-    const raw = search.trim().toLowerCase();
-    if (!raw) return { typoSuggestion: null, matches: [] };
-
-    // 1. Check for common typo auto-correction
-    let typoSuggestion = null;
-    const cleanWord = raw.replace(/[^a-z0-9]/g, '');
-    if (COMMON_TYPOS_MAP[raw] || COMMON_TYPOS_MAP[cleanWord]) {
-      typoSuggestion = COMMON_TYPOS_MAP[raw] || COMMON_TYPOS_MAP[cleanWord];
-    }
-
-    // 2. Keyword & semantic matches
-    const matches = SEARCH_KEYWORD_DICTIONARY.filter((item) => {
-      const qLower = item.query.toLowerCase();
-      const lLower = item.label.toLowerCase();
-      const cLower = item.category.toLowerCase();
-      if (qLower.includes(raw) || lLower.includes(raw) || cLower.includes(raw)) return true;
-      if (item.aliases.some((alias) => alias.includes(raw) || raw.includes(alias))) return true;
-      return false;
-    }).slice(0, 5);
-
-    return { typoSuggestion, matches };
-  }, [search]);
-
-  // Handle Search Execution
-  const handleSearchSubmit = (customQuery) => {
-    const q = typeof customQuery === 'string' ? customQuery : search;
-    setIsSearchFocused(false);
-    navigation.navigate('GlobalSearch', { query: q ? q.trim() : '' });
-  };
-
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, isTablet && styles.tabletContainer]} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* ==========================================
-      {/* ==========================================
-          TOP APP BAR (LOGO, NAME, LOCATION, WALLET, NOTIFS, CART)
-      ========================================== */}
-      <View style={[styles.topBar, width >= 600 && { maxWidth: 960, width: '100%', alignSelf: 'center', paddingTop: Platform.OS === 'android' ? 8 : 6, paddingBottom: 6 }]}>
-        {/* BRAND LOGO & LOCATION SELECTOR (LEFT) */}
-        <View style={styles.brandHeaderLeft}>
-          <Image
-            source={require('../../../assets/logo.png')}
-            style={[styles.brandLogoImg, isTablet && { width: 32, height: 32 }]}
-            resizeMode="contain"
-          />
-          <TouchableOpacity
-            style={[styles.mockupLocationPill, isTablet && { paddingVertical: 3, paddingHorizontal: 8 }]}
-            onPress={() => setLocationModalVisible(true)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="location" size={isTablet ? 12 : 13} color="#0D9488" />
-            <Text style={[styles.mockupLocationText, isTablet && { fontSize: 11 }]} numberOfLines={1}>
-              {selectedCity || locationName || 'Mysuru'}
-            </Text>
-            <Ionicons name="chevron-down" size={isTablet ? 10 : 11} color="#64748B" />
-          </TouchableOpacity>
-        </View>
+      {/* ============================================================
+          TOP APP HEADER BAR
+          - Left: Logo Mark
+          - Center: City / Location selector pill
+          - Right: User Profile Avatar
+      ============================================================ */}
+      <View style={[styles.topHeaderBar, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center' }]}>
+        {/* Left: Brand Logo Mark */}
+        <Image
+          source={require('../../../assets/logo-mark.png')}
+          style={styles.brandLogoMark}
+          resizeMode="contain"
+        />
 
-        {/* RIGHT ACTIONS: WALLET, NOTIFICATION BELL & USER AVATAR */}
-        <View style={styles.topBarRight}>
-          <TouchableOpacity
-            style={[styles.walletPill, isTablet && { paddingVertical: 4, paddingHorizontal: 8 }]}
-            onPress={() => setWalletModalVisible(true)}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="wallet-outline" size={isTablet ? 13 : 15} color={colors.primary} />
-            <Text style={[styles.walletPillText, isTablet && { fontSize: 11 }]}>₹{walletBalance}</Text>
-          </TouchableOpacity>
+        {/* Center: Location Selector Pill */}
+        <TouchableOpacity
+          style={styles.locationPill}
+          activeOpacity={0.8}
+          onPress={() => setLocationModalVisible(true)}
+        >
+          <Ionicons name="location-sharp" size={14} color="#007D69" />
+          <Text style={styles.locationText} numberOfLines={1}>
+            {selectedCity || locationName || 'Mysuru'}
+          </Text>
+          <Ionicons name="chevron-down" size={13} color="#64748B" />
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.iconCircle, isTablet && { width: 32, height: 32, borderRadius: 16 }]}
-            onPress={() => navigation.navigate('Notifications')}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="notifications-outline" size={isTablet ? 17 : 20} color="#1E293B" />
-            <View style={styles.notifBadgeDot} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.homeUserAvatarWrap}
-            onPress={() => navigation.navigate('Profile')}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.homeUserAvatarCircle, isTablet && { width: 32, height: 32, borderRadius: 16 }]}>
-              <Text style={[styles.homeUserAvatarLetter, isTablet && { fontSize: 12 }]}>
-                {userName?.trim()?.charAt(0)?.toUpperCase() || 'U'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        </View>
+        {/* Right: User Avatar */}
+        <TouchableOpacity
+          style={styles.avatarButton}
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate('Profile')}
+        >
+          <View style={styles.avatarCircle}>
+            <Ionicons name="person" size={20} color="#64748B" />
+          </View>
+        </TouchableOpacity>
       </View>
 
       {/* TOAST NOTIFICATION */}
@@ -564,169 +301,375 @@ const HomeScreen = ({ navigation }) => {
       )}
 
       <ScrollView
+        style={[styles.scrollView, isTablet && styles.tabletScrollView]}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
-          isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center' },
+          isTablet && styles.scrollContentTablet,
         ]}
       >
-
         {/* ============================================================
-            MOCKUP 1: GREETING BLOCK
+            1. ASK MEDIUNIFY AI BANNER (TOP HERO)
         ============================================================ */}
-        <View style={[styles.mockupGreetingBlock, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center', paddingTop: 4, paddingBottom: 2 }]}>
-          <Text style={[styles.mockupGreetingTitle, isTablet && { fontSize: 18, lineHeight: 22 }]}>Good Morning,</Text>
-          <Text style={[styles.mockupGreetingSub, isTablet && { fontSize: 11, lineHeight: 14, marginTop: 1 }]}>Your health matters. We're here for you.</Text>
-        </View>
-
-        {/* ============================================================
-            MOCKUP 1: ASK MEDIUNIFY AI BANNER
-        ============================================================ */}
-        <View style={[styles.mockupAiCard, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 8, marginTop: 4, borderRadius: 14 }]}>
-          <View style={styles.mockupAiLeft}>
-            <Text style={[styles.mockupAiTitle, isTablet && { fontSize: 13.5 }]}>Ask MediUnify AI</Text>
-            <Text style={[styles.mockupAiSub, isTablet && { fontSize: 10.5, marginTop: 1 }]}>Tell us what you're experiencing.</Text>
+        <View style={styles.aiBannerCard}>
+          <View style={styles.aiBannerLeft}>
+            <View style={styles.aiPillBadge}>
+              <Ionicons name="sparkles" size={11} color="#007D69" />
+              <Text style={styles.aiPillText}>AI ASSISTANT</Text>
+            </View>
+            <Text style={styles.aiBannerTitle}>Ask MediUnify AI</Text>
+            <Text style={styles.aiBannerSubtitle}>
+              Get instant answers to your symptoms, medications & medical reports.
+            </Text>
             <TouchableOpacity
-              style={[styles.mockupAiChatBtn, isTablet && { marginTop: 4, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8 }]}
-              onPress={() => navigation.navigate('Chatbot')}
+              style={styles.aiChatButton}
               activeOpacity={0.85}
+              onPress={() => navigation.navigate('Chatbot')}
             >
-              <Text style={[styles.mockupAiChatBtnText, isTablet && { fontSize: 10.5 }]}>Chat Now →</Text>
+              <Text style={styles.aiChatButtonText}>Chat with AI →</Text>
             </TouchableOpacity>
           </View>
-          <View style={[styles.mockupAiRobotCircle, isTablet && { width: 40, height: 40, borderRadius: 20 }]}>
-            <Ionicons name="chatbubble-ellipses" size={isTablet ? 22 : 38} color="#0D9488" />
+
+          <View style={styles.aiBannerRight}>
+            <Image
+              source={require('../../../assets/ai-bot-avatar.png')}
+              style={styles.aiBannerAvatar}
+              resizeMode="contain"
+            />
+            <View style={styles.aiSpeechBubble}>
+              <Text style={styles.aiSpeechText}>Hi!</Text>
+            </View>
+            <View style={styles.aiMiniDotsRow}>
+              <View style={[styles.aiMiniDot, styles.aiMiniDotActive]} />
+              <View style={styles.aiMiniDot} />
+              <View style={styles.aiMiniDot} />
+              <View style={styles.aiMiniDot} />
+            </View>
           </View>
         </View>
 
-        {/* HOMESCREEN SEARCH BAR (BELOW CHAT NOW) */}
-        <View style={[styles.homeSearchBarContainer, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center', marginTop: 4, marginBottom: 4 }]}>
+        {/* ============================================================
+            2. SEARCH BAR
+        ============================================================ */}
+        <View style={styles.searchBarWrapper}>
           <TouchableOpacity
-            style={[styles.homeSearchBox, isTablet && { height: 38, borderRadius: 10, paddingHorizontal: 12 }]}
+            style={styles.searchBarBox}
             activeOpacity={0.88}
             onPress={() => navigation.navigate('GlobalSearch')}
           >
-            <Ionicons name="search-outline" size={isTablet ? 17 : 20} color="#64748B" />
-            <Text style={[styles.homeSearchPlaceholder, isTablet && { fontSize: 12, marginLeft: 6 }]}>
-              Search doctors, medicines, tests, clinics...
+            <Ionicons name="search-outline" size={19} color="#64748B" />
+            <Text style={styles.searchPlaceholder} numberOfLines={1}>
+              Search doctors, tests, medicines, clinics...
             </Text>
-            <View style={[styles.homeSearchMicBtn, isTablet && { width: 26, height: 26, borderRadius: 13 }]}>
-              <Ionicons name="mic-outline" size={isTablet ? 14 : 17} color="#0D9488" />
-            </View>
+            <Ionicons name="mic-outline" size={19} color="#64748B" />
           </TouchableOpacity>
         </View>
 
-        {/* QUICK SYMPTOM CHIPS */}
-        <View style={[isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center' }]}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={[styles.mockupSymptomChipsRow, isTablet && { marginTop: 2, marginBottom: 3 }]}
-          >
-            {['e.g. fever', 'knee pain', 'diabetes', 'skin problem'].map((chip, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={[styles.mockupSymptomChip, isTablet && { paddingVertical: 2.5, paddingHorizontal: 8, borderRadius: 12 }]}
-                onPress={() => navigation.navigate('Chatbot', { initialQuery: chip.replace('e.g. ', '') })}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.mockupSymptomChipText, isTablet && { fontSize: 10 }]}>{chip}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+        {/* ============================================================
+            3. CARE HUB
+            - Header: "Care Hub \n Instant & Secure"
+            - Right badge: "Invite Friends + Get Rewards"
+            - 4 Circular Action Buttons:
+                1. Video Call Consultation (Replaced Instant Care)
+                2. Lab Tests
+                3. Care Wallet
+                4. Health Records
+            - Highlight Cards (Smart Health Checkups & Partner Benefits)
+        ============================================================ */}
+        <View style={styles.hubSection}>
+          <View style={styles.hubHeaderRow}>
+            <View>
+              <Text style={styles.hubTitle}>Care Hub</Text>
+              <Text style={styles.hubSubtitle}>Instant & Secure</Text>
+            </View>
+
+            {/* Orange / Peach Pill Reward Badge */}
+            <TouchableOpacity
+              style={styles.rewardsPillBadge}
+              activeOpacity={0.82}
+              onPress={() => navigation.navigate('ReferEarn')}
+            >
+              <View style={styles.rewardIconBadge}>
+                <Ionicons name="gift" size={10} color="#FFFFFF" />
+              </View>
+              <Text style={styles.rewardsPillText}>Invite Friends + Get Rewards</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 4 Circular Action Buttons in a Balanced Row */}
+          <View style={styles.circularActionsRow}>
+            {/* 1. Video Call Consultation */}
+            <TouchableOpacity
+              style={styles.circularActionItem}
+              activeOpacity={0.82}
+              onPress={() => navigation.navigate('VideoConsultation')}
+            >
+              <View style={styles.actionCircle}>
+                <Ionicons name="videocam-outline" size={26} color="#007D69" />
+              </View>
+              <Text style={styles.actionLabel}>Video Call{'\n'}Consultation</Text>
+            </TouchableOpacity>
+
+            {/* 2. Lab Tests */}
+            <TouchableOpacity
+              style={styles.circularActionItem}
+              activeOpacity={0.82}
+              onPress={() => navigation.navigate('LabTests')}
+            >
+              <View style={styles.actionCircle}>
+                <Ionicons name="flask-outline" size={25} color="#007D69" />
+              </View>
+              <Text style={styles.actionLabel}>Lab{'\n'}Tests</Text>
+            </TouchableOpacity>
+
+            {/* 3. Care Wallet */}
+            <TouchableOpacity
+              style={styles.circularActionItem}
+              activeOpacity={0.82}
+              onPress={() => setWalletModalVisible(true)}
+            >
+              <View style={styles.actionCircle}>
+                <MaterialCommunityIcons name="wallet-outline" size={26} color="#007D69" />
+              </View>
+              <Text style={styles.actionLabel}>Care{'\n'}Wallet</Text>
+            </TouchableOpacity>
+
+            {/* 4. Health Records */}
+            <TouchableOpacity
+              style={styles.circularActionItem}
+              activeOpacity={0.82}
+              onPress={() => navigation.navigate('HealthRecords')}
+            >
+              <View style={styles.actionCircle}>
+                <Ionicons name="documents-outline" size={25} color="#007D69" />
+              </View>
+              <Text style={styles.actionLabel}>Health{'\n'}Records</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Highlight Cards (Directly below 4 circular items in Care Hub) */}
+          <View style={styles.highlightStrip}>
+            {/* Card 1: Smart Checkups */}
+            <TouchableOpacity
+              style={styles.highlightCard}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('LabTests')}
+            >
+              <View style={[styles.highlightIconSquare, { backgroundColor: '#E0F7F4' }]}>
+                <Ionicons name="shield-checkmark" size={17} color="#007D69" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Text style={styles.highlightTitle} numberOfLines={1}>Smart Health Checkups</Text>
+                <Text style={styles.highlightSub} numberOfLines={1}>Save up to 50% on tests</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={15} color="#007D69" />
+            </TouchableOpacity>
+
+            {/* Card 2: Partner Benefits */}
+            <TouchableOpacity
+              style={styles.highlightCard}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('HealthInsurance')}
+            >
+              <View style={[styles.highlightIconSquare, { backgroundColor: '#EEF2FF' }]}>
+                <Ionicons name="card" size={17} color="#1E3A8A" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Text style={styles.highlightTitle} numberOfLines={1}>Partner Benefits</Text>
+                <Text style={styles.highlightSub} numberOfLines={1}>100% Cashless Claims</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={15} color="#1E3A8A" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ============================================================
-            AUTO-MOVING PROMOTIONAL ADS CAROUSEL
+            4. HEALTHCARE & SERVICES
+            - In-Clinic Visit
+            - Home Nursing & Caregiver
+            - Scans & X-Ray
+            - Order Medicine
+            - Sub-Row: Order with Doctor's Prescription + More →
         ============================================================ */}
-        <View style={[styles.mobileAdSection, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center', marginTop: 4, marginBottom: 6 }]}>
+        <View style={styles.billsSection}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.billsSectionTitle}>Healthcare & Services</Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('AllServices')}
+            >
+              <Text style={styles.viewAllLink}>View All →</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.billsGrid}>
+            {/* Tile 1: In-Clinic Visit */}
+            <TouchableOpacity
+              style={styles.billTile}
+              activeOpacity={0.82}
+              onPress={() => navigation.navigate('DoctorList')}
+            >
+              <View style={styles.billTileIconBox}>
+                <MaterialCommunityIcons name="hospital-building" size={26} color="#007D69" />
+              </View>
+              <Text style={styles.billTileText}>In-Clinic{'\n'}Visit</Text>
+            </TouchableOpacity>
+
+            {/* Tile 2: Home Nursing & Caregiver */}
+            <TouchableOpacity
+              style={styles.billTile}
+              activeOpacity={0.82}
+              onPress={() => navigation.navigate('NurseBooking')}
+            >
+              <View style={styles.billTileIconBox}>
+                <MaterialCommunityIcons name="home-heart" size={26} color="#007D69" />
+              </View>
+              <Text style={styles.billTileText}>Home Nursing &{'\n'}Caregiver</Text>
+            </TouchableOpacity>
+
+            {/* Tile 3: Scans & X-Ray */}
+            <TouchableOpacity
+              style={styles.billTile}
+              activeOpacity={0.82}
+              onPress={() => navigation.navigate('RadiologyLabs')}
+            >
+              <View style={styles.billTileIconBox}>
+                <Ionicons name="scan-outline" size={25} color="#007D69" />
+              </View>
+              <Text style={styles.billTileText}>Scans &{'\n'}X-Ray</Text>
+            </TouchableOpacity>
+
+            {/* Tile 4: Order Medicine */}
+            <TouchableOpacity
+              style={styles.billTile}
+              activeOpacity={0.82}
+              onPress={() => navigation.navigate('Pharmacy')}
+            >
+              <View style={styles.billTileIconBox}>
+                <MaterialCommunityIcons name="pill" size={26} color="#007D69" />
+              </View>
+              <Text style={styles.billTileText}>Order{'\n'}Medicine</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Sub-Banner Row: Order with Doctor's Prescription + More -> button */}
+          <View style={styles.billsSubRow}>
+            <TouchableOpacity
+              style={styles.billsWidePill}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('Pharmacy')}
+            >
+              <View style={styles.billsCardMiniIconBox}>
+                <MaterialCommunityIcons name="card-bulleted-outline" size={20} color="#007D69" />
+              </View>
+              <Text style={styles.billsWidePillText}>Order with Doctor's Prescription</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.billsMoreBtn}
+              activeOpacity={0.82}
+              onPress={() => navigation.navigate('AllServices')}
+            >
+              <Text style={styles.billsMoreBtnText}>More →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ============================================================
+            5. SPECIALIZED CARE & PROGRAMS (SINGLE BANNER ROTATING CAROUSEL)
+            - Show ONLY ONE promotional banner at a time
+            - Automatically rotates every 4 seconds
+            - Swipeable manually
+            - Fixed height (140px) to prevent screen jumps
+            - Pagination dots at bottom
+        ============================================================ */}
+        <View style={styles.programsSection}>
+          <View style={styles.programsHeaderRow}>
+            <Text style={styles.programsTitle}>Specialized Care & Programs</Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('AllServices')}
+            >
+              <Text style={styles.viewAllLink}>View All →</Text>
+            </TouchableOpacity>
+          </View>
+
           <FlatList
-            ref={mobileAdScrollRef}
-            data={MOBILE_HERO_ADS}
+            ref={programCarouselRef}
+            data={SPECIALIZED_PROGRAMS}
             keyExtractor={(item) => item.id}
             horizontal
+            pagingEnabled
             showsHorizontalScrollIndicator={false}
-            pagingEnabled={!isTablet}
-            snapToInterval={adCardInterval}
+            snapToInterval={bannerWidth}
+            snapToAlignment="start"
             decelerationRate="fast"
-            contentContainerStyle={isTablet && { paddingHorizontal: 0 }}
+            contentContainerStyle={styles.singleBannerCarouselContainer}
             onMomentumScrollEnd={(e) => {
-              const idx = Math.round(e.nativeEvent.contentOffset.x / adCardInterval);
-              if (idx >= 0 && idx < MOBILE_HERO_ADS.length) {
-                setActiveMobileAdIndex(idx);
+              const idx = Math.round(e.nativeEvent.contentOffset.x / bannerWidth);
+              if (idx >= 0 && idx < SPECIALIZED_PROGRAMS.length) {
+                setActiveProgramIndex(idx);
               }
             }}
             getItemLayout={(data, index) => ({
-              length: adCardInterval,
-              offset: adCardInterval * index,
+              length: bannerWidth,
+              offset: bannerWidth * index,
               index,
             })}
             renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[
-                  styles.mobileAdCard,
-                  {
-                    width: adCardWidth,
-                    backgroundColor: item.bgColor,
-                    marginRight: isTablet ? 12 : 0,
-                  },
-                  isTablet && { minHeight: 102, padding: 10, borderRadius: 12 },
-                ]}
-                onPress={() => navigation.navigate(item.route)}
-                activeOpacity={0.92}
-              >
-                <View style={[styles.mobileAdBadgeRow, isTablet && { marginBottom: 3 }]}>
-                  <View style={[styles.mobileAdPill, { backgroundColor: item.pillBg }, isTablet && { paddingVertical: 2, paddingHorizontal: 5, borderRadius: 4 }]}>
-                    <Text style={[styles.mobileAdPillText, { color: item.pillColor }, isTablet && { fontSize: 8.5 }]}>{item.pillText}</Text>
-                  </View>
-                  <Text style={[styles.mobileAdNotice, isTablet && { fontSize: 8 }]}>AD</Text>
-                </View>
-
-                <Text style={[styles.mobileAdTitle, item.titleColor ? { color: item.titleColor } : null, isTablet && { fontSize: 12.5, lineHeight: 16 }]}>
-                  {item.title}{'\n'}
-                  <Text style={{ color: item.priceColor }}>{item.priceText}</Text>
-                </Text>
-
-                <Text
-                  style={[styles.mobileAdSub, item.subColor ? { color: item.subColor } : null, isTablet && { fontSize: 9.5, marginTop: 1 }]}
-                  numberOfLines={isTablet ? 1 : 2}
+              <View style={{ width: bannerWidth, paddingHorizontal: 0 }}>
+                <TouchableOpacity
+                  style={[
+                    styles.singleProgramCard,
+                    { backgroundColor: item.bgColor, borderColor: item.borderColor },
+                  ]}
+                  activeOpacity={0.9}
+                  onPress={() => navigation.navigate(item.route)}
                 >
-                  {item.subTitle}
-                </Text>
+                  <View style={styles.programCardHeader}>
+                    <View style={[styles.programPillBadge, { backgroundColor: item.pillBg }]}>
+                      <Text style={[styles.programPillText, { color: item.pillColor }]}>
+                        {item.pillText}
+                      </Text>
+                    </View>
+                    <Text style={styles.programPrice}>{item.priceText}</Text>
+                  </View>
 
-                <View style={[styles.mobileAdCtaRow, isTablet && { marginTop: 3 }]}>
-                  <Text style={[styles.mobileAdCtaBadge, { color: item.priceColor }, isTablet && { fontSize: 10 }]}>
-                    {item.badgeText} →
+                  <Text style={styles.programCardTitle} numberOfLines={1}>
+                    {item.title}
                   </Text>
-                </View>
+                  <Text style={styles.programCardSubtitle} numberOfLines={2}>
+                    {item.subtitle}
+                  </Text>
 
-                <Image
-                  source={{ uri: item.image }}
-                  style={[styles.mobileAdImg, isTablet && { width: 80, height: 90, right: -6, bottom: -6 }]}
-                  resizeMode="cover"
-                />
-              </TouchableOpacity>
+                  <View style={styles.programCardFooter}>
+                    <Text style={styles.programActionText}>{item.badgeText} →</Text>
+                    <View style={styles.programCircleArrow}>
+                      <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              </View>
             )}
           />
 
-          {/* Carousel Pagination Dots */}
-          <View style={[styles.mobileAdDotsRow, isTablet && { marginTop: 4, gap: 4 }]}>
-            {MOBILE_HERO_ADS.map((_, i) => (
+          {/* Small pagination dots */}
+          <View style={styles.carouselDotsRow}>
+            {SPECIALIZED_PROGRAMS.map((_, i) => (
               <TouchableOpacity
                 key={i}
                 onPress={() => {
-                  setActiveMobileAdIndex(i);
+                  setActiveProgramIndex(i);
                   try {
-                    mobileAdScrollRef.current?.scrollToIndex({ index: i, animated: true });
+                    programCarouselRef.current?.scrollToIndex({ index: i, animated: true });
                   } catch (e) {}
                 }}
                 activeOpacity={0.7}
               >
                 <View
                   style={[
-                    styles.mobileAdDot,
-                    isTablet && { width: 5, height: 5, borderRadius: 2.5 },
-                    activeMobileAdIndex === i && (isTablet ? { width: 14, backgroundColor: colors.primary } : styles.mobileAdDotActive),
+                    styles.carouselDot,
+                    activeProgramIndex === i && styles.carouselDotActive,
                   ]}
                 />
               </TouchableOpacity>
@@ -734,156 +677,13 @@ const HomeScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* ============================================================
-            MOBILE CARE+ VIP MEMBERSHIP BANNER
-        ============================================================ */}
-        <TouchableOpacity
-          style={[styles.mobileVipBanner, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center', paddingVertical: 7, paddingHorizontal: 12, marginTop: 4, marginBottom: 4, borderRadius: 12 }]}
-          onPress={() => navigation.navigate('Membership')}
-          activeOpacity={0.88}
-        >
-          <View style={styles.mobileVipLeft}>
-            <View style={[styles.mobileVipBadgeRow, isTablet && { gap: 6, marginBottom: 2 }]}>
-              <View style={[styles.mobileVipCrownPill, isTablet && { paddingHorizontal: 6, paddingVertical: 1.5, borderRadius: 6 }]}>
-                <Ionicons name="ribbon" size={isTablet ? 10 : 12} color="#B45309" />
-                <Text style={[styles.mobileVipCrownText, isTablet && { fontSize: 8.5 }]}>CARE+ VIP</Text>
-              </View>
-              <Text style={[styles.mobileVipSavingsNotice, isTablet && { fontSize: 9.5 }]}>Save up to ₹10,000/yr</Text>
-            </View>
-            <Text style={[styles.mobileVipTitle, isTablet && { fontSize: 12 }]}>
-              Extra 15% OFF + Free Doctor Calls
-            </Text>
-            <Text style={[styles.mobileVipSub, isTablet && { fontSize: 9.5, marginTop: 1 }]}>
-              Free 60m medicine delivery & lab checkup vouchers
-            </Text>
-          </View>
-          <View style={styles.mobileVipRight}>
-            <View style={[styles.mobileVipCtaCircle, isTablet && { width: 28, height: 28, borderRadius: 14 }]}>
-              <Ionicons name="arrow-forward" size={isTablet ? 14 : 18} color="#FFFFFF" />
-            </View>
-            <Text style={[styles.mobileVipStartingPrice, isTablet && { fontSize: 8 }]}>From ₹165</Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* ============================================================
-            MOCKUP 1: 3x3 QUICK SERVICES GRID (RESPONSIVE TABLET 5 COLUMNS x 2 ROWS)
-        ============================================================ */}
-        <View style={[styles.mockupServicesGrid, isTablet && { maxWidth: maxContentWidth, width: '100%', alignSelf: 'center', justifyContent: 'flex-start', gap: 8, marginTop: 6 }]}>
-          {/* 1. Consult a Doctor */}
-          <TouchableOpacity
-            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '10%' : '18.4%', marginBottom: 6, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 }]}
-            onPress={() => navigation.navigate('DoctorList')}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.mockupServiceIconBox, isTablet && { width: 34, height: 34, borderRadius: 10, marginBottom: 4 }, { backgroundColor: '#E0F2FE' }]}>
-              <Ionicons name="person" size={isTablet ? 18 : 24} color="#0284C7" />
-            </View>
-            <Text style={[styles.mockupServiceLabel, isTablet && { fontSize: 9.5, lineHeight: 12 }]}>Consult a{'\n'}Doctor</Text>
-          </TouchableOpacity>
-
-          {/* 2. Book a Lab Test */}
-          <TouchableOpacity
-            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '10%' : '18.4%', marginBottom: 6, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 }]}
-            onPress={() => navigation.navigate('LabTests')}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.mockupServiceIconBox, isTablet && { width: 34, height: 34, borderRadius: 10, marginBottom: 4 }, { backgroundColor: '#F0FDF4' }]}>
-              <Ionicons name="flask" size={isTablet ? 18 : 24} color="#16A34A" />
-            </View>
-            <Text style={[styles.mockupServiceLabel, isTablet && { fontSize: 9.5, lineHeight: 12 }]}>Book{'\n'}a Lab Test</Text>
-          </TouchableOpacity>
-
-          {/* 3. Order Medicines */}
-          <TouchableOpacity
-            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '10%' : '18.4%', marginBottom: 6, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 }]}
-            onPress={() => navigation.navigate('Pharmacy')}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.mockupServiceIconBox, isTablet && { width: 34, height: 34, borderRadius: 10, marginBottom: 4 }, { backgroundColor: '#FFF7ED' }]}>
-              <Ionicons name="medkit" size={isTablet ? 18 : 24} color="#EA580C" />
-            </View>
-            <Text style={[styles.mockupServiceLabel, isTablet && { fontSize: 9.5, lineHeight: 12 }]}>Order{'\n'}Medicines</Text>
-          </TouchableOpacity>
-
-          {/* 4. Video Call */}
-          <TouchableOpacity
-            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '10%' : '18.4%', marginBottom: 6, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 }]}
-            onPress={() => navigation.navigate('VideoConsultation')}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.mockupServiceIconBox, isTablet && { width: 34, height: 34, borderRadius: 10, marginBottom: 4 }, { backgroundColor: '#EFF6FF' }]}>
-              <Ionicons name="videocam" size={isTablet ? 18 : 24} color="#2563EB" />
-            </View>
-            <Text style={[styles.mockupServiceLabel, isTablet && { fontSize: 9.5, lineHeight: 12 }]}>Video{'\n'}Call</Text>
-          </TouchableOpacity>
-
-          {/* 5. Home Nursing */}
-          <TouchableOpacity
-            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '10%' : '18.4%', marginBottom: 6, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 }]}
-            onPress={() => navigation.navigate('NurseBooking')}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.mockupServiceIconBox, isTablet && { width: 34, height: 34, borderRadius: 10, marginBottom: 4 }, { backgroundColor: '#F0FDFA' }]}>
-              <Ionicons name="home" size={isTablet ? 18 : 24} color="#0D9488" />
-            </View>
-            <Text style={[styles.mockupServiceLabel, isTablet && { fontSize: 9.5, lineHeight: 12 }]}>Home{'\n'}Nursing</Text>
-          </TouchableOpacity>
-
-          {/* 6. Equipment Rental */}
-          <TouchableOpacity
-            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '10%' : '18.4%', marginBottom: 6, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 }]}
-            onPress={() => navigation.navigate('EquipmentRental')}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.mockupServiceIconBox, isTablet && { width: 34, height: 34, borderRadius: 10, marginBottom: 4 }, { backgroundColor: '#FAF5FF' }]}>
-              <Ionicons name="fitness" size={isTablet ? 18 : 24} color="#7C3AED" />
-            </View>
-            <Text style={[styles.mockupServiceLabel, isTablet && { fontSize: 9.5, lineHeight: 12 }]}>Equipment{'\n'}Rental</Text>
-          </TouchableOpacity>
-
-          {/* 7. Fertility & IVF */}
-          <TouchableOpacity
-            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '10%' : '18.4%', marginBottom: 6, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 }]}
-            onPress={() => navigation.navigate('FertilityIvf')}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.mockupServiceIconBox, isTablet && { width: 34, height: 34, borderRadius: 10, marginBottom: 4 }, { backgroundColor: '#FDF2F8' }]}>
-              <Ionicons name="heart" size={isTablet ? 18 : 24} color="#DB2777" />
-            </View>
-            <Text style={[styles.mockupServiceLabel, isTablet && { fontSize: 9.5, lineHeight: 12 }]}>Fertility{'\n'}& IVF</Text>
-          </TouchableOpacity>
-
-          {/* 8. Ayurveda & Wellness */}
-          <TouchableOpacity
-            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '10%' : '18.4%', marginBottom: 6, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 }]}
-            onPress={() => navigation.navigate('AyurvedaWellness')}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.mockupServiceIconBox, isTablet && { width: 34, height: 34, borderRadius: 10, marginBottom: 4 }, { backgroundColor: '#ECFDF5' }]}>
-              <Ionicons name="leaf" size={isTablet ? 18 : 24} color="#059669" />
-            </View>
-            <Text style={[styles.mockupServiceLabel, isTablet && { fontSize: 9.5, lineHeight: 12 }]}>Ayurveda &{'\n'}Wellness</Text>
-          </TouchableOpacity>
-
-          {/* 9. View All Services */}
-          <TouchableOpacity
-            style={[styles.mockupServiceTile, isTablet && { width: isLargeTablet ? '10%' : '18.4%', marginBottom: 6, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 }]}
-            onPress={() => navigation.navigate('AllServices')}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.mockupServiceIconBox, isTablet && { width: 34, height: 34, borderRadius: 10, marginBottom: 4 }, { backgroundColor: '#EEF2FF' }]}>
-              <Ionicons name="apps" size={isTablet ? 18 : 24} color="#4F46E5" />
-            </View>
-            <Text style={[styles.mockupServiceLabel, isTablet && { fontSize: 9.5, lineHeight: 12 }]}>View{'\n'}All</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={{ height: isTablet ? 70 : 100 }} />
+        {/* Extra Bottom Spacing for Bottom Navigation Bar */}
+        <View style={{ height: isTablet ? 0 : 85 }} />
       </ScrollView>
 
-      {/* ==========================================
-          EMERGENCY & 24x7 HELPLINE ACTION MODAL
-      ========================================== */}
+      {/* ============================================================
+          EMERGENCY & 24x7 HELPLINE MODAL
+      ============================================================ */}
       <Modal
         visible={emergencyModalVisible}
         transparent
@@ -894,64 +694,64 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalTitle}>🚨 Emergency & 24x7 Support</Text>
-                <Text style={styles.modalSubtitle}>Immediate medical assistance & transport</Text>
+                <Text style={styles.modalTitle}>Emergency & 24x7 Support</Text>
+                <Text style={styles.modalSubtitle}>Immediate medical transport & assistance</Text>
               </View>
               <TouchableOpacity onPress={() => setEmergencyModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#64748B" />
               </TouchableOpacity>
             </View>
 
-            {/* 1. CALL 108 AMBULANCE */}
+            {/* 1. 108 AMBULANCE SOS */}
             <TouchableOpacity
-              style={styles.emergencyOptionCard}
+              style={styles.emergencyCard}
               onPress={() => {
                 setEmergencyModalVisible(false);
                 Linking.openURL('tel:108');
               }}
               activeOpacity={0.85}
             >
-              <View style={[styles.emergencyOptionIconBox, { backgroundColor: '#DC2626' }]}>
+              <View style={[styles.emergencyIconSquare, { backgroundColor: '#FF7F50' }]}>
                 <Ionicons name="medical" size={22} color="#FFFFFF" />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.emergencyOptionTitle}>Call 108 Ambulance SOS</Text>
-                <Text style={styles.emergencyOptionSubtitle}>Government Emergency Medical Services (Free)</Text>
+                <Text style={styles.emergencyCardTitle}>Call 108 Ambulance SOS</Text>
+                <Text style={styles.emergencyCardSub}>Government Emergency Medical Services (Free)</Text>
               </View>
-              <View style={[styles.callPill, { backgroundColor: '#FEE2E2' }]}>
-                <Ionicons name="call" size={14} color="#DC2626" />
-                <Text style={[styles.callPillText, { color: '#DC2626' }]}>108</Text>
+              <View style={[styles.callPill, { backgroundColor: '#FFF2ED' }]}>
+                <Ionicons name="call" size={13} color="#FF7F50" />
+                <Text style={[styles.callPillText, { color: '#FF7F50' }]}>108</Text>
               </View>
             </TouchableOpacity>
 
             {/* 2. 24x7 DOCTOR HELPLINE */}
             <TouchableOpacity
-              style={styles.emergencyOptionCard}
+              style={styles.emergencyCard}
               onPress={() => {
                 setEmergencyModalVisible(false);
                 Linking.openURL('tel:18001089999');
               }}
               activeOpacity={0.85}
             >
-              <View style={[styles.emergencyOptionIconBox, { backgroundColor: colors.primary }]}>
+              <View style={[styles.emergencyIconSquare, { backgroundColor: '#007D69' }]}>
                 <Ionicons name="headset" size={22} color="#FFFFFF" />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.emergencyOptionTitle}>24x7 Doctor Helpline</Text>
-                <Text style={styles.emergencyOptionSubtitle}>Talk to on-duty general physician directly</Text>
+                <Text style={styles.emergencyCardTitle}>24x7 Doctor Helpline</Text>
+                <Text style={styles.emergencyCardSub}>Speak with an on-duty general physician</Text>
               </View>
-              <View style={[styles.callPill, { backgroundColor: colors.lightTeal }]}>
-                <Ionicons name="call" size={14} color={colors.primary} />
-                <Text style={[styles.callPillText, { color: colors.primary }]}>Call</Text>
+              <View style={[styles.callPill, { backgroundColor: '#E0F7F4' }]}>
+                <Ionicons name="call" size={13} color="#007D69" />
+                <Text style={[styles.callPillText, { color: '#007D69' }]}>Call</Text>
               </View>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* ==========================================
-          SELECT YOUR CITY MODAL (EXACT SPEC MATCH)
-      ========================================== */}
+      {/* ============================================================
+          CITY SELECTION MODAL
+      ============================================================ */}
       <Modal
         visible={locationModalVisible}
         transparent
@@ -970,16 +770,13 @@ const HomeScreen = ({ navigation }) => {
           >
             <View style={styles.cityModalHeader}>
               <Text style={styles.cityModalTitle}>Select Your City</Text>
-              <TouchableOpacity
-                onPress={() => setLocationModalVisible(false)}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              >
-                <Ionicons name="close" size={20} color="#64748B" />
+              <TouchableOpacity onPress={() => setLocationModalVisible(false)}>
+                <Ionicons name="close" size={22} color="#64748B" />
               </TouchableOpacity>
             </View>
 
             <Text style={styles.cityModalSub}>
-              Services & home collection available across Karnataka
+              Verified clinics, labs & home delivery available across Karnataka
             </Text>
 
             <View style={styles.cityList}>
@@ -1002,21 +799,16 @@ const HomeScreen = ({ navigation }) => {
                     <Ionicons
                       name="business-outline"
                       size={18}
-                      color={isSelected ? '#00A389' : '#64748B'}
+                      color={isSelected ? '#007D69' : '#64748B'}
                     />
-                    <Text
-                      style={[
-                        styles.cityItemText,
-                        isSelected && styles.cityItemTextActive,
-                      ]}
-                    >
+                    <Text style={[styles.cityItemText, isSelected && styles.cityItemTextActive]}>
                       {city}
                     </Text>
                     {isSelected && (
                       <Ionicons
                         name="checkmark-circle"
                         size={18}
-                        color="#00A389"
+                        color="#007D69"
                         style={{ marginLeft: 'auto' }}
                       />
                     )}
@@ -1025,7 +817,7 @@ const HomeScreen = ({ navigation }) => {
               })}
             </View>
 
-            {/* GPS QUICK DETECT OPTION */}
+            {/* GPS QUICK DETECT */}
             <TouchableOpacity
               style={styles.cityGpsOption}
               onPress={handleDetectGPSLocation}
@@ -1033,10 +825,10 @@ const HomeScreen = ({ navigation }) => {
               activeOpacity={0.8}
             >
               {loadingLocation ? (
-                <ActivityIndicator size="small" color="#00A389" />
+                <ActivityIndicator size="small" color="#007D69" />
               ) : (
                 <>
-                  <Ionicons name="locate" size={16} color="#00A389" />
+                  <Ionicons name="locate" size={16} color="#007D69" />
                   <Text style={styles.cityGpsOptionText}>Use Current GPS Location</Text>
                 </>
               )}
@@ -1045,9 +837,9 @@ const HomeScreen = ({ navigation }) => {
         </TouchableOpacity>
       </Modal>
 
-      {/* ==========================================
-          WALLET TOP-UP MODAL
-      ========================================== */}
+      {/* ============================================================
+          CARE WALLET TOP-UP MODAL
+      ============================================================ */}
       <Modal
         visible={walletModalVisible}
         transparent
@@ -1063,13 +855,13 @@ const HomeScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.walletModalCard}>
-              <Text style={styles.walletModalLabel}>Available Balance</Text>
-              <Text style={styles.walletModalVal}>₹{walletBalance.toLocaleString('en-IN')}</Text>
-              <Text style={styles.walletModalPts}>🪙 {carePoints} Health Care Points</Text>
+            <View style={styles.walletCard}>
+              <Text style={styles.walletCardLabel}>Available Balance</Text>
+              <Text style={styles.walletCardVal}>₹{walletBalance.toLocaleString('en-IN')}</Text>
+              <Text style={styles.walletCardPts}>🎁 {carePoints} Health Care Points</Text>
             </View>
 
-            <Text style={styles.modalSectionLabel}>Quick Top-Up Amount</Text>
+            <Text style={styles.walletModalSectionLabel}>Quick Top-Up Amount</Text>
             <View style={styles.topUpChipsRow}>
               {['200', '500', '1000', '2000'].map((amt) => (
                 <TouchableOpacity
@@ -1102,123 +894,574 @@ const HomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
+  },
+  tabletContainer: {
+    flex: 1,
+    width: '100%',
+  },
+  scrollView: {
+    flex: 1,
+    width: '100%',
+  },
+  tabletScrollView: {
+    flex: 1,
+    width: '100%',
+  },
+  scrollContent: {
+    paddingBottom: 24,
+  },
+  scrollContentTablet: {
+    maxWidth: 780,
+    width: '100%',
+    alignSelf: 'center',
+    flexGrow: 1,
+    paddingBottom: 76,
   },
 
-  // TOP BAR
-  topBar: {
+  // ============================================================
+  // TOP APP HEADER BAR
+  // ============================================================
+  topHeaderBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'android' ? 12 : 8,
-    paddingBottom: 10,
+    paddingTop: 8,
+    paddingBottom: 8,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
   },
-  brandHeaderLeft: {
+  brandLogoMark: {
+    width: 44,
+    height: 38,
+  },
+  locationPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-    marginRight: 8,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    gap: 5,
   },
-  brandLogoImg: {
+  locationText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+    maxWidth: 120,
+  },
+  avatarButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarCircle: {
     width: 38,
     height: 38,
-    borderRadius: 10,
-    marginRight: 10,
-  },
-  headerUserLocationWrap: {
+    borderRadius: 19,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
   },
-  headerUserName: {
-    fontSize: 14,
+
+  // ============================================================
+  // 1. ASK MEDIUNIFY AI BANNER (TOP HERO)
+  // ============================================================
+  aiBannerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#EBF8F5',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#D0F2E9',
+    marginHorizontal: 16,
+    marginTop: 10,
+    padding: 16,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  aiBannerLeft: {
+    flex: 1,
+    paddingRight: 10,
+    zIndex: 2,
+  },
+  aiPillBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D0F2E9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    gap: 4,
+    marginBottom: 6,
+  },
+  aiPillText: {
+    fontSize: 10,
     fontWeight: '900',
+    color: '#007D69',
+    letterSpacing: 0.3,
+  },
+  aiBannerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
     color: '#0F172A',
     letterSpacing: -0.2,
   },
-  headerLocationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    marginTop: 2,
+  aiBannerSubtitle: {
+    fontSize: 12,
+    color: '#475569',
+    marginTop: 4,
+    lineHeight: 17,
   },
-  headerLocationText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#64748B',
-    maxWidth: 155,
+  aiChatButton: {
+    backgroundColor: '#007D69',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 18,
+    alignSelf: 'flex-start',
+    marginTop: 12,
+    shadowColor: '#007D69',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  topBarRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  walletPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.lightTeal,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 4,
-  },
-  walletPillText: {
+  aiChatButtonText: {
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '800',
-    color: colors.primary,
   },
-  iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F1F5F9',
+  aiBannerRight: {
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    width: 90,
+    height: 90,
   },
-  cartBadge: {
+  aiBannerAvatar: {
+    width: 82,
+    height: 82,
+  },
+  aiSpeechBubble: {
     position: 'absolute',
-    top: -3,
-    right: -3,
-    backgroundColor: '#DC2626',
-    borderRadius: 9,
-    minWidth: 18,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
+    top: 0,
+    right: 0,
+    backgroundColor: '#007D69',
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
-  cartBadgeText: {
+  aiSpeechText: {
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '800',
   },
-  notifBadgeDot: {
+  aiMiniDotsRow: {
     position: 'absolute',
-    top: 6,
-    right: 7,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#DC2626',
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
+    bottom: -2,
+    right: 2,
+    flexDirection: 'row',
+    gap: 3,
+  },
+  aiMiniDot: {
+    width: 4.5,
+    height: 4.5,
+    borderRadius: 2.5,
+    backgroundColor: '#94A3B8',
+    opacity: 0.6,
+  },
+  aiMiniDotActive: {
+    backgroundColor: '#007D69',
+    opacity: 1,
+    width: 7,
   },
 
+  // ============================================================
+  // 2. SEARCH BAR
+  // ============================================================
+  searchBarWrapper: {
+    paddingHorizontal: 16,
+    marginTop: 14,
+  },
+  searchBarBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+    gap: 8,
+  },
+  searchPlaceholder: {
+    flex: 1,
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+
+  // ============================================================
+  // 3. CARE HUB
+  // ============================================================
+  hubSection: {
+    paddingHorizontal: 16,
+    marginTop: 20,
+  },
+  hubHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  hubTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  hubSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#64748B',
+    marginTop: 1,
+  },
+  rewardsPillBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF0E6',
+    borderWidth: 1,
+    borderColor: '#FFDCC7',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 18,
+    gap: 5,
+  },
+  rewardIconBadge: {
+    width: 17,
+    height: 17,
+    borderRadius: 8.5,
+    backgroundColor: '#EA580C',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rewardsPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#C2410C',
+  },
+
+  // 4 CIRCULAR ACTIONS
+  circularActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginTop: 16,
+  },
+  circularActionItem: {
+    alignItems: 'center',
+    width: '23%',
+  },
+  actionCircle: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#E8F6F6',
+    borderWidth: 1.2,
+    borderColor: '#C0ECE9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#007D69',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  actionLabel: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0F172A',
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 15,
+  },
+
+  // HIGHLIGHT STRIP (SMART CHECKUPS & PARTNER BENEFITS)
+  highlightStrip: {
+    flexDirection: 'row',
+    marginTop: 16,
+    gap: 10,
+  },
+  highlightCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  highlightIconSquare: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  highlightTitle: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  highlightSub: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 1,
+  },
+
+  // ============================================================
+  // 4. HEALTHCARE & SERVICES
+  // ============================================================
+  billsSection: {
+    paddingHorizontal: 16,
+    marginTop: 22,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  billsSectionTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  viewAllLink: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#007D69',
+  },
+  billsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  billTile: {
+    width: '23%',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  billTileIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  billTileText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#0F172A',
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 14,
+  },
+
+  // SUB-ROW (PRESCRIPTION + MORE)
+  billsSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 10,
+  },
+  billsWidePill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  billsWidePillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+    flex: 1,
+  },
+  billsCardMiniIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: '#E0F7F4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  billsMoreBtn: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#007D69',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  billsMoreBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#007D69',
+  },
+
+  // ============================================================
+  // 5. SPECIALIZED CARE & PROGRAMS (SINGLE BANNER CAROUSEL)
+  // ============================================================
+  programsSection: {
+    marginTop: 22,
+    paddingHorizontal: 16,
+  },
+  programsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  programsTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  singleBannerCarouselContainer: {
+    paddingHorizontal: 0,
+  },
+  singleProgramCard: {
+    width: '100%',
+    minHeight: 140,
+    height: 140,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  programCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  programPillBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 8,
+  },
+  programPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  programPrice: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  programCardTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 2,
+  },
+  programCardSubtitle: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  programCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+  },
+  programActionText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#007D69',
+  },
+  programCircleArrow: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#007D69',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // CAROUSEL PAGINATION DOTS
+  carouselDotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    gap: 6,
+  },
+  carouselDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#CBD5E1',
+  },
+  carouselDotActive: {
+    backgroundColor: '#007D69',
+    width: 18,
+    borderRadius: 4,
+  },
+
+  // ============================================================
+  // TOAST NOTIFICATION
+  // ============================================================
   toastCard: {
     position: 'absolute',
     top: 60,
     alignSelf: 'center',
-    zIndex: 99,
+    backgroundColor: '#1E293B',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#064E3B',
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     gap: 6,
+    zIndex: 9999,
   },
   toastText: {
     color: '#FFFFFF',
@@ -1226,647 +1469,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  scrollContent: {
-    paddingBottom: 30,
-  },
-
-  // GREETING
-  greetingSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 8,
-  },
-  greetingTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#1E293B',
-  },
-  greetingSubtitle: {
-    fontSize: 12.5,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  profileAvatarBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: colors.primary,
-    overflow: 'hidden',
-  },
-  profileAvatarImg: {
-    width: '100%',
-    height: '100%',
-  },
-
-  // SEARCH BAR
-  searchContainer: {
-    paddingHorizontal: 16,
-    marginTop: 12,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  searchBarFocused: {
-    borderColor: colors.primary,
-    backgroundColor: '#FAFCFF',
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 13,
-    color: '#1E293B',
-  },
-  searchGoBtn: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginLeft: 4,
-  },
-  searchGoBtnText: {
-    color: '#FFFFFF',
-    fontSize: 11.5,
-    fontWeight: '800',
-  },
-  suggestionsDropdownContainer: {
-    marginTop: 6,
-    gap: 6,
-  },
-  typoCorrectionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  typoCorrectionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    flex: 1,
-  },
-  typoCorrectionLabel: {
-    fontSize: 11.5,
-    color: '#92400E',
-    fontWeight: '600',
-  },
-  typoCorrectionKeyword: {
-    fontSize: 12,
-    color: '#78350F',
-    fontWeight: '900',
-  },
-  typoApplyBadge: {
-    backgroundColor: '#F59E0B',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  typoApplyBadgeText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  suggestionsListCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  suggestionItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  suggestionItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-    marginRight: 8,
-  },
-  suggestionCategoryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: '#F0FDFA',
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#CCFBF1',
-  },
-  suggestionCategoryText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  suggestionTitleText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#1E293B',
-    flex: 1,
-  },
-  quickSearchPillsRow: {
-    flexDirection: 'row',
-    gap: 6,
-    paddingTop: 8,
-    paddingBottom: 2,
-  },
-  quickSearchPill: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  quickSearchPillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#475569',
-  },
-
-  // EMERGENCY ROW
-  emergencyRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 8,
-    marginTop: 10,
-  },
-  sosCard: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    padding: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-  },
-  sosIconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: '#DC2626',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sosTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#991B1B',
-  },
-  sosSubtitle: {
-    fontSize: 9.5,
-    color: '#DC2626',
-  },
-  helplineCard: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDFA',
-    padding: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#CCFBF1',
-  },
-  helplineIconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  helplineTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#065F46',
-  },
-  helplineSubtitle: {
-    fontSize: 9.5,
-    color: colors.primary,
-  },
-
-  // SECTION HEADERS
-  sectionHeader: {
-    paddingHorizontal: 16,
-    marginTop: 18,
-    marginBottom: 8,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    marginTop: 18,
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#1E293B',
-  },
-  sectionSubtitle: {
-    fontSize: 11.5,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  viewAllText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-
-  // HERO GRID (4 HUBS)
-  heroGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    gap: 10,
-  },
-  heroCard: {
-    width: '48.5%',
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1.5,
-  },
-  heroIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  heroCardTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#1E293B',
-  },
-  heroCardSubtitle: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
-    marginBottom: 8,
-  },
-  heroBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  heroBadgeGreen: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.primary,
-    backgroundColor: '#CCFBF1',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-
-  // AI ASSISTANT BANNER
-  aiBannerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0F766E',
-    marginHorizontal: 16,
-    borderRadius: 18,
-    padding: 16,
-    marginTop: 16,
-  },
-  aiBannerLeft: {
-    flex: 1,
-  },
-  aiBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    gap: 4,
-    marginBottom: 6,
-  },
-  aiBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  aiBannerTitle: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  aiBannerSub: {
-    fontSize: 11.5,
-    color: '#CCFBF1',
-    marginTop: 3,
-    lineHeight: 15,
-  },
-  aiBannerBtn: {
-    marginTop: 10,
-    backgroundColor: '#FFFFFF',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  aiBannerBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0F766E',
-  },
-  aiAvatarCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 10,
-  },
-
-  // HEALTH VITALS WIDGET
-  vitalsSection: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    borderRadius: 18,
-    padding: 14,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  vitalsHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  vitalsActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.lightTeal,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    gap: 4,
-  },
-  vitalsActionBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  vitalsGrid: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  vitalCard: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  vitalValue: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#1E293B',
-    marginTop: 4,
-  },
-  vitalUnit: {
-    fontSize: 10,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  vitalLabel: {
-    fontSize: 9.5,
-    color: '#64748B',
-    marginTop: 2,
-  },
-
-  // CONSULT MODES ROW
-  consultModesRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 10,
-  },
-  consultModeCard: {
-    flex: 1,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  consultModeHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  arrowCircle: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  consultModeTitle: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#1E293B',
-  },
-  consultModeSub: {
-    fontSize: 10.5,
-    color: '#64748B',
-    marginTop: 2,
-  },
-
-  // DOCTORS CAROUSEL
-  doctorsScroll: {
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  doctorCard: {
-    width: 155,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  doctorImg: {
-    width: '100%',
-    height: 110,
-    backgroundColor: '#E2E8F0',
-  },
-  doctorCardBody: {
-    padding: 10,
-  },
-  doctorCardName: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#1E293B',
-  },
-  doctorCardSpec: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  doctorRatingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    marginVertical: 4,
-  },
-  doctorRatingText: {
-    fontSize: 10.5,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  doctorCardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  doctorFeeText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  bookMiniBtn: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  bookMiniBtnText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-
-  // PACKAGES CAROUSEL
-  packagesScroll: {
-    paddingHorizontal: 16,
-    gap: 10,
-  },
-  pkgCard: {
-    width: 165,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  pkgBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  pkgBadgeText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#059669',
-  },
-  pkgTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#1E293B',
-  },
-  pkgSub: {
-    fontSize: 10.5,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  pkgPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 8,
-  },
-  pkgPrice: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  pkgOldPrice: {
-    fontSize: 11,
-    color: '#94A3B8',
-    textDecorationLine: 'line-through',
-  },
-
-  // MORE SERVICES
-  moreServicesGrid: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  moreServiceCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  moreServiceIconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  moreServiceTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#1E293B',
-  },
-  moreServiceSubtitle: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 1,
-  },
-
-  // MODAL STYLES
+  // ============================================================
+  // MODALS
+  // ============================================================
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
   modalContent: {
@@ -1874,529 +1482,47 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
-    maxHeight: '90%',
+    maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '800',
-    color: '#1E293B',
+    color: '#0F172A',
   },
   modalSubtitle: {
     fontSize: 12,
     color: '#64748B',
     marginTop: 2,
   },
-  modalCloseBtn: {
-    padding: 4,
-  },
-
-  // LOC MODAL TABS
-  locModalTabsRow: {
-    flexDirection: 'row',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 10,
-    gap: 4,
-  },
-  locModalTabBtn: {
-    flex: 1,
+  emergencyCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 10,
-    gap: 6,
-  },
-  locModalTabBtnActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  locModalTabText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  locModalTabTextActive: {
-    color: colors.primary,
-  },
-
-  // LIVE MAP PICKER BUTTON
-  liveMapPickBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDFA',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     padding: 12,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#99F6E4',
     marginBottom: 10,
   },
-  liveMapIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  liveMapBtnTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#0F766E',
-  },
-  liveMapBtnSub: {
-    fontSize: 11,
-    color: '#0D9488',
-    marginTop: 2,
-  },
-  gpsDetectBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 8,
-    marginBottom: 12,
-  },
-  gpsDetectText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-
-  locSearchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 12,
-  },
-  locSearchInput: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 12.5,
-    color: '#1E293B',
-  },
-
-  modalSectionLabel: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: '#64748B',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-
-  // CITY PILLS
-  cityPill: {
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginRight: 8,
-  },
-  cityPillActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  cityPillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  cityPillTextActive: {
-    color: '#FFFFFF',
-  },
-
-  // AREA CARDS
-  areaCardsList: {
-    gap: 8,
-  },
-  areaCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  areaIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: colors.lightTeal,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  areaCardTitle: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#1E293B',
-  },
-  areaCardCross: {
-    fontSize: 11.5,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  areaCardDistrict: {
-    fontSize: 10.5,
-    color: '#94A3B8',
-    marginTop: 1,
-  },
-
-  // CUSTOM FORM
-  customFormBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  formInputLabel: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#475569',
-    marginBottom: 4,
-    marginTop: 8,
-  },
-  formTextInput: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    fontSize: 12.5,
-    color: '#1E293B',
-  },
-  formRow: {
-    flexDirection: 'row',
-  },
-  tagChipsRow: {
-    flexDirection: 'row',
-    gap: 4,
-    marginTop: 2,
-  },
-  tagChip: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 9,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-  },
-  tagChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  tagChipText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  tagChipTextActive: {
-    color: '#FFFFFF',
-  },
-  saveLocBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    paddingVertical: 13,
-    borderRadius: 12,
-    gap: 6,
-    marginTop: 18,
-  },
-  saveLocBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13.5,
-    fontWeight: '800',
-  },
-
-  // WALLET MODAL
-  walletModalCard: {
-    backgroundColor: colors.lightTeal,
-    padding: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  walletModalLabel: {
-    fontSize: 12,
-    color: '#065F46',
-    fontWeight: '600',
-  },
-  walletModalVal: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: colors.primary,
-    marginVertical: 4,
-  },
-  walletModalPts: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#065F46',
-  },
-  topUpChipsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  topUpChip: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  topUpChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  topUpChipText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#1E293B',
-  },
-  topUpChipTextActive: {
-    color: '#FFFFFF',
-  },
-  addMoneyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 6,
-  },
-  addMoneyBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-
-  // COMBINED EMERGENCY CARD (BOTTOM)
-  combinedEmergencyCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    marginHorizontal: 16,
-    marginTop: 18,
-    marginBottom: 10,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#FECACA',
-    shadowColor: '#DC2626',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  combinedEmergencyIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#DC2626',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  combinedEmergencyTextWrap: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  emergencyPillBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 2,
-  },
-  emergencyPillDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#DC2626',
-  },
-  emergencyPillBadgeText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#DC2626',
-    letterSpacing: 0.5,
-  },
-  combinedEmergencyTitle: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#991B1B',
-  },
-  combinedEmergencySubtitle: {
-    fontSize: 11,
-    color: '#B91C1C',
-    marginTop: 1,
-  },
-  combinedEmergencyCallBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-    gap: 4,
-  },
-  combinedEmergencyCallText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#DC2626',
-  },
-
-  // HOMESCREEN SEARCH BAR (BELOW CHAT NOW)
-  homeSearchBarContainer: {
-    paddingHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 10,
-  },
-  homeSearchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    height: 48,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 5,
-    elevation: 2,
-  },
-  homeSearchPlaceholder: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 13.5,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
-  homeSearchMicBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#F0FDFA',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  // FLOATING CHATBOT FAB
-  floatingChatbotFab: {
-    position: 'absolute',
-    bottom: 85,
-    right: 16,
-    zIndex: 9999,
-    elevation: 12,
-  },
-  fabInnerTouchable: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0F766E',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 30,
-    shadowColor: '#0F766E',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 10,
-    elevation: 12,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    gap: 8,
-  },
-  fabIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  fabOnlineBadge: {
-    position: 'absolute',
-    top: -1,
-    right: -1,
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
-    backgroundColor: '#34D399',
-    borderWidth: 1.5,
-    borderColor: '#0F766E',
-  },
-  fabTextColumn: {
-    justifyContent: 'center',
-  },
-  fabTitle: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  fabSub: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: '#A7F3D0',
-  },
-
-  // EMERGENCY MODAL OPTIONS
-  emergencyOptionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 10,
-  },
-  emergencyOptionIconBox: {
+  emergencyIconSquare: {
     width: 44,
     height: 44,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emergencyOptionTitle: {
+  emergencyCardTitle: {
     fontSize: 13.5,
     fontWeight: '800',
-    color: '#1E293B',
+    color: '#0F172A',
   },
-  emergencyOptionSubtitle: {
+  emergencyCardSub: {
     fontSize: 11,
     color: '#64748B',
     marginTop: 2,
@@ -2406,7 +1532,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 20,
+    borderRadius: 14,
     gap: 4,
   },
   callPillText: {
@@ -2414,123 +1540,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 
-  // AUTO-SCROLLING MOBILE ADS BANNER
-  mobileAdSection: {
-    marginHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 16,
-  },
-  mobileAdCard: {
-    borderRadius: 16,
-    padding: 16,
-    minHeight: 140,
-    justifyContent: 'space-between',
-    position: 'relative',
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  mobileAdBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-    maxWidth: '65%',
-  },
-  mobileAdPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 5,
-  },
-  mobileAdPillText: {
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.3,
-  },
-  mobileAdNotice: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#94A3B8',
-  },
-  mobileAdTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#0F172A',
-    lineHeight: 21,
-    maxWidth: '65%',
-    letterSpacing: -0.3,
-  },
-  mobileAdSub: {
-    fontSize: 11.5,
-    color: '#64748B',
-    fontWeight: '500',
-    marginTop: 2,
-    maxWidth: '65%',
-  },
-  mobileAdCtaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 8,
-  },
-  mobileAdCtaBadge: {
-    fontSize: 11.5,
-    fontWeight: '800',
-  },
-  mobileAdImg: {
-    position: 'absolute',
-    right: -10,
-    bottom: -10,
-    width: 120,
-    height: 130,
-    borderRadius: 14,
-    opacity: 0.88,
-  },
-  mobileAdDotsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 10,
-  },
-  mobileAdDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#CBD5E1',
-  },
-  mobileAdDotActive: {
-    width: 18,
-    backgroundColor: colors.primary,
-  },
-
-  // MOCKUP SCREEN 1 STYLES
-  mockupLocationPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#F0FDFA',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#CCFBF1',
-  },
-  mockupLocationText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0F766E',
-    maxWidth: 110,
-  },
-  // CITY MODAL STYLES (MATCHING WEB POPUP)
+  // CITY MODAL
   cityModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -2539,31 +1552,24 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 380,
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 22,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 8,
+    borderRadius: 20,
+    padding: 20,
   },
   cityModalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
   },
   cityModalTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
-    letterSpacing: -0.2,
   },
   cityModalSub: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     color: '#64748B',
-    marginBottom: 16,
-    lineHeight: 17,
+    marginTop: 4,
+    marginBottom: 14,
   },
   cityList: {
     gap: 8,
@@ -2571,271 +1577,114 @@ const styles = StyleSheet.create({
   cityItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
     backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    gap: 10,
   },
   cityItemActive: {
-    backgroundColor: '#F0F9FF',
-    borderColor: '#00A389',
-    borderWidth: 1.5,
+    backgroundColor: '#E0F7F4',
+    borderWidth: 1,
+    borderColor: '#99F6E4',
   },
   cityItemText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#1E3A8A',
+    color: '#334155',
   },
   cityItemTextActive: {
-    color: '#00A389',
+    color: '#007D69',
     fontWeight: '800',
   },
   cityGpsOption: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginTop: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    backgroundColor: '#F0FDF4',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    paddingVertical: 10,
+    marginTop: 14,
+    gap: 6,
   },
   cityGpsOptionText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#00A389',
-  },
-  homeUserAvatarWrap: {
-    marginLeft: 4,
-  },
-  homeUserAvatarCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#00B894',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    shadowColor: '#00B894',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  homeUserAvatarLetter: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  mockupGreetingBlock: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  mockupGreetingTitle: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#1E3A8A',
-    letterSpacing: -0.4,
-  },
-  mockupGreetingSub: {
-    fontSize: 12.5,
-    color: '#64748B',
-    fontWeight: '500',
-    marginTop: 2,
-  },
-  mockupAiCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#E0F2FE',
-    marginHorizontal: 16,
-    marginTop: 10,
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-  },
-  mockupAiLeft: {
-    flex: 1,
-  },
-  mockupAiTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  mockupAiSub: {
-    fontSize: 11.5,
-    color: '#475569',
-    marginTop: 3,
-    fontWeight: '500',
-  },
-  mockupAiChatBtn: {
-    backgroundColor: '#0D9488',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 10,
-    marginTop: 10,
-  },
-  mockupAiChatBtnText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  mockupAiRobotCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#0D9488',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 3,
-    marginLeft: 10,
-  },
-  mockupSymptomChipsRow: {
-    paddingHorizontal: 16,
-    gap: 8,
-    marginTop: 10,
-    marginBottom: 6,
-  },
-  mockupSymptomChip: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  mockupSymptomChipText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  // MOBILE CARE+ VIP BANNER
-  mobileVipBanner: {
-    backgroundColor: '#FFFBEB',
-    marginHorizontal: 16,
-    marginTop: 6,
-    marginBottom: 4,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1.5,
-    borderColor: '#FDE68A',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#D97706',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  mobileVipLeft: {
-    flex: 1,
-    paddingRight: 10,
-  },
-  mobileVipBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  mobileVipCrownPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  mobileVipCrownText: {
-    fontSize: 9.5,
-    fontWeight: '900',
-    color: '#B45309',
-    letterSpacing: 0.3,
-  },
-  mobileVipSavingsNotice: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#15803D',
-  },
-  mobileVipTitle: {
-    fontSize: 13.5,
-    fontWeight: '900',
-    color: '#0F172A',
-    letterSpacing: -0.2,
-  },
-  mobileVipSub: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  mobileVipRight: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  mobileVipCtaCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#D97706',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mobileVipStartingPrice: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#B45309',
+    color: '#007D69',
   },
 
-  mockupServicesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    marginTop: 14,
-    gap: 8,
-    justifyContent: 'space-between',
-  },
-  mockupServiceTile: {
-    width: '31%',
-    backgroundColor: '#FFFFFF',
+  // WALLET MODAL
+  walletCard: {
+    backgroundColor: '#007D69',
     borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 6,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
-    marginBottom: 8,
+    padding: 16,
+    marginBottom: 16,
   },
-  mockupServiceIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+  walletCardLabel: {
+    fontSize: 11,
+    color: '#A7F3D0',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  walletCardVal: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginTop: 4,
+  },
+  walletCardPts: {
+    fontSize: 12,
+    color: '#E6F8F4',
+    marginTop: 6,
+    fontWeight: '600',
+  },
+  walletModalSectionLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 10,
+  },
+  topUpChipsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  topUpChip: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  topUpChipActive: {
+    backgroundColor: '#E0F7F4',
+    borderColor: '#007D69',
+  },
+  topUpChipText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#334155',
+  },
+  topUpChipTextActive: {
+    color: '#007D69',
+  },
+  addMoneyBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
+    backgroundColor: '#007D69',
+    borderRadius: 14,
+    paddingVertical: 12,
+    gap: 6,
   },
-  mockupServiceLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#1E293B',
-    textAlign: 'center',
-    lineHeight: 14,
+  addMoneyBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });
 

@@ -1,126 +1,87 @@
-﻿import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   StatusBar,
   Platform,
   KeyboardAvoidingView,
   Keyboard,
   useWindowDimensions,
   Image,
+  ActivityIndicator,
 } from 'react-native';
-import { showAlert } from '../../utils/alert';
-import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
+import { showAlert } from '../../utils/alert';
 import colors from '../../theme/colors';
-import { syncRegister, autoMigrateLocalAccountsToServer } from '../../services/dataSyncService';
 import { safeNavigateToMain } from '../../utils/navigationHelper';
+import { autoMigrateLocalAccountsToServer } from '../../services/dataSyncService';
 
-const BLOOD_GROUPS = [
-  'O+ Positive',
-  'O- Negative',
-  'A+ Positive',
-  'A- Negative',
-  'B+ Positive',
-  'B- Negative',
-  'AB+ Positive',
-  'AB- Negative',
-];
+const RegisterScreen = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const isSmallDevice = width < 375 || height < 680;
+  const isTablet = width >= 600;
+  const scrollViewRef = useRef(null);
 
-const GENDERS = ['Male', 'Female', 'Other'];
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
-const RegisterScreen = ({ navigation }) => {
-  const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardVisible(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardVisible(false)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  // Android status bar safe margin
+  const androidExtraTop = Platform.OS === 'android' && insets.top === 0 ? (StatusBar.currentHeight || 24) : 0;
+
+  // Preserve registration information if returned from OTP or prefilled
+  const initialData = route?.params?.userData || {};
+  const initialCreds = route?.params?.credentials || {};
+
+  const [name, setName] = useState(initialData.name || '');
+  const [email, setEmail] = useState(initialData.email || '');
+  const [phone, setPhone] = useState(
+    initialData.phone ? initialData.phone.replace(/[^0-9]/g, '').slice(-10) : (initialCreds.phone || '')
+  );
+  const [password, setPassword] = useState(initialCreds.password || '');
+  const [confirmPassword, setConfirmPassword] = useState(initialCreds.password || '');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [referralCode, setReferralCode] = useState(initialData.referralCode || '');
+  const [agreedToTerms, setAgreedToTerms] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
+
+  useEffect(() => {
+    try {
+      autoMigrateLocalAccountsToServer();
+    } catch (e) {}
+  }, []);
 
   const handleSkipToHome = () => {
     safeNavigateToMain(navigation);
   };
 
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [referralCode, setReferralCode] = useState('');
-  const [dob, setDob] = useState('');
-  const [age, setAge] = useState('');
-  const [gender, setGender] = useState('Male');
-  const [bloodGroup, setBloodGroup] = useState('O+ Positive');
-  const [emergencyContact, setEmergencyContact] = useState('');
-
-  // Helper: Calculate age from DOB (DD/MM/YYYY)
-  const calculateAgeFromDob = (dobStr) => {
-    if (!dobStr) return '';
-    const parts = dobStr.replace(/[^0-9/\\-]/g, '').split(/[/\\-]/);
-    if (parts.length === 3) {
-      let day, month, year;
-      if (parts[0].length === 4) {
-        year = parseInt(parts[0], 10);
-        month = parseInt(parts[1], 10) - 1;
-        day = parseInt(parts[2], 10);
-      } else {
-        day = parseInt(parts[0], 10);
-        month = parseInt(parts[1], 10) - 1;
-        year = parseInt(parts[2], 10);
-      }
-
-      if (!isNaN(day) && !isNaN(month) && !isNaN(year) && year > 1900 && year <= new Date().getFullYear()) {
-        const birthDate = new Date(year, month, day);
-        const today = new Date();
-        let calculatedAge = today.getFullYear() - birthDate.getFullYear();
-        const m = today.getMonth() - birthDate.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-          calculatedAge--;
-        }
-        if (calculatedAge >= 0 && calculatedAge <= 120) {
-          return `${calculatedAge} Yrs`;
-        }
-      }
-    }
-    return '';
-  };
-
-  // DOB Formatter while typing (DD/MM/YYYY)
-  const handleDobChange = (text) => {
-    const cleaned = text.replace(/[^0-9]/g, '');
-    let formatted = cleaned;
-    if (cleaned.length > 2 && cleaned.length <= 4) {
-      formatted = `${cleaned.slice(0, 2)}/${cleaned.slice(2)}`;
-    } else if (cleaned.length > 4) {
-      formatted = `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}/${cleaned.slice(4, 8)}`;
-    }
-    setDob(formatted);
-    const calculated = calculateAgeFromDob(formatted);
-    if (calculated) {
-      setAge(calculated);
-    } else if (formatted.length < 10) {
-      setAge('');
-    }
-  };
-
-  // Strictly accept only numeric digits and cap at exactly 10 digits
-  // Strictly accept only numeric digits and cap at exactly 10 digits
+  // Strictly accept numeric digits and cap at exactly 10 digits
   const handlePhoneChange = (text) => {
     const raw = text.replace(/[^0-9]/g, '');
     const cleaned = raw.length > 10 && raw.startsWith('91') ? raw.slice(2, 12) : raw.slice(0, 10);
     setPhone(cleaned);
-  };
-
-  const handleEmergencyContactChange = (text) => {
-    const raw = text.replace(/[^0-9]/g, '');
-    const cleaned = raw.length > 10 && raw.startsWith('91') ? raw.slice(2, 12) : raw.slice(0, 10);
-    setEmergencyContact(cleaned);
   };
 
   const handleRegister = async () => {
@@ -133,97 +94,75 @@ const RegisterScreen = ({ navigation }) => {
     const trimmedConfirmPassword = confirmPassword.trim();
     const trimmedReferralCode = referralCode.trim().toUpperCase();
 
-    // 1. Check for required fields
+    // 1. Required fields validation
     if (!trimmedName || !trimmedEmail || !cleanPhone10 || !trimmedPassword || !trimmedConfirmPassword) {
-      const msg = 'Please enter your full name, email, 10-digit mobile number, password, and confirm password.';
+      const msg = 'Please enter your Full Name, Email, 10-digit Mobile Number, and Password.';
       setErrorMessage(msg);
       showAlert('Missing Information', msg);
       return;
     }
 
-    // 2. Validate Full Name (letters, spaces, minimum 2 characters)
+    // 2. Validate Full Name
     if (trimmedName.length < 2 || !/^[a-zA-Z\s.]+$/.test(trimmedName)) {
-      const msg = 'Please enter a valid full name containing only letters and spaces (minimum 2 characters).';
+      const msg = 'Please enter a valid full name containing letters only (minimum 2 characters).';
       setErrorMessage(msg);
       showAlert('Invalid Full Name', msg);
       return;
     }
 
-    // 3. Validate Email Format
+    // 3. Validate Email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail)) {
-      const msg = 'Please enter a valid email address (e.g. yourname@example.com).';
+      const msg = 'Please enter a valid email address (e.g. name@domain.com).';
       setErrorMessage(msg);
-      showAlert('Invalid Email Address', msg);
+      showAlert('Invalid Email', msg);
       return;
     }
 
-    // 4. Validate Exactly 10-Digit Mobile Number
-    if (cleanPhone10.length < 10) {
-      const msg = `Mobile number must contain exactly 10 digits. You entered only ${cleanPhone10.length} ${cleanPhone10.length === 1 ? 'digit' : 'digits'}.`;
-      setErrorMessage(msg);
-      showAlert('Incomplete Mobile Number', msg);
-      return;
-    }
-
-    if (!/^[6-9]\d{9}$/.test(cleanPhone10)) {
-      const msg = 'Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.';
+    // 4. Validate 10-digit mobile number
+    if (cleanPhone10.length !== 10) {
+      const msg = `Please enter a valid 10-digit mobile number (currently ${cleanPhone10.length} digits).`;
       setErrorMessage(msg);
       showAlert('Invalid Mobile Number', msg);
       return;
     }
 
-    // 5. Validate Password Length
+    // 5. Validate Password length
     if (trimmedPassword.length < 6) {
-      const msg = 'Password must be at least 6 characters long for account security.';
+      const msg = 'Password must be at least 6 characters long for your account security.';
       setErrorMessage(msg);
       showAlert('Weak Password', msg);
       return;
     }
 
-    // 6. Validate Double Password Verification (Confirm Password Match)
+    // 6. Validate Password match
     if (trimmedPassword !== trimmedConfirmPassword) {
-      const msg = 'The password and confirm password entries do not match. Please verify and ensure both passwords are identical.';
+      const msg = 'Passwords do not match. Please ensure both passwords match identically.';
       setErrorMessage(msg);
-      showAlert('Passwords Do Not Match', msg);
+      showAlert('Password Mismatch', msg);
+      return;
+    }
+
+    // 7. Terms agreement
+    if (!agreedToTerms) {
+      const msg = 'Please accept the MediUnify Terms of Service and Privacy Policy to proceed.';
+      setErrorMessage(msg);
+      showAlert('Terms Agreement Required', msg);
       return;
     }
 
     setIsRegistering(true);
 
     try {
-      // 7. Check for DUPLICATE ACCOUNTS (Email, Phone, or Name already exists)
+      // Check existing accounts
       const regCredsStr = await AsyncStorage.getItem('@unnathi_registered_credentials');
       let registeredCreds = {};
       if (regCredsStr) {
-        try {
-          registeredCreds = JSON.parse(regCredsStr);
-        } catch (e) {}
+        try { registeredCreds = JSON.parse(regCredsStr); } catch (e) {}
       }
 
-      const regUsersStr = await AsyncStorage.getItem('@unnathi_registered_users');
-      let registeredUsers = {};
-      if (regUsersStr) {
-        try {
-          registeredUsers = JSON.parse(regUsersStr);
-        } catch (e) {}
-      }
-
-      const existingCred =
-        registeredCreds[trimmedEmail] ||
-        registeredCreds[cleanPhone10] ||
-        registeredUsers[trimmedEmail] ||
-        registeredUsers[cleanPhone10];
-
-      // If user already exists and password matches, sign in directly!
-      if (existingCred && existingCred.password === trimmedPassword) {
-        await AsyncStorage.setItem('isLoggedIn', 'true');
-        await safeNavigateToMain(navigation);
-        return;
-      }
-
-      // Check if Email already registered with different password
-      if (registeredCreds[trimmedEmail] || registeredUsers[trimmedEmail]) {
+      // Check if Email already registered
+      if (registeredCreds[trimmedEmail]) {
         setIsRegistering(false);
         const msg = `An account with email "${trimmedEmail}" already exists. Please sign in instead.`;
         setErrorMessage(msg);
@@ -238,8 +177,8 @@ const RegisterScreen = ({ navigation }) => {
         return;
       }
 
-      // Check if Phone already registered with different password
-      if (registeredCreds[cleanPhone10] || registeredUsers[cleanPhone10]) {
+      // Check if Phone already registered
+      if (registeredCreds[cleanPhone10]) {
         setIsRegistering(false);
         const msg = `An account with mobile number "+91 ${cleanPhone10}" already exists. Please sign in instead.`;
         setErrorMessage(msg);
@@ -254,20 +193,21 @@ const RegisterScreen = ({ navigation }) => {
         return;
       }
 
-      // Determine final age
-      const calculatedAge = calculateAgeFromDob(dob);
-      const finalAge = calculatedAge || (age.trim() ? `${age.replace(/[^0-9]/g, '')} Yrs` : '28 Yrs');
+      // Prepare user data payload
       const formattedPhone = `+91 ${cleanPhone10}`;
+      const cleanFirstName = trimmedName.split(' ')[0].toUpperCase().replace(/[^A-Z0-9]/g, '') || 'USER';
+      const myReferralCode = `${cleanFirstName}250`;
 
       const userData = {
         name: trimmedName,
         email: trimmedEmail,
         phone: formattedPhone,
-        dob: dob || '15/08/1998',
-        age: finalAge,
-        gender: gender || 'Male',
-        bloodGroup: bloodGroup || 'O+ Positive',
-        emergencyContact: emergencyContact.trim() || `${formattedPhone} (Family)`,
+        dob: '15/08/1998',
+        age: '28 Yrs',
+        gender: 'Male',
+        bloodGroup: 'O+ Positive',
+        emergencyContact: `${formattedPhone} (Family)`,
+        myReferralCode,
         referralCode: trimmedReferralCode || null,
       };
 
@@ -275,69 +215,38 @@ const RegisterScreen = ({ navigation }) => {
         email: trimmedEmail,
         phone: cleanPhone10,
         password: trimmedPassword,
+        myReferralCode,
         referralCode: trimmedReferralCode || null,
         userData,
         createdAt: Date.now(),
       };
 
-      // 1. Save directly into AsyncStorage
-      await AsyncStorage.setItem('user', JSON.stringify(userData));
-      await AsyncStorage.setItem('@unnathi_primary_user', JSON.stringify(userData));
-      await AsyncStorage.setItem('userName', trimmedName);
-      await AsyncStorage.setItem('userEmail', trimmedEmail);
-      await AsyncStorage.setItem('userPhone', formattedPhone);
-
-      // 2. Save into registered credentials & users dictionary
-      registeredCreds[trimmedEmail] = accountCredentials;
-      registeredCreds[cleanPhone10] = accountCredentials;
-      await AsyncStorage.setItem('@unnathi_registered_credentials', JSON.stringify(registeredCreds));
-
-      registeredUsers[trimmedEmail] = userData;
-      registeredUsers[cleanPhone10] = userData;
-      await AsyncStorage.setItem('@unnathi_registered_users', JSON.stringify(registeredUsers));
-
-      // 2.5 Synchronize new account with Central Sync Server (live Web <-> Mobile shared data)
-      try {
-        await syncRegister(userData, trimmedPassword);
-      } catch (syncErr) {
-        console.warn('[RegisterScreen] Central Sync Server registration notice:', syncErr);
-      }
-
-      // 3. Primary family profile (Self)
-      const primaryMember = {
-        id: 'self',
-        name: `${trimmedName} (Self)`,
-        displayName: trimmedName.split(' ')[0],
-        relation: 'Self',
-        age: finalAge,
-        gender: gender || 'Male',
-        bloodGroup: bloodGroup ? bloodGroup.split(' ')[0] : 'O+',
-        allergies: 'None',
-        conditions: 'None',
-        icon: 'person',
-        themeColor: '#00B894',
-        bgLight: '#E6F8F4',
-        isPrimary: true,
-      };
-      await AsyncStorage.setItem('@unnathi_active_patient', JSON.stringify(primaryMember));
-
-      // 4. Initialize clean isolated family members list for this account ONLY
-      const userKey = (trimmedEmail || cleanPhone10 || 'default').toLowerCase().replace(/[^a-z0-9]/g, '_');
-      const updatedFam = [primaryMember];
-      await AsyncStorage.setItem(`@unnathi_family_members_${userKey}`, JSON.stringify(updatedFam));
-      await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(updatedFam));
-
-      // 5. Navigate to MainApp safely without getting stuck on Web
-      await AsyncStorage.setItem('isLoggedIn', 'true');
-      if (Platform.OS === 'web') {
-        await safeNavigateToMain(navigation);
-      } else {
-        navigation.navigate('OTP', { userData, credentials: accountCredentials });
-      }
-    } catch (e) {
-      console.log('Register save error:', e);
       setIsRegistering(false);
-      await safeNavigateToMain(navigation);
+
+      // Open existing OTP screen with user data & credentials
+      navigation.navigate('OTP', { userData, credentials: accountCredentials });
+    } catch (e) {
+      console.warn('Registration validation warning:', e);
+      setIsRegistering(false);
+      const formattedPhone = `+91 ${cleanPhone10}`;
+      navigation.navigate('OTP', {
+        userData: {
+          name: trimmedName,
+          email: trimmedEmail,
+          phone: formattedPhone,
+          dob: '15/08/1998',
+          age: '28 Yrs',
+          gender: 'Male',
+          bloodGroup: 'O+ Positive',
+          emergencyContact: `${formattedPhone} (Family)`,
+          referralCode: trimmedReferralCode || null,
+        },
+        credentials: {
+          email: trimmedEmail,
+          phone: cleanPhone10,
+          password: trimmedPassword,
+        },
+      });
     }
   };
 
@@ -347,500 +256,468 @@ const RegisterScreen = ({ navigation }) => {
   const isPasswordMismatch = isPasswordFilled && isConfirmFilled && password !== confirmPassword;
 
   return (
-    <SafeAreaView style={[styles.safeArea, isDesktopWeb && styles.safeAreaDesktop]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+    <SafeAreaView
+      style={[
+        styles.safeArea,
+        androidExtraTop > 0 && { paddingTop: androidExtraTop },
+      ]}
+      edges={['top', 'left', 'right', 'bottom']}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
 
-      {isDesktopWeb && (
-        <View style={styles.webTopBar}>
-          <View style={styles.webTopBarInner}>
-            <TouchableOpacity onPress={handleSkipToHome} activeOpacity={0.8}>
-              <Image
-                source={require('../../../assets/logo.png')}
-                style={styles.webLogo}
-                resizeMode="contain"
-              />
-            </TouchableOpacity>
+      {/* TOP COMPLIANCE & GUEST NAVIGATION BAR */}
+      <View style={styles.topUtilityBar}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.navigate('Login')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={18} color="#1E3A8A" />
+          <Text style={styles.backButtonText}>Back to Login</Text>
+        </TouchableOpacity>
 
-            <View style={styles.webTopRight}>
-              <TouchableOpacity
-                style={styles.skipToHomeBtn}
-                onPress={handleSkipToHome}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.skipToHomeText}>Explore as Guest / Skip to Home</Text>
-                <Ionicons name="arrow-forward" size={15} color={colors.teal} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      )}
+        <TouchableOpacity
+          style={styles.guestLink}
+          onPress={handleSkipToHome}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.guestLinkText}>Skip & Explore as Guest</Text>
+          <Ionicons name="chevron-forward" size={14} color="#00B894" />
+        </TouchableOpacity>
+      </View>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? (insets.top > 0 ? insets.top : 20) : 0}
         style={{ flex: 1 }}
       >
         <ScrollView
-          contentContainerStyle={[styles.content, isDesktopWeb && styles.contentDesktop]}
+          ref={scrollViewRef}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingBottom: isKeyboardVisible ? (Platform.OS === 'ios' ? 160 : 120) : (isSmallDevice ? 12 : 28),
+            },
+            isSmallDevice && styles.scrollContentSmall,
+            isTablet && styles.scrollContentTablet,
+          ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           showsVerticalScrollIndicator={false}
+          bounces={false}
         >
-          <View style={isDesktopWeb ? styles.desktopFormWrapper : null}>
-        {/* HEADER */}
-        <View style={styles.header}>
-          <View style={styles.badgePill}>
-            <Ionicons name="shield-checkmark" size={14} color={colors.primary} />
-            <Text style={styles.badgePillText}>MEDIUNIFY REGISTRATION</Text>
-          </View>
-          <Text style={styles.title}>Create Health Account</Text>
-          <Text style={styles.subtitle}>
-            Enter your details to create your verified patient health record.
-          </Text>
-        </View>
-
-        {/* SECTION 1: ACCOUNT CREDENTIALS */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionHeading}>👤 Basic Account Information</Text>
-
-          {/* FULL NAME */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>
-              Full Name <Text style={styles.requiredStar}>*</Text>
-            </Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="person-outline" size={18} color="#64748B" style={styles.inputIcon} />
-              <TextInput
-                style={styles.textInput}
-                placeholder="Enter your full name"
-                placeholderTextColor="#94A3B8"
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
+          <View
+            style={[
+              styles.authCard,
+              isSmallDevice && styles.authCardSmall,
+              isTablet && styles.authCardTablet,
+            ]}
+          >
+            {/* BRAND LOGO & TAGLINE */}
+            <View style={[styles.logoSection, isSmallDevice && styles.logoSectionSmall]}>
+              <Image
+                source={require('../../../assets/logo.png')}
+                style={[styles.logoImage, isSmallDevice && styles.logoImageSmall]}
+                resizeMode="contain"
               />
+              <Text style={styles.taglineText}>Healthcare Unified • Mobile Care</Text>
             </View>
-          </View>
 
-          {/* EMAIL */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>
-              Email Address <Text style={styles.requiredStar}>*</Text>
-            </Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="mail-outline" size={18} color="#64748B" style={styles.inputIcon} />
-              <TextInput
-                style={styles.textInput}
-                placeholder="Enter your email address"
-                placeholderTextColor="#94A3B8"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
+            {/* AUTH SEGMENTED SWITCHER: LOGIN | CREATE ACCOUNT */}
+            <View style={[styles.segmentedContainer, isSmallDevice && styles.segmentedContainerSmall]}>
+              <TouchableOpacity
+                style={styles.segmentBtn}
+                activeOpacity={0.8}
+                onPress={() => navigation.navigate('Login')}
+              >
+                <Text style={styles.segmentTextInactive}>Login</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.segmentBtn, styles.segmentBtnActive]}
+                activeOpacity={0.9}
+              >
+                <Text style={styles.segmentTextActive}>Create Account</Text>
+                <View style={styles.activeUnderlineTeal} />
+              </TouchableOpacity>
             </View>
-          </View>
 
-          {/* PHONE */}
-          <View style={styles.inputGroup}>
-            <View style={styles.labelRow}>
-              <Text style={styles.inputLabel}>
-                Phone Number <Text style={styles.requiredStar}>*</Text>
+            {/* CARD HEADING */}
+            <View style={[styles.cardHeader, isSmallDevice && styles.cardHeaderSmall]}>
+              <Text style={[styles.cardTitle, isSmallDevice && styles.cardTitleSmall]}>Create Patient Account</Text>
+              <Text style={[styles.cardSubtitle, isSmallDevice && styles.cardSubtitleSmall]}>
+                Enter your details to create your secure MediUnify digital health record vault.
               </Text>
-              <Text
+            </View>
+
+            {/* FIELD 1: FULL NAME */}
+            <View style={[styles.fieldGroup, isSmallDevice && styles.fieldGroupSmall]}>
+              <Text style={styles.fieldLabel}>
+                Full Name <Text style={styles.requiredMark}>*</Text>
+              </Text>
+              <View style={[styles.inputBox, isSmallDevice && styles.inputBoxSmall, name ? styles.inputBoxFilled : null]}>
+                <Ionicons
+                  name="person-outline"
+                  size={18}
+                  color={name ? colors.primary : colors.slate}
+                  style={styles.inputPrefixIcon}
+                />
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Enter your full legal name"
+                  placeholderTextColor="#94A3B8"
+                  value={name}
+                  onChangeText={setName}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+                    }, 100);
+                  }}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                />
+                {name.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setName('')}
+                    style={styles.clearBtn}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {/* FIELD 2: EMAIL ADDRESS */}
+            <View style={[styles.fieldGroup, isSmallDevice && styles.fieldGroupSmall]}>
+              <Text style={styles.fieldLabel}>
+                Email Address <Text style={styles.requiredMark}>*</Text>
+              </Text>
+              <View style={[styles.inputBox, isSmallDevice && styles.inputBoxSmall, email ? styles.inputBoxFilled : null]}>
+                <Ionicons
+                  name="mail-outline"
+                  size={18}
+                  color={email ? colors.primary : colors.slate}
+                  style={styles.inputPrefixIcon}
+                />
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Enter your email address"
+                  placeholderTextColor="#94A3B8"
+                  value={email}
+                  onChangeText={setEmail}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 40 : 60, animated: true });
+                    }, 100);
+                  }}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {email.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setEmail('')}
+                    style={styles.clearBtn}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {/* FIELD 3: MOBILE NUMBER (10 DIGITS) */}
+            <View style={[styles.fieldGroup, isSmallDevice && styles.fieldGroupSmall]}>
+              <View style={styles.fieldLabelRow}>
+                <Text style={styles.fieldLabel}>
+                  Mobile Number (10 digits) <Text style={styles.requiredMark}>*</Text>
+                </Text>
+                <Text
+                  style={[
+                    styles.counterText,
+                    phone.length === 10 ? styles.counterTextSuccess : phone.length > 0 ? styles.counterTextWarning : null,
+                  ]}
+                >
+                  {phone.length}/10 digits
+                </Text>
+              </View>
+              <View
                 style={[
-                  styles.charCountText,
-                  phone.length === 10
-                    ? styles.charCountValid
-                    : phone.length > 0
-                    ? styles.charCountWarning
-                    : null,
+                  styles.inputBox,
+                  isSmallDevice && styles.inputBoxSmall,
+                  phone.length === 10 ? styles.inputBoxValid : phone.length > 0 ? styles.inputBoxFilled : null,
                 ]}
               >
-                {phone.length}/10 digits
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.inputWrapper,
-                phone.length > 0 && phone.length < 10
-                  ? styles.inputWrapperWarning
-                  : phone.length === 10
-                  ? styles.inputWrapperValid
-                  : null,
-              ]}
-            >
-              <View style={styles.countryCodeBadge}>
-                <Text style={styles.countryCodeText}>+91</Text>
+                <View style={styles.countryCodeBadge}>
+                  <Text style={styles.countryCodeText}>+91</Text>
+                </View>
+                <Ionicons
+                  name="call-outline"
+                  size={18}
+                  color={phone.length === 10 ? colors.primary : colors.slate}
+                  style={styles.inputPrefixIcon}
+                />
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="10-digit mobile number"
+                  placeholderTextColor="#94A3B8"
+                  value={phone}
+                  onChangeText={handlePhoneChange}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 100 : 130, animated: true });
+                    }, 100);
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={10}
+                />
+                {phone.length === 10 ? (
+                  <Ionicons name="checkmark-circle" size={18} color="#00B894" />
+                ) : phone.length > 0 ? (
+                  <TouchableOpacity
+                    onPress={() => setPhone('')}
+                    style={styles.clearBtn}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                  </TouchableOpacity>
+                ) : null}
               </View>
-              <TextInput
-                style={styles.textInput}
-                placeholder="10-digit mobile number"
-                placeholderTextColor="#94A3B8"
-                value={phone}
-                onChangeText={handlePhoneChange}
-                keyboardType="number-pad"
-                maxLength={10}
-              />
-              {phone.length === 10 ? (
-                <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-              ) : phone.length > 0 ? (
-                <Ionicons name="alert-circle" size={18} color="#F59E0B" />
-              ) : null}
             </View>
-            {phone.length > 0 && phone.length < 10 ? (
-              <Text style={styles.inlineWarningText}>
-                ⚠️ Please enter all 10 digits ({10 - phone.length} more {10 - phone.length === 1 ? 'digit' : 'digits'} needed)
-              </Text>
-            ) : null}
-          </View>
 
-          {/* PASSWORD */}
-          <View style={styles.inputGroup}>
-            <View style={styles.labelRow}>
-              <Text style={styles.inputLabel}>
-                Account Password <Text style={styles.requiredStar}>*</Text>
-              </Text>
-              {password.length > 0 && (
-                <Text
-                  style={[
-                    styles.charCountText,
-                    password.length >= 6 ? styles.charCountValid : styles.charCountWarning,
-                  ]}
-                >
-                  {password.length >= 6 ? '✓ Min 6 met' : `${password.length}/6 chars`}
+            {/* FIELD 4: CREATE PASSWORD */}
+            <View style={[styles.fieldGroup, isSmallDevice && styles.fieldGroupSmall]}>
+              <View style={styles.fieldLabelRow}>
+                <Text style={styles.fieldLabel}>
+                  Create Password <Text style={styles.requiredMark}>*</Text>
                 </Text>
-              )}
-            </View>
-            <View
-              style={[
-                styles.inputWrapper,
-                password.length > 0 && password.length < 6
-                  ? styles.inputWrapperWarning
-                  : password.length >= 6
-                  ? styles.inputWrapperValid
-                  : null,
-              ]}
-            >
-              <Ionicons name="lock-closed-outline" size={18} color="#64748B" style={styles.inputIcon} />
-              <TextInput
-                style={[styles.textInput, { flex: 1 }]}
-                placeholder="Create secure password (min 6 chars)"
-                placeholderTextColor="#94A3B8"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeBtn}
+                {password.length > 0 && (
+                  <Text
+                    style={[
+                      styles.counterText,
+                      password.length >= 6 ? styles.counterTextSuccess : styles.counterTextWarning,
+                    ]}
+                  >
+                    {password.length >= 6 ? 'Strong' : `${password.length}/6 chars`}
+                  </Text>
+                )}
+              </View>
+              <View
+                style={[
+                  styles.inputBox,
+                  isSmallDevice && styles.inputBoxSmall,
+                  password.length >= 6 ? styles.inputBoxValid : password.length > 0 ? styles.inputBoxFilled : null,
+                ]}
               >
                 <Ionicons
-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  name="lock-closed-outline"
                   size={18}
-                  color="#64748B"
+                  color={password ? colors.primary : colors.slate}
+                  style={styles.inputPrefixIcon}
                 />
-              </TouchableOpacity>
-            </View>
-            {password.length > 0 && password.length < 6 ? (
-              <Text style={styles.inlineWarningText}>
-                ⚠️ Password must be at least 6 characters long
-              </Text>
-            ) : null}
-          </View>
-
-          {/* CONFIRM PASSWORD (VERIFY PASSWORD TWO TIMES) */}
-          <View style={styles.inputGroup}>
-            <View style={styles.labelRow}>
-              <Text style={styles.inputLabel}>
-                Confirm Password <Text style={styles.requiredStar}>*</Text>
-              </Text>
-              {isPasswordMatch ? (
-                <Text style={styles.charCountValid}>✓ Passwords Match</Text>
-              ) : isPasswordMismatch ? (
-                <Text style={styles.charCountWarning}>⚠️ Passwords Differ</Text>
-              ) : null}
-            </View>
-            <View
-              style={[
-                styles.inputWrapper,
-                isPasswordMismatch
-                  ? styles.inputWrapperWarning
-                  : isPasswordMatch
-                  ? styles.inputWrapperValid
-                  : null,
-              ]}
-            >
-              <Ionicons
-                name="shield-checkmark-outline"
-                size={18}
-                color={isPasswordMatch ? '#10B981' : isPasswordMismatch ? '#F59E0B' : '#64748B'}
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={[styles.textInput, { flex: 1 }]}
-                placeholder="Re-enter your password to verify"
-                placeholderTextColor="#94A3B8"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry={!showConfirmPassword}
-              />
-              {isPasswordMatch ? (
-                <Ionicons name="checkmark-circle" size={18} color="#10B981" style={{ marginRight: 6 }} />
-              ) : isPasswordMismatch ? (
-                <Ionicons name="alert-circle" size={18} color="#F59E0B" style={{ marginRight: 6 }} />
-              ) : null}
-              <TouchableOpacity
-                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                style={styles.eyeBtn}
-              >
-                <Ionicons
-                  name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={18}
-                  color="#64748B"
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Minimum 6 characters"
+                  placeholderTextColor="#94A3B8"
+                  value={password}
+                  onChangeText={setPassword}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 170 : 200, animated: true });
+                    }, 100);
+                  }}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
                 />
-              </TouchableOpacity>
-            </View>
-            {isPasswordMatch ? (
-              <Text style={styles.inlineSuccessText}>
-                ✓ Password verified! Both entries match.
-              </Text>
-            ) : isPasswordMismatch ? (
-              <Text style={styles.inlineWarningText}>
-                ⚠️ Passwords do not match yet. Please double-check.
-              </Text>
-            ) : null}
-          </View>
-        </View>
-
-        {/* SECTION 2: HEALTH & PERSONAL PROFILE */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionHeading}>🩺 Health & Medical Details</Text>
-
-          {/* DATE OF BIRTH (DOB) */}
-          <View style={styles.inputGroup}>
-            <View style={styles.labelRow}>
-              <Text style={styles.inputLabel}>Date of Birth (DOB)</Text>
-              <Text style={styles.helperFormat}>DD/MM/YYYY</Text>
-            </View>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="calendar-outline" size={18} color={colors.primary} style={styles.inputIcon} />
-              <TextInput
-                style={styles.textInput}
-                placeholder="DD/MM/YYYY"
-                placeholderTextColor="#94A3B8"
-                value={dob}
-                onChangeText={handleDobChange}
-                keyboardType="number-pad"
-                maxLength={10}
-              />
-            </View>
-
-            {/* LIVE AGE CALCULATION BADGE */}
-            {age ? (
-              <View style={styles.ageBadge}>
-                <Ionicons name="sparkles" size={14} color="#059669" />
-                <Text style={styles.ageBadgeText}>
-                  Calculated Age: <Text style={styles.ageBold}>{age}</Text>
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
-          {/* GENDER SELECTOR */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Gender</Text>
-            <View style={styles.genderRow}>
-              {GENDERS.map((g) => {
-                const isSelected = gender === g;
-                return (
-                  <TouchableOpacity
-                    key={g}
-                    style={[styles.genderBtn, isSelected && styles.genderBtnActive]}
-                    onPress={() => setGender(g)}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name={g === 'Male' ? 'male' : g === 'Female' ? 'female' : 'male-female'}
-                      size={16}
-                      color={isSelected ? '#FFFFFF' : '#475569'}
-                    />
-                    <Text style={[styles.genderText, isSelected && styles.genderTextActive]}>
-                      {g}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* BLOOD GROUP SELECTOR */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Blood Group</Text>
-            <View style={styles.bloodGrid}>
-              {BLOOD_GROUPS.map((bg) => {
-                const isSelected = bloodGroup === bg;
-                return (
-                  <TouchableOpacity
-                    key={bg}
-                    style={[styles.bloodChip, isSelected && styles.bloodChipActive]}
-                    onPress={() => setBloodGroup(bg)}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name="water"
-                      size={13}
-                      color={isSelected ? '#FFFFFF' : '#EF4444'}
-                    />
-                    <Text style={[styles.bloodText, isSelected && styles.bloodTextActive]}>
-                      {bg.replace(' Positive', '+').replace(' Negative', '-')}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* EMERGENCY CONTACT */}
-          <View style={styles.inputGroup}>
-            <View style={styles.labelRow}>
-              <Text style={styles.inputLabel}>Emergency Contact Number (Optional)</Text>
-              {emergencyContact.length > 0 ? (
-                <Text
-                  style={[
-                    styles.charCountText,
-                    emergencyContact.length === 10
-                      ? styles.charCountValid
-                      : styles.charCountWarning,
-                  ]}
-                >
-                  {emergencyContact.length}/10 digits
-                </Text>
-              ) : null}
-            </View>
-            <View
-              style={[
-                styles.inputWrapper,
-                emergencyContact.length > 0 && emergencyContact.length < 10
-                  ? styles.inputWrapperWarning
-                  : emergencyContact.length === 10
-                  ? styles.inputWrapperValid
-                  : null,
-              ]}
-            >
-              <Ionicons name="medkit-outline" size={18} color="#EF4444" style={styles.inputIcon} />
-              <TextInput
-                style={styles.textInput}
-                placeholder="10-digit emergency contact"
-                placeholderTextColor="#94A3B8"
-                value={emergencyContact}
-                onChangeText={handleEmergencyContactChange}
-                keyboardType="number-pad"
-                maxLength={10}
-              />
-              {emergencyContact.length === 10 ? (
-                <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-              ) : null}
-            </View>
-          </View>
-        </View>
-
-        {/* SECTION 3: REFERRAL CODE (OPTIONAL) */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeadingRow}>
-            <Text style={styles.sectionHeading}>🎁 Referral Code</Text>
-            <View style={styles.optionalPill}>
-              <Text style={styles.optionalPillText}>Optional</Text>
-            </View>
-          </View>
-          <Text style={styles.referralHint}>
-            Have a friend or doctor referral code? Enter it below to earn ₹250 welcome credits in your MediUnify Health Wallet.
-          </Text>
-
-          <View style={styles.inputGroup}>
-            <View
-              style={[
-                styles.inputWrapper,
-                referralCode.trim().length > 0 ? styles.inputWrapperValid : null,
-              ]}
-            >
-              <Ionicons
-                name="gift-outline"
-                size={18}
-                color={referralCode.trim().length > 0 ? colors.primary : '#64748B'}
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={[styles.textInput, { textTransform: 'uppercase', letterSpacing: 1.2 }]}
-                placeholder="Enter code (e.g. MEDI250)"
-                placeholderTextColor="#94A3B8"
-                value={referralCode}
-                onChangeText={(text) => setReferralCode(text.toUpperCase().replace(/\s/g, ''))}
-                autoCapitalize="characters"
-                maxLength={16}
-              />
-              {referralCode.trim().length > 0 ? (
                 <TouchableOpacity
-                  onPress={() => setReferralCode('')}
-                  style={styles.clearCodeBtn}
+                  style={styles.eyeBtn}
+                  onPress={() => setShowPassword(!showPassword)}
+                  activeOpacity={0.7}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color={showPassword ? colors.primary : colors.slate}
+                  />
                 </TouchableOpacity>
-              ) : null}
+              </View>
             </View>
 
-            {referralCode.trim().length > 0 ? (
-              <View style={styles.referralAppliedBadge}>
-                <Ionicons name="sparkles" size={14} color="#059669" />
-                <Text style={styles.referralAppliedText}>
-                  Bonus Code Applied: <Text style={styles.referralCodeHighlight}>{referralCode.trim()}</Text> (+₹250 Health Cash on verification)
+            {/* FIELD 5: CONFIRM PASSWORD */}
+            <View style={[styles.fieldGroup, isSmallDevice && styles.fieldGroupSmall]}>
+              <View style={styles.fieldLabelRow}>
+                <Text style={styles.fieldLabel}>
+                  Confirm Password <Text style={styles.requiredMark}>*</Text>
                 </Text>
+                {isPasswordMatch && (
+                  <View style={styles.matchedBadge}>
+                    <Ionicons name="checkmark-circle" size={13} color="#00B894" />
+                    <Text style={styles.matchedBadgeText}>Passwords Match</Text>
+                  </View>
+                )}
+                {isPasswordMismatch && (
+                  <Text style={styles.counterTextWarning}>Mismatch</Text>
+                )}
+              </View>
+              <View
+                style={[
+                  styles.inputBox,
+                  isSmallDevice && styles.inputBoxSmall,
+                  isPasswordMatch ? styles.inputBoxValid : isPasswordMismatch ? styles.inputBoxWarning : null,
+                ]}
+              >
+                <Ionicons
+                  name="shield-checkmark-outline"
+                  size={18}
+                  color={confirmPassword ? colors.primary : colors.slate}
+                  style={styles.inputPrefixIcon}
+                />
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Re-enter your password"
+                  placeholderTextColor="#94A3B8"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 240 : 280, animated: true });
+                    }, 100);
+                  }}
+                  secureTextEntry={!showConfirmPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity
+                  style={styles.eyeBtn}
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons
+                    name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color={showConfirmPassword ? colors.primary : colors.slate}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* FIELD 6: REFERRAL CODE (OPTIONAL) */}
+            <View style={[styles.fieldGroup, isSmallDevice && styles.fieldGroupSmall]}>
+              <View style={styles.fieldLabelRow}>
+                <Text style={styles.fieldLabel}>Referral Code (Optional)</Text>
+                <View style={styles.bonusHintBadge}>
+                  <Ionicons name="gift-outline" size={12} color="#00B894" />
+                  <Text style={styles.bonusHintBadgeText}>₹250 Bonus</Text>
+                </View>
+              </View>
+              <View style={[styles.inputBox, isSmallDevice && styles.inputBoxSmall, referralCode ? styles.inputBoxFilled : null]}>
+                <Ionicons
+                  name="pricetag-outline"
+                  size={18}
+                  color={referralCode ? colors.primary : colors.slate}
+                  style={styles.inputPrefixIcon}
+                />
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Have a referral code? (Optional)"
+                  placeholderTextColor="#94A3B8"
+                  value={referralCode}
+                  onChangeText={setReferralCode}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 320 : 360, animated: true });
+                    }, 100);
+                  }}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                />
+                {referralCode.length > 0 && (
+                  <View style={styles.appliedTag}>
+                    <Text style={styles.appliedTagText}>BONUS READY</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            {/* TERMS & PRIVACY CHECKBOX */}
+            <TouchableOpacity
+              style={[styles.termsRow, isSmallDevice && styles.termsRowSmall]}
+              onPress={() => setAgreedToTerms(!agreedToTerms)}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.checkboxBox, agreedToTerms && styles.checkboxBoxChecked]}>
+                {agreedToTerms && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
+              </View>
+              <Text style={styles.termsText}>
+                I agree to the <Text style={styles.termsLink}>MediUnify Terms</Text> and{' '}
+                <Text style={styles.termsLink}>Privacy Policy</Text>.
+              </Text>
+            </TouchableOpacity>
+
+            {/* INLINE ERROR BANNER */}
+            {errorMessage ? (
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle" size={17} color="#FF7F50" />
+                <Text style={styles.errorBoxText}>{errorMessage}</Text>
               </View>
             ) : null}
+
+            {/* PRIMARY SUBMIT BUTTON: REGISTER & VERIFY MOBILE */}
+            <TouchableOpacity
+              style={[
+                styles.primarySubmitBtn,
+                isSmallDevice && styles.primarySubmitBtnSmall,
+                isRegistering && styles.primarySubmitBtnDisabled,
+              ]}
+              onPress={() => {
+                Keyboard.dismiss();
+                handleRegister();
+              }}
+              disabled={isRegistering}
+              activeOpacity={0.85}
+            >
+              {isRegistering ? (
+                <View style={styles.btnRow}>
+                  <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.primarySubmitBtnText}>Validating Information...</Text>
+                </View>
+              ) : (
+                <View style={styles.btnRow}>
+                  <Text style={styles.primarySubmitBtnText}>Register & Verify Mobile</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
+                </View>
+              )}
+            </TouchableOpacity>
+
+            {/* SKIP LOGIN & EXPLORE AS GUEST BUTTON */}
+            <TouchableOpacity
+              style={[styles.guestActionBtn, isSmallDevice && styles.guestActionBtnSmall]}
+              onPress={handleSkipToHome}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.guestActionBtnText}>Skip login & explore as Guest</Text>
+              <Ionicons name="arrow-forward" size={14} color="#00B894" style={{ marginLeft: 4 }} />
+            </TouchableOpacity>
+
+            {/* SIGN IN FOOTER */}
+            <View style={[styles.loginFooter, isSmallDevice && styles.loginFooterSmall]}>
+              <Text style={styles.loginFooterText}>Already have a MediUnify account?</Text>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate('Login')}
+                style={styles.loginFooterBtn}
+              >
+                <Text style={styles.loginFooterLink}> Sign In</Text>
+                <Ionicons name="chevron-forward" size={13} color={colors.teal} />
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-
-        {/* INLINE ERROR BANNER */}
-        {errorMessage ? (
-          <View style={styles.errorBox}>
-            <Ionicons name="alert-circle" size={18} color="#DC2626" />
-            <Text style={styles.errorText}>{errorMessage}</Text>
-          </View>
-        ) : null}
-
-        {/* SUBMIT BUTTON */}
-        <TouchableOpacity
-          style={[styles.createAccountBtn, isRegistering && { opacity: 0.6 }]}
-          onPress={handleRegister}
-          disabled={isRegistering}
-          activeOpacity={0.88}
-        >
-          <Text style={styles.createAccountText}>
-            {isRegistering ? 'Creating Account...' : 'Create Account & Verify'}
-          </Text>
-          <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        {/* LOGIN LINK */}
-        <View style={styles.loginContainer}>
-          <Text style={styles.loginText}>Already have an account?</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-            <Text style={styles.loginLink}> Sign In</Text>
-          </TouchableOpacity>
-        </View>
-
-        {isDesktopWeb && (
-          <TouchableOpacity
-            style={{ marginTop: 24, alignSelf: 'center' }}
-            onPress={handleSkipToHome}
-            activeOpacity={0.8}
-          >
-            <Text style={{ fontSize: 13, color: '#64748B', fontWeight: '700' }}>
-              Skip to Home as Guest &gt;
-            </Text>
-          </TouchableOpacity>
-        )}
-          </View>
-      </ScrollView>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -851,395 +728,422 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  safeAreaDesktop: {
-    backgroundColor: '#F1F2F4',
-  },
-  webTopBar: {
-    backgroundColor: '#FFFFFF',
+  topUtilityBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-  },
-  webTopBarInner: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  webLogo: {
-    width: 140,
-    height: 42,
-  },
-  webTopRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  skipToHomeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: colors.lightTeal,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  skipToHomeText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.teal,
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 40,
-  },
-  contentDesktop: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    paddingVertical: 36,
-  },
-  desktopFormWrapper: {
-    width: '100%',
-    maxWidth: 920,
-    alignSelf: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 32,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
   },
-  header: {
-    marginBottom: 20,
-  },
-  badgePill: {
+  backButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: '#E6F8F4',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    gap: 5,
-    marginBottom: 10,
-  },
-  badgePillText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 0.5,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 6,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    lineHeight: 20,
-  },
-  sectionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  sectionHeading: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#1E293B',
-    marginBottom: 14,
-  },
-  inputGroup: {
-    marginBottom: 14,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#334155',
-    marginBottom: 6,
-  },
-  requiredStar: {
-    color: '#EF4444',
-  },
-  helperFormat: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#94A3B8',
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 48,
-  },
-  inputIcon: {
-    marginRight: 10,
-  },
-  textInput: {
-    flex: 1,
-    fontSize: 14,
-    color: '#0F172A',
-    fontWeight: '600',
-  },
-  eyeBtn: {
-    padding: 6,
-  },
-  ageBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginTop: 6,
     gap: 6,
   },
-  ageBadgeText: {
-    fontSize: 12,
-    color: '#065F46',
-    fontWeight: '600',
-  },
-  ageBold: {
-    fontWeight: '800',
-    color: '#047857',
-  },
-  genderRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  genderBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#F1F5F9',
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  genderBtnActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  genderText: {
+  backButtonText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#475569',
+    color: '#1E3A8A',
   },
-  genderTextActive: {
-    color: '#FFFFFF',
-  },
-  bloodGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  bloodChip: {
+  guestLink: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
   },
-  bloodChipActive: {
-    backgroundColor: '#EF4444',
-    borderColor: '#EF4444',
-  },
-  bloodText: {
+  guestLinkText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#334155',
+    color: '#00B894',
   },
-  bloodTextActive: {
-    color: '#FFFFFF',
+  scrollContent: {
+    flexGrow: 1,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+    backgroundColor: '#F8FAFC',
+  },
+  scrollContentSmall: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  scrollContentTablet: {
+    paddingHorizontal: 24,
+    paddingVertical: 28,
+  },
+  authCard: {
+    width: '100%',
+    maxWidth: 440,
+    alignSelf: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  authCardSmall: {
+    maxWidth: 360,
+    padding: 16,
+    borderRadius: 16,
+  },
+  authCardTablet: {
+    maxWidth: 480,
+    padding: 28,
+    borderRadius: 22,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 4,
+  },
+  logoSection: {
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  logoSectionSmall: {
+    marginBottom: 10,
+  },
+  logoImage: {
+    width: 175,
+    height: 48,
+  },
+  logoImageSmall: {
+    width: 150,
+    height: 40,
+  },
+  taglineText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 3,
+    letterSpacing: 0.2,
+  },
+  segmentedContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+  },
+  segmentedContainerSmall: {
+    marginBottom: 12,
+  },
+  segmentBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 9,
+  },
+  segmentBtnActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  segmentTextActive: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#00B894',
+  },
+  segmentTextInactive: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  activeUnderlineTeal: {
+    width: 24,
+    height: 2.5,
+    backgroundColor: '#00B894',
+    borderRadius: 2,
+    marginTop: 3,
+  },
+  cardHeader: {
+    marginBottom: 16,
+  },
+  cardHeaderSmall: {
+    marginBottom: 12,
+  },
+  cardTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#1E3A8A',
+    letterSpacing: -0.3,
+  },
+  cardTitleSmall: {
+    fontSize: 20,
+  },
+  cardSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  cardSubtitleSmall: {
+    fontSize: 11.5,
+    lineHeight: 16,
+  },
+  fieldGroup: {
+    marginBottom: 13,
+  },
+  fieldGroupSmall: {
+    marginBottom: 10,
+  },
+  fieldLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E3A8A',
+    marginBottom: 5,
+  },
+  requiredMark: {
+    color: '#FF7F50',
+    fontWeight: '800',
+  },
+  counterText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  counterTextSuccess: {
+    color: '#00B894',
+  },
+  counterTextWarning: {
+    color: '#FF7F50',
+  },
+  countryCodeBadge: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginRight: 6,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  countryCodeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1E3A8A',
+  },
+  inputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    height: 48,
+  },
+  inputBoxSmall: {
+    height: 44,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+  },
+  inputBoxFilled: {
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+  },
+  inputBoxValid: {
+    borderColor: '#A7F3D0',
+    backgroundColor: '#FFFFFF',
+  },
+  inputBoxWarning: {
+    borderColor: '#FFD7C7',
+    backgroundColor: '#FFFBF9',
+  },
+  inputPrefixIcon: {
+    marginRight: 8,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 13.5,
+    color: '#0F172A',
+    paddingVertical: 0,
+  },
+  clearBtn: {
+    padding: 4,
+  },
+  eyeBtn: {
+    padding: 4,
+  },
+  matchedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  matchedBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  bonusHintBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#E6F8F4',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  bonusHintBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  appliedTag: {
+    backgroundColor: '#E6F8F4',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  appliedTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#00B894',
+  },
+  termsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+    marginBottom: 14,
+  },
+  termsRowSmall: {
+    marginBottom: 10,
+  },
+  checkboxBox: {
+    width: 18,
+    height: 18,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  checkboxBoxChecked: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
+  },
+  termsText: {
+    fontSize: 12,
+    color: '#64748B',
+    flex: 1,
+    lineHeight: 17,
+  },
+  termsLink: {
+    color: '#00B894',
+    fontWeight: '700',
   },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#FFF2ED',
     borderWidth: 1,
-    borderColor: '#FCA5A5',
-    borderRadius: 10,
+    borderColor: '#FFD7C7',
+    borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginTop: 6,
-    marginBottom: 10,
+    paddingVertical: 9,
+    marginBottom: 14,
   },
-  errorText: {
-    fontSize: 13,
-    color: '#B91C1C',
+  errorBoxText: {
+    fontSize: 12,
+    color: '#FF7F50',
     fontWeight: '600',
     flex: 1,
-    lineHeight: 18,
+    lineHeight: 17,
   },
-  createAccountBtn: {
-    flexDirection: 'row',
+  primarySubmitBtn: {
+    backgroundColor: '#00B894',
+    borderRadius: 14,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.primary,
-    paddingVertical: 15,
-    borderRadius: 14,
-    marginTop: 8,
-    shadowColor: colors.primary,
+    shadowColor: '#00B894',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
-    elevation: 4,
+    elevation: 3,
   },
-  createAccountText: {
+  primarySubmitBtnSmall: {
+    height: 44,
+    borderRadius: 12,
+  },
+  primarySubmitBtnDisabled: {
+    opacity: 0.65,
+  },
+  btnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  primarySubmitBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
+    letterSpacing: 0.2,
   },
-  loginContainer: {
+  guestActionBtn: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  loginText: {
-    color: '#64748B',
-    fontSize: 14,
-  },
-  loginLink: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  countryCodeBadge: {
-    backgroundColor: '#E2E8F0',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  countryCodeText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#334155',
-  },
-  charCountText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#94A3B8',
-  },
-  charCountWarning: {
-    color: '#D97706',
-  },
-  charCountValid: {
-    color: '#10B981',
-  },
-  inputWrapperWarning: {
-    borderColor: '#F59E0B',
-    backgroundColor: '#FFFBEB',
-  },
-  inputWrapperValid: {
-    borderColor: '#10B981',
-    backgroundColor: '#F0FDF4',
-  },
-  inlineWarningText: {
-    fontSize: 11.5,
-    color: '#D97706',
-    fontWeight: '600',
-    marginTop: 5,
-  },
-  inlineSuccessText: {
-    fontSize: 11.5,
-    color: '#059669',
-    fontWeight: '700',
-    marginTop: 5,
-  },
-  sectionHeadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  optionalPill: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  optionalPillText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  referralHint: {
-    fontSize: 12,
-    color: '#64748B',
-    lineHeight: 17,
-    marginBottom: 12,
-  },
-  clearCodeBtn: {
-    padding: 6,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  referralAppliedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
+    marginTop: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#F0FDF9',
     borderWidth: 1,
     borderColor: '#A7F3D0',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    marginTop: 8,
-    gap: 6,
   },
-  referralAppliedText: {
-    fontSize: 11.5,
-    color: '#065F46',
-    fontWeight: '600',
-    flex: 1,
+  guestActionBtnSmall: {
+    marginTop: 10,
+    paddingVertical: 8,
   },
-  referralCodeHighlight: {
+  guestActionBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  loginFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  loginFooterSmall: {
+    marginTop: 12,
+    paddingTop: 10,
+  },
+  loginFooterText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  loginFooterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  loginFooterLink: {
+    fontSize: 12,
     fontWeight: '800',
-    color: '#047857',
-    letterSpacing: 0.5,
+    color: '#00B894',
   },
 });
 

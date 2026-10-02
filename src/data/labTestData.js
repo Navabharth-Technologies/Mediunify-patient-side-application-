@@ -612,79 +612,28 @@ export const LAB_TESTS_MASTER = [
   },
 ];
 
-// 3. HEALTH PACKAGES (Package-Linked Tests)
-export const LAB_PACKAGES = [
-  {
-    id: 'pkg-complete-wellness',
-    name: 'Complete Health Checkup',
-    badge: 'Best Value',
-    description: 'Comprehensive 72-parameter diagnostic panel covering heart, liver, kidney, blood counts, and diabetes.',
-    price: 1899,
-    mrp: 3500,
-    discount: '46% OFF',
-    includedCount: 72,
-    homeCollection: true,
-    centreCollection: true,
-    testIds: ['test-cbc', 'test-hba1c', 'test-fbs', 'test-lipid', 'test-thyroid', 'test-lft', 'test-kft', 'test-urine-routine'],
-    popular: true,
-  },
-  {
-    id: 'pkg-annual-executive',
-    name: 'Annual Executive Health Screening',
-    badge: 'Popular',
-    description: 'Elite screening including vital vitamins, cardiac markers, prostate/ovarian markers, and full biochemistry.',
-    price: 2999,
-    mrp: 5800,
-    discount: '48% OFF',
-    includedCount: 88,
-    homeCollection: true,
-    centreCollection: true,
-    testIds: ['test-cbc', 'test-hba1c', 'test-lipid', 'test-vitamind', 'test-vitaminb12', 'test-lft', 'test-psa', 'test-crp'],
-    popular: true,
-  },
-  {
-    id: 'pkg-diabetic-total',
-    name: 'Diabetic Total Care Panel',
-    badge: 'Specialized',
-    description: 'Focused assessment for diabetic monitoring: HbA1c, Fasting Sugar, Renal health, and Lipid status.',
-    price: 1199,
-    mrp: 2100,
-    discount: '43% OFF',
-    includedCount: 35,
-    homeCollection: true,
-    centreCollection: true,
-    testIds: ['test-hba1c', 'test-fbs', 'test-kft', 'test-urine-routine'],
-    popular: false,
-  },
-  {
-    id: 'pkg-women-wellness',
-    name: "Women's Comprehensive Wellness",
-    badge: 'Recommended',
-    description: 'Specialized for women covering thyroid, iron reserves, ovarian marker, urine screen, and bone health.',
-    price: 2499,
-    mrp: 4500,
-    discount: '44% OFF',
-    includedCount: 55,
-    homeCollection: true,
-    centreCollection: true,
-    testIds: ['test-thyroid', 'test-ferritin', 'test-ca125', 'test-vitamind', 'test-urine-routine'],
-    popular: true,
-  },
-  {
-    id: 'pkg-senior-wellness',
-    name: 'Senior Citizen Total Wellness',
-    badge: 'Geriatric',
-    description: 'Tailored for seniors: bone density vitamins, digestive occult blood, renal profile, and full blood counts.',
-    price: 2199,
-    mrp: 4100,
-    discount: '46% OFF',
-    includedCount: 48,
-    homeCollection: true,
-    centreCollection: true,
-    testIds: ['test-cbc', 'test-kft', 'test-vitamind', 'test-vitaminb12', 'test-stool-occult'],
-    popular: false,
-  },
-];
+// 3. HEALTH PACKAGES (Package-Linked Tests from Novus Health Labs Reference)
+import {
+  NOVUS_POPULAR_PACKAGES,
+  NOVUS_CURATED_PACKAGES,
+  getAllNovusPackages,
+  NOVUS_PACKAGE_CATEGORIES,
+} from './novusPackagesData';
+
+export const LAB_PACKAGES = NOVUS_POPULAR_PACKAGES.map((pkg) => ({
+  ...pkg,
+  description: pkg.clinicalNote || `${pkg.testsCount} tests included: ${pkg.tests.map((t) => t.name).slice(0, 3).join(', ')}...`,
+  includedCount: pkg.testsCount,
+  popular: true,
+  testIds: [],
+}));
+
+export {
+  NOVUS_POPULAR_PACKAGES,
+  NOVUS_CURATED_PACKAGES,
+  getAllNovusPackages,
+  NOVUS_PACKAGE_CATEGORIES,
+};
 
 // 4. VERIFIED DIAGNOSTIC CENTRES & LAB PARTNERS
 export const DIAGNOSTIC_CENTRES = [
@@ -749,17 +698,19 @@ export const DIAGNOSTIC_CENTRES = [
 // 5. MOCK AVAILABLE DATES & TIME SLOTS
 export const getAvailableDates = () => {
   const dates = [];
-  const today = new Date(2026, 8, 18); // 18 Sep 2026 (local context date)
+  const today = new Date();
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   for (let i = 0; i < 7; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
     dates.push({
       dateStr: `${d.getDate()} ${monthNames[d.getMonth()]}`,
       dayName: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : dayNames[d.getDay()],
-      fullDate: d.toISOString().split('T')[0],
+      fullDate: `${year}-${month}-${day}`,
       isAvailable: true,
     });
   }
@@ -803,23 +754,118 @@ export const INITIAL_SAVED_ADDRESSES = [
   },
 ];
 
+// Helper for dynamic mock dates relative to today
+const getMockBookingDate = (offsetDays, prefix = '') => {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const dayName = days[d.getDay()];
+  const dateNum = String(d.getDate()).padStart(2, '0');
+  const monthName = months[d.getMonth()];
+  const year = d.getFullYear();
+  if (prefix) {
+    return `${prefix}, ${monthName} ${dateNum}, ${year}`;
+  }
+  return `${dayName}, ${monthName} ${dateNum}, ${year}`;
+};
+
 // 7. INITIAL MOCK BOOKINGS (Upcoming, Completed, Cancelled)
 export const INITIAL_LAB_BOOKINGS = [
+  {
+    id: 'LAB-2026-00130',
+    testId: 'test-cbc',
+    testName: 'Complete Blood Count (CBC) with Automated Differential',
+    collectionMethod: 'HOME',
+    collectionAddress: 'House #42, 3rd Main, A-Block, Kuvempunagar, Mysuru',
+    diagnosticCentre: null,
+    bookingDate: getMockBookingDate(0, 'Today'),
+    timeSlot: '07:30 AM – 08:30 AM',
+    amountPaid: 450,
+    testPrice: 350,
+    collectionFee: 100,
+    status: 'CONFIRMED',
+    trackingStage: 2,
+    patientName: 'Hemanth Gowda (Self)',
+    phlebotomistName: 'Muralidhar Rao (Senior Phlebotomist)',
+    phlebotomistPhone: '+91 98452 33110',
+    reportReady: false,
+  },
+  {
+    id: 'LAB-2026-00135',
+    testId: 'test-lipid',
+    testName: 'Lipid Profile - Comprehensive (Cholesterol & Triglycerides)',
+    collectionMethod: 'HOME',
+    collectionAddress: 'House #42, 3rd Main, A-Block, Kuvempunagar, Mysuru',
+    diagnosticCentre: null,
+    bookingDate: getMockBookingDate(1, 'Tomorrow'),
+    timeSlot: '08:00 AM – 09:00 AM',
+    amountPaid: 650,
+    testPrice: 550,
+    collectionFee: 100,
+    status: 'CONFIRMED',
+    trackingStage: 1,
+    patientName: 'Hemanth Gowda (Self)',
+    phlebotomistName: 'Raghuveer M. (Certified Phlebotomist)',
+    phlebotomistPhone: '+91 98451 77210',
+    reportReady: false,
+  },
+  {
+    id: 'LAB-2026-00140',
+    testId: 'test-thyroid',
+    testName: 'Thyroid Function Test (Total T3, Total T4, TSH)',
+    collectionMethod: 'CENTRE',
+    collectionAddress: null,
+    diagnosticCentre: {
+      name: 'Unnathi Central Pathology & Diagnostic Center',
+      location: 'Kuvempunagar, Mysuru',
+    },
+    bookingDate: getMockBookingDate(3),
+    timeSlot: '09:00 AM – 10:00 AM',
+    amountPaid: 500,
+    testPrice: 500,
+    collectionFee: 0,
+    status: 'CONFIRMED',
+    trackingStage: 1,
+    patientName: 'Hemanth Gowda (Self)',
+    phlebotomistName: null,
+    phlebotomistPhone: null,
+    reportReady: false,
+  },
+  {
+    id: 'LAB-2026-00145',
+    testId: 'test-vitamins',
+    testName: 'Vitamin D (25-OH) & Vitamin B12 Vital Screening',
+    collectionMethod: 'HOME',
+    collectionAddress: 'House #42, 3rd Main, A-Block, Kuvempunagar, Mysuru',
+    diagnosticCentre: null,
+    bookingDate: getMockBookingDate(5),
+    timeSlot: '08:30 AM – 09:30 AM',
+    amountPaid: 1250,
+    testPrice: 1150,
+    collectionFee: 100,
+    status: 'CONFIRMED',
+    trackingStage: 1,
+    patientName: 'Hemanth Gowda (Self)',
+    phlebotomistName: 'Suresh Kumar (Phlebotomy Specialist)',
+    phlebotomistPhone: '+91 98450 77123',
+    reportReady: false,
+  },
   {
     id: 'LAB-2026-00125',
     testId: 'test-hba1c',
     testName: 'HbA1c (Glycated Haemoglobin)',
-    collectionMethod: 'HOME', // 'HOME' or 'CENTRE'
+    collectionMethod: 'HOME',
     collectionAddress: 'House #42, 3rd Main, A-Block, Kuvempunagar, Mysuru',
     diagnosticCentre: null,
-    bookingDate: '18 Sep 2026',
-    timeSlot: '8:30 AM – 9:30 AM',
+    bookingDate: getMockBookingDate(7),
+    timeSlot: '08:30 AM – 09:30 AM',
     amountPaid: 650,
     testPrice: 550,
     collectionFee: 100,
-    status: 'CONFIRMED', // 'CONFIRMED', 'SAMPLE_COLLECTED', 'PROCESSING', 'COMPLETED', 'CANCELLED'
-    trackingStage: 2, // 1: Test Booked, 2: Sample Scheduled, 3: Sample Collected, 4: Lab Processing, 5: Report Ready
-    patientName: 'Hemanth Gowda',
+    status: 'CONFIRMED',
+    trackingStage: 2,
+    patientName: 'Hemanth Gowda (Self)',
     phlebotomistName: 'Raghuveer M. (Certified Phlebotomist)',
     phlebotomistPhone: '+91 98451 77210',
     reportReady: false,
@@ -834,14 +880,14 @@ export const INITIAL_LAB_BOOKINGS = [
       name: 'Unnathi Central Pathology & Diagnostic Center',
       location: 'Kuvempunagar, Mysuru',
     },
-    bookingDate: '12 Sep 2026',
+    bookingDate: getMockBookingDate(-18),
     timeSlot: '9:30 AM – 10:30 AM',
     amountPaid: 450,
     testPrice: 450,
     collectionFee: 0,
     status: 'COMPLETED',
     trackingStage: 5,
-    patientName: 'Hemanth Gowda',
+    patientName: 'Hemanth Gowda (Self)',
     reportReady: true,
     reportId: 'REP-CBC-8819',
   },
@@ -900,5 +946,119 @@ export const INITIAL_LAB_REPORTS = [
       { name: 'VLDL Cholesterol', observed: '32.4', unit: 'mg/dL', reference: '< 30 Normal', status: 'NORMAL' },
       { name: 'Chol / HDL Ratio', observed: '3.8', unit: 'ratio', reference: '< 4.5 Desirable', status: 'NORMAL' },
     ],
+  },
+];
+
+// =============================================================================
+// DIAGNOSTIC LAB CENTERS & PATHOLOGY HUBS
+// =============================================================================
+export const LAB_CENTERS = [
+  {
+    id: 'lab-unnathi-pathology',
+    name: 'Unnathi Central Pathology & Diagnostic Center',
+    city: 'Mysuru',
+    area: 'Kuvempunagar',
+    address: 'Plot 14, 5th Cross, Near Vishwamanava Double Road, Kuvempunagar, Mysuru - 570023',
+    rating: 4.9,
+    reviewCount: 450,
+    accreditations: ['NABL', 'NABH', 'ISO 15189:2012'],
+    badge: 'Unnathi Certified Lab',
+    phone: '+91 821 245 8890',
+    openHours: '06:30 AM - 09:30 PM (Sundays Open)',
+    turnaroundTime: 'Same Day Reports (Within 6 Hours)',
+    homeCollectionAvailable: true,
+    homeCollectionFee: 0, // FREE
+    image: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=600',
+    facilities: ['Automated Roche Biochemistry', 'Sysmex 6-Part Hematology', 'Free Home Blood Collection', 'WhatsApp Digital PDF'],
+  },
+  {
+    id: 'lab-anand-mysore',
+    name: 'Neuberg Anand Reference Lab — Mysuru Hub',
+    city: 'Mysuru',
+    area: 'Saraswathipuram',
+    address: 'Near Ramaswamy Circle, Chamaraja Mohalla, Mysuru - 570005',
+    rating: 4.8,
+    reviewCount: 380,
+    accreditations: ['CAP', 'NABL', 'ISO 15189'],
+    badge: 'CAP Gold Standard',
+    phone: '+91 821 242 1100',
+    openHours: '07:00 AM - 09:00 PM',
+    turnaroundTime: 'Digital Report within 6 to 8 Hours',
+    homeCollectionAvailable: true,
+    homeCollectionFee: 0,
+    image: 'https://images.unsplash.com/photo-1587351021759-3e566b6af7cc?w=600',
+    facilities: ['CAP International Certified', 'Specialized Immunoassays', 'Genomics & Molecular Tests', 'Home Phlebotomy'],
+  },
+  {
+    id: 'lab-medall-mysore',
+    name: 'Medall Care Diagnostic Centre',
+    city: 'Mysuru',
+    area: 'Vidyaranyapuram',
+    address: 'Kannegowda Road, Vidyaranyapuram, Mysuru - 570008',
+    rating: 4.7,
+    reviewCount: 290,
+    accreditations: ['NABL', 'ISO 9001:2015'],
+    badge: 'Affordable Care',
+    phone: '+91 821 248 9911',
+    openHours: '07:00 AM - 08:30 PM',
+    turnaroundTime: 'Within 8 Hours',
+    homeCollectionAvailable: true,
+    homeCollectionFee: 0,
+    image: 'https://images.unsplash.com/photo-1512678080530-7760d81faba6?w=600',
+    facilities: ['Automated Biochemistry', 'Hormone Assays', 'Preventive Health Packages', 'Free Sample Pickup'],
+  },
+  {
+    id: 'lab-spark-mysore',
+    name: 'Spark Clinical Laboratory & Scans',
+    city: 'Mysuru',
+    area: 'Vontikoppal',
+    address: 'Temple Road, Vontikoppal, Mysuru - 570002',
+    rating: 4.6,
+    reviewCount: 210,
+    accreditations: ['ISO 9001:2015'],
+    badge: 'Fast Results',
+    phone: '+91 821 241 7733',
+    openHours: '07:30 AM - 08:00 PM',
+    turnaroundTime: 'Within 4 to 6 Hours',
+    homeCollectionAvailable: true,
+    homeCollectionFee: 49,
+    image: 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=600',
+    facilities: ['Rapid Biochemistry', 'Urine & Stool Analysis', 'Thyroid & Diabetes Panels', 'Walk-in Fast Reporting'],
+  },
+  {
+    id: 'lab-drlal-blr',
+    name: 'Dr. Lal PathLabs National Reference Center',
+    city: 'Bengaluru',
+    area: 'Indiranagar',
+    address: '100ft Road, Near CMH Hospital, Indiranagar, Bengaluru - 560038',
+    rating: 4.9,
+    reviewCount: 1120,
+    accreditations: ['CAP', 'NABL'],
+    badge: 'National Reference Lab',
+    phone: '+91 80 4910 0000',
+    openHours: '06:30 AM - 10:00 PM',
+    turnaroundTime: 'Same Day Certified Reports',
+    homeCollectionAvailable: true,
+    homeCollectionFee: 0,
+    image: 'https://images.unsplash.com/photo-1628348068343-c6a848d2b6dd?w=600',
+    facilities: ['Complete Routine & Rare Assays', 'Barcoded Sample Tracking', 'AI Verified Reports', 'Express Phlebotomy'],
+  },
+  {
+    id: 'lab-metropolis-blr',
+    name: 'Metropolis Healthcare & Reference Lab',
+    city: 'Bengaluru',
+    area: 'Koramangala',
+    address: '80ft Road, 4th Block, Koramangala, Bengaluru - 560034',
+    rating: 4.8,
+    reviewCount: 840,
+    accreditations: ['CAP', 'NABL', 'ISO 15189'],
+    badge: 'Multi-Specialty Pathology',
+    phone: '+91 80 4050 6070',
+    openHours: '07:00 AM - 09:30 PM',
+    turnaroundTime: 'Within 6 to 8 Hours',
+    homeCollectionAvailable: true,
+    homeCollectionFee: 0,
+    image: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=600',
+    facilities: ['Automated Immuno-Chemistry', 'Cancer Markers & Biopsy', 'Fast Home Collection', 'Digital Smart Reports'],
   },
 ];

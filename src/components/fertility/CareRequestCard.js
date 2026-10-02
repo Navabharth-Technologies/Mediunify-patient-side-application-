@@ -70,7 +70,7 @@ const CareRequestCard = ({ request, onPress, onCancel }) => {
             activeOpacity={0.85}
           >
             <Text style={styles.viewBtnText}>View Summary</Text>
-            <Ionicons name="arrow-forward" size={13} color="#E11D48" />
+            <Ionicons name="arrow-forward" size={13} color="#00B894" />
           </TouchableOpacity>
         </View>
       </View>
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
   },
   modeText: {
     fontSize: 12,
-    color: '#0284C7',
+    color: '#1E3A8A',
     fontWeight: '600',
   },
   footer: {
@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
   },
   docCountText: {
     fontSize: 11,
-    color: '#059669',
+    color: '#7BC96F',
     fontWeight: '600',
   },
   actionsRow: {
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: '#FF7F50',
     fontWeight: '600',
   },
   viewBtn: {
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
   viewBtnText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#E11D48',
+    color: '#00B894',
   },
 });
 

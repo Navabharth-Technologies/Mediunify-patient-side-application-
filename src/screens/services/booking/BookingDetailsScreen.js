@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   ScrollView,
   Linking,
@@ -14,6 +13,7 @@ import {
   Image,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../../utils/alert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -21,6 +21,12 @@ import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import { syncActiveUser } from '../../../services/dataSyncService';
 import WebFooter from '../../../components/web/WebFooter';
+import {
+  getSlotStatus,
+  validateAndBookSlot,
+  cancelBookedSlot,
+  subscribeToSlotChanges,
+} from '../../../services/slotBookingService';
 
 const generateBookingDates = () => {
   const dates = [];
@@ -72,9 +78,64 @@ const BookingDetailsScreen = ({ navigation, route }) => {
   const [rescheduleReason, setRescheduleReason] = useState('');
   const [isSavingReschedule, setIsSavingReschedule] = useState(false);
 
+  // Real-time slot update ticker
+  const [slotTick, setSlotTick] = useState(0);
+  useEffect(() => {
+    const unsub = subscribeToSlotChanges(() => {
+      setSlotTick((t) => t + 1);
+    });
+    return unsub;
+  }, []);
+
+  const allRescheduleSlots = [
+    ...RESCHEDULE_SLOTS.morning,
+    ...RESCHEDULE_SLOTS.evening,
+  ];
+
+  const getFirstAvailableRescheduleSlot = (dateStr, preferred = null) => {
+    const sType = appointment?.type || appointment?.serviceType || 'doctor';
+    const pId = appointment?.doctor?.id || appointment?.doctor?.name || appointment?.facilityName || appointment?.centerName;
+    if (preferred) {
+      const prefSt = getSlotStatus({
+        date: dateStr,
+        time: preferred,
+        serviceType: sType,
+        providerId: pId,
+      });
+      if (prefSt.available) return preferred;
+    }
+    for (const s of allRescheduleSlots) {
+      const st = getSlotStatus({
+        date: dateStr,
+        time: s,
+        serviceType: sType,
+        providerId: pId,
+      });
+      if (st.available) return s;
+    }
+    return '';
+  };
+
+  useEffect(() => {
+    if (isRescheduleOpen && rescheduleDate) {
+      const sType = appointment?.type || appointment?.serviceType || 'doctor';
+      const pId = appointment?.doctor?.id || appointment?.doctor?.name || appointment?.facilityName || appointment?.centerName;
+      const currentSt = getSlotStatus({
+        date: rescheduleDate.dateStr || rescheduleDate.fullText,
+        time: rescheduleTime,
+        serviceType: sType,
+        providerId: pId,
+      });
+      if (!currentSt.available) {
+        const nextSlot = getFirstAvailableRescheduleSlot(rescheduleDate.dateStr || rescheduleDate.fullText);
+        setRescheduleTime(nextSlot);
+      }
+    }
+  }, [rescheduleDate, isRescheduleOpen, slotTick, appointment]);
+
   if (!appointment) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
         <View style={styles.errorWrap}>
           <Ionicons name="alert-circle-outline" size={48} color={colors.warning} />
           <Text style={styles.errorText}>Appointment information unavailable.</Text>
@@ -179,7 +240,17 @@ const BookingDetailsScreen = ({ navigation, route }) => {
       : isFertility
       ? 'Nova IVF & Fertility Care Centre'
       : 'Unnathi Multispeciality Clinic');
-  const clinicAddress =
+  const formatSafeAddr = (raw) => {
+    if (!raw) return '';
+    if (typeof raw === 'string') return raw;
+    if (typeof raw === 'object') {
+      const parts = [raw.addressLine || raw.line1 || raw.address || raw.street, raw.landmark, raw.city, raw.state, raw.pincode].filter(Boolean);
+      return parts.join(', ') || raw.name || 'Doorstep Home Visit, Mysore';
+    }
+    return String(raw);
+  };
+
+  const rawClinicAddress =
     labInfo.address ||
     doctor.clinicAddress ||
     (isVideo
@@ -195,6 +266,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
       : isFertility
       ? 'No. 88, 5th Main, Gokulam 3rd Stage, Mysore - 570002'
       : 'No. 24, 5th Cross, Near Vishwamanava Double Road, Kuvempunagar, Mysore - 570023');
+  const clinicAddress = formatSafeAddr(rawClinicAddress);
   const clinicArea =
     labInfo.area ||
     doctor.clinicArea ||
@@ -285,6 +357,13 @@ const BookingDetailsScreen = ({ navigation, route }) => {
           onPress: async () => {
             try {
               setIsCancelling(true);
+
+              cancelBookedSlot({
+                date: appointment.date,
+                time: appointment.time || appointment.timeSlot,
+                serviceType: appointment.type || appointment.serviceType || 'doctor',
+                providerId: appointment.doctor?.id || appointment.doctor?.name || appointment.facilityName || appointment.centerName,
+              });
 
               // 1. Update doctor appointments in AsyncStorage
               const apptJson = await AsyncStorage.getItem('@unnathi_appointments');
@@ -398,6 +477,35 @@ const BookingDetailsScreen = ({ navigation, route }) => {
     try {
       setIsSavingReschedule(true);
 
+      const targetDate = rescheduleDate.dateStr || rescheduleDate.fullText;
+      const targetServiceType = appointment.type || appointment.serviceType || 'doctor';
+      const targetProviderId = appointment.doctor?.id || appointment.doctor?.name || appointment.facilityName || appointment.centerName;
+
+      const slotValidation = await validateAndBookSlot({
+        date: targetDate,
+        time: rescheduleTime,
+        serviceType: targetServiceType,
+        providerId: targetProviderId,
+        bookingDetails: {
+          appointmentId: appointment.id,
+          patientName: appointment.patientName,
+        },
+      });
+
+      if (!slotValidation.success) {
+        setIsSavingReschedule(false);
+        showAlert('Slot Unavailable', slotValidation.message || 'This slot is no longer available. Please select another time.');
+        return;
+      }
+
+      // Free up old slot
+      cancelBookedSlot({
+        date: appointment.date,
+        time: appointment.time || appointment.timeSlot,
+        serviceType: targetServiceType,
+        providerId: targetProviderId,
+      });
+
       const newDateStr = rescheduleDate.fullText;
       const newDayStr = rescheduleDate.dayName;
       const newTimeStr = rescheduleTime;
@@ -503,7 +611,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
       setIsRescheduleOpen(false);
 
       showAlert(
-        'Appointment Rescheduled! 🎉',
+        'Appointment Rescheduled',
         `Your consultation with ${doctor.name} has been rescheduled to ${newDateStr} at ${newTimeStr}.`
       );
     } catch (e) {
@@ -579,7 +687,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         }
 
         showAlert(
-          'Document Uploaded! 📄',
+          'Document Uploaded',
           `"${newDoc.name}" has been attached to your appointment record.`
         );
       }
@@ -606,7 +714,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -630,7 +738,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
           }}
           activeOpacity={0.8}
         >
-          <Ionicons name={isVideo ? 'videocam' : 'navigate-circle-outline'} size={24} color={isVideo ? '#7C3AED' : colors.primary} />
+          <Ionicons name={isVideo ? 'videocam' : 'navigate-circle-outline'} size={24} color={isVideo ? colors.teal : colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -642,8 +750,8 @@ const BookingDetailsScreen = ({ navigation, route }) => {
               <Text style={styles.breadcrumbLink}>Home</Text>
             </TouchableOpacity>
             <Text style={styles.breadcrumbSlash}>/</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Bookings')}>
-              <Text style={styles.breadcrumbLink}>My Bookings</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('MyAppointments')}>
+              <Text style={styles.breadcrumbLink}>My Appointments</Text>
             </TouchableOpacity>
             <Text style={styles.breadcrumbSlash}>/</Text>
             <Text style={styles.breadcrumbCurrent}>Booking #{appointment.tokenNumber || appointment.id}</Text>
@@ -654,7 +762,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         {isCancelled ? (
           <View style={styles.cancelledCard}>
             <View style={styles.cancelledIconCircle}>
-              <Ionicons name="close-circle" size={32} color="#DC2626" />
+              <Ionicons name="close-circle" size={32} color="#FF7F50" />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
               <View style={styles.tokenRow}>
@@ -687,7 +795,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
               <Ionicons
                 name={isRescheduled ? 'time' : 'checkmark-circle'}
                 size={24}
-                color={isRescheduled ? colors.primary : '#059669'}
+                color={isRescheduled ? colors.primary : '#7BC96F'}
               />
             </View>
           </View>
@@ -697,23 +805,23 @@ const BookingDetailsScreen = ({ navigation, route }) => {
             LIVE PHARMACY DELIVERY TRACKING CARD
         ==================================================== */}
         {isPharmacy && (
-          <View style={[styles.directionCard, { borderColor: '#FDE68A', backgroundColor: '#FFFBEB' }]}>
+          <View style={[styles.directionCard, { borderColor: '#B2EBF2', backgroundColor: '#E0F7FA' }]}>
             <View style={styles.directionCardHeader}>
-              <View style={[styles.mapIconCircle, { backgroundColor: '#D97706' }]}>
+              <View style={[styles.mapIconCircle, { backgroundColor: '#00C2CB' }]}>
                 <Ionicons name="bicycle" size={20} color="#FFFFFF" />
               </View>
               <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={[styles.directionHeaderLabel, { color: '#B45309' }]}>LIVE MEDICINE DELIVERY TRACKING</Text>
+                <Text style={[styles.directionHeaderLabel, { color: '#1E3A8A' }]}>LIVE MEDICINE DELIVERY TRACKING</Text>
                 <Text style={styles.clinicName}>Out for Express Delivery</Text>
               </View>
-              <View style={[styles.distanceBadge, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
-                <Ionicons name="time" size={12} color="#D97706" />
-                <Text style={[styles.distanceBadgeText, { color: '#B45309' }]}>ETA ~25m</Text>
+              <View style={[styles.distanceBadge, { backgroundColor: '#FFFFFF', borderColor: '#B2EBF2' }]}>
+                <Ionicons name="time" size={12} color="#00C2CB" />
+                <Text style={[styles.distanceBadgeText, { color: '#1E3A8A' }]}>ETA ~25m</Text>
               </View>
             </View>
 
             {/* RIDER & OTP ROW */}
-            <View style={[styles.addressBox, { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#FEF3C7', padding: 12 }]}>
+            <View style={[styles.addressBox, { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#B2EBF2', padding: 12 }]}>
               <Image
                 source={{ uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200' }}
                 style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#E2E8F0' }}
@@ -721,39 +829,39 @@ const BookingDetailsScreen = ({ navigation, route }) => {
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A' }}>Santosh M.</Text>
-                  <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                  <Ionicons name="checkmark-circle" size={14} color="#7BC96F" />
                 </View>
-                <Text style={{ fontSize: 11.5, color: '#64748B' }}>Two-Wheeler KA-09-EG-4412 • 4.95 ★</Text>
-                <Text style={{ fontSize: 11, color: '#059669', fontWeight: '700', marginTop: 2 }}>Contactless & Sanitized Kit Verified</Text>
+                <Text style={{ fontSize: 11.5, color: '#64748B' }}>Two-Wheeler KA-09-EG-4412 • 4.95/5</Text>
+                <Text style={{ fontSize: 11, color: '#7BC96F', fontWeight: '700', marginTop: 2 }}>Contactless & Sanitized Kit Verified</Text>
               </View>
-              <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, alignItems: 'center' }}>
-                <Text style={{ fontSize: 9, fontWeight: '800', color: '#92400E' }}>DELIVERY PIN</Text>
-                <Text style={{ fontSize: 16, fontWeight: '900', color: '#B45309' }}>9241</Text>
+              <View style={{ backgroundColor: '#E0F7FA', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, alignItems: 'center' }}>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#64748B' }}>DELIVERY PIN</Text>
+                <Text style={{ fontSize: 16, fontWeight: '900', color: '#1E3A8A' }}>9241</Text>
               </View>
             </View>
 
             {/* LIVE TIMELINE STAGES */}
-            <View style={{ backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#FEF3C7', gap: 10 }}>
+            <View style={{ backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#B2EBF2', gap: 10 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="checkmark-circle" size={16} color="#059669" />
+                <Ionicons name="checkmark-circle" size={16} color="#7BC96F" />
                 <Text style={{ fontSize: 12, fontWeight: '700', color: '#1E293B' }}>Prescription Verified & Order Packed</Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="checkmark-circle" size={16} color="#059669" />
+                <Ionicons name="checkmark-circle" size={16} color="#7BC96F" />
                 <Text style={{ fontSize: 12, fontWeight: '700', color: '#1E293B' }}>Dispatched from Kuvempunagar Pharmacy Hub</Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: '#FEF3C7', borderWidth: 2, borderColor: '#D97706', alignItems: 'center', justifyContent: 'center' }}>
-                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#D97706' }} />
+                <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: '#E0F7FA', borderWidth: 2, borderColor: '#00C2CB', alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#00C2CB' }} />
                 </View>
-                <Text style={{ fontSize: 12, fontWeight: '800', color: '#D97706' }}>Rider En Route to Your Address (Live Now)</Text>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: '#00C2CB' }}>Rider En Route to Your Address (Live Now)</Text>
               </View>
             </View>
 
             {/* ACTION BUTTONS */}
             <View style={styles.directionBtnRow}>
               <TouchableOpacity
-                style={[styles.getDirectionsBtn, { backgroundColor: '#D97706', flex: 1 }]}
+                style={[styles.getDirectionsBtn, { backgroundColor: '#00C2CB', flex: 1 }]}
                 onPress={() => Linking.openURL('tel:+919876543210')}
                 activeOpacity={0.88}
               >
@@ -776,23 +884,23 @@ const BookingDetailsScreen = ({ navigation, route }) => {
             LIVE LAB HOME SAMPLE COLLECTION TRACKING CARD
         ==================================================== */}
         {isLabHomeSample && (
-          <View style={[styles.directionCard, { borderColor: '#A7F3D0', backgroundColor: '#ECFDF5' }]}>
+          <View style={[styles.directionCard, { borderColor: '#C6EBC0', backgroundColor: '#F2FAF0' }]}>
             <View style={styles.directionCardHeader}>
-              <View style={[styles.mapIconCircle, { backgroundColor: '#059669' }]}>
+              <View style={[styles.mapIconCircle, { backgroundColor: '#7BC96F' }]}>
                 <Ionicons name="navigate" size={20} color="#FFFFFF" />
               </View>
               <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={[styles.directionHeaderLabel, { color: '#047857' }]}>LIVE DOORSTEP SAMPLE COLLECTION</Text>
+                <Text style={[styles.directionHeaderLabel, { color: '#1E3A8A' }]}>LIVE DOORSTEP SAMPLE COLLECTION</Text>
                 <Text style={styles.clinicName}>Phlebotomist En Route</Text>
               </View>
-              <View style={[styles.distanceBadge, { backgroundColor: '#D1FAE5', borderColor: '#6EE7B7' }]}>
-                <Ionicons name="time" size={12} color="#059669" />
-                <Text style={[styles.distanceBadgeText, { color: '#047857' }]}>ETA ~20m</Text>
+              <View style={[styles.distanceBadge, { backgroundColor: '#FFFFFF', borderColor: '#C6EBC0' }]}>
+                <Ionicons name="time" size={12} color="#7BC96F" />
+                <Text style={[styles.distanceBadgeText, { color: '#1E3A8A' }]}>ETA ~20m</Text>
               </View>
             </View>
 
             {/* PHLEBOTOMIST & OTP ROW */}
-            <View style={[styles.addressBox, { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#A7F3D0', padding: 12 }]}>
+            <View style={[styles.addressBox, { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#C6EBC0', padding: 12 }]}>
               <Image
                 source={{ uri: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=200' }}
                 style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#E2E8F0' }}
@@ -800,32 +908,32 @@ const BookingDetailsScreen = ({ navigation, route }) => {
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A' }}>Praveen M.</Text>
-                  <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                  <Ionicons name="checkmark-circle" size={14} color="#7BC96F" />
                 </View>
                 <Text style={{ fontSize: 11.5, color: '#64748B' }}>ICMR & NABL Certified Phlebotomist</Text>
-                <Text style={{ fontSize: 11, color: '#059669', fontWeight: '700', marginTop: 2 }}>Sterile Kit Verified • Cold-Chain Storage</Text>
+                <Text style={{ fontSize: 11, color: '#7BC96F', fontWeight: '700', marginTop: 2 }}>Sterile Kit Verified • Cold-Chain Storage</Text>
               </View>
-              <View style={{ backgroundColor: '#D1FAE5', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, alignItems: 'center' }}>
-                <Text style={{ fontSize: 9, fontWeight: '800', color: '#065F46' }}>DOORSTEP OTP</Text>
-                <Text style={{ fontSize: 16, fontWeight: '900', color: '#047857' }}>4829</Text>
+              <View style={{ backgroundColor: '#F2FAF0', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, alignItems: 'center' }}>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#64748B' }}>DOORSTEP OTP</Text>
+                <Text style={{ fontSize: 16, fontWeight: '900', color: '#1E3A8A' }}>4829</Text>
               </View>
             </View>
 
             {/* LIVE TIMELINE STAGES */}
-            <View style={{ backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#A7F3D0', gap: 10 }}>
+            <View style={{ backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#C6EBC0', gap: 10 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="checkmark-circle" size={16} color="#059669" />
+                <Ionicons name="checkmark-circle" size={16} color="#7BC96F" />
                 <Text style={{ fontSize: 12, fontWeight: '700', color: '#1E293B' }}>Booking Confirmed & Central Lab Assigned</Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="checkmark-circle" size={16} color="#059669" />
+                <Ionicons name="checkmark-circle" size={16} color="#7BC96F" />
                 <Text style={{ fontSize: 12, fontWeight: '700', color: '#1E293B' }}>Phlebotomist Assigned with Sealed Vacuum Tubes</Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: '#ECFDF5', borderWidth: 2, borderColor: '#059669', alignItems: 'center', justifyContent: 'center' }}>
-                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#059669' }} />
+                <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: '#F2FAF0', borderWidth: 2, borderColor: '#7BC96F', alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#7BC96F' }} />
                 </View>
-                <Text style={{ fontSize: 12, fontWeight: '800', color: '#059669' }}>En Route to Doorstep (Live Now • ~20 Mins)</Text>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: '#7BC96F' }}>En Route to Doorstep (Live Now • ~20 Mins)</Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Ionicons name="ellipse-outline" size={16} color="#CBD5E1" />
@@ -840,7 +948,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
             {/* ACTION BUTTONS */}
             <View style={styles.directionBtnRow}>
               <TouchableOpacity
-                style={[styles.getDirectionsBtn, { backgroundColor: '#059669', flex: 1 }]}
+                style={[styles.getDirectionsBtn, { backgroundColor: '#00B894', flex: 1 }]}
                 onPress={() => Linking.openURL('tel:+919876543210')}
                 activeOpacity={0.88}
               >
@@ -861,24 +969,24 @@ const BookingDetailsScreen = ({ navigation, route }) => {
 
         {/* CLINIC / DIAGNOSTIC CENTER / VIDEO CONSULTATION DIRECTIONS & LOCATION */}
         {!isPharmacy && !isLabHomeSample && (isVideo ? (
-          <View style={[styles.directionCard, { borderColor: '#DDD6FE', backgroundColor: '#FAF5FF' }]}>
+          <View style={[styles.directionCard, { borderColor: '#B2EBF2', backgroundColor: '#E0F7FA' }]}>
             <View style={styles.directionCardHeader}>
-              <View style={[styles.mapIconCircle, { backgroundColor: '#7C3AED' }]}>
+              <View style={[styles.mapIconCircle, { backgroundColor: '#00C2CB' }]}>
                 <Ionicons name="videocam" size={20} color="#FFFFFF" />
               </View>
               <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={[styles.directionHeaderLabel, { color: '#7C3AED' }]}>LIVE TELEHEALTH CONSULTATION</Text>
+                <Text style={[styles.directionHeaderLabel, { color: '#1E3A8A' }]}>LIVE TELEHEALTH CONSULTATION</Text>
                 <Text style={styles.clinicName}>{clinicName}</Text>
               </View>
-              <View style={[styles.distanceBadge, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
-                <Ionicons name="shield-checkmark" size={12} color="#059669" />
-                <Text style={[styles.distanceBadgeText, { color: '#059669' }]}>Encrypted</Text>
+              <View style={[styles.distanceBadge, { backgroundColor: '#F2FAF0', borderColor: '#C6EBC0' }]}>
+                <Ionicons name="shield-checkmark" size={12} color="#7BC96F" />
+                <Text style={[styles.distanceBadgeText, { color: '#7BC96F' }]}>Encrypted</Text>
               </View>
             </View>
 
             {/* VIDEO ROOM FEATURES */}
-            <View style={[styles.addressBox, { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EDE9FE' }]}>
-              <Ionicons name="document-attach" size={18} color="#7C3AED" style={{ marginTop: 2 }} />
+            <View style={[styles.addressBox, { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#B2EBF2' }]}>
+              <Ionicons name="document-attach" size={18} color="#00C2CB" style={{ marginTop: 2 }} />
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <Text style={[styles.clinicAddressText, { color: '#1E293B', fontWeight: '700' }]}>
                   In-Call Document Upload Enabled
@@ -892,7 +1000,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
             {/* ENTER VIDEO ROOM ACTION BUTTON */}
             <View style={styles.directionBtnRow}>
               <TouchableOpacity
-                style={[styles.getDirectionsBtn, { backgroundColor: '#7C3AED', flex: 1 }]}
+                style={[styles.getDirectionsBtn, { backgroundColor: '#00B894', flex: 1 }]}
                 onPress={() => navigation.navigate('VideoMeeting', { appointment, doctor })}
                 activeOpacity={0.88}
               >
@@ -905,17 +1013,17 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         ) : (
           <View style={styles.directionCard}>
             <View style={styles.directionCardHeader}>
-              <View style={[styles.mapIconCircle, isRadiology && { backgroundColor: '#7C3AED' }]}>
+              <View style={[styles.mapIconCircle, isRadiology && { backgroundColor: '#00C2CB' }]}>
                 <Ionicons name={isRadiology ? 'scan-outline' : 'location'} size={20} color="#FFFFFF" />
               </View>
               <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={[styles.directionHeaderLabel, isRadiology && { color: '#7C3AED' }]}>
+                <Text style={[styles.directionHeaderLabel, isRadiology && { color: '#00C2CB' }]}>
                   {isRadiology ? 'IMAGING & SCAN CENTER LOCATION' : isLabTest ? 'DIAGNOSTIC CENTER LOCATION' : 'CLINIC LOCATION'}
                 </Text>
                 <Text style={styles.clinicName}>{clinicName}</Text>
               </View>
               <View style={styles.distanceBadge}>
-                <Ionicons name="car-outline" size={12} color="#059669" />
+                <Ionicons name="car-outline" size={12} color="#7BC96F" />
                 <Text style={styles.distanceBadgeText}>{distance}</Text>
               </View>
             </View>
@@ -932,7 +1040,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
             {/* MAP DIRECTION ACTION BUTTONS */}
             <View style={styles.directionBtnRow}>
               <TouchableOpacity
-                style={[styles.getDirectionsBtn, isRadiology && { backgroundColor: '#7C3AED' }]}
+                style={[styles.getDirectionsBtn, isRadiology && { backgroundColor: '#00C2CB' }]}
                 onPress={openDirections}
                 activeOpacity={0.88}
               >
@@ -955,15 +1063,15 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         {/* DOCTOR / CENTER INFO CARD */}
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
-            <Ionicons name={isRadiology ? 'scan-outline' : isLabTest ? 'flask-outline' : 'medkit-outline'} size={18} color={isRadiology ? '#7C3AED' : colors.primary} />
+            <Ionicons name={isRadiology ? 'scan-outline' : isLabTest ? 'flask-outline' : 'medkit-outline'} size={18} color={isRadiology ? '#00C2CB' : colors.primary} />
             <Text style={styles.sectionTitle}>
               {isRadiology ? 'Diagnostic & Imaging Center' : isLabTest ? 'Pathology & Diagnostic Hub' : 'Doctor'}
             </Text>
           </View>
 
           <View style={styles.doctorInfoRow}>
-            <View style={[styles.doctorAvatarBox, isRadiology && { backgroundColor: '#F3E8FF' }]}>
-              <Ionicons name={isRadiology ? 'radio' : isLabTest ? 'flask' : 'person'} size={24} color={isRadiology ? '#7C3AED' : colors.primary} />
+            <View style={[styles.doctorAvatarBox, isRadiology && { backgroundColor: '#E0F7FA' }]}>
+              <Ionicons name={isRadiology ? 'radio' : isLabTest ? 'flask' : 'person'} size={24} color={isRadiology ? '#00C2CB' : colors.primary} />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={styles.doctorName}>{clinicName || doctor.name}</Text>
@@ -1005,10 +1113,10 @@ const BookingDetailsScreen = ({ navigation, route }) => {
                   styles.infoValue,
                   {
                     color: isCancelled
-                      ? '#DC2626'
+                      ? '#FF7F50'
                       : isRescheduled
                       ? colors.primary
-                      : '#10B981',
+                      : '#7BC96F',
                   },
                 ]}
               >
@@ -1026,8 +1134,8 @@ const BookingDetailsScreen = ({ navigation, route }) => {
             <View
               style={[
                 styles.paymentStatusBadge,
-                isCancelled && { backgroundColor: '#FEE2E2' },
-                isRescheduled && { backgroundColor: '#EFF6FF' },
+                isCancelled && { backgroundColor: '#FFF2ED' },
+                isRescheduled && { backgroundColor: '#E0F7FA' },
               ]}
             >
               <Ionicons
@@ -1041,16 +1149,16 @@ const BookingDetailsScreen = ({ navigation, route }) => {
                 size={14}
                 color={
                   isCancelled
-                    ? '#DC2626'
+                    ? '#FF7F50'
                     : isRescheduled
                     ? colors.primary
-                    : '#059669'
+                    : '#7BC96F'
                 }
               />
               <Text
                 style={[
                   styles.paymentStatusText,
-                  isCancelled && { color: '#DC2626' },
+                  isCancelled && { color: '#FF7F50' },
                   isRescheduled && { color: colors.primary },
                 ]}
               >
@@ -1101,7 +1209,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         ) : null}
 
         {/* ==================================================
-            🧪 INCLUDED LAB TESTS & RADIOLOGY SCANS
+            INCLUDED LAB TESTS & RADIOLOGY SCANS
         ================================================== */}
         {(isRadiology || isLabTest || testsList.length > 0) && (
           <View style={styles.card}>
@@ -1110,7 +1218,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
                 <Ionicons
                   name={isRadiology ? 'scan-outline' : 'flask'}
                   size={18}
-                  color={isRadiology ? '#7C3AED' : colors.teal}
+                  color={isRadiology ? '#00C2CB' : colors.teal}
                 />
                 <Text style={styles.sectionTitle}>
                   {isRadiology
@@ -1121,18 +1229,18 @@ const BookingDetailsScreen = ({ navigation, route }) => {
               <View
                 style={[
                   styles.nablBadge,
-                  isRadiology && { backgroundColor: '#F3E8FF', borderColor: '#DDD6FE' },
+                  isRadiology && { backgroundColor: '#E0F7FA', borderColor: '#B2EBF2' },
                 ]}
               >
                 <Ionicons
                   name="shield-checkmark"
                   size={12}
-                  color={isRadiology ? '#7C3AED' : '#047857'}
+                  color={isRadiology ? '#00C2CB' : '#7BC96F'}
                 />
                 <Text
                   style={[
                     styles.nablBadgeText,
-                    isRadiology && { color: '#7C3AED' },
+                    isRadiology && { color: '#00C2CB' },
                   ]}
                 >
                   {isRadiology ? 'NABH & NABL' : 'NABL & ICMR'}
@@ -1155,13 +1263,13 @@ const BookingDetailsScreen = ({ navigation, route }) => {
                       <View
                         style={[
                           styles.testNumberCircle,
-                          isRadiology && { backgroundColor: '#F3E8FF' },
+                          isRadiology && { backgroundColor: '#E0F7FA' },
                         ]}
                       >
                         <Text
                           style={[
                             styles.testNumberText,
-                            isRadiology && { color: '#7C3AED' },
+                            isRadiology && { color: '#00C2CB' },
                           ]}
                         >
                           {idx + 1}
@@ -1173,31 +1281,31 @@ const BookingDetailsScreen = ({ navigation, route }) => {
                           <View
                             style={[
                               styles.sampleTagPill,
-                              isRadiology && { backgroundColor: '#EDE9FE' },
+                              isRadiology && { backgroundColor: '#E0F7FA' },
                             ]}
                           >
                             <Ionicons
                               name={isRadiology ? 'radio-outline' : 'water-outline'}
                               size={10}
-                              color={isRadiology ? '#7C3AED' : '#DC2626'}
+                              color={isRadiology ? '#00C2CB' : '#FF7F50'}
                             />
                             <Text
                               style={[
                                 styles.sampleTagText,
-                                isRadiology && { color: '#7C3AED' },
+                                isRadiology && { color: '#00C2CB' },
                               ]}
                             >
                               {scanCategory}
                             </Text>
                           </View>
                           <View style={styles.fastingTagPill}>
-                            <Ionicons name="time-outline" size={10} color="#D97706" />
+                            <Ionicons name="time-outline" size={10} color="#64748B" />
                             <Text style={styles.fastingTagText}>
                               {duration}
                             </Text>
                           </View>
                           <View style={styles.tatTagPill}>
-                            <Ionicons name="document-text-outline" size={10} color="#2563EB" />
+                            <Ionicons name="document-text-outline" size={10} color="#1E3A8A" />
                             <Text style={styles.tatTagText}>
                               {isRadiology ? 'HD Digital Film & Report' : 'Results in 12-24 Hrs'}
                             </Text>
@@ -1240,7 +1348,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
               <Ionicons
                 name="checkmark-circle"
                 size={15}
-                color={isRadiology ? '#7C3AED' : '#059669'}
+                color={isRadiology ? '#00C2CB' : '#7BC96F'}
               />
               <Text style={styles.labAssuranceText}>
                 {isRadiology
@@ -1252,7 +1360,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         )}
 
         {/* ==================================================
-            📁 MEDICAL RECORDS & UPLOADED DOCUMENTS CARD
+            MEDICAL RECORDS & UPLOADED DOCUMENTS CARD
         ================================================== */}
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
@@ -1325,7 +1433,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
                       onPress={() => handleDeleteDocument(doc.id)}
                       activeOpacity={0.8}
                     >
-                      <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                      <Ionicons name="trash-outline" size={16} color="#FF7F50" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1340,7 +1448,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         {!isCancelled ? (
           <>
             <TouchableOpacity
-              style={[styles.primaryActionBtn, isVideo && { backgroundColor: '#7C3AED' }]}
+              style={[styles.primaryActionBtn, isVideo && { backgroundColor: '#00B894' }]}
               onPress={() => {
                 if (isVideo) {
                   navigation.navigate('VideoMeeting', { appointment, doctor });
@@ -1373,7 +1481,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
                 disabled={isCancelling}
                 activeOpacity={0.88}
               >
-                <Ionicons name="close-circle-outline" size={16} color="#DC2626" />
+                <Ionicons name="close-circle-outline" size={16} color="#FF7F50" />
                 <Text style={styles.cancelTwinText}>Cancel</Text>
               </TouchableOpacity>
             </View>
@@ -1482,9 +1590,18 @@ const BookingDetailsScreen = ({ navigation, route }) => {
               <Text style={styles.modalSectionLabel}>2. Select New Time Slot</Text>
 
               {/* MORNING */}
-              <Text style={styles.slotCategoryLabel}>☀️ Morning Slots</Text>
+              <Text style={styles.slotCategoryLabel}>Morning Slots</Text>
               <View style={styles.slotsGrid}>
                 {RESCHEDULE_SLOTS.morning.map((slot, index) => {
+                  const sType = appointment?.type || appointment?.serviceType || 'doctor';
+                  const pId = appointment?.doctor?.id || appointment?.doctor?.name || appointment?.facilityName || appointment?.centerName;
+                  const slotStatus = getSlotStatus({
+                    date: rescheduleDate.dateStr || rescheduleDate.fullText,
+                    time: slot,
+                    serviceType: sType,
+                    providerId: pId,
+                  });
+                  const isAvailable = slotStatus.available;
                   const isSelected = rescheduleTime === slot;
                   return (
                     <TouchableOpacity
@@ -1492,32 +1609,51 @@ const BookingDetailsScreen = ({ navigation, route }) => {
                       style={[
                         styles.slotChip,
                         isSelected && styles.slotChipActive,
+                        !isAvailable && styles.slotChipDisabled,
                       ]}
+                      disabled={!isAvailable}
                       onPress={() => setRescheduleTime(slot)}
                       activeOpacity={0.8}
                     >
                       <Ionicons
                         name="time-outline"
                         size={14}
-                        color={isSelected ? '#FFFFFF' : '#64748B'}
+                        color={isSelected ? '#FFFFFF' : isAvailable ? '#64748B' : '#94A3B8'}
                       />
                       <Text
                         style={[
                           styles.slotText,
                           isSelected && styles.slotTextActive,
+                          !isAvailable && styles.slotTextDisabled,
                         ]}
                       >
                         {slot}
                       </Text>
+                      {!isAvailable && (
+                        <View style={styles.slotStatusBadge}>
+                          <Text style={styles.slotStatusBadgeText}>
+                            {slotStatus.status === 'PASSED' ? 'Passed' : 'Booked'}
+                          </Text>
+                        </View>
+                      )}
                     </TouchableOpacity>
                   );
                 })}
               </View>
 
               {/* EVENING */}
-              <Text style={[styles.slotCategoryLabel, { marginTop: 12 }]}>🌆 Evening Slots</Text>
+              <Text style={[styles.slotCategoryLabel, { marginTop: 12 }]}>Evening Slots</Text>
               <View style={styles.slotsGrid}>
                 {RESCHEDULE_SLOTS.evening.map((slot, index) => {
+                  const sType = appointment?.type || appointment?.serviceType || 'doctor';
+                  const pId = appointment?.doctor?.id || appointment?.doctor?.name || appointment?.facilityName || appointment?.centerName;
+                  const slotStatus = getSlotStatus({
+                    date: rescheduleDate.dateStr || rescheduleDate.fullText,
+                    time: slot,
+                    serviceType: sType,
+                    providerId: pId,
+                  });
+                  const isAvailable = slotStatus.available;
                   const isSelected = rescheduleTime === slot;
                   return (
                     <TouchableOpacity
@@ -1525,23 +1661,33 @@ const BookingDetailsScreen = ({ navigation, route }) => {
                       style={[
                         styles.slotChip,
                         isSelected && styles.slotChipActive,
+                        !isAvailable && styles.slotChipDisabled,
                       ]}
+                      disabled={!isAvailable}
                       onPress={() => setRescheduleTime(slot)}
                       activeOpacity={0.8}
                     >
                       <Ionicons
                         name="time-outline"
                         size={14}
-                        color={isSelected ? '#FFFFFF' : '#64748B'}
+                        color={isSelected ? '#FFFFFF' : isAvailable ? '#64748B' : '#94A3B8'}
                       />
                       <Text
                         style={[
                           styles.slotText,
                           isSelected && styles.slotTextActive,
+                          !isAvailable && styles.slotTextDisabled,
                         ]}
                       >
                         {slot}
                       </Text>
+                      {!isAvailable && (
+                        <View style={styles.slotStatusBadge}>
+                          <Text style={styles.slotStatusBadgeText}>
+                            {slotStatus.status === 'PASSED' ? 'Passed' : 'Booked'}
+                          </Text>
+                        </View>
+                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -1622,19 +1768,19 @@ const BookingDetailsScreen = ({ navigation, route }) => {
 
             <View style={styles.uploadOptionsContainer}>
               <TouchableOpacity
-                style={[styles.uploadOptionCard, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}
+                style={[styles.uploadOptionCard, { backgroundColor: '#F2FAF0', borderColor: '#C6EBC0' }]}
                 onPress={() => handlePickDocument(true)}
                 disabled={isUploadingDoc}
                 activeOpacity={0.8}
               >
-                <View style={[styles.uploadOptionIconBox, { backgroundColor: '#DCFCE7' }]}>
-                  <Ionicons name="camera" size={24} color="#059669" />
+                <View style={[styles.uploadOptionIconBox, { backgroundColor: '#E8F5E9' }]}>
+                  <Ionicons name="camera" size={24} color="#7BC96F" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.uploadOptionTitle, { color: '#059669' }]}>Take Photo</Text>
+                  <Text style={[styles.uploadOptionTitle, { color: '#7BC96F' }]}>Take Photo</Text>
                   <Text style={styles.uploadOptionSub}>Use camera to scan paper report or symptoms</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#059669" />
+                <Ionicons name="chevron-forward" size={18} color="#7BC96F" />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1776,10 +1922,10 @@ const styles = StyleSheet.create({
   confirmed: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#065F46',
+    color: '#1E3A8A',
   },
   tokenBadge: {
-    backgroundColor: '#059669',
+    backgroundColor: '#00B894',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
@@ -1791,7 +1937,7 @@ const styles = StyleSheet.create({
   },
   confirmedSubtitle: {
     fontSize: 12,
-    color: '#047857',
+    color: '#64748B',
     marginTop: 2,
   },
 
@@ -1799,28 +1945,28 @@ const styles = StyleSheet.create({
   cancelledCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#FFF2ED',
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: '#FFD8CC',
     marginBottom: 14,
   },
   cancelledIconCircle: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FFE6DC',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cancelledTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#991B1B',
+    color: '#FF7F50',
   },
   cancelledBadge: {
-    backgroundColor: '#DC2626',
+    backgroundColor: '#FF7F50',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
@@ -1832,7 +1978,7 @@ const styles = StyleSheet.create({
   },
   cancelledSubtitle: {
     fontSize: 12,
-    color: '#B91C1C',
+    color: '#FF7F50',
     marginTop: 2,
   },
 
@@ -1878,7 +2024,7 @@ const styles = StyleSheet.create({
   distanceBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F2FAF0',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -1887,7 +2033,7 @@ const styles = StyleSheet.create({
   distanceBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#059669',
+    color: '#7BC96F',
   },
   addressBox: {
     flexDirection: 'row',
@@ -2036,7 +2182,7 @@ const styles = StyleSheet.create({
   paymentStatusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F2FAF0',
     padding: 10,
     borderRadius: 10,
     marginTop: 10,
@@ -2045,7 +2191,7 @@ const styles = StyleSheet.create({
   paymentStatusText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#059669',
+    color: '#7BC96F',
   },
 
   primaryActionBtn: {
@@ -2093,15 +2239,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#FFF2ED',
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: '#FFD8CC',
     paddingVertical: 13,
     borderRadius: 14,
     gap: 6,
   },
   cancelTwinText: {
-    color: '#DC2626',
+    color: '#FF7F50',
     fontSize: 13.5,
     fontWeight: '700',
   },
@@ -2278,10 +2424,36 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
+  slotChipDisabled: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+    opacity: 0.6,
+  },
   slotText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#334155',
+  },
+  slotTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  slotTextDisabled: {
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  slotStatusBadge: {
+    backgroundColor: '#FFF2ED',
+    paddingHorizontal: 4,
+    paddingVertical: 1.5,
+    borderRadius: 3,
+    marginLeft: 3,
+  },
+  slotStatusBadgeText: {
+    fontSize: 8.5,
+    fontWeight: '700',
+    color: '#FF7F50',
+    textTransform: 'uppercase',
   },
   slotTextActive: {
     color: '#FFFFFF',
@@ -2298,19 +2470,19 @@ const styles = StyleSheet.create({
   },
   modalSummaryBox: {
     flexDirection: 'row',
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#F0FDFA',
     borderRadius: 12,
     padding: 12,
     marginTop: 14,
     gap: 8,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: '#B2EBF2',
     alignItems: 'center',
   },
   modalSummaryText: {
     flex: 1,
     fontSize: 12,
-    color: '#1E40AF',
+    color: '#1E3A8A',
     lineHeight: 17,
   },
   modalActionsRow: {
@@ -2498,17 +2670,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F2FAF0',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#C6EBC0',
   },
   nablBadgeText: {
     fontSize: 10.5,
     fontWeight: '800',
-    color: '#047857',
+    color: '#7BC96F',
   },
   testItemsContainer: {
     marginTop: 10,
@@ -2536,7 +2708,7 @@ const styles = StyleSheet.create({
   testNumberText: {
     fontSize: 11,
     fontWeight: '900',
-    color: '#0F766E',
+    color: '#00B894',
   },
   testInfoCol: {
     flex: 1,
@@ -2558,7 +2730,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#FFF2ED',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
@@ -2566,13 +2738,13 @@ const styles = StyleSheet.create({
   sampleTagText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#DC2626',
+    color: '#FF7F50',
   },
   fastingTagPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#F1F5F9',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
@@ -2580,13 +2752,13 @@ const styles = StyleSheet.create({
   fastingTagText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#B45309',
+    color: '#64748B',
   },
   tatTagPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#E0F7FA',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
@@ -2594,29 +2766,29 @@ const styles = StyleSheet.create({
   tatTagText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#1D4ED8',
+    color: '#1E3A8A',
   },
   testPriceText: {
     fontSize: 13.5,
     fontWeight: '900',
-    color: '#0F766E',
+    color: '#00B894',
     marginTop: 2,
   },
   labAssuranceBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F2FAF0',
     padding: 10,
     borderRadius: 10,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: '#D1FAE5',
+    borderColor: '#C6EBC0',
   },
   labAssuranceText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#065F46',
+    color: '#1E3A8A',
     flex: 1,
     lineHeight: 15,
   },

@@ -4,7 +4,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
@@ -14,6 +13,7 @@ import {
   TextInput,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
@@ -1070,7 +1070,7 @@ const HospitalListScreen = ({ navigation }) => {
 
     return (
 
-      <SafeAreaView
+      <SafeAreaView edges={['top', 'left', 'right']}
         style={styles.container}
       >
 
@@ -1151,7 +1151,7 @@ const HospitalListScreen = ({ navigation }) => {
   // ==================================================
 
   return (
-    <SafeAreaView
+    <SafeAreaView edges={['top', 'left', 'right']}
       style={styles.container}
     >
       {/* HEADER (MOBILE ONLY) */}

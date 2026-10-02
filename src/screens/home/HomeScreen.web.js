@@ -10,2645 +10,2398 @@ import {
   SafeAreaView,
   useWindowDimensions,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
-import colors from '../../theme/colors';
-import { useCart } from '../../context/CartContext';
-import doctors, { doctorSpecialties } from '../../data/doctors';
-import { labPackages } from '../../data/homeData';
-import WebFooter from '../../components/web/WebFooter';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import HomeScreenMobile from './HomeScreenMobile';
+import { filterLocations } from '../../data/locations';
+import { FEATURED_SPECIALTIES } from '../../data/featuredSpecialties';
+import SpecialtyIcon from '../../components/common/SpecialtyIcon';
+import { detectAutoLocation } from '../../utils/locationHelper';
+import { showAlert } from '../../utils/alert';
+import PromotionalAdsSection from '../../components/web/PromotionalAdsSection';
 
-const HERO_PROMO_ADS = [
+// ==================================================
+// OFFICIAL MEDIUNIFY LOGO & BRAND PALETTE:
+// Teal (#00B894), Navy Blue (#1E3A8A), Aqua (#00C2CB), Fresh Green (#7BC96F), Coral (#FF7F50), Slate (#64748B)
+// ==================================================
+const PALETTE = {
+  teal: '#00B894',
+  tealDark: '#00B894',
+  tealLight: '#ECFDF5',
+  tealLightSubtle: '#F0FDF4',
+  navyBlue: '#1E3A8A',
+  aqua: '#00C2CB',
+  freshGreen: '#7BC96F',
+  coral: '#FF7F50',
+  slate: '#64748B',
+  slateLight: '#F1F8FB',
+  slateDark: '#1E3A8A',
+  border: '#DCE7EC',
+  // Pastel service cards
+  pastelLightBlue: '#EEF7FC',
+  pastelLightMint: '#ECF9F5',
+  pastelSoftPurple: '#F2EEFF',
+  pastelSoftPeach: '#FFF1E8',
+  pastelSoftPink: '#FDEFF3',
+};
+
+// 7 Service Cards — with accent colors, badges, creative design
+const HERO_PRACTO_CARDS = [
   {
-    id: 'promo-1',
-    pillText: 'HEALTH CHECK',
-    pillBg: '#FFE11B',
-    pillColor: '#0F172A',
-    tagText: 'NABL Certified',
-    tagIcon: 'shield-checkmark',
-    title: 'Full Body Health Checkup',
-    priceText: 'From ₹999*',
-    priceColor: '#0071DC',
-    subTitle: 'Includes 68 Vital Parameters • Free Home Sample Pickup',
-    badgeSale: 'Digital Reports in 12h',
-    bgColor: '#FDF7E7',
-    image: 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=400',
-    route: 'LabTests',
-  },
-  {
-    id: 'promo-2',
-    pillText: '60-MIN EXPRESS',
-    pillBg: '#EA580C',
-    pillColor: '#FFFFFF',
-    tagText: '100% Genuine',
-    tagIcon: 'checkmark-circle',
-    title: 'Doorstep Medicines',
-    priceText: 'Flat 20% OFF',
-    priceColor: '#EA580C',
-    subTitle: 'Genuine Branded Drugs, Jan Aushadhi & Wellness',
-    badgeSale: 'Order with Prescription',
-    bgColor: '#FFF7ED',
-    image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400',
-    route: 'Pharmacy',
-  },
-  {
-    id: 'promo-3',
-    pillText: 'VERIFIED DOCTORS',
-    pillBg: '#2563EB',
-    pillColor: '#FFFFFF',
-    tagText: 'Instant HD Call',
-    tagIcon: 'videocam',
-    title: 'Instant Video Consult',
-    priceText: 'From ₹299*',
-    priceColor: '#38BDF8',
-    titleColor: '#FFFFFF',
-    subColor: '#94A3B8',
-    subTitle: 'Cardiologists, Physicians, Pediatricians & Gynecologists',
-    badgeSale: 'Zero Waiting Time',
-    badgeSaleBg: '#1E293B',
-    badgeSaleColor: '#38BDF8',
-    bgColor: '#0B0F19',
-    image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400',
+    id: 'video-consult',
+    title: 'Video Consultation',
+    subtitle: 'Connect with expert doctors from the comfort of your home.',
+    bgColor: '#E8F4FD',
+    gradientTop: 'linear-gradient(135deg, #C9E8F8 0%, #E0F3FD 100%)',
+    accentColor: '#1170CF',
+    accentBg: '#E8F4FD',
+    availability: "Qualified Doctor's",
+    iconFamily: 'MaterialCommunityIcons',
+    iconName: 'stethoscope',
     route: 'VideoConsultation',
+    image: require('../../../assets/services/service_video_consult.jpg'),
   },
   {
-    id: 'promo-4',
-    pillText: 'EQUIPMENT RENTAL',
-    pillBg: '#7C3AED',
-    pillColor: '#FFFFFF',
-    tagText: 'BioMedical Tested',
-    tagIcon: 'construct',
-    title: 'Medical Equipment Rental',
-    priceText: 'From ₹149/day',
-    priceColor: '#7C3AED',
-    subTitle: 'Oxygen Concentrators, ICU Beds, CPAP & Wheelchairs',
-    badgeSale: 'Doorstep Setup in 4 Hrs',
-    bgColor: '#FAF5FF',
-    image: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=400',
-    route: 'EquipmentRental',
+    id: 'lab-tests',
+    title: 'Lab Tests',
+    subtitle: 'Get accurate results with trusted labs. Home sample pickup.',
+    bgColor: '#E6F8F2',
+    gradientTop: 'linear-gradient(135deg, #C2EEE2 0%, #DCF5EE 100%)',
+    accentColor: '#00A878',
+    accentBg: '#E6F8F2',
+    availability: 'Free Home Pickup',
+    iconFamily: 'Ionicons',
+    iconName: 'home',
+    route: 'LabTests',
+    image: require('../../../assets/services/service_lab_tests.jpg'),
   },
   {
-    id: 'promo-5',
-    pillText: 'AYUSH CERTIFIED',
-    pillBg: '#059669',
-    pillColor: '#FFFFFF',
-    tagText: 'Authentic Vaidya',
-    tagIcon: 'leaf',
-    title: 'Ayurveda & Panchakarma',
-    priceText: 'From ₹400',
-    priceColor: '#059669',
-    subTitle: 'Nadi Pariksha, Stress Relief, Joint Pain & Detox Therapies',
-    badgeSale: 'Natural Holistic Healing',
-    bgColor: '#F0FDF4',
-    image: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=400',
-    route: 'AyurvedaWellness',
+    id: 'pharmacy',
+    title: 'Pharmacy',
+    subtitle: 'Order medicines and healthcare essentials, delivered fast.',
+    bgColor: '#F0EBFF',
+    gradientTop: 'linear-gradient(135deg, #DDD4FF 0%, #EDE6FF 100%)',
+    accentColor: '#6B46C1',
+    accentBg: '#F0EBFF',
+    availability: 'Fast Delivery',
+    iconFamily: 'MaterialCommunityIcons',
+    iconName: 'truck-fast',
+    route: 'Pharmacy',
+    image: require('../../../assets/services/service_pharmacy.jpg'),
   },
   {
-    id: 'promo-6',
-    pillText: 'IVF & FERTILITY',
-    pillBg: '#DB2777',
-    pillColor: '#FFFFFF',
-    tagText: '100% Confidential',
-    tagIcon: 'shield-checkmark',
-    title: 'Fertility & IVF Guidance',
-    priceText: '0% EMI Plans',
-    priceColor: '#DB2777',
-    subTitle: '73% Clinical Success • Dedicated Reproductive Counselors',
-    badgeSale: 'Discreet Pre-Conception Care',
-    bgColor: '#FDF2F8',
-    image: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=400',
-    route: 'FertilityIvf',
-  },
-  {
-    id: 'promo-7',
-    pillText: '3T MRI & SCANS',
-    pillBg: '#6366F1',
-    pillColor: '#FFFFFF',
-    tagText: 'NABL Accredited',
-    tagIcon: 'radio',
-    title: 'Radiology & Cardiology Scans',
-    priceText: 'Up to 40% OFF',
-    priceColor: '#6366F1',
-    subTitle: '2D Echo, 12-Lead ECG, 3T MRI, CT & Ultrasound',
-    badgeSale: 'Same Day Digital Reports',
-    bgColor: '#EEF2FF',
-    image: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=400',
-    route: 'RadiologyLabs',
-  },
-  {
-    id: 'promo-8',
-    pillText: 'CASHLESS HEALTH',
-    pillBg: '#059669',
-    pillColor: '#FFFFFF',
-    tagText: 'Instant Approval',
-    tagIcon: 'card',
-    title: 'Cashless Health Insurance',
-    priceText: 'Zero Deposit',
-    priceColor: '#059669',
-    subTitle: 'Pre-Approved Hospitalization & Instant E-Card Generation',
-    badgeSale: '100% Hassle-Free Claims',
-    bgColor: '#ECFDF5',
-    image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400',
-    route: 'HealthInsurance',
+    id: 'radiology',
+    title: 'Scans & X-Ray',
+    subtitle: 'Advanced imaging diagnostics with certified radiologists.',
+    bgColor: '#E8F4FD',
+    gradientTop: 'linear-gradient(135deg, #BFD8F0 0%, #D8ECFA 100%)',
+    accentColor: '#0369A1',
+    accentBg: '#E8F4FD',
+    availability: 'Same Day Reports',
+    iconFamily: 'Ionicons',
+    iconName: 'document-text',
+    route: 'Imaging',
+    image: require('../../../assets/services/service_radiology.jpg'),
   },
 ];
 
-const FEATURED_MEDICINES = [
-  {
-    id: 'MED-1',
-    name: 'Dolo 650mg Tablet',
-    brand: 'Micro Labs',
-    category: 'Fever & Pain Relief',
-    price: 30,
-    mrp: 35,
-    discount: '₹5 off',
-    badge: '₹5 off',
-    rating: 4.9,
-    image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400',
-    subText: 'Coupon offer',
-  },
-  {
-    id: 'MED-2',
-    name: 'Dr. Ananya Rao',
-    brand: 'Mediunify Heart Clinic',
-    category: 'Cardiology Specialist',
-    price: 600,
-    mrp: 800,
-    discount: '25% off',
-    badge: '⭐ 4.9',
-    rating: 4.9,
-    image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400',
-    subText: 'Book Clinic Visit',
-    isDoctor: true,
-  },
-  {
-    id: 'MED-3',
-    name: 'Full Body Lipid & Sugar Panel',
-    brand: 'NABL Certified Labs',
-    category: 'Diagnostic Pathology',
-    price: 799,
-    mrp: 1499,
-    discount: '↓ 45%',
-    badge: '↓ 45%',
-    rating: 4.9,
-    image: 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=400',
-    subText: 'Free Home Pickup',
-    isLab: true,
-  },
-  {
-    id: 'MED-4',
-    name: 'High-Precision 3T MRI Scan',
-    brand: 'Advanced Radiology Centre',
-    category: 'Brain & Spine Imaging',
-    price: 3800,
-    mrp: 5500,
-    discount: '₹1,700 off',
-    badge: '₹1,700 off',
-    rating: 4.8,
-    image: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=400',
-    subText: 'Instant Slot Booking',
-    isScan: true,
-  },
-  {
-    id: 'MED-5',
-    name: 'Volini Pain Relief Gel 50g',
-    brand: 'Sun Pharma',
-    category: 'Joint & Muscle Care',
-    price: 135,
-    mrp: 165,
-    discount: '↓ 20%',
-    badge: '↓ 20%',
-    rating: 4.8,
-    image: 'https://images.unsplash.com/photo-1550572017-ed24058d844c?w=400',
-    subText: 'Deals for you',
-  },
-  {
-    id: 'MED-6',
-    name: 'Augmentin 625 Duo',
-    brand: 'GSK Pharmaceuticals',
-    category: 'Antibiotics',
-    price: 180,
-    mrp: 205,
-    discount: '12% off',
-    badge: '₹25 off',
-    rating: 4.8,
-    image: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=400',
-    subText: 'Pharmacy Store',
-  },
+// Popular search tags matching reference design
+const POPULAR_SEARCH_TAGS = [
+  { label: 'Fever', query: 'Fever' },
+  { label: 'General Physician', specialty: 'general-primary' },
+  { label: 'Blood Test', route: 'LabTests' },
+  { label: 'MRI Scan', route: 'Imaging' },
+  { label: 'Cardiologist', specialty: 'cardiology-heart' },
+  { label: 'Pharmacy', route: 'Pharmacy' },
+  { label: 'Hospital', route: 'HospitalCare' },
 ];
 
-const TESTIMONIALS = [
+// Trust Matrix Pillars matching Login Screen design
+const TRUST_PILLARS = [
   {
-    id: '1',
-    name: 'Suresh Kumar',
-    locality: 'Jayalakshmipuram, Mysore',
-    service: 'In-Person Consultation & Pharmacy',
-    comment:
-      'Booked an appointment with Dr. Ananya Rao through Mediunify. Zero wait time at the clinic and prescribed medicines reached home in under 45 minutes.',
-    rating: 5,
-    date: '3 days ago',
+    icon: 'shield-checkmark',
+    title: '100% Verified Specialists',
+    desc: 'Rigorous 4-step credential checks & active state medical council verification for every doctor.',
+    badge: '3,200+ DOCTORS',
+    color: '#00B894',
+    bg: '#ECF9F5',
   },
   {
-    id: '2',
-    name: 'Dr. Meenakshi Sundaram',
-    locality: 'Kuvempunagar, Mysore',
-    service: 'Home Blood Sample Collection',
-    comment:
-      'Scheduled a full body health package for my elderly parents. Phlebotomist arrived on time with sterile vacuum vials. Reports online same evening.',
-    rating: 5,
-    date: '1 week ago',
+    icon: 'lock-closed',
+    title: 'Military-Grade 256-Bit SSL',
+    desc: 'ABDM-integrated electronic health records with end-to-end data encryption and strict HIPAA standards.',
+    badge: 'ISO 27001 SECURE',
+    color: '#1E3A8A',
+    bg: '#EEF7FC',
   },
   {
-    id: '3',
-    name: 'Vikas Gowda',
-    locality: 'Indiranagar, Bangalore',
-    service: '3T MRI Brain Scan',
-    comment:
-      'Smooth booking experience for 3T MRI at an accredited imaging centre. Saved almost ₹1,500 compared to walk-in rates. Highly recommended medical platform.',
-    rating: 5,
-    date: '2 weeks ago',
+    icon: 'home',
+    title: 'Doorstep Sample Collection',
+    desc: 'Trained phlebotomists, temperature-controlled cold chain logistics, and same-day certified reports.',
+    badge: 'NABL PARTNERS',
+    color: '#00B894',
+    bg: '#E9F4F9',
+  },
+  {
+    icon: 'medal',
+    title: 'NABH Accredited Centers',
+    desc: 'Zero hidden surgery costs, transparent second opinions, and dedicated care buddy for hospital stays.',
+    badge: '4.9/5 RATING',
+    color: '#00B894',
+    bg: '#ECFDF5',
   },
 ];
 
 const HomeScreenWeb = ({ navigation }) => {
   const { width } = useWindowDimensions();
-  const { addToCart } = useCart();
-  const [userName, setUserName] = useState('Hemanth');
-  const [walletBalance, setWalletBalance] = useState(1250);
+  const scrollViewRef = useRef(null);
 
-  // Auto-moving ads carousel state & ref
-  const adScrollRef = useRef(null);
-  const [activeAdIndex, setActiveAdIndex] = useState(0);
-  const [isHovered, setIsHovered] = useState(false);
+  // Search state matching Practo reference
+  const [selectedCity, setSelectedCity] = useState('Bangalore');
+  const [showCityPicker, setShowCityPicker] = useState(false);
+  const [locationSearchText, setLocationSearchText] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  const isDesktop = width >= 960;
-  const isTablet = width >= 600 && width < 960;
-  const visibleCardsCount = isDesktop ? 3 : isTablet ? 2 : 1;
-  const containerMaxWidth = 1320;
-  const availableWidth = Math.min(width, containerMaxWidth) - 48;
-  const cardWidth = isDesktop
-    ? (availableWidth - 32) / 3
-    : isTablet
-    ? (availableWidth - 16) / 2
-    : availableWidth;
+  const isDesktop = width >= 992;
+  const isTablet = width >= 640 && width < 992;
+  const isMobile = width < 640;
 
-  const maxIndex = Math.max(0, HERO_PROMO_ADS.length - visibleCardsCount);
+  const filteredLocations = filterLocations(locationSearchText);
 
-  // Auto-slide every 3.5s (pauses when user hovers)
-  useEffect(() => {
-    if (isHovered) return;
-    const interval = setInterval(() => {
-      setActiveAdIndex((prev) => {
-        const next = prev >= maxIndex ? 0 : prev + 1;
-        if (adScrollRef.current) {
-          try {
-            adScrollRef.current.scrollTo({
-              x: next * (cardWidth + 16),
-              animated: true,
-            });
-          } catch (e) {}
-        }
-        return next;
+  // Specialties Horizontal Carousel state & scrolling
+  const specialtiesScrollRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  const scrollSpecialties = (direction) => {
+    const scrollAmount = isDesktop ? 650 : 360;
+    const node =
+      specialtiesScrollRef.current?.getScrollableNode?.() ||
+      specialtiesScrollRef.current;
+
+    if (node && typeof node.scrollBy === 'function') {
+      node.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth',
       });
-    }, 3500);
-
-    return () => clearInterval(interval);
-  }, [isHovered, cardWidth, maxIndex]);
-
-  const handleNextAd = () => {
-    const next = activeAdIndex >= maxIndex ? 0 : activeAdIndex + 1;
-    setActiveAdIndex(next);
-    adScrollRef.current?.scrollTo({ x: next * (cardWidth + 16), animated: true });
-  };
-
-  const handlePrevAd = () => {
-    const prev = activeAdIndex <= 0 ? maxIndex : activeAdIndex - 1;
-    setActiveAdIndex(prev);
-    adScrollRef.current?.scrollTo({ x: prev * (cardWidth + 16), animated: true });
-  };
-
-  const handleGoToAd = (idx) => {
-    const clamped = Math.min(idx, maxIndex);
-    setActiveAdIndex(clamped);
-    adScrollRef.current?.scrollTo({ x: clamped * (cardWidth + 16), animated: true });
-  };
-
-  useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        const savedActive = await AsyncStorage.getItem('@unnathi_active_patient');
-        if (savedActive) {
-          const parsed = JSON.parse(savedActive);
-          if (parsed?.displayName || parsed?.name) {
-            const raw = (parsed.displayName || parsed.name).trim();
-            const first = raw.replace(/\s*\([Ss]elf\)/g, '').split(' ')[0] || raw;
-            if (first) {
-              setUserName(first);
-            }
-          }
-        } else {
-          const stored = await AsyncStorage.getItem('userName');
-          if (stored && stored.trim()) {
-            setUserName(stored.trim());
-          }
+      setTimeout(() => {
+        if (node) {
+          setCanScrollLeft(node.scrollLeft > 15);
+          setCanScrollRight(node.scrollLeft < node.scrollWidth - node.clientWidth - 15);
         }
-
-        const storedWallet = await AsyncStorage.getItem('@unnathi_wallet_balance');
-        if (storedWallet !== null) {
-          setWalletBalance(parseInt(storedWallet, 10) || 1250);
-        }
-      } catch (e) {
-        console.log('Error loading user data in HomeScreenWeb:', e);
-      }
-    };
-    loadUserData();
-  }, []);
-
-  const handleAddToCart = (med) => {
-    addToCart({
-      id: med.id,
-      name: med.name,
-      price: med.price,
-      mrp: med.mrp,
-      quantity: 1,
-      image: med.image,
-    });
-    alert(`"${med.name}" has been added to your cart.`);
-  };
-
-  const handleCardClick = (item) => {
-    if (item.isDoctor) {
-      navigation?.navigate('DoctorList');
-    } else if (item.isLab) {
-      navigation?.navigate('LabTests');
-    } else if (item.isScan) {
-      navigation?.navigate('Imaging');
-    } else {
-      navigation?.navigate('Pharmacy');
+      }, 350);
+    } else if (specialtiesScrollRef.current?.scrollTo) {
+      const currentOffset = node?.scrollLeft || 0;
+      const targetOffset = direction === 'left' ? Math.max(0, currentOffset - scrollAmount) : currentOffset + scrollAmount;
+      specialtiesScrollRef.current.scrollTo({ x: targetOffset, animated: true });
     }
   };
+
+  const handleSpecialtiesScroll = (e) => {
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    const currentX = contentOffset?.x || 0;
+    const maxScroll = (contentSize?.width || 0) - (layoutMeasurement?.width || 0);
+
+    setCanScrollLeft(currentX > 15);
+    setCanScrollRight(currentX < maxScroll - 15);
+  };
+
+  // Auth guard: If user is not logged in, redirect directly to Login page
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem('isLoggedIn');
+        if (isMounted) {
+          if (stored === 'true') {
+            setIsLoggedIn(true);
+          } else {
+            const parent = navigation?.getParent?.();
+          if (parent?.reset) {
+            parent.reset({
+              index: 0,
+              routes: [{ name: 'Auth', state: { routes: [{ name: 'Login' }] } }],
+            });
+            return;
+          }
+          if (navigation?.reset) {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Auth', state: { routes: [{ name: 'Login' }] } }],
+            });
+            return;
+          }
+          if (parent?.navigate) {
+            parent.navigate('Auth', { screen: 'Login' });
+            return;
+          }
+          if (navigation?.navigate) {
+            navigation.navigate('Auth', { screen: 'Login' });
+          }
+        }
+      }
+    } catch (e) {}
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Load saved city on mount or automatically detect location where user is
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await AsyncStorage.getItem('@mediunify_selected_city');
+        if (saved) {
+          setSelectedCity(saved);
+        } else {
+          // Automatic GPS / network location detection
+          const res = await detectAutoLocation();
+          if (res && res.city) {
+            setSelectedCity(res.city);
+          }
+        }
+      } catch (e) {
+        console.warn('[Location] Auto-detect error on mount:', e);
+      }
+    })();
+  }, []);
+
+  const handleSelectLocation = async (locName) => {
+    setSelectedCity(locName);
+    setShowCityPicker(false);
+    setLocationSearchText('');
+    try {
+      await AsyncStorage.setItem('@mediunify_selected_city', locName);
+      await AsyncStorage.setItem('@unnathi_user_location', locName);
+    } catch (e) {}
+  };
+
+  const handleDetectLocation = async () => {
+    setIsDetectingLocation(true);
+    try {
+      const res = await detectAutoLocation();
+      if (res && res.city) {
+        setSelectedCity(res.city);
+        setShowCityPicker(false);
+        setLocationSearchText('');
+        showAlert('Location Detected', `Your location has been set to ${res.city} (${res.source === 'gps' ? 'GPS' : 'Network'}).`);
+      } else {
+        showAlert('Location Notice', 'Could not detect GPS location. Defaulted to Bangalore.');
+      }
+    } catch (e) {
+      console.warn('[Location] GPS detect error:', e);
+    } finally {
+      setIsDetectingLocation(false);
+    }
+  };
+
+  const handleSearchSubmit = () => {
+    if (searchQuery.trim()) {
+      navigation?.navigate('DoctorList', { searchQuery: searchQuery.trim(), city: selectedCity });
+    } else {
+      navigation?.navigate('DoctorList', { city: selectedCity });
+    }
+  };
+
+  const handleConsultNow = (specialty) => {
+    navigation?.navigate('DoctorList', { specialty });
+  };
+
+  const handlePopularTagClick = (tag) => {
+    if (tag.specialty) {
+      handleConsultNow(tag.specialty);
+    } else if (tag.route) {
+      handleNavigateToService(tag.route);
+    } else if (tag.query) {
+      setSearchQuery(tag.query);
+      handleNavigateToService('DoctorList', { searchQuery: tag.query, city: selectedCity });
+    } else {
+      setSearchQuery(tag.label);
+      handleNavigateToService('DoctorList', { searchQuery: tag.label, city: selectedCity });
+    }
+  };
+
+  const handleNavigateToService = (route, params) => {
+    if (navigation?.navigate) {
+      if (params) {
+        navigation.navigate(route, params);
+      } else {
+        navigation.navigate(route);
+      }
+    }
+  };
+
+  // Inject web interactive CSS
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const styleId = 'mediunify-home-interactive-css';
+      let styleEl = document.getElementById(styleId);
+      if (!styleEl) {
+        styleEl = document.createElement('style');
+        styleEl.id = styleId;
+        document.head.appendChild(styleEl);
+      }
+      styleEl.innerHTML = `
+        /* =============================================
+           SERVICE CARDS — RICH HOVER ANIMATIONS
+        ============================================= */
+        .service-card {
+          transition:
+            transform 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+            box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        }
+        .service-card:hover {
+          transform: translateY(-10px) scale(1.015) !important;
+          box-shadow:
+            0 24px 48px -12px rgba(12, 59, 107, 0.14),
+            0 8px 20px -6px rgba(12, 59, 107, 0.07) !important;
+        }
+        .service-card:active {
+          transform: translateY(-4px) scale(1.005) !important;
+        }
+        .service-card-image {
+          transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        }
+        .service-card:hover .service-card-image {
+          transform: scale(1.1) !important;
+        }
+        .service-card-btn {
+          transition: background-color 0.22s ease, transform 0.18s ease, box-shadow 0.22s ease !important;
+        }
+        .service-card:hover .service-card-btn {
+          transform: translateX(3px) !important;
+        }
+        .service-card-btn-text {
+          transition: color 0.2s ease !important;
+        }
+        .service-card-avail-badge {
+          transition: opacity 0.2s ease !important;
+        }
+        /* Hero search banner gradient visible on all desktop and laptop monitors */
+        .hero-search-section-bg {
+          background-color: #D8EEF6 !important;
+          background-image: linear-gradient(135deg, #CCE8F5 0%, #D4F3EB 45%, #DFFAF3 100%) !important;
+          border-bottom: 1px solid #BFDFEB !important;
+        }
+        /* Promotional offer cards hover */
+        .mediunify-promo-ad-card {
+          transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.28s ease !important;
+          cursor: pointer !important;
+        }
+        .mediunify-promo-ad-card:hover {
+          transform: translateY(-6px) !important;
+          box-shadow: 0 20px 32px -8px rgba(12, 59, 107, 0.14), 0 6px 16px -4px rgba(12, 59, 107, 0.05) !important;
+        }
+        /* =============================================
+           EXISTING HOVER STYLES
+        ============================================= */
+        .practo-card-hover {
+          transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        }
+        .practo-card-hover:hover {
+          transform: translateY(-6px) !important;
+          box-shadow: 0 16px 32px -8px rgba(12, 59, 107, 0.10), 0 4px 12px -2px rgba(12, 59, 107, 0.04) !important;
+        }
+        .practo-spec-card {
+          transition: transform 0.26s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.26s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.26s ease !important;
+          cursor: pointer !important;
+        }
+        .practo-spec-card:hover {
+          transform: translateY(-6px) !important;
+          box-shadow: 0 16px 32px -8px rgba(25, 130, 156, 0.16), 0 4px 12px rgba(12, 59, 107, 0.04) !important;
+          border-color: #00B894 !important;
+        }
+        .practo-spec-card img {
+          transition: transform 0.35s ease !important;
+        }
+        .practo-spec-card:hover img {
+          transform: scale(1.08) !important;
+        }
+        .practo-spec-card:hover .consult-btn-hover {
+          background-color: #00B894 !important;
+          border-color: #00B894 !important;
+        }
+        .practo-spec-card:hover .consult-btn-hover span,
+        .practo-spec-card:hover .consult-btn-hover div {
+          color: #FFFFFF !important;
+        }
+        .practo-search-input:focus {
+          outline: none !important;
+        }
+        .search-btn-hover {
+          transition: background-color 0.2s ease, transform 0.15s ease !important;
+        }
+        .search-btn-hover:hover {
+          background-color: #00A884 !important;
+          transform: translateY(-1px) !important;
+        }
+        .chip-hover:hover,
+        .popular-chip-hover:hover {
+          border-color: #00B894 !important;
+          background-color: #ECFDF5 !important;
+          color: #00B894 !important;
+          transform: translateY(-1px) !important;
+        }
+        .popular-chip-hover {
+          transition: all 0.2s ease !important;
+        }
+        .medi-ai-btn-hover {
+          transition: background-color 0.2s ease, transform 0.15s ease !important;
+        }
+        .medi-ai-btn-hover:hover {
+          background-color: #08284d !important;
+          transform: translateY(-1px) !important;
+        }
+        .carousel-arrow-btn {
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+          cursor: pointer !important;
+        }
+        .carousel-arrow-btn:hover:not(:disabled) {
+          background-color: #00B894 !important;
+          border-color: #00B894 !important;
+          transform: scale(1.1) !important;
+          box-shadow: 0 8px 22px rgba(25, 130, 156, 0.25) !important;
+        }
+        .carousel-arrow-btn:hover:not(:disabled) svg,
+        .carousel-arrow-btn:hover:not(:disabled) * {
+          color: #FFFFFF !important;
+        }
+        .refer-earn-card {
+          transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s ease !important;
+          cursor: pointer !important;
+        }
+        .refer-earn-card:hover {
+          transform: translateY(-2px) !important;
+          border-color: #00B894 !important;
+          box-shadow: 0 10px 24px -4px rgba(25, 130, 156, 0.16), 0 3px 8px -2px rgba(12, 59, 107, 0.04) !important;
+        }
+        .refer-earn-card:hover .refer-arrow,
+        .refer-earn-card:hover svg.refer-arrow {
+          transform: translateX(3px) !important;
+        }
+        .refer-earn-card:active {
+          transform: translateY(0px) !important;
+        }
+      `;
+    }
+  }, []);
+
+  // Dismiss dropdown on outside click or Escape key
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const handleClickOutside = (e) => {
+        if (!showCityPicker) return;
+        const pickerEl = document.getElementById('home-city-picker-box');
+        if (pickerEl && !pickerEl.contains(e.target)) {
+          setShowCityPicker(false);
+        }
+      };
+      const handleKeyDown = (e) => {
+        if (e.key === 'Escape') {
+          setShowCityPicker(false);
+        }
+      };
+      const timer = setTimeout(() => {
+        document.addEventListener('click', handleClickOutside);
+        window.addEventListener('keydown', handleKeyDown);
+      }, 50);
+      return () => {
+        clearTimeout(timer);
+        document.removeEventListener('click', handleClickOutside);
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [showCityPicker]);
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* ============================================================
-            1. FLIPKART MULTI-BANNER PROMO HERO CAROUSEL (AUTO-MOVING)
+            1. HERO SEARCH HUB (SAME POLISHED DESIGN AS LOGIN SCREEN)
         ============================================================ */}
         <View
-          style={styles.heroCarouselWrap}
+          style={[
+            styles.heroSearchSection,
+            Platform.OS === 'web' ? {
+              backgroundColor: '#D8EEF6',
+              backgroundImage: 'linear-gradient(135deg, #CCE8F5 0%, #D4F3EB 45%, #DFFAF3 100%)',
+              borderBottomColor: '#BFDFEB',
+            } : {},
+          ]}
           // @ts-ignore
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
+          className="hero-search-section-bg"
         >
-          {/* Navigation Arrows (Desktop / Tablet) */}
-          {isDesktop && (
-            <>
-              <TouchableOpacity
-                style={styles.carouselArrowLeft}
-                onPress={handlePrevAd}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="chevron-back" size={20} color="#0F172A" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.carouselArrowRight}
-                onPress={handleNextAd}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="chevron-forward" size={20} color="#0F172A" />
-              </TouchableOpacity>
-            </>
-          )}
-
-          <ScrollView
-            ref={adScrollRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            pagingEnabled={!isDesktop}
-            contentContainerStyle={styles.heroCarouselScrollTrack}
-            onMomentumScrollEnd={(e) => {
-              const cardStep = cardWidth + 16;
-              const idx = Math.round(e.nativeEvent.contentOffset.x / cardStep);
-              if (idx >= 0 && idx <= maxIndex) {
-                setActiveAdIndex(idx);
-              }
-            }}
+          <View
+            style={[
+              styles.heroBannerWrap,
+              {
+                maxWidth: isDesktop ? 1340 : '96%',
+                flexDirection: isDesktop ? 'row' : 'column',
+                alignItems: isDesktop ? 'center' : 'stretch',
+                flexWrap: isDesktop ? 'nowrap' : 'wrap',
+                gap: isDesktop ? (width < 1280 ? 18 : 24) : 20,
+              },
+            ]}
           >
-            {HERO_PROMO_ADS.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[
-                  styles.bannerCard,
-                  {
-                    width: cardWidth,
-                    backgroundColor: item.bgColor,
-                  },
-                ]}
-                onPress={() => navigation?.navigate(item.route)}
-                activeOpacity={0.92}
-              >
-                <View style={styles.bannerBadgeRow}>
-                  <View style={[styles.brandPillYellow, { backgroundColor: item.pillBg }]}>
-                    <Text style={[styles.brandPillYellowText, { color: item.pillColor }]}>{item.pillText}</Text>
-                  </View>
-                  {item.tagText ? (
-                    <View style={styles.brandTagFlipkart}>
-                      <Ionicons name={item.tagIcon || 'shield-checkmark'} size={11} color="#0071DC" />
-                      <Text style={styles.brandTagFlipkartText}>{item.tagText}</Text>
+            {/* Left Column: Headlines, Unified Search Bar & Popular Searches */}
+            <View style={[styles.heroLeftCol, isDesktop ? { flex: 1, minWidth: 340, maxWidth: width < 1280 ? 560 : 660 } : { width: '100%' }]}>
+              {/* 1. Badge & Refer Earn Row */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+                <View style={styles.trustedBadge}>
+                  <Ionicons name="shield-checkmark" size={13} color="#059669" style={{ marginRight: 6 }} />
+                  <Text style={styles.trustedBadgeText}>TRUSTED BY PATIENTS ACROSS INDIA</Text>
+                </View>
+                {isLoggedIn && (
+                  <TouchableOpacity
+                    style={styles.referEarnPill}
+                    onPress={() => handleNavigateToService('ReferEarn')}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="gift" size={13} color="#00B894" style={{ marginRight: 5 }} />
+                    <Text style={styles.referEarnPillText}>Refer & Earn ₹250</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* 2. Main Title */}
+              <View style={styles.heroTitleWrap}>
+                <Text style={styles.heroTitleNavy}>Your Healthcare.</Text>
+                <Text style={styles.heroTitleTeal}>One Intelligent Platform.</Text>
+              </View>
+
+              {/* 3. Subtitle */}
+              <Text style={styles.heroSubtitle}>
+                Find doctors, book lab tests, order medicines, access Scans & X-Ray and connect with trusted hospitals — all in one place.
+              </Text>
+
+              {/* 4. Unified Search Bar */}
+              <View style={styles.unifiedSearchBar} nativeID="home-unified-search-box">
+                {/* Location selector wrapper */}
+                <View style={styles.citySelectorWrap} nativeID="home-city-picker-box">
+                  <TouchableOpacity
+                    style={styles.citySelector}
+                    onPress={() => setShowCityPicker(!showCityPicker)}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Selected location: ${selectedCity}`}
+                  >
+                    <Ionicons name="location-sharp" size={18} color="#0C3B6B" />
+                    <Text style={styles.cityText} numberOfLines={1}>{selectedCity}</Text>
+                    <Ionicons name="chevron-down" size={13} color="#64748B" />
+                  </TouchableOpacity>
+
+                  {/* City / Locality Search Dropdown Menu */}
+                  {showCityPicker && (
+                    <View style={styles.cityDropdown}>
+                      {/* Search Bar inside Location Picker */}
+                      <View style={styles.locationSearchInputWrap}>
+                        <Ionicons name="search" size={15} color="#00B894" />
+                        <TextInput
+                          style={styles.locationSearchInput}
+                          placeholder="Search city, area, locality..."
+                          placeholderTextColor="#94A3B8"
+                          value={locationSearchText}
+                          onChangeText={setLocationSearchText}
+                          autoFocus
+                        />
+                        {locationSearchText ? (
+                          <TouchableOpacity onPress={() => setLocationSearchText('')} style={{ padding: 2 }}>
+                            <Ionicons name="close-circle" size={15} color="#94A3B8" />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+
+                      {/* Detect GPS Location Button */}
+                      <TouchableOpacity
+                        style={[styles.detectLocationBtn, isDetectingLocation && { opacity: 0.7 }]}
+                        onPress={handleDetectLocation}
+                        disabled={isDetectingLocation}
+                        activeOpacity={0.8}
+                      >
+                        {isDetectingLocation ? (
+                          <ActivityIndicator size="small" color="#00B894" style={{ marginRight: 6 }} />
+                        ) : (
+                          <Ionicons name="locate" size={15} color="#00B894" />
+                        )}
+                        <Text style={styles.detectLocationText}>
+                          {isDetectingLocation ? 'Detecting your GPS location...' : 'Use Current Location (GPS)'}
+                        </Text>
+                      </TouchableOpacity>
+
+                      {/* Filtered Locations List */}
+                      <ScrollView style={styles.locationListScroll} nestedScrollEnabled showsVerticalScrollIndicator>
+                        {locationSearchText.trim() && !filteredLocations.some(l => l.name.toLowerCase() === locationSearchText.trim().toLowerCase()) && (
+                          <TouchableOpacity
+                            style={styles.customLocationItem}
+                            onPress={() => handleSelectLocation(locationSearchText.trim())}
+                          >
+                            <Ionicons name="pin" size={14} color="#00B894" style={{ marginRight: 8 }} />
+                            <Text style={styles.customLocationText}>
+                              Use <Text style={{ fontWeight: '800' }}>"{locationSearchText.trim()}"</Text>
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+
+                        {filteredLocations.map((loc) => (
+                          <TouchableOpacity
+                            key={loc.id}
+                            style={[
+                              styles.cityOption,
+                              selectedCity === loc.name && styles.cityOptionActive,
+                            ]}
+                            onPress={() => handleSelectLocation(loc.name)}
+                          >
+                            <Ionicons
+                              name={loc.type === 'city' ? 'business-outline' : 'navigate-outline'}
+                              size={14}
+                              color={selectedCity === loc.name ? '#00B894' : '#64748B'}
+                              style={{ marginRight: 8 }}
+                            />
+                            <View style={{ flex: 1 }}>
+                              <Text
+                                style={[
+                                  styles.cityOptionText,
+                                  selectedCity === loc.name && styles.cityOptionTextActive,
+                                ]}
+                              >
+                                {loc.full}
+                              </Text>
+                            </View>
+                            {selectedCity === loc.name && (
+                              <Ionicons name="checkmark-circle" size={15} color="#00B894" />
+                            )}
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
                     </View>
+                  )}
+                </View>
+
+                <View style={styles.searchDivider} />
+
+                {/* Keyword Search Input */}
+                <View style={styles.searchInputContainer}>
+                  <Ionicons name="search-outline" size={18} color="#64748B" style={styles.searchIcon} />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search doctors, symptoms, tests, medicines, hospitals or services..."
+                    placeholderTextColor="#94A3B8"
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    onSubmitEditing={handleSearchSubmit}
+                    returnKeyType="search"
+                  />
+                  {searchQuery ? (
+                    <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
+                      <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                    </TouchableOpacity>
                   ) : null}
                 </View>
 
-                <Text style={[styles.bannerMainTitle, item.titleColor ? { color: item.titleColor } : null]}>
-                  {item.title}{'\n'}
-                  <Text style={[styles.bannerPriceText, item.priceColor ? { color: item.priceColor } : null]}>
-                    {item.priceText}
-                  </Text>
-                </Text>
-                <Text style={[styles.bannerSubTitle, item.subColor ? { color: item.subColor } : null]}>
-                  {item.subTitle}
-                </Text>
-
-                <View style={styles.bannerBottomRow}>
-                  <Text
-                    style={[
-                      styles.bannerBadgeSale,
-                      item.badgeSaleBg ? { backgroundColor: item.badgeSaleBg } : null,
-                      item.badgeSaleColor ? { color: item.badgeSaleColor } : null,
-                    ]}
-                  >
-                    {item.badgeSale}
-                  </Text>
-                  <Text style={[styles.bannerAdNotice, item.titleColor ? { color: '#64748B' } : null]}>AD</Text>
-                </View>
-
-                <Image
-                  source={{ uri: item.image }}
-                  style={styles.bannerRightImage}
-                  resizeMode="cover"
-                />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* Flipkart Animated Pagination Dots */}
-          <View style={styles.dotsRow}>
-            {Array.from({ length: maxIndex + 1 }).map((_, i) => (
-              <TouchableOpacity
-                key={i}
-                onPress={() => handleGoToAd(i)}
-                activeOpacity={0.7}
-              >
-                <View
-                  style={[
-                    styles.dot,
-                    activeAdIndex === i && styles.dotActive,
-                  ]}
-                />
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* ============================================================
-            1.2 MEDIUNIFY 24/7 AI HEALTH ASSISTANT HERO BANNER
-        ============================================================ */}
-        <View style={styles.aiHeroBannerWrap}>
-          <View style={styles.aiHeroBannerCard}>
-            <View style={styles.aiHeroLeft}>
-              <View style={styles.aiHeroBadgeRow}>
-                <View style={styles.aiHeroBadgePill}>
-                  <Ionicons name="sparkles" size={13} color="#0D9488" />
-                  <Text style={styles.aiHeroBadgeText}>24/7 AI CLINICAL HEALTH ASSISTANT</Text>
-                </View>
-                <View style={styles.aiHeroLiveDotWrap}>
-                  <View style={styles.aiHeroPulseDot} />
-                  <Text style={styles.aiHeroLiveText}>Live & Free</Text>
-                </View>
-              </View>
-
-              <Text style={styles.aiHeroTitle}>
-                Need Clinical Guidance or Help Choosing Care?
-              </Text>
-              <Text style={styles.aiHeroSubtitle}>
-                Ask MediUnify AI for symptom evaluations, instant prescription OCR decoding, certified doctor recommendations, and home diagnostic tests.
-              </Text>
-
-              {/* Quick Triggers */}
-              <View style={styles.aiHeroChipsRow}>
-                {[
-                  { label: '🤒 Fever & Body Pain' },
-                  { label: '❤️ Chest Pain & ECG' },
-                  { label: '📷 Scan Prescription' },
-                  { label: '🧪 Book Blood Test' },
-                  { label: '💊 Medicine Advice' },
-                  { label: '🦴 Joint Pain specialist' },
-                ].map((chip, idx) => (
-                  <TouchableOpacity
-                    key={idx}
-                    style={styles.aiHeroChip}
-                    onPress={() => navigation?.navigate('MainApp', { screen: 'Chatbot' })}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.aiHeroChipText}>{chip.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Right Action CTA */}
-            <View style={styles.aiHeroRight}>
-              <TouchableOpacity
-                style={styles.aiHeroCtaBtn}
-                onPress={() => navigation?.navigate('MainApp', { screen: 'Chatbot' })}
-                activeOpacity={0.88}
-              >
-                <View style={styles.aiHeroCtaIconCircle}>
-                  <Ionicons name="chatbubble-ellipses" size={22} color="#0D9488" />
-                </View>
-                <View>
-                  <Text style={styles.aiHeroCtaTitle}>Chat with MediUnify AI</Text>
-                  <Text style={styles.aiHeroCtaSub}>Instant Triage • 100% Confidential</Text>
-                </View>
-                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        {/* ============================================================
-            1.4 MEDIUNIFY CARE+ VIP MEMBERSHIP BANNER
-        ============================================================ */}
-        <View style={styles.vipBannerWrap}>
-          <View style={styles.vipBannerCard}>
-            <View style={styles.vipBannerLeft}>
-              <View style={styles.vipBadgePill}>
-                <Ionicons name="ribbon" size={13} color="#B45309" />
-                <Text style={styles.vipBadgeText}>MEDIUNIFY CARE+ VIP MEMBERSHIP</Text>
-              </View>
-              <Text style={styles.vipBannerTitle}>
-                Save Up to ₹10,000 Yearly on Healthcare for You & Your Family
-              </Text>
-              <Text style={styles.vipBannerSub}>
-                Flat 15% Extra OFF on Medicines & Tests • Free Specialist Video Consultations • Free 60-min Express Delivery.
-              </Text>
-              <View style={styles.vipPerksRow}>
-                <View style={styles.vipPerkPill}>
-                  <Ionicons name="checkmark-circle" size={14} color="#059669" />
-                  <Text style={styles.vipPerkText}>4 Free Consults</Text>
-                </View>
-                <View style={styles.vipPerkPill}>
-                  <Ionicons name="checkmark-circle" size={14} color="#059669" />
-                  <Text style={styles.vipPerkText}>₹0 Delivery Fee</Text>
-                </View>
-                <View style={styles.vipPerkPill}>
-                  <Ionicons name="checkmark-circle" size={14} color="#059669" />
-                  <Text style={styles.vipPerkText}>Free Health Checkup</Text>
-                </View>
-              </View>
-            </View>
-            <View style={styles.vipBannerRight}>
-              <Text style={styles.vipPriceStarting}>Plans Starting @</Text>
-              <Text style={styles.vipPriceTag}>₹165 <Text style={{ fontSize: 13, color: '#64748B', fontWeight: '500' }}>/ 3 mos</Text></Text>
-              <TouchableOpacity
-                style={styles.vipJoinBtn}
-                onPress={() => navigation?.navigate('Membership')}
-                activeOpacity={0.88}
-              >
-                <Text style={styles.vipJoinBtnText}>Explore VIP Plans</Text>
-                <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        {/* ============================================================
-            1.5 MEDIUNIFY HEALTH WALLET & CARE POINTS BANNER
-        ============================================================ */}
-        <View style={styles.walletHomeSectionWrap}>
-          <View style={styles.walletHomeCard}>
-            {/* Left Balance & Details */}
-            <View style={styles.walletHomeLeft}>
-              <View style={styles.walletIconBox}>
-                <Ionicons name="wallet" size={28} color="#059669" />
-              </View>
-              <View style={styles.walletHomeInfo}>
-                <View style={styles.walletTitleRow}>
-                  <Text style={styles.walletHomeTitle}>MediUnify Health Wallet</Text>
-                  <View style={styles.walletStatusBadge}>
-                    <View style={styles.walletGreenDot} />
-                    <Text style={styles.walletStatusText}>Active & 100% Secured</Text>
-                  </View>
-                </View>
-                <View style={styles.walletAmountsRow}>
-                  <Text style={styles.walletBalanceBig}>
-                    ₹{walletBalance.toLocaleString('en-IN')}
-                  </Text>
-                  <Text style={styles.walletCoinsBadge}>
-                    + 150 MediCoins (Worth ₹150)
-                  </Text>
-                </View>
-                <Text style={styles.walletHomeSub}>
-                  1-Click Instant Pay for Clinic Appointments, Diagnostic Lab Tests & 60-min Medicine Orders. Earn 5% Cashback on every transaction.
-                </Text>
-              </View>
-            </View>
-
-            {/* Right Action CTAs */}
-            <View style={styles.walletHomeRight}>
-              <TouchableOpacity
-                style={styles.topUpWalletBtn}
-                onPress={() => navigation?.navigate('Wallet')}
-                activeOpacity={0.88}
-              >
-                <Ionicons name="add-circle" size={18} color="#FFFFFF" />
-                <Text style={styles.topUpWalletBtnText}>Top Up Wallet</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.viewPassbookBtn}
-                onPress={() => navigation?.navigate('Wallet')}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="receipt-outline" size={15} color="#065F46" />
-                <Text style={styles.viewPassbookBtnText}>View Passbook & History</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        {/* ============================================================
-            1.8 FEATURED DIGITAL HEALTH: VIDEO CALL & HEALTH INSURANCE
-        ============================================================ */}
-        <View style={styles.featuredServicesWrap}>
-          <View style={styles.featuredServicesInner}>
-            {/* Card 1: Instant Video Consultation */}
-            <TouchableOpacity
-              style={styles.featuredServiceCard}
-              onPress={() => navigation?.navigate('VideoConsultation')}
-              activeOpacity={0.9}
-            >
-              <View style={styles.featuredCardHeader}>
-                <View style={[styles.featuredTagPill, { backgroundColor: '#EFF6FF' }]}>
-                  <Ionicons name="videocam" size={13} color="#2563EB" />
-                  <Text style={[styles.featuredTagText, { color: '#2563EB' }]}>ONLINE CONSULTATION</Text>
-                </View>
-                <View style={styles.featuredLiveDotRow}>
-                  <View style={styles.greenPulseDot} />
-                  <Text style={styles.featuredLiveText}>18 Doctors Online</Text>
-                </View>
-              </View>
-
-              <Text style={styles.featuredCardTitle}>
-                Consult Specialist Doctors Online
-              </Text>
-              <Text style={styles.featuredCardDesc}>
-                Connect within 15 minutes via 100% private HD video call. Get verified digital prescriptions & free 3-day follow-up.
-              </Text>
-
-              <View style={styles.featuredCardFooter}>
-                <View style={styles.featuredPriceBox}>
-                  <Text style={styles.featuredPriceLabel}>Starting from</Text>
-                  <Text style={styles.featuredPriceVal}>₹299</Text>
-                </View>
-                <View style={[styles.featuredCtaBtn, { backgroundColor: '#00B894' }]}>
-                  <Text style={styles.featuredCtaBtnText}>Book Video Slot</Text>
-                  <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
-                </View>
-              </View>
-            </TouchableOpacity>
-
-            {/* Card 2: Health Insurance & Mediclaim */}
-            <TouchableOpacity
-              style={[styles.featuredServiceCard, { borderColor: '#E2E8F0' }]}
-              onPress={() => navigation?.navigate('HealthInsurance')}
-              activeOpacity={0.9}
-            >
-              <View style={styles.featuredCardHeader}>
-                <View style={[styles.featuredTagPill, { backgroundColor: '#ECFDF5' }]}>
-                  <Ionicons name="shield-checkmark" size={13} color="#059669" />
-                  <Text style={[styles.featuredTagText, { color: '#059669' }]}>IRDAI APPROVED MEDICLAIM</Text>
-                </View>
-                <View style={[styles.featuredTagPill, { backgroundColor: '#FEF3C7' }]}>
-                  <Ionicons name="receipt" size={12} color="#D97706" />
-                  <Text style={[styles.featuredTagText, { color: '#D97706' }]}>Save ₹75K Tax</Text>
-                </View>
-              </View>
-
-              <Text style={styles.featuredCardTitle}>
-                100% Cashless Health Insurance
-              </Text>
-              <Text style={styles.featuredCardDesc}>
-                Guaranteed cashless admission at 10,000+ top hospitals. 20-minute claim approval with dedicated MediUnify desk.
-              </Text>
-
-              <View style={styles.featuredCardFooter}>
-                <View style={styles.featuredPriceBox}>
-                  <Text style={styles.featuredPriceLabel}>Plans from</Text>
-                  <Text style={styles.featuredPriceVal}>₹399<Text style={{ fontSize: 12, fontWeight: '600', color: '#64748B' }}>/mo</Text></Text>
-                </View>
-                <View style={[styles.featuredCtaBtn, { backgroundColor: '#059669' }]}>
-                  <Text style={styles.featuredCtaBtnText}>Explore Plans</Text>
-                  <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
-                </View>
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* ============================================================
-            1.9 NEW SPECIALIZED CARE: AYURVEDA, FERTILITY & EQUIPMENT
-        ============================================================ */}
-        <View style={styles.newServicesWrap}>
-          <View style={styles.newServicesHeaderLine}>
-            <View>
-              <View style={styles.newServicesBadgeRow}>
-                <View style={styles.newBadgePill}>
-                  <Ionicons name="sparkles" size={12} color="#D97706" />
-                  <Text style={styles.newBadgePillText}>NEW HEALTHCARE HUBS</Text>
-                </View>
-              </View>
-              <Text style={styles.newServicesSectionTitle}>Specialized Wellness & Care Services</Text>
-              <Text style={styles.newServicesSectionSub}>
-                Holistic Ayurvedic treatments, compassionate IVF reproductive medicine & doorstep medical equipment rentals
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.newServicesGrid}>
-            {/* Card 1: Ayurveda & Wellness */}
-            <TouchableOpacity
-              style={[styles.newServiceCard, { borderColor: '#A7F3D0', backgroundColor: '#F0FDF4' }]}
-              onPress={() => navigation?.navigate('AyurvedaWellness')}
-              activeOpacity={0.9}
-            >
-              <View style={styles.newCardHeader}>
-                <View style={[styles.newCardPill, { backgroundColor: '#DCFCE7' }]}>
-                  <Ionicons name="leaf" size={13} color="#059669" />
-                  <Text style={[styles.newCardPillText, { color: '#065F46' }]}>AYUSH CERTIFIED</Text>
-                </View>
-                <Text style={styles.newCardBadgeTag}>Panchakarma</Text>
-              </View>
-
-              <Text style={styles.newCardTitle}>Ayurveda & Wellness</Text>
-              <Text style={styles.newCardDesc}>
-                Authentic pulse diagnosis (Nadi Pariksha), traditional Shirodhara & Abhyanga massages, and classical herbal rasayanas.
-              </Text>
-
-              <View style={styles.newCardFooter}>
-                <View>
-                  <Text style={styles.newCardPriceLabel}>Starting from</Text>
-                  <Text style={[styles.newCardPriceVal, { color: '#059669' }]}>₹400</Text>
-                </View>
-                <View style={[styles.newCardCtaBtn, { backgroundColor: '#059669' }]}>
-                  <Text style={styles.newCardCtaBtnText}>Explore Ayurveda</Text>
-                  <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
-                </View>
-              </View>
-            </TouchableOpacity>
-
-            {/* Card 2: Fertility & IVF */}
-            <TouchableOpacity
-              style={[styles.newServiceCard, { borderColor: '#FBCFE8', backgroundColor: '#FDF2F8' }]}
-              onPress={() => navigation?.navigate('FertilityIvf')}
-              activeOpacity={0.9}
-            >
-              <View style={styles.newCardHeader}>
-                <View style={[styles.newCardPill, { backgroundColor: '#FCE7F3' }]}>
-                  <Ionicons name="heart" size={13} color="#DB2777" />
-                  <Text style={[styles.newCardPillText, { color: '#9D174D' }]}>UP TO 73% SUCCESS</Text>
-                </View>
-                <Text style={[styles.newCardBadgeTag, { color: '#BE185D' }]}>0% EMI Available</Text>
-              </View>
-
-              <Text style={styles.newCardTitle}>Fertility & IVF Care</Text>
-              <Text style={styles.newCardDesc}>
-                Comprehensive reproductive medicine, advanced blastocyst culture, ICSI, egg freezing & 100% confidential doctor guidance.
-              </Text>
-
-              <View style={styles.newCardFooter}>
-                <View>
-                  <Text style={styles.newCardPriceLabel}>0% EMI from</Text>
-                  <Text style={[styles.newCardPriceVal, { color: '#BE185D' }]}>₹2,416<Text style={{ fontSize: 11, color: '#64748B', fontWeight: '600' }}>/mo</Text></Text>
-                </View>
-                <View style={[styles.newCardCtaBtn, { backgroundColor: '#DB2777' }]}>
-                  <Text style={styles.newCardCtaBtnText}>Explore Fertility</Text>
-                  <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
-                </View>
-              </View>
-            </TouchableOpacity>
-
-            {/* Card 3: Medical Equipment Rental */}
-            <TouchableOpacity
-              style={[styles.newServiceCard, { borderColor: '#DDD6FE', backgroundColor: '#FAF5FF' }]}
-              onPress={() => navigation?.navigate('EquipmentRental')}
-              activeOpacity={0.9}
-            >
-              <View style={styles.newCardHeader}>
-                <View style={[styles.newCardPill, { backgroundColor: '#EDE9FE' }]}>
-                  <Ionicons name="fitness" size={13} color="#7C3AED" />
-                  <Text style={[styles.newCardPillText, { color: '#5B21B6' }]}>2-4 HR DOORSTEP</Text>
-                </View>
-                <Text style={[styles.newCardBadgeTag, { color: '#6D28D9' }]}>Free Demo</Text>
-              </View>
-
-              <Text style={styles.newCardTitle}>Medical Equipment Rental</Text>
-              <Text style={styles.newCardDesc}>
-                Electric ICU beds, 10L medical oxygen concentrators, BiPAP & smart wheelchairs delivered and installed at home.
-              </Text>
-
-              <View style={styles.newCardFooter}>
-                <View>
-                  <Text style={styles.newCardPriceLabel}>Rentals from</Text>
-                  <Text style={[styles.newCardPriceVal, { color: '#6D28D9' }]}>₹80<Text style={{ fontSize: 11, color: '#64748B', fontWeight: '600' }}>/day</Text></Text>
-                </View>
-                <View style={[styles.newCardCtaBtn, { backgroundColor: '#7C3AED' }]}>
-                  <Text style={styles.newCardCtaBtnText}>Rent Equipment</Text>
-                  <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
-                </View>
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* ============================================================
-            2. FLIPKART PERSONALIZED CONTAINER: "{userName}, still looking for these?"
-        ============================================================ */}
-        <View style={styles.personalizedSectionWrap}>
-          <View style={styles.personalizedContainer}>
-            {/* Section Header */}
-            <View style={styles.personalizedHeaderRow}>
-              <Text style={styles.personalizedTitle}>
-                {userName}, still looking for these?
-              </Text>
-            </View>
-
-            {/* Horizontal Track of Recommendation Cards */}
-            <View style={styles.cardsTrackRow}>
-              {FEATURED_MEDICINES.map((item) => (
+                {/* Dedicated Primary Search Submit Button */}
                 <TouchableOpacity
-                  key={item.id}
-                  style={styles.recommendCard}
-                  onPress={() => handleCardClick(item)}
-                  activeOpacity={0.88}
+                  style={styles.searchSubmitBtn}
+                  // @ts-ignore
+                  className="search-btn-hover"
+                  onPress={handleSearchSubmit}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Search"
                 >
-                  {/* Discount Badge Pill */}
-                  {item.badge && (
-                    <View style={styles.recommendDiscountBadge}>
-                      <Text style={styles.recommendDiscountBadgeText}>{item.badge}</Text>
-                    </View>
-                  )}
-
-                  {/* Card Image */}
-                  <Image
-                    source={{ uri: item.image }}
-                    style={styles.recommendCardImg}
-                    resizeMode="contain"
-                  />
-
-                  {/* Card Info */}
-                  <View style={styles.recommendCardInfo}>
-                    <Text style={styles.recommendItemTitle} numberOfLines={1}>
-                      {item.name}
-                    </Text>
-                    <Text style={styles.recommendItemSub} numberOfLines={1}>
-                      {item.subText}
-                    </Text>
-                  </View>
+                  <Ionicons name="search" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.searchSubmitBtnText}>Search</Text>
                 </TouchableOpacity>
-              ))}
+              </View>
 
-              {/* Floating Next Arrow Button (Flipkart Signature Circular Chevron) */}
-              <TouchableOpacity
-                style={styles.nextArrowFloatingBtn}
-                onPress={() => navigation?.navigate('Pharmacy')}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="chevron-forward" size={20} color="#1E293B" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        {/* ============================================================
-            3. "Best quality in healthcare services ->" SECTION
-        ============================================================ */}
-        <View style={styles.bestQualitySectionWrap}>
-          <View style={styles.bestQualityHeaderRow}>
-            <Text style={styles.bestQualityTitle}>Best quality in healthcare services</Text>
-            <TouchableOpacity
-              style={styles.bestQualityArrowBtn}
-              onPress={() => navigation?.navigate('DoctorList')}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Curated Grid of Services: Doctors, Diagnostics, Medicines */}
-          <View style={styles.bestQualityGrid}>
-            {/* Doctor 1 */}
-            {doctors.slice(0, 2).map((doc) => (
-              <View key={doc.id} style={styles.doctorDealCard}>
-                <Image source={{ uri: doc.image }} style={styles.doctorDealImg} />
-                <View style={styles.doctorDealContent}>
-                  <View style={styles.docDealBadgeRow}>
-                    <View style={styles.verifiedTag}>
-                      <Ionicons name="checkmark-circle" size={12} color="#10B981" />
-                      <Text style={styles.verifiedTagText}>Verified</Text>
-                    </View>
-                    <View style={styles.ratingTag}>
-                      <Ionicons name="star" size={11} color="#F59E0B" />
-                      <Text style={styles.ratingTagText}>{doc.rating}</Text>
-                    </View>
-                  </View>
-
-                  <Text style={styles.doctorDealName}>{doc.name}</Text>
-                  <Text style={styles.doctorDealSpec}>{doc.specialty}</Text>
-                  <Text style={styles.doctorDealHospital}>{doc.hospital || 'Mediunify Clinic, Mysore'}</Text>
-
-                  <View style={styles.docDealFooter}>
-                    <View>
-                      <Text style={styles.docDealFeeLabel}>Consultation</Text>
-                      <Text style={styles.docDealFeePrice}>₹{doc.fee}</Text>
-                    </View>
+              {/* Popular Searches Row */}
+              <View style={styles.popularSearchesRow}>
+                <Text style={styles.popularSearchesLabel}>Popular searches:</Text>
+                <View style={styles.popularChipsContainer}>
+                  {POPULAR_SEARCH_TAGS.map((tag, idx) => (
                     <TouchableOpacity
-                      style={styles.docDealBookBtn}
-                      onPress={() => navigation?.navigate('DoctorBooking', { doctor: doc })}
-                      activeOpacity={0.85}
+                      key={idx}
+                      style={styles.popularChip}
+                      // @ts-ignore
+                      className="popular-chip-hover"
+                      onPress={() => handlePopularTagClick(tag)}
+                      activeOpacity={0.75}
                     >
-                      <Text style={styles.docDealBookBtnText}>Book Visit</Text>
+                      <Text style={styles.popularChipText}>{tag.label}</Text>
                     </TouchableOpacity>
-                  </View>
+                  ))}
                 </View>
               </View>
-            ))}
-
-            {/* Lab Package 1 */}
-            {labPackages.slice(0, 2).map((pkg) => (
-              <View key={pkg.id} style={styles.labDealCard}>
-                <View style={styles.labDealHeader}>
-                  <View style={styles.labDealDiscount}>
-                    <Text style={styles.labDealDiscountText}>50% OFF</Text>
-                  </View>
-                  <Text style={styles.labDealTitle}>{pkg.title}</Text>
-                  <Text style={styles.labDealSub}>{pkg.subtitle}</Text>
-                </View>
-
-                <View style={styles.labDealBody}>
-                  <Text style={styles.labDealParam}>{pkg.highlight}</Text>
-                  <View style={styles.labDealPriceRow}>
-                    <Text style={styles.labDealPrice}>{pkg.price}</Text>
-                    <Text style={styles.labDealMrp}>{pkg.mrp}</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.labDealBookBtn}
-                    onPress={() => {
-                      const numPrice = parseInt(String(pkg.price).replace(/[^\d]/g, '')) || 999;
-                      navigation?.navigate('LabBooking', {
-                        test: {
-                          id: pkg.id,
-                          name: pkg.title,
-                          price: numPrice,
-                          mrp: numPrice + 800,
-                          homeCollectionAvailable: true,
-                        },
-                      });
-                    }}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.labDealBookBtnText}>Book with Home Pickup</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* ============================================================
-            4. ESSENTIAL PHARMACY MEDICINES ROW (Flipkart Style Cards)
-        ============================================================ */}
-        <View style={styles.pharmacySectionWrap}>
-          <View style={styles.sectionHeaderLine}>
-            <View>
-              <Text style={styles.sectionHeadingTitle}>Essential Medicines & Daily Care</Text>
-              <Text style={styles.sectionSubHeading}>
-                Flat 20% OFF with guaranteed 60-minute doorstep delivery in Mysore
-              </Text>
             </View>
-            <TouchableOpacity
-              style={styles.viewStoreBtn}
-              onPress={() => navigation?.navigate('Pharmacy')}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.viewStoreBtnText}>View Pharmacy Store</Text>
-              <Ionicons name="arrow-forward" size={14} color="#00B894" />
-            </TouchableOpacity>
-          </View>
 
-          <View style={styles.pharmacyCardsRow}>
-            {FEATURED_MEDICINES.slice(0, 4).map((med) => (
-              <View key={med.id} style={styles.pharmacyCard}>
-                <View style={styles.pharmacyBadge}>
-                  <Text style={styles.pharmacyBadgeText}>FLAT 20% OFF</Text>
+            {/* Right Visual Cluster: Family Image & MediUnify AI Card */}
+            {isDesktop ? (
+              <View style={[styles.heroRightVisualCluster, { gap: width < 1280 ? 12 : 16 }]}>
+                {/* Smiling Indian Family Photo */}
+                <View style={[styles.heroFamilyPhotoWrap, { width: width < 1280 ? 210 : 260, height: width < 1280 ? 245 : 275 }]}>
+                  <Image
+                    source={require('../../../assets/images/hero_family.jpg')}
+                    style={styles.heroFamilyPhoto}
+                    resizeMode="cover"
+                  />
                 </View>
-                <Image source={{ uri: med.image }} style={styles.pharmacyCardImg} />
-                <View style={styles.pharmacyCardBody}>
-                  <Text style={styles.pharmacyCat}>{med.category}</Text>
-                  <Text style={styles.pharmacyName} numberOfLines={1}>{med.name}</Text>
-                  <Text style={styles.pharmacyBrand}>{med.brand}</Text>
 
-                  <View style={styles.pharmacyPriceRow}>
-                    <Text style={styles.pharmacyPrice}>₹{med.price}</Text>
-                    <Text style={styles.pharmacyMrp}>MRP ₹{med.mrp}</Text>
+                {/* MediUnify AI Guide Card */}
+                <View style={[styles.mediAiCard, { width: width < 1280 ? 245 : 285, padding: width < 1280 ? 13 : 16 }]}>
+                  <View style={styles.mediAiCardHeader}>
+                    <View style={styles.mediAiHeaderLeft}>
+                      <Image
+                        source={require('../../../assets/bot-icon.png')}
+                        style={styles.mediAiAvatar}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.mediAiTitle}>MediUnify AI</Text>
+                    </View>
+                    <View style={styles.mediAiBadge}>
+                      <Text style={styles.mediAiBadgeText}>Your Health Guide 24/7</Text>
+                    </View>
                   </View>
 
+                  <Text style={styles.mediAiQuestion}>Not sure where to start?</Text>
+                  <Text style={styles.mediAiPrompt}>
+                    Tell us what you're experiencing and we'll help you find the right doctor, test or service.
+                  </Text>
+
                   <TouchableOpacity
-                    style={styles.addToCartButton}
-                    onPress={() => handleAddToCart(med)}
-                    activeOpacity={0.85}
+                    style={styles.mediAiBtn}
+                    // @ts-ignore
+                    className="medi-ai-btn-hover"
+                    onPress={() => handleNavigateToService('Chatbot')}
+                    activeOpacity={0.88}
+                    accessibilityRole="button"
+                    accessibilityLabel="Chat with MediUnify AI"
                   >
-                    <Ionicons name="cart-outline" size={15} color="#FFFFFF" />
-                    <Text style={styles.addToCartButtonText}>Add to Cart</Text>
+                    <Text style={styles.mediAiBtnText}>Chat with MediUnify AI →</Text>
                   </TouchableOpacity>
+
+                  <View style={styles.mediAiFeaturesList}>
+                    <View style={styles.mediAiFeatureItem}>
+                      <Ionicons name="checkmark-circle" size={13} color="#00B894" style={{ marginRight: 6 }} />
+                      <Text style={styles.mediAiFeatureText}>Symptom guidance</Text>
+                    </View>
+                    <View style={styles.mediAiFeatureItem}>
+                      <Ionicons name="checkmark-circle" size={13} color="#00B894" style={{ marginRight: 6 }} />
+                      <Text style={styles.mediAiFeatureText}>Service recommendations</Text>
+                    </View>
+                    <View style={styles.mediAiFeatureItem}>
+                      <Ionicons name="checkmark-circle" size={13} color="#00B894" style={{ marginRight: 6 }} />
+                      <Text style={styles.mediAiFeatureText}>Care navigation (not a diagnosis)</Text>
+                    </View>
+                  </View>
                 </View>
               </View>
-            ))}
+            ) : (
+              <View style={styles.heroMobileCardsWrap}>
+                <View style={styles.mediAiCard}>
+                  <View style={styles.mediAiCardHeader}>
+                    <View style={styles.mediAiHeaderLeft}>
+                      <Image
+                        source={require('../../../assets/bot-icon.png')}
+                        style={styles.mediAiAvatar}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.mediAiTitle}>MediUnify AI</Text>
+                    </View>
+                    <View style={styles.mediAiBadge}>
+                      <Text style={styles.mediAiBadgeText}>Your Health Guide 24/7</Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.mediAiQuestion}>Not sure where to start?</Text>
+                  <Text style={styles.mediAiPrompt}>
+                    Tell us what you're experiencing and we'll help you find the right doctor, test or service.
+                  </Text>
+
+                  <TouchableOpacity
+                    style={styles.mediAiBtn}
+                    onPress={() => handleNavigateToService('Chatbot')}
+                    activeOpacity={0.88}
+                  >
+                    <Text style={styles.mediAiBtnText}>Chat with MediUnify AI →</Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.mediAiFeaturesList}>
+                    <View style={styles.mediAiFeatureItem}>
+                      <Ionicons name="checkmark-circle" size={13} color="#00B894" style={{ marginRight: 6 }} />
+                      <Text style={styles.mediAiFeatureText}>Symptom guidance</Text>
+                    </View>
+                    <View style={styles.mediAiFeatureItem}>
+                      <Ionicons name="checkmark-circle" size={13} color="#00B894" style={{ marginRight: 6 }} />
+                      <Text style={styles.mediAiFeatureText}>Service recommendations</Text>
+                    </View>
+                    <View style={styles.mediAiFeatureItem}>
+                      <Ionicons name="checkmark-circle" size={13} color="#00B894" style={{ marginRight: 6 }} />
+                      <Text style={styles.mediAiFeatureText}>Care navigation (not a diagnosis)</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            )}
           </View>
+
         </View>
 
         {/* ============================================================
-            5. PATIENT FEEDBACK & REVIEWS
+            2. SEVEN SERVICE CARDS — CREATIVE ILLUSTRATED DESIGN
         ============================================================ */}
-        <View style={styles.reviewsSectionWrap}>
-          <View style={styles.reviewsHeader}>
-            <Text style={styles.reviewsTitle}>Trusted by 50,000+ Happy Patients</Text>
-            <Text style={styles.reviewsSub}>
-              Real healthcare reviews from patients across Mysore & Bangalore
+        <View style={[styles.practoHeroCardsSection, { maxWidth: isDesktop ? 1340 : '96%' }]}>
+          {/* Section Header */}
+          <View style={styles.serviceCardsHeader}>
+            <View style={styles.sectionBadgeWrap}>
+              <Text style={styles.sectionBadge}>OUR SERVICES</Text>
+            </View>
+            <Text style={styles.serviceCardsTitle}>Everything Healthcare,{`\n`}All in One Place</Text>
+            <Text style={styles.serviceCardsSubtitle}>
+              From consultations to home care — seamlessly connected for your health journey.
             </Text>
           </View>
 
-          <View style={styles.reviewsGrid}>
-            {TESTIMONIALS.map((rev) => (
-              <View key={rev.id} style={styles.reviewCard}>
-                <View style={styles.starsRow}>
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <Ionicons key={s} name="star" size={15} color="#F59E0B" />
-                  ))}
-                  <Text style={styles.reviewDateText}>{rev.date}</Text>
-                </View>
-                <Text style={styles.reviewContent}>"{rev.comment}"</Text>
-                <View style={styles.reviewerInfo}>
-                  <View style={styles.reviewerAvatar}>
-                    <Text style={styles.reviewerAvatarLetter}>{rev.name[0]}</Text>
+          <View
+            style={[
+              styles.practoHeroGrid,
+              isDesktop
+                ? styles.practoHeroGridDesktop
+                : isTablet
+                ? styles.practoHeroGridTablet
+                : styles.practoHeroGridMobile,
+            ]}
+          >
+            {HERO_PRACTO_CARDS.map((card) => (
+              <TouchableOpacity
+                key={card.id}
+                style={[
+                  styles.practoHeroCard,
+                  isDesktop ? { flex: 1, minWidth: 0 } : isTablet ? { width: '48%' } : { width: '100%' },
+                ]}
+                // @ts-ignore
+                className="service-card"
+                activeOpacity={0.92}
+                onPress={() => handleNavigateToService(card.route)}
+              >
+                {/* Photo Top Container */}
+                <View style={styles.practoHeroCardTop}>
+                  {/* Availability Badge — top left */}
+                  <View
+                    style={styles.serviceAvailBadge}
+                    // @ts-ignore
+                    className="service-card-avail-badge"
+                  >
+                    {card.iconFamily === 'MaterialCommunityIcons' ? (
+                      <MaterialCommunityIcons name={card.iconName} size={13} color={card.accentColor} />
+                    ) : (
+                      <Ionicons name={card.iconName} size={13} color={card.accentColor} />
+                    )}
+                    <Text style={[styles.serviceAvailText, { color: card.accentColor }]}>{card.availability}</Text>
                   </View>
-                  <View>
-                    <Text style={styles.reviewerFullName}>{rev.name}</Text>
-                    <Text style={styles.reviewerCity}>{rev.locality}</Text>
+
+                  {/* Uniform Service Photo */}
+                  <View
+                    style={styles.serviceImgWrap}
+                    // @ts-ignore
+                    className="service-card-image"
+                  >
+                    <Image
+                      source={card.image}
+                      style={styles.practoHeroCardImage}
+                      resizeMode="cover"
+                    />
                   </View>
                 </View>
-              </View>
+
+                {/* Card Content */}
+                <View style={styles.practoHeroCardBottom}>
+                  <Text style={styles.practoHeroCardTitle}>{card.title}</Text>
+                  <Text style={styles.practoHeroCardSubtitle}>{card.subtitle}</Text>
+
+                  {/* Book Now CTA Button */}
+                  <View
+                    style={[styles.serviceBookBtn, { backgroundColor: card.accentBg, borderColor: card.accentColor + '30' }]}
+                    // @ts-ignore
+                    className="service-card-btn"
+                  >
+                    <Text
+                      style={[styles.serviceBookBtnText, { color: card.accentColor }]}
+                      // @ts-ignore
+                      className="service-card-btn-text"
+                    >
+                      Book Now
+                    </Text>
+                    <Ionicons name="arrow-forward" size={13} color={card.accentColor} style={{ marginLeft: 5 }} />
+                  </View>
+                </View>
+              </TouchableOpacity>
             ))}
           </View>
         </View>
 
         {/* ============================================================
-            6. MOBILE APP PROMO BANNER
+            PROMOTIONAL HEALTH OFFERS & ADVERTS (PRACTO / APOLLO STYLE)
         ============================================================ */}
-        <View style={styles.appBannerSection}>
-          <View style={styles.appBannerInner}>
-            <View style={styles.appBannerLeft}>
-              <View style={styles.appBadgePill}>
-                <Ionicons name="phone-portrait" size={14} color="#38BDF8" />
-                <Text style={styles.appBadgePillText}>Available on iOS & Android</Text>
+        <PromotionalAdsSection onNavigate={handleNavigateToService} />
+
+        {/* ============================================================
+            3. CONSULT TOP DOCTORS SPECIALTIES SECTION
+        ============================================================ */}
+        <View style={[styles.specialtiesSection, { maxWidth: isDesktop ? 1340 : '96%' }]}>
+          {/* Header Row */}
+          <View style={styles.specialtiesHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <View style={styles.sectionBadgeWrap}>
+                <Text style={styles.sectionBadge}>VERIFIED CLINICAL DEPARTMENTS</Text>
               </View>
-              <Text style={styles.appBannerTitle}>Healthcare In Your Pocket</Text>
-              <Text style={styles.appBannerDesc}>
-                Track live medicine delivery riders on map, consult clinicians via 1-tap video, and access encrypted diagnostic lab records anytime on your mobile device.
+              <Text style={styles.specialtiesTitle}>
+                Consult Top Doctors Online for Any Health Concern
               </Text>
-              <View style={styles.storeBadgesRow}>
-                <View style={styles.storeBadge}>
-                  <Ionicons name="logo-apple" size={20} color="#FFFFFF" />
-                  <View>
-                    <Text style={styles.storeMini}>Download on the</Text>
-                    <Text style={styles.storeName}>Apple App Store</Text>
-                  </View>
-                </View>
-                <View style={styles.storeBadge}>
-                  <Ionicons name="logo-google-playstore" size={20} color="#FFFFFF" />
-                  <View>
-                    <Text style={styles.storeMini}>Get it on</Text>
-                    <Text style={styles.storeName}>Google Play</Text>
-                  </View>
-                </View>
-              </View>
+              <Text style={styles.specialtiesSubtitle}>
+                Private online & in-clinic consultations with certified doctors in all specialties
+              </Text>
             </View>
 
-            <View style={styles.appBannerRight}>
-              <View style={styles.appFeatureBox}>
-                <Ionicons name="shield-checkmark" size={24} color="#10B981" />
-                <Text style={styles.appFeatureTitle}>100% Secure & Encrypted</Text>
-                <Text style={styles.appFeatureSub}>HIPAA Compliant Health Vault</Text>
-              </View>
-              <View style={styles.appFeatureBox}>
-                <Ionicons name="alarm" size={24} color="#F59E0B" />
-                <Text style={styles.appFeatureTitle}>Pill Reminders</Text>
-                <Text style={styles.appFeatureSub}>Never miss your daily dose</Text>
-              </View>
-            </View>
+            <TouchableOpacity
+              style={styles.viewAllBtn}
+              onPress={() => handleNavigateToService('DoctorList')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.viewAllBtnText}>View All Specialities</Text>
+              <Ionicons name="arrow-forward" size={14} color={PALETTE.teal} style={{ marginLeft: 6 }} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Top Specializations Single-Row Horizontal Carousel */}
+          <View style={styles.specialtiesCarouselWrap}>
+            {/* Left Floating Navigation Arrow */}
+            <TouchableOpacity
+              style={[
+                styles.carouselArrowBtn,
+                styles.carouselArrowLeft,
+                !canScrollLeft && styles.carouselArrowDisabled,
+                !isDesktop && !isTablet && { display: 'none' },
+              ]}
+              // @ts-ignore
+              className="carousel-arrow-btn"
+              onPress={() => scrollSpecialties('left')}
+              disabled={!canScrollLeft}
+              activeOpacity={0.85}
+              accessibilityLabel="Previous specialties"
+            >
+              <Ionicons
+                name="chevron-back"
+                size={22}
+                color={canScrollLeft ? PALETTE.slateDark : '#94A3B8'}
+              />
+            </TouchableOpacity>
+
+            {/* Horizontal Scroll Track */}
+            <ScrollView
+              ref={specialtiesScrollRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.specialtiesScrollContent}
+              style={styles.specialtiesScrollView}
+              onScroll={handleSpecialtiesScroll}
+              scrollEventThrottle={16}
+            >
+              {FEATURED_SPECIALTIES.map((spec) => (
+                <TouchableOpacity
+                  key={spec.id}
+                  style={[
+                    styles.specialtyItem,
+                    isDesktop
+                      ? styles.specialtyItemDesktop
+                      : isTablet
+                      ? styles.specialtyItemTablet
+                      : styles.specialtyItemMobile,
+                    spec.cardBg ? { backgroundColor: spec.cardBg } : null,
+                    spec.cardBorder ? { borderColor: spec.cardBorder } : null,
+                  ]}
+                  // @ts-ignore
+                  className="practo-spec-card"
+                  onPress={() => handleConsultNow(spec.specialtyId)}
+                  activeOpacity={0.88}
+                >
+                  {/* Unified Medical Specialty Icon / Illustration */}
+                  <View style={styles.specialtyIconWrap}>
+                    {spec.image ? (
+                      <Image
+                        source={spec.image}
+                        style={styles.specialtyImage}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <SpecialtyIcon id={spec.id} size={46} color={spec.accentColor || PALETTE.teal} />
+                    )}
+                  </View>
+
+                  {/* Specialty Title */}
+                  <Text style={[styles.specialtyItemTitle, { color: '#0C3B6B' }]} numberOfLines={1}>
+                    {spec.title}
+                  </Text>
+
+                  {/* Subtitle / Common Symptoms */}
+                  <Text style={styles.specialtyItemSubtitle} numberOfLines={2}>
+                    {spec.subtitle}
+                  </Text>
+
+                  {/* Consult Now CTA */}
+                  <View
+                    style={[
+                      styles.consultNowTouch,
+                      spec.btnBg ? { backgroundColor: spec.btnBg, borderColor: spec.btnBorder || spec.cardBorder } : null,
+                    ]}
+                    // @ts-ignore
+                    className="consult-btn-hover"
+                  >
+                    <Text style={[styles.consultNowText, spec.btnText ? { color: spec.btnText } : null]}>CONSULT NOW</Text>
+                    <Ionicons name="arrow-forward" size={10} color={spec.btnText || PALETTE.teal} style={{ marginLeft: 3 }} />
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Right Floating Navigation Arrow */}
+            <TouchableOpacity
+              style={[
+                styles.carouselArrowBtn,
+                styles.carouselArrowRight,
+                !canScrollRight && styles.carouselArrowDisabled,
+                !isDesktop && !isTablet && { display: 'none' },
+              ]}
+              // @ts-ignore
+              className="carousel-arrow-btn"
+              onPress={() => scrollSpecialties('right')}
+              disabled={!canScrollRight}
+              activeOpacity={0.85}
+              accessibilityLabel="Next specialties"
+            >
+              <Ionicons
+                name="chevron-forward"
+                size={22}
+                color={canScrollRight ? PALETTE.slateDark : '#94A3B8'}
+              />
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* 7. ENTERPRISE FOOTER */}
-        <WebFooter navigation={navigation} />
+        {/* ============================================================
+            4. RICH WEB FOOTER (EXACT SAME AS LOGIN SCREEN)
+        ============================================================ */}
+        <footer style={webStyles.footerContainer}>
+          <View style={[styles.footerInner, { maxWidth: isDesktop ? 1340 : '96%' }]}>
+            <View style={styles.footerColBrand}>
+              <View style={styles.brandTitleRow}>
+                <Text style={[styles.brandTitle, { color: '#0C3B6B' }]}>Medi</Text>
+                <Text style={styles.brandTitleAccent}>Unify</Text>
+              </View>
+              <Text style={styles.footerBrandDesc}>
+                All your healthcare. One intelligent platform. Connecting millions of patients with India's best verified doctors, diagnostic laboratories, and NABH accredited hospitals.
+              </Text>
+              <View style={styles.complianceRow}>
+                <View style={styles.compliancePill}>
+                  <Ionicons name="shield-checkmark" size={12} color={PALETTE.freshGreen} />
+                  <Text style={styles.compliancePillText}>NABH Compliant</Text>
+                </View>
+                <View style={styles.compliancePill}>
+                  <Ionicons name="lock-closed" size={12} color={PALETTE.aqua} />
+                  <Text style={styles.compliancePillText}>256-Bit SSL</Text>
+                </View>
+                <View style={styles.compliancePill}>
+                  <Ionicons name="ribbon" size={12} color={PALETTE.teal} />
+                  <Text style={styles.compliancePillText}>ISO 27001</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.footerCol}>
+              <Text style={styles.footerColTitle}>Patient Services</Text>
+              <TouchableOpacity onPress={() => handleNavigateToService('FindDoctors')}>
+                <Text style={styles.footerLink}>Find Doctors Near You</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleNavigateToService('VideoConsultation')}>
+                <Text style={styles.footerLink}>Instant Video Consultation</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleNavigateToService('LabTests')}>
+                <Text style={styles.footerLink}>Book Diagnostic Lab Tests</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleNavigateToService('HospitalCare')}>
+                <Text style={styles.footerLink}>Surgeries & Hospital Care</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.footerCol}>
+              <Text style={styles.footerColTitle}>For Healthcare Providers</Text>
+              <TouchableOpacity onPress={() => handleNavigateToService('HelpSupport')}>
+                <Text style={styles.footerLink}>MediUnify for Doctors</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleNavigateToService('HelpSupport')}>
+                <Text style={styles.footerLink}>Clinic Management EMR</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleNavigateToService('HelpSupport')}>
+                <Text style={styles.footerLink}>Hospital Care Partnerships</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleNavigateToService('HelpSupport')}>
+                <Text style={styles.footerLink}>Diagnostic Lab Network</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.footerCol}>
+              <Text style={styles.footerColTitle}>Legal & Security</Text>
+              <TouchableOpacity onPress={() => handleNavigateToService('HelpSupport')}>
+                <Text style={styles.footerLink}>Privacy Policy & HIPAA</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleNavigateToService('HelpSupport')}>
+                <Text style={styles.footerLink}>Terms of Service</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleNavigateToService('HelpSupport')}>
+                <Text style={styles.footerLink}>Patient Grievance Redressal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleNavigateToService('HelpSupport')}>
+                <Text style={styles.footerLink}>Clinical Quality Protocol</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={[styles.footerBottomBar, { maxWidth: isDesktop ? 1340 : '96%' }]}>
+            <Text style={styles.footerCopyright}>
+              © {new Date().getFullYear()} MediUnify Healthcare Technologies Pvt. Ltd. All rights reserved.
+            </Text>
+            <View style={styles.footerBottomLinks}>
+              <Text style={styles.footerBottomLinkText}>Karnataka, India</Text>
+              <Text style={styles.footerBottomLinkDot}>•</Text>
+              <Text style={styles.footerBottomLinkText}>ABDM Registered</Text>
+              <Text style={styles.footerBottomLinkDot}>•</Text>
+              <Text style={styles.footerBottomLinkText}>24/7 Support: 1800-425-0099</Text>
+            </View>
+          </View>
+        </footer>
       </ScrollView>
     </SafeAreaView>
   );
 };
 
+// Web specific inline style objects for raw HTML tags
+const webStyles = {
+  footerContainer: {
+    width: '100%',
+    backgroundColor: '#E0ECF6',
+    backgroundImage: 'linear-gradient(180deg, #DDEAF5 0%, #E5F0F8 45%, #DCE8F3 100%)',
+    borderTop: '1.5px solid #C4D8E7',
+    marginTop: 64,
+  },
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F2F4', // Flipkart subtle page background
+    backgroundColor: '#FFFFFF',
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: 0,
   },
 
-  // 1. FLIPKART MULTI-BANNER HERO CAROUSEL
-  heroCarouselWrap: {
-    backgroundColor: '#FFFFFF',
-    paddingTop: 16,
-    paddingBottom: 20,
-    paddingHorizontal: 24,
+  // ==========================================
+  // BRAND LOGO TYPOGRAPHY
+  // ==========================================
+  brandTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  brandTitle: {
+    fontSize: 23,
+    fontWeight: '900',
+    color: PALETTE.navyBlue,
+    letterSpacing: -0.6,
+  },
+  brandTitleAccent: {
+    fontSize: 23,
+    fontWeight: '900',
+    color: PALETTE.teal,
+    letterSpacing: -0.6,
+  },
+
+  // ==========================================
+  // HERO SEARCH SECTION
+  // ==========================================
+  heroSearchSection: {
+    width: '100%',
+    alignItems: 'center',
+    paddingTop: 36,
+    paddingBottom: 36,
+    paddingHorizontal: 16,
+    backgroundColor: '#D8EEF6',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#BFDFEB',
     position: 'relative',
+    zIndex: 9999,
   },
-  heroCarouselScrollTrack: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    paddingHorizontal: 4,
-  },
-  carouselArrowLeft: {
-    position: 'absolute',
-    left: 8,
-    top: '42%',
-    zIndex: 20,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 6,
-    elevation: 5,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  carouselArrowRight: {
-    position: 'absolute',
-    right: 8,
-    top: '42%',
-    zIndex: 20,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 6,
-    elevation: 5,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  heroCarouselInner: {
-    maxWidth: 1320,
+  heroTopActionsRow: {
     width: '100%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    gap: 16,
+    zIndex: 100,
   },
-  bannerCard: {
-    minHeight: 210,
-    borderRadius: 14,
-    padding: 20,
-    position: 'relative',
-    overflow: 'hidden',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-  },
-  bannerBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  brandPillYellow: {
-    backgroundColor: '#FFE11B',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-  },
-  brandPillYellowText: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#0F172A',
-    letterSpacing: 0.4,
-  },
-  brandTagFlipkart: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 4,
-  },
-  brandTagFlipkartText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#0071DC',
-  },
-  bannerMainTitle: {
-    fontSize: 19,
-    fontWeight: '900',
-    color: '#0F172A',
-    lineHeight: 24,
-    marginTop: 10,
-    maxWidth: '68%',
-    letterSpacing: -0.3,
-  },
-  bannerPriceText: {
-    color: '#0071DC',
-  },
-  bannerSubTitle: {
-    fontSize: 12,
-    color: '#64748B',
-    lineHeight: 17,
-    marginTop: 4,
-    maxWidth: '65%',
-    fontWeight: '500',
-  },
-  bannerBottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 14,
-    maxWidth: '65%',
-  },
-  bannerBadgeSale: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0F172A',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  bannerAdNotice: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#94A3B8',
-  },
-  bannerRightImage: {
+  heroTopActionsRowDesktop: {
     position: 'absolute',
-    right: -10,
-    bottom: -10,
-    width: 135,
-    height: 155,
-    borderRadius: 12,
-    opacity: 0.9,
-  },
-  dotsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    top: 32,
+    left: 0,
+    right: 0,
     alignItems: 'center',
-    gap: 8,
-    marginTop: 14,
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#CBD5E1',
-  },
-  dotActive: {
-    width: 24,
-    backgroundColor: '#0071DC',
-    borderRadius: 4,
-  },
-
-  // 1.8 FEATURED DIGITAL HEALTH: VIDEO CALL & HEALTH INSURANCE
-  featuredServicesWrap: {
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-  },
-  featuredServicesInner: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    gap: 16,
-  },
-  featuredServiceCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    justifyContent: 'space-between',
-    minHeight: 185,
-  },
-  featuredCardHeader: {
-    flexDirection: 'row',
+  heroTopActionsRowMobile: {
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  featuredTagPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  featuredTagText: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-  featuredLiveDotRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  greenPulseDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#10B981',
-  },
-  featuredLiveText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  featuredCardTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 6,
-  },
-  featuredCardDesc: {
-    fontSize: 12,
-    color: '#64748B',
-    lineHeight: 18,
-    marginBottom: 14,
-  },
-  featuredCardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingTop: 12,
-  },
-  featuredPriceBox: {
-    justifyContent: 'center',
-  },
-  featuredPriceLabel: {
-    fontSize: 10,
-    color: '#94A3B8',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  featuredPriceVal: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  featuredCtaBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 8,
-    height: 38,
-  },
-  featuredCtaBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-
-  // 2. FLIPKART PERSONALIZED CONTAINER: "{userName}, still looking for these?"
-  personalizedSectionWrap: {
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-  },
-  personalizedContainer: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    backgroundColor: '#EDF4FF', // Flipkart Soft Baby-Blue Container
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#DBEAFE',
-  },
-  personalizedHeaderRow: {
     marginBottom: 16,
   },
-  personalizedTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
-    letterSpacing: -0.3,
-  },
-  cardsTrackRow: {
+  heroTopActionsInner: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    position: 'relative',
+    paddingHorizontal: 20,
   },
-  recommendCard: {
-    flex: 1,
+  referEarnCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
-    position: 'relative',
-    alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    minHeight: 220,
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-  },
-  recommendDiscountBadge: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    backgroundColor: '#00B894',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 4,
-    zIndex: 2,
-  },
-  recommendDiscountBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  recommendCardImg: {
-    width: 105,
-    height: 105,
-    borderRadius: 8,
-    marginTop: 18,
-    marginBottom: 8,
-  },
-  recommendCardInfo: {
-    width: '100%',
-    alignItems: 'flex-start',
-    marginTop: 4,
-  },
-  recommendItemTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 2,
-    width: '100%',
-  },
-  recommendItemSub: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  nextArrowFloatingBtn: {
-    position: 'absolute',
-    right: -14,
-    width: 42,
-    height: 72,
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 2, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
-    zIndex: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-
-  // 3. "Best quality in healthcare services ->"
-  bestQualitySectionWrap: {
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-  },
-  bestQualityHeaderRow: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  bestQualityTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#0F172A',
-    letterSpacing: -0.4,
-  },
-  bestQualityArrowBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#0F172A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bestQualityGrid: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-  doctorDealCard: {
-    flex: 1,
-    minWidth: 280,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-  },
-  doctorDealImg: {
-    width: '100%',
-    height: 160,
-    backgroundColor: '#F8FAFC',
-  },
-  doctorDealContent: {
-    padding: 16,
-  },
-  docDealBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  verifiedTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  verifiedTagText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  ratingTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: '#FFFBEB',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  ratingTagText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#D97706',
-  },
-  doctorDealName: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  doctorDealSpec: {
-    fontSize: 13,
-    color: '#00B894',
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  doctorDealHospital: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-    marginBottom: 12,
-  },
-  docDealFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingTop: 10,
-  },
-  docDealFeeLabel: {
-    fontSize: 10,
-    color: '#94A3B8',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  docDealFeePrice: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  docDealBookBtn: {
-    backgroundColor: '#00B894',
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 8,
-    height: 38,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  docDealBookBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-
-  // LAB DEAL CARDS
-  labDealCard: {
-    flex: 1,
-    minWidth: 280,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 18,
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-  },
-  labDealHeader: {
-    marginBottom: 10,
-  },
-  labDealDiscount: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-    marginBottom: 8,
-  },
-  labDealDiscountText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#059669',
-  },
-  labDealTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  labDealSub: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 3,
-  },
-  labDealBody: {
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingTop: 10,
-  },
-  labDealParam: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#059669',
-    marginBottom: 10,
-  },
-  labDealPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-    marginBottom: 12,
-  },
-  labDealPrice: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  labDealMrp: {
-    fontSize: 13,
-    color: '#94A3B8',
-    textDecorationLine: 'line-through',
-  },
-  labDealBookBtn: {
-    backgroundColor: '#00B894',
-    paddingVertical: 9,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  labDealBookBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-
-  // 4. PHARMACY ROW
-  pharmacySectionWrap: {
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-  },
-  sectionHeaderLine: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  sectionHeadingTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#0F172A',
-    letterSpacing: -0.4,
-  },
-  sectionSubHeading: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  viewStoreBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 12,
+    borderColor: '#DCE7EC',
     paddingVertical: 7,
-    borderRadius: 6,
-  },
-  viewStoreBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#00B894',
-  },
-  pharmacyCardsRow: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    gap: 16,
-  },
-  pharmacyCard: {
-    flex: 1,
-    minWidth: 200,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 16,
-    position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-  },
-  pharmacyBadge: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 4,
-    zIndex: 2,
-  },
-  pharmacyBadgeText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: '#B45309',
-  },
-  pharmacyCardImg: {
-    width: '100%',
-    height: 120,
-    borderRadius: 8,
-    marginBottom: 10,
-    marginTop: 10,
-  },
-  pharmacyCardBody: {},
-  pharmacyCat: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#00B894',
-    textTransform: 'uppercase',
-  },
-  pharmacyName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginTop: 2,
-  },
-  pharmacyBrand: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  pharmacyPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-    marginVertical: 8,
-  },
-  pharmacyPrice: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  pharmacyMrp: {
-    fontSize: 12,
-    color: '#94A3B8',
-    textDecorationLine: 'line-through',
-  },
-  addToCartButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#00B894',
-    paddingVertical: 8,
-    borderRadius: 6,
-    gap: 6,
-  },
-  addToCartButtonText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-
-  // 5. REVIEWS
-  reviewsSectionWrap: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 40,
-    paddingHorizontal: 24,
-    marginTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-  },
-  reviewsHeader: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    marginBottom: 24,
-    alignItems: 'center',
-  },
-  reviewsTitle: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  reviewsSub: {
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 4,
-  },
-  reviewsGrid: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    gap: 16,
-  },
-  reviewCard: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  starsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  reviewDateText: {
-    fontSize: 11,
-    color: '#94A3B8',
-  },
-  reviewContent: {
-    fontSize: 13,
-    color: '#334155',
-    lineHeight: 20,
-    fontStyle: 'italic',
-    marginBottom: 16,
-  },
-  reviewerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  reviewerAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#1E3A8A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  reviewerAvatarLetter: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 15,
-  },
-  reviewerFullName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  reviewerCity: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-
-  // 6. APP BANNER SECTION
-  appBannerSection: {
-    backgroundColor: '#0F172A',
-    paddingVertical: 50,
-    paddingHorizontal: 24,
-    borderTopWidth: 1,
-    borderTopColor: '#1E293B',
-  },
-  appBannerInner: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 30,
-  },
-  appBannerLeft: {
-    flex: 2,
-    minWidth: 320,
-  },
-  appBadgePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#1E293B',
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  appBadgePillText: {
-    fontSize: 12,
-    color: '#38BDF8',
-    fontWeight: '700',
-  },
-  appBannerTitle: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
-    marginBottom: 12,
-  },
-  appBannerDesc: {
-    fontSize: 14,
-    color: '#94A3B8',
-    lineHeight: 22,
-    marginBottom: 24,
-    maxWidth: 560,
-  },
-  storeBadgesRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  storeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderRadius: 24,
     gap: 10,
-    backgroundColor: '#1E293B',
-    borderWidth: 1,
-    borderColor: '#334155',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  storeMini: {
-    fontSize: 9,
-    color: '#94A3B8',
-  },
-  storeName: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  appBannerRight: {
-    flex: 1,
-    minWidth: 280,
-    gap: 14,
-  },
-  appFeatureBox: {
-    backgroundColor: '#1E293B',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#334155',
-    padding: 18,
-  },
-  appFeatureTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 8,
-    marginBottom: 2,
-  },
-  appFeatureSub: {
-    fontSize: 11,
-    color: '#94A3B8',
-  },
-
-  // MEDIUNIFY CARE+ VIP BANNER
-  vipBannerWrap: {
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-  },
-  vipBannerCard: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    backgroundColor: '#FFFBEB',
-    borderRadius: 16,
-    padding: 22,
-    borderWidth: 1.5,
-    borderColor: '#FDE68A',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 20,
-    shadowColor: '#D97706',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  vipBannerLeft: {
-    flex: 2,
-    minWidth: 320,
-  },
-  vipBadgePill: {
-    flexDirection: 'row',
+  referEarnIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#ECFDF5',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#FEF3C7',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 10,
-    marginBottom: 8,
-  },
-  vipBadgeText: {
-    fontSize: 10.5,
-    fontWeight: '900',
-    color: '#B45309',
-    letterSpacing: 0.3,
-  },
-  vipBannerTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#0F172A',
-    letterSpacing: -0.3,
-    marginBottom: 6,
-  },
-  vipBannerSub: {
-    fontSize: 12.5,
-    color: '#64748B',
-    lineHeight: 18,
-    marginBottom: 12,
-  },
-  vipPerksRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  vipPerkPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-  },
-  vipPerkText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#064E3B',
-  },
-  vipBannerRight: {
-    alignItems: 'flex-start',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
   },
-  vipPriceStarting: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
+  referEarnInfoCol: {
+    justifyContent: 'center',
   },
-  vipPriceTag: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#B45309',
-    marginBottom: 10,
-  },
-  vipJoinBtn: {
-    backgroundColor: '#D97706',
+  referEarnTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 10,
   },
-  vipJoinBtnText: {
-    fontSize: 12.5,
+  referEarnHeading: {
+    fontSize: 13,
     fontWeight: '800',
-    color: '#FFFFFF',
-  },
-
-  // MEDIUNIFY HEALTH WALLET CARD
-  walletHomeSectionWrap: {
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-  },
-  walletHomeCard: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    backgroundColor: '#ECFDF5',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1.5,
-    borderColor: '#A7F3D0',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 20,
-    shadowColor: '#059669',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-  },
-  walletHomeLeft: {
-    flex: 2,
-    minWidth: 300,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  walletIconBox: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#059669',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    borderWidth: 1,
-    borderColor: '#D1FAE5',
-  },
-  walletHomeInfo: {
-    flex: 1,
-  },
-  walletTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 4,
-  },
-  walletHomeTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#064E3B',
+    color: '#1E3A8A',
     letterSpacing: -0.2,
   },
-  walletStatusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#D1FAE5',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-  },
-  walletGreenDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-  },
-  walletStatusText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#047857',
-  },
-  walletAmountsRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 10,
-    marginBottom: 4,
-  },
-  walletBalanceBig: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#065F46',
-  },
-  walletCoinsBadge: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#B45309',
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  walletHomeSub: {
-    fontSize: 12,
-    color: '#047857',
-    lineHeight: 18,
-  },
-  walletHomeRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  topUpWalletBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#059669',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 8,
-    shadowColor: '#059669',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-  },
-  topUpWalletBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  viewPassbookBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FFFFFF',
+  referEarnRewardPill: {
+    backgroundColor: '#ECFDF5',
     borderWidth: 1,
-    borderColor: '#A7F3D0',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
+    borderColor: '#DCE7EC',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 10,
   },
-  viewPassbookBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#065F46',
-  },
-
-  // 1.9 NEW SPECIALIZED CARE SECTION
-  newServicesWrap: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 28,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  newServicesHeaderLine: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    marginBottom: 18,
-  },
-  newServicesBadgeRow: {
-    flexDirection: 'row',
-    marginBottom: 6,
-  },
-  newBadgePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  newBadgePillText: {
-    fontSize: 10,
+  referEarnRewardPillText: {
+    fontSize: 10.5,
     fontWeight: '800',
-    color: '#92400E',
-    letterSpacing: 0.5,
+    color: '#00B894',
   },
-  newServicesSectionTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  newServicesSectionSub: {
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 4,
-  },
-  newServicesGrid: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    gap: 16,
-    flexWrap: 'wrap',
-  },
-  newServiceCard: {
-    flex: 1,
-    minWidth: 300,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    padding: 20,
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  newCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  newCardPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  newCardPillText: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.4,
-  },
-  newCardBadgeTag: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  newCardTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 6,
-  },
-  newCardDesc: {
-    fontSize: 12.5,
-    color: '#475569',
-    lineHeight: 18,
-    marginBottom: 16,
-  },
-  newCardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.06)',
-  },
-  newCardPriceLabel: {
+  referEarnSubtext: {
     fontSize: 10.5,
     color: '#64748B',
-    fontWeight: '600',
+    fontWeight: '500',
+    marginTop: 1,
   },
-  newCardPriceVal: {
-    fontSize: 17,
-    fontWeight: '900',
-  },
-  newCardCtaBtn: {
-    flexDirection: 'row',
+  referEarnArrowWrap: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#ECFDF5',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
+    justifyContent: 'center',
+    marginLeft: 2,
   },
-  newCardCtaBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-
-  // AI HERO BANNER
-  aiHeroBannerWrap: {
-    maxWidth: 1320,
+  heroBannerWrap: {
     width: '100%',
-    alignSelf: 'center',
-    paddingHorizontal: 16,
-    marginTop: 20,
-  },
-  aiHeroBannerCard: {
-    backgroundColor: '#F0FDFA',
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#99F6E4',
-    padding: 22,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 20,
     flexWrap: 'wrap',
-    shadowColor: '#0D9488',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
   },
-  aiHeroLeft: {
-    flex: 1,
-    minWidth: 320,
+  heroLeftCol: {
+    alignItems: 'flex-start',
   },
-  aiHeroBadgeRow: {
+  trustedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
-  },
-  aiHeroBadgePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#CCFBF1',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    backgroundColor: '#D1FAE5',
     borderWidth: 1,
-    borderColor: '#5EEAD4',
-    gap: 5,
-  },
-  aiHeroBadgeText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#0F766E',
-    letterSpacing: 0.5,
-  },
-  aiHeroLiveDotWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  aiHeroPulseDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-  },
-  aiHeroLiveText: {
-    fontSize: 11,
-    color: '#059669',
-    fontWeight: '700',
-  },
-  aiHeroTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#0F172A',
-    marginBottom: 6,
-  },
-  aiHeroSubtitle: {
-    fontSize: 13,
-    color: '#475569',
-    lineHeight: 19,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
     marginBottom: 14,
   },
-  aiHeroChipsRow: {
+  trustedBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#047857',
+    letterSpacing: 0.6,
+  },
+  heroTitleWrap: {
+    marginBottom: 10,
+  },
+  heroTitleNavy: {
+    fontSize: 36,
+    fontWeight: '900',
+    color: '#0C3B6B',
+    letterSpacing: -0.8,
+    lineHeight: 44,
+  },
+  heroTitleTeal: {
+    fontSize: 36,
+    fontWeight: '900',
+    color: '#00B894',
+    letterSpacing: -0.8,
+    lineHeight: 44,
+  },
+  heroSubtitle: {
+    fontSize: 14.5,
+    fontWeight: '500',
+    color: '#475569',
+    lineHeight: 22,
+    maxWidth: 620,
+    marginBottom: 22,
+  },
+  unifiedSearchBar: {
+    width: '100%',
     flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#DCE7EC',
+    borderRadius: 16,
+    height: 56,
+    paddingLeft: 12,
+    paddingRight: 6,
+    shadowColor: '#0C3B6B',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
+    elevation: 4,
+    position: 'relative',
+    zIndex: 9999,
+  },
+  searchBox: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#DCE7EC',
+    borderRadius: 16,
+    height: 56,
+    paddingLeft: 12,
+    paddingRight: 6,
+    shadowColor: '#0C3B6B',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
+    elevation: 4,
+    position: 'relative',
+    zIndex: 9999,
+  },
+  citySelectorWrap: {
+    position: 'relative',
+    zIndex: 10000,
+    height: '100%',
+    justifyContent: 'center',
+  },
+  citySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 8,
+    height: '100%',
+    minWidth: 125,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  cityText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0C3B6B',
+  },
+  cityDropdown: {
+    position: 'absolute',
+    top: 60,
+    left: 0,
+    width: 290,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#DCE7EC',
+    borderRadius: 12,
+    padding: 10,
+    shadowColor: '#0C3B6B',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 8,
+    zIndex: 10001,
+  },
+  locationSearchInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FAFCFD',
+    borderWidth: 1,
+    borderColor: '#DCE7EC',
+    borderRadius: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    marginBottom: 6,
+  },
+  locationSearchInput: {
+    flex: 1,
+    fontSize: 12.5,
+    color: '#0C3B6B',
+    marginLeft: 6,
+    outlineStyle: 'none',
+  },
+  detectLocationBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#DCE7EC',
+    marginBottom: 6,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  detectLocationText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  locationListScroll: {
+    maxHeight: 220,
+  },
+  customLocationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 6,
+    marginBottom: 4,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  customLocationText: {
+    fontSize: 12.5,
+    color: '#00B894',
+  },
+  cityOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    marginBottom: 2,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  cityOptionActive: {
+    backgroundColor: '#ECFDF5',
+  },
+  cityOptionText: {
+    fontSize: 13,
+    color: '#334155',
+  },
+  cityOptionTextActive: {
+    color: '#00B894',
+    fontWeight: '700',
+  },
+  searchDivider: {
+    width: 1.5,
+    height: 28,
+    backgroundColor: '#DCE7EC',
+    marginHorizontal: 8,
+  },
+  searchInputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 6,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#0F172A',
+    paddingVertical: 8,
+    outlineStyle: 'none',
+  },
+  searchSubmitBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#00B894',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 11,
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22,
+    shadowRadius: 5,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  searchSubmitBtnText: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  popularSearchesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
     flexWrap: 'wrap',
     gap: 8,
   },
-  aiHeroChip: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#99F6E4',
-    ...(Platform.OS === 'web' ? { cursor: 'pointer', transition: 'all 0.15s ease' } : {}),
-  },
-  aiHeroChipText: {
-    fontSize: 12,
+  popularSearchesLabel: {
+    fontSize: 12.5,
     fontWeight: '700',
-    color: '#0F766E',
+    color: '#475569',
+    marginRight: 4,
   },
-  aiHeroRight: {
-    justifyContent: 'center',
+  popularChipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     alignItems: 'center',
   },
-  aiHeroCtaBtn: {
+  popularChip: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#DCE7EC',
+    borderRadius: 20,
+    paddingHorizontal: 13,
+    paddingVertical: 5.5,
+    shadowColor: '#0C3B6B',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  popularChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  heroRightVisualCluster: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0D9488',
-    paddingVertical: 12,
-    paddingHorizontal: 18,
+    gap: 16,
+    marginLeft: 16,
+  },
+  heroFamilyPhotoWrap: {
+    width: 270,
+    height: 280,
+    borderRadius: 16,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  heroFamilyPhoto: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 16,
+  },
+  mediAiCard: {
+    width: 285,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: '#DCE7EC',
+    padding: 16,
+    shadowColor: '#0C3B6B',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    elevation: 6,
+  },
+  mediAiCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  mediAiHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  mediAiAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+  },
+  mediAiTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0C3B6B',
+  },
+  mediAiBadge: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  mediAiBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#047857',
+  },
+  mediAiQuestion: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  mediAiPrompt: {
+    fontSize: 12,
+    color: '#475569',
+    lineHeight: 17,
+    marginBottom: 12,
+  },
+  mediAiBtn: {
+    backgroundColor: '#0C3B6B',
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  mediAiBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  mediAiFeaturesList: {
+    gap: 5,
+  },
+  mediAiFeatureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  mediAiFeatureText: {
+    fontSize: 11.5,
+    color: '#334155',
+    fontWeight: '500',
+  },
+  heroMobileCardsWrap: {
+    width: '100%',
+    marginTop: 18,
+  },
+  trustHighlightsRow: {
+    width: '100%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#DCE7EC',
     gap: 12,
-    shadowColor: '#0D9488',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
+    paddingHorizontal: 8,
+  },
+  trustHighlightItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  trustHighlightText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+
+  // ==========================================
+  // SERVICE CARDS — CREATIVE ILLUSTRATED DESIGN
+  // ==========================================
+  practoHeroCardsSection: {
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    marginTop: 48,
+    marginBottom: 16,
+    position: 'relative',
+    zIndex: 1,
+  },
+  serviceCardsHeader: {
+    marginBottom: 32,
+  },
+  serviceCardsTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#0C3B6B',
+    letterSpacing: -0.6,
+    marginBottom: 8,
+    lineHeight: 36,
+  },
+  serviceCardsSubtitle: {
+    fontSize: 14.5,
+    color: '#64748B',
+    fontWeight: '400',
+    lineHeight: 22,
+    maxWidth: 520,
+  },
+  referEarnPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  referEarnPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#059669',
+    letterSpacing: 0.2,
+  },
+  practoHeroGrid: {
+    width: '100%',
+  },
+  practoHeroGridDesktop: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 16,
+    width: '100%',
+  },
+  practoHeroGridTablet: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  practoHeroGridMobile: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 14,
+  },
+  practoHeroCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2EEF3',
+    overflow: 'hidden',
+    shadowColor: '#0C3B6B',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
     elevation: 4,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  aiHeroCtaIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  practoHeroCardTop: {
+    height: 180,
+    width: '100%',
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#F1F5F9',
+  },
+  serviceAvailBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    gap: 5,
+    zIndex: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+    shadowColor: '#0C3B6B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.14,
+    shadowRadius: 6,
+    elevation: 3,
+    ...(Platform.OS === 'web' ? {
+      backdropFilter: 'blur(8px)',
+    } : {}),
+  },
+  serviceAvailIcon: {
+    fontSize: 11,
+  },
+  serviceAvailText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  serviceImgWrap: {
+    width: '100%',
+    height: '100%',
+    overflow: 'hidden',
+  },
+  practoHeroCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  practoHeroCardBottom: {
+    padding: 18,
+    paddingTop: 14,
     backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F0F5F8',
+  },
+  practoHeroCardTitle: {
+    fontSize: 15.5,
+    fontWeight: '700',
+    color: '#0C3B6B',
+    marginBottom: 5,
+    letterSpacing: -0.2,
+  },
+  practoHeroCardSubtitle: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#7B8FA6',
+    lineHeight: 17,
+    marginBottom: 14,
+  },
+  serviceBookBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 22,
+    borderWidth: 1,
+    gap: 2,
+  },
+  serviceBookBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    letterSpacing: 0.1,
+  },
+  consultNowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  consultNowText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1170CF',
+  },
+
+  // ==========================================
+  // SPECIALTIES SECTION
+  // ==========================================
+  specialtiesSection: {
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    marginTop: 48,
+    marginBottom: 64,
+  },
+  specialtiesHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginBottom: 28,
+    gap: 16,
+  },
+  sectionBadgeWrap: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#DCE7EC',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 3.5,
+    marginBottom: 8,
+  },
+  sectionBadge: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#00B894',
+    letterSpacing: 0.6,
+  },
+  specialtiesTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1E3A8A',
+    letterSpacing: -0.4,
+    marginBottom: 4,
+  },
+  specialtiesSubtitle: {
+    fontSize: 13.5,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  viewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#00B894',
+    borderRadius: 9,
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    backgroundColor: '#FFFFFF',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  viewAllBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  specialtiesCarouselWrap: {
+    position: 'relative',
+    width: '100%',
+    marginVertical: 4,
+    justifyContent: 'center',
+  },
+  specialtiesScrollView: {
+    width: '100%',
+    ...(Platform.OS === 'web' ? {
+      scrollBehavior: 'smooth',
+      WebkitOverflowScrolling: 'touch',
+    } : {}),
+  },
+  specialtiesScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    paddingVertical: 14,
+    paddingHorizontal: 6,
+    gap: 16,
+  },
+  carouselArrowBtn: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -22,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#DCE7EC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 30,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
+    ...(Platform.OS === 'web' ? {
+      cursor: 'pointer',
+      userSelect: 'none',
+      boxShadow: '0 4px 14px rgba(12, 59, 107, 0.08)',
+    } : {}),
+  },
+  carouselArrowLeft: {
+    left: -14,
+  },
+  carouselArrowRight: {
+    right: -14,
+  },
+  carouselArrowDisabled: {
+    opacity: 0.28,
+    ...(Platform.OS === 'web' ? {
+      cursor: 'not-allowed',
+      pointerEvents: 'none',
+      boxShadow: 'none',
+    } : {}),
+  },
+  specialtiesRow: {
+    width: '100%',
+  },
+  specialtiesRowDesktop: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 20,
+    justifyContent: 'space-between',
+  },
+  specialtiesRowTablet: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    justifyContent: 'space-between',
+  },
+  specialtiesRowMobile: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  specialtiesRowWrapped: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 14,
+  },
+  specialtyItem: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#DCE7EC',
+    borderRadius: 20,
+    paddingTop: 18,
+    paddingBottom: 16,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    shadowColor: '#0C3B6B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    marginBottom: 6,
+    flexShrink: 0,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', boxSizing: 'border-box' } : {}),
+  },
+  specialtyItemDesktop: {
+    width: 202,
+  },
+  specialtyItemTablet: {
+    width: 175,
+  },
+  specialtyItemMobile: {
+    width: 152,
+    paddingHorizontal: 8,
+  },
+  specialtyIconWrap: {
+    width: 86,
+    height: 86,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+  },
+  specialtyImage: {
+    width: '100%',
+    height: '100%',
+  },
+  specialtyItemTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0C3B6B',
+    textAlign: 'center',
+    marginBottom: 4,
+    letterSpacing: -0.2,
+  },
+  specialtyItemSubtitle: {
+    fontSize: 11.5,
+    color: '#475569',
+    textAlign: 'center',
+    lineHeight: 16,
+    marginBottom: 12,
+    minHeight: 32,
+    fontWeight: '500',
+    paddingHorizontal: 2,
+  },
+  consultNowTouch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 5.5,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#DCE7EC',
+  },
+  consultNowText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#00B894',
+    letterSpacing: 0.4,
+  },
+
+  // ==========================================
+  // TRUST SECTION
+  // ==========================================
+  trustSection: {
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    marginTop: 56,
+  },
+  sectionHeaderCompact: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#1E3A8A',
+    letterSpacing: -0.4,
+    textAlign: 'center',
+    marginBottom: 5,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  trustGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 18,
+  },
+  trustCard: {
+    flex: 1,
+    minWidth: 240,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#DCE7EC',
+    padding: 22,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  trustCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  trustIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  aiHeroCtaTitle: {
-    fontSize: 14,
+  trustBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 6,
+  },
+  trustBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  trustTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1E3A8A',
+    marginBottom: 6,
+    letterSpacing: -0.2,
+  },
+  trustDesc: {
+    fontSize: 12.5,
+    color: '#64748B',
+    lineHeight: 18,
+    fontWeight: '400',
+  },
+
+  // ==========================================
+  // EMERGENCY BANNER
+  // ==========================================
+  emergencyBanner: {
+    width: '100%',
+    alignSelf: 'center',
+    marginTop: 48,
+    backgroundColor: '#FFF1E8',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#DCE7EC',
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  emergencyLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 280,
+  },
+  emergencyIconPulse: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#DCE7EC',
+  },
+  emergencyTitle: {
+    fontSize: 15.5,
+    fontWeight: '800',
+    color: '#1E3A8A',
+    marginBottom: 2,
+  },
+  emergencySubtitle: {
+    fontSize: 12.5,
+    color: '#64748B',
+    lineHeight: 17,
+  },
+  emergencyRight: {
+    alignItems: 'flex-end',
+  },
+  emergencyCallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FF7F50',
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 9,
+    shadowColor: '#FF7F50',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  emergencyCallText: {
+    fontSize: 13.5,
     fontWeight: '800',
     color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
-  aiHeroCtaSub: {
+
+  // ==========================================
+  // RICH FOOTER (CLEAN LIGHT HEALTHCARE)
+  // ==========================================
+  footerInner: {
+    width: '100%',
+    alignSelf: 'center',
+    paddingTop: 48,
+    paddingBottom: 40,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 32,
+    justifyContent: 'space-between',
+  },
+  footerColBrand: {
+    flex: 1.4,
+    minWidth: 260,
+  },
+  footerBrandDesc: {
+    fontSize: 12.5,
+    color: '#64748B',
+    lineHeight: 19,
+    marginTop: 12,
+    marginBottom: 18,
+    maxWidth: 340,
+  },
+  complianceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  compliancePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#C4D8E7',
+    paddingHorizontal: 9,
+    paddingVertical: 4.5,
+    borderRadius: 6,
+  },
+  compliancePillText: {
     fontSize: 11,
-    color: '#CCFBF1',
+    fontWeight: '700',
+    color: '#0C3B6B',
+  },
+  footerCol: {
+    flex: 1,
+    minWidth: 160,
+  },
+  footerColTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#0C3B6B',
+    marginBottom: 14,
+    letterSpacing: 0.2,
+  },
+  footerLink: {
+    fontSize: 12.5,
+    color: '#334155',
+    marginBottom: 9,
     fontWeight: '500',
-    marginTop: 1,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  footerBottomBar: {
+    width: '100%',
+    alignSelf: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#C4D8E7',
+    paddingTop: 20,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  footerCopyright: {
+    fontSize: 12,
+    color: '#475569',
+  },
+  footerBottomLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  footerBottomLinkText: {
+    fontSize: 12,
+    color: '#475569',
+  },
+  footerBottomLinkDot: {
+    fontSize: 12,
+    color: '#94A3B8',
   },
 });
 
 const HomeScreenResponsive = (props) => {
   const { width } = useWindowDimensions();
-  const isTabletOrDesktop = width >= 600;
+  const isDesktop = width >= 992;
 
-  if (!isTabletOrDesktop) {
+  if (!isDesktop) {
     return <HomeScreenMobile {...props} />;
   }
 

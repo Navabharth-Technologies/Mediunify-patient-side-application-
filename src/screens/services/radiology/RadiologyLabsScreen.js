@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -12,6 +11,7 @@ import {
   useWindowDimensions,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import { radiologyLabs, radiologyCategories } from '../../../data/radiologyLabsData';
@@ -136,11 +136,11 @@ const RadiologyLabsScreen = (props) => {
 
         {/* LAB TITLE & LOCATION */}
         <View style={styles.labMainInfo}>
-          <View style={[styles.labIconBox, selectedCategory === 'cardiology' && { backgroundColor: '#FFF1F2' }]}>
+          <View style={[styles.labIconBox, selectedCategory === 'cardiology' && { backgroundColor: '#FFF2ED' }]}>
             <Ionicons
               name={selectedCategory === 'cardiology' ? 'heart-outline' : 'radio-outline'}
               size={26}
-              color={selectedCategory === 'cardiology' ? '#E11D48' : colors.primary}
+              color={selectedCategory === 'cardiology' ? '#FF7F50' : colors.primary}
             />
           </View>
           <View style={styles.labTitleContent}>
@@ -149,8 +149,8 @@ const RadiologyLabsScreen = (props) => {
             </Text>
             {selectedCategory === 'cardiology' && (
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3, marginBottom: 3 }}>
-                <Ionicons name="heart" size={12} color="#E11D48" style={{ marginRight: 4 }} />
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#BE123C' }}>
+                <Ionicons name="heart" size={12} color="#FF7F50" style={{ marginRight: 4 }} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#FF7F50' }}>
                   {lab.availableTests.filter((t) => t.category === 'cardiology').length} Cardiology Tests Available
                 </Text>
               </View>
@@ -245,7 +245,7 @@ const RadiologyLabsScreen = (props) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* ==================================================
@@ -604,30 +604,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerCenter: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 10,
   },
   headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     color: colors.secondary,
   },
@@ -644,9 +644,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   cartHeaderButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
@@ -682,16 +682,16 @@ const styles = StyleSheet.create({
   // SEARCH
   searchContainer: {
     paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 6,
+    paddingTop: 8,
+    paddingBottom: 4,
   },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    height: 48,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 42,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     shadowColor: '#000',
@@ -703,7 +703,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     marginLeft: 10,
-    fontSize: 14,
+    fontSize: 13,
     color: colors.text,
     fontWeight: '500',
   },
@@ -711,8 +711,8 @@ const styles = StyleSheet.create({
   // HERO BANNER
   heroBanner: {
     marginHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 12,
+    marginTop: 6,
+    marginBottom: 8,
     backgroundColor: colors.secondary,
     borderRadius: 16,
     padding: 16,
@@ -899,7 +899,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   specialBadge: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#FFF2ED',
     paddingHorizontal: 7,
     paddingVertical: 4,
     borderRadius: 6,
@@ -907,7 +907,7 @@ const styles = StyleSheet.create({
   specialBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#D97706',
+    color: '#FF7F50',
   },
   distanceBadge: {
     flexDirection: 'row',
@@ -1027,7 +1027,7 @@ const styles = StyleSheet.create({
   offerBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F2FAF0',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
@@ -1037,7 +1037,7 @@ const styles = StyleSheet.create({
   offerText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#047857',
+    color: '#7BC96F',
   },
 
   // CARD FOOTER

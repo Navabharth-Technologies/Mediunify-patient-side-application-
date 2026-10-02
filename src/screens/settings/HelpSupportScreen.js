@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
   Linking,
   Alert,
   Platform,
+  Keyboard,
+  KeyboardAvoidingView,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -50,6 +52,25 @@ const FAQS = [
 ];
 
 const HelpSupportScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
+  const scrollViewRef = useRef(null);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardVisible(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardVisible(false)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   const [expandedFaq, setExpandedFaq] = useState('faq-1');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
@@ -75,13 +96,13 @@ const HelpSupportScreen = ({ navigation }) => {
     setSubject('');
     setMessage('');
     showAlert(
-      'Support Ticket Submitted! 🎫',
+      'Support Ticket Submitted',
       'Your request (Ticket #TK9401) has been received. Our healthcare executive will respond within 15 minutes.'
     );
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -96,13 +117,24 @@ const HelpSupportScreen = ({ navigation }) => {
           <Text style={styles.headerTitle}>Help & 24/7 Support</Text>
           <Text style={styles.headerSubtitle}>We are here to assist your care</Text>
         </View>
-        <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? (insets.top > 0 ? insets.top + 10 : 20) : 0}
+        style={{ flex: 1 }}
       >
+        <ScrollView
+          ref={scrollViewRef}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: isKeyboardVisible ? (Platform.OS === 'ios' ? 240 : 180) : 40 },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+        >
         {/* EMERGENCY 24/7 HELPLINE CARD */}
         <View style={styles.helpHeroCard}>
           <View style={styles.helpHeroTop}>
@@ -223,6 +255,11 @@ const HelpSupportScreen = ({ navigation }) => {
             placeholderTextColor={colors.slate}
             value={subject}
             onChangeText={setSubject}
+            onFocus={() => {
+              setTimeout(() => {
+                scrollViewRef.current?.scrollTo({ y: 500, animated: true });
+              }, 100);
+            }}
           />
 
           <Text style={[styles.inputLabel, { marginTop: 10 }]}>Detailed Message *</Text>
@@ -232,6 +269,11 @@ const HelpSupportScreen = ({ navigation }) => {
             placeholderTextColor={colors.slate}
             value={message}
             onChangeText={setMessage}
+            onFocus={() => {
+              setTimeout(() => {
+                scrollViewRef.current?.scrollTo({ y: 580, animated: true });
+              }, 100);
+            }}
             multiline
           />
 
@@ -247,6 +289,7 @@ const HelpSupportScreen = ({ navigation }) => {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

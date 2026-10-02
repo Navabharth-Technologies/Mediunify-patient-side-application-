@@ -1,64 +1,120 @@
-﻿import React, { useState } from 'react';
-
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
-  Alert,
+  TextInput,
   Image,
   Platform,
   KeyboardAvoidingView,
   Keyboard,
-  TouchableWithoutFeedback,
   useWindowDimensions,
+  StatusBar,
+  ActivityIndicator,
 } from 'react-native';
-import { showAlert } from '../../utils/alert';
-
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-
-import CustomInput from '../../components/CustomInput';
-import CustomButton from '../../components/CustomButton';
-
+import { showAlert } from '../../utils/alert';
 import colors from '../../theme/colors';
-import { syncLogin, syncRegister, autoMigrateLocalAccountsToServer } from '../../services/dataSyncService';
 import { safeNavigateToMain } from '../../utils/navigationHelper';
+import { syncLogin, syncRegister, autoMigrateLocalAccountsToServer } from '../../services/dataSyncService';
+
+const PRE_SEEDED_CREDENTIALS = {
+  'user@mediunify.com': {
+    password: 'password123',
+    userData: {
+      name: 'Demo Patient',
+      email: 'user@mediunify.com',
+      phone: '+91 98765 43210',
+      gender: 'Male',
+      bloodGroup: 'O+ Positive',
+      age: '29 Yrs',
+    },
+  },
+  '9876543210': {
+    password: 'password123',
+    userData: {
+      name: 'Demo Patient',
+      email: 'user@mediunify.com',
+      phone: '+91 98765 43210',
+      gender: 'Male',
+      bloodGroup: 'O+ Positive',
+      age: '29 Yrs',
+    },
+  },
+  'admin@unnathi.com': {
+    password: 'password123',
+    userData: {
+      name: 'Dr. Unnathi Admin',
+      email: 'admin@unnathi.com',
+      phone: '+91 98450 12345',
+      gender: 'Female',
+      bloodGroup: 'A+ Positive',
+      age: '34 Yrs',
+    },
+  },
+  '9845012345': {
+    password: 'password123',
+    userData: {
+      name: 'Dr. Unnathi Admin',
+      email: 'admin@unnathi.com',
+      phone: '+91 98450 12345',
+      gender: 'Female',
+      bloodGroup: 'A+ Positive',
+      age: '34 Yrs',
+    },
+  },
+};
 
 const LoginScreen = ({ navigation }) => {
-  const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const isSmallDevice = width < 375 || height < 680;
+  const isTablet = width >= 600;
+  const scrollViewRef = useRef(null);
+
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardVisible(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardVisible(false)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  // On Android, ensure status bar area is never overlapped even if insets report 0
+  const androidExtraTop = Platform.OS === 'android' && insets.top === 0 ? (StatusBar.currentHeight || 24) : 0;
+
+  // Vertical centering: Center when vertical height allows comfortable viewing without clipping header.
+  // When keyboard is open, align to flex-start and add padding so fields and buttons are freely scrollable.
+  const minHeightForCentering = isSmallDevice ? 520 : 620;
+  const canCenterVertically = !isKeyboardVisible && height >= minHeightForCentering;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const handleSkipToHome = () => {
-    safeNavigateToMain(navigation);
-  };
-
-  React.useEffect(() => {
-    const loadLastSaved = async () => {
-      try {
-        const storedEmail = await AsyncStorage.getItem('userEmail');
-        if (storedEmail && storedEmail.trim()) {
-          setEmail(storedEmail.trim());
-        }
-      } catch (e) {}
-      // Automatically sync any existing local mobile accounts to server in background
-      try {
-        autoMigrateLocalAccountsToServer();
-      } catch (e) {}
-    };
-    loadLastSaved();
+  useEffect(() => {
+    try {
+      autoMigrateLocalAccountsToServer();
+    } catch (e) {}
   }, []);
 
-  // ==========================================
-  // LOGIN
-  // ==========================================
+
 
   const handleLogin = async () => {
     const inputVal = email.trim();
@@ -80,12 +136,12 @@ const LoginScreen = ({ navigation }) => {
       // 0. Connect directly to Central Sync Server (live Web <-> Mobile shared data)
       try {
         const syncRes = await syncLogin(inputVal, inputPassword);
-        if (syncRes.success && syncRes.user) {
+        if (syncRes && syncRes.success && syncRes.user) {
           console.log('[LoginScreen] Logged in via Central Sync Server:', syncRes.user.name);
           await AsyncStorage.setItem('isLoggedIn', 'true');
           await safeNavigateToMain(navigation);
           return;
-        } else if (syncRes.status === 401) {
+        } else if (syncRes && syncRes.status === 401) {
           setIsLoggingIn(false);
           setErrorMessage('The password you entered is incorrect. Please verify and try again.');
           showAlert(
@@ -115,13 +171,16 @@ const LoginScreen = ({ navigation }) => {
         } catch (e) {}
       }
 
+      const allCreds = { ...PRE_SEEDED_CREDENTIALS, ...registeredCreds };
       const matchingCred =
-        registeredCreds[lowerEmail] ||
-        (cleanPhone10.length === 10 ? registeredCreds[cleanPhone10] : null);
+        allCreds[lowerEmail] ||
+        (cleanPhone10.length === 10 ? allCreds[cleanPhone10] : null);
 
       if (matchingCred) {
         // Enforce password match
         if (matchingCred.password && matchingCred.password !== inputPassword) {
+          setIsLoggingIn(false);
+          setErrorMessage('The password you entered is incorrect. Please try again.');
           showAlert(
             'Incorrect Password',
             'The password you entered is incorrect. Please verify and try again.',
@@ -207,10 +266,7 @@ const LoginScreen = ({ navigation }) => {
           .join(' ') || 'User Profile';
       }
 
-      // ==========================================
-      // SAVE USER DATA
-      // ==========================================
-
+      // 3. Save User Data
       const userData = {
         name: userFullName,
         email: existingEmail,
@@ -258,7 +314,6 @@ const LoginScreen = ({ navigation }) => {
       if (!Array.isArray(userFamilyList) || userFamilyList.length === 0) {
         userFamilyList = [primaryMember];
       } else {
-        // Sync self profile
         let foundSelf = false;
         userFamilyList = userFamilyList.map((m) => {
           if (m.id === 'self' || m.isPrimary || m.relation === 'Self') {
@@ -283,194 +338,247 @@ const LoginScreen = ({ navigation }) => {
       await AsyncStorage.setItem('@unnathi_family_members', JSON.stringify(userFamilyList));
       await AsyncStorage.setItem('@unnathi_active_patient', JSON.stringify(userFamilyList[0] || primaryMember));
 
-
-      // ==========================================
-      // SAVE LOGIN STATUS
-      // ==========================================
-
-      await AsyncStorage.setItem(
-        'isLoggedIn',
-        'true'
-      );
-
-      console.log(
-        'User saved:',
-        userData
-      );
+      // 4. Save login status
+      await AsyncStorage.setItem('isLoggedIn', 'true');
 
       // Background push to Central Sync Server
       try {
         syncRegister(userData, inputPassword);
       } catch (e) {}
 
-      // ==========================================
-      // GO TO MAIN APP (Safe on both Web & Mobile)
-      // ==========================================
-
+      // 5. Navigate to Main App
       await safeNavigateToMain(navigation);
-
     } catch (error) {
       setIsLoggingIn(false);
       console.log('Login storage error:', error);
       setErrorMessage('Something went wrong while logging in. Please check your connection and try again.');
-      showAlert(
-        'Login Error',
-        'Something went wrong while logging in.'
-      );
+      showAlert('Login Error', 'Something went wrong while logging in.');
     }
-
   };
-
-
-  // ==========================================
-  // FORGOT PASSWORD
-  // ==========================================
-
-  const handleForgotPassword = () => {
-
-    navigation.navigate(
-      'ForgotPassword'
-    );
-
-  };
-
-
-  // ==========================================
-  // CREATE ACCOUNT
-  // ==========================================
-
-  const handleRegister = () => {
-
-    navigation.navigate(
-      'Register'
-    );
-
-  };
-
 
   return (
-    <SafeAreaView style={[styles.safeArea, isDesktopWeb && styles.safeAreaDesktop]}>
-      {isDesktopWeb && (
-        <View style={styles.webTopBar}>
-          <View style={styles.webTopBarInner}>
-            <TouchableOpacity onPress={handleSkipToHome} activeOpacity={0.8}>
-              <Image
-                source={require('../../../assets/logo.png')}
-                style={styles.webLogo}
-                resizeMode="contain"
-              />
-            </TouchableOpacity>
-
-            <View style={styles.webTopRight}>
-              <TouchableOpacity
-                style={styles.skipToHomeBtn}
-                onPress={handleSkipToHome}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.skipToHomeText}>Explore as Guest / Skip to Home</Text>
-                <Ionicons name="arrow-forward" size={15} color={colors.teal} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      )}
+    <SafeAreaView
+      style={[
+        styles.safeArea,
+        androidExtraTop > 0 && { paddingTop: androidExtraTop },
+      ]}
+      edges={['top', 'left', 'right', 'bottom']}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? (insets.top > 0 ? insets.top : 20) : 0}
         style={{ flex: 1 }}
       >
         <ScrollView
-          contentContainerStyle={[styles.content, isDesktopWeb && styles.contentDesktop]}
+          ref={scrollViewRef}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              justifyContent: canCenterVertically ? 'center' : 'flex-start',
+              paddingBottom: isKeyboardVisible ? (Platform.OS === 'ios' ? 140 : 100) : (isSmallDevice ? 12 : 20),
+            },
+            isSmallDevice && styles.scrollContentSmall,
+            isTablet && styles.scrollContentTablet,
+          ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          <View style={[styles.authCard, isDesktopWeb && styles.authCardDesktop]}>
-            {/* LOGO */}
-            <View style={styles.logoContainer}>
+          <View
+            style={[
+              styles.authCard,
+              isSmallDevice && styles.authCardSmall,
+              isTablet && styles.authCardTablet,
+            ]}
+          >
+            {/* BRAND LOGO & TAGLINE */}
+            <View style={[styles.logoSection, isSmallDevice && styles.logoSectionSmall]}>
               <Image
                 source={require('../../../assets/logo.png')}
-                style={styles.logo}
+                style={[styles.logoImage, isSmallDevice && styles.logoImageSmall]}
                 resizeMode="contain"
               />
+              <Text style={styles.taglineText}>Healthcare Unified • Mobile Care</Text>
             </View>
 
-            {/* HEADER */}
-            <View style={styles.header}>
-              <Text style={styles.title}>Welcome Back</Text>
-              <Text style={styles.subtitle}>
-                Login to your Unnathi Healthcare account.
+            {/* AUTH SEGMENTED SWITCHER (LOGIN / SIGN UP) */}
+            <View style={[styles.segmentedContainer, isSmallDevice && styles.segmentedContainerSmall]}>
+              <TouchableOpacity
+                style={[styles.segmentBtn, styles.segmentBtnActive]}
+                activeOpacity={0.9}
+              >
+                <Text style={styles.segmentTextActive}>Sign In</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.segmentBtn}
+                activeOpacity={0.8}
+                onPress={() => navigation.navigate('Register')}
+              >
+                <Text style={styles.segmentTextInactive}>Create Account</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* CARD HEADING */}
+            <View style={[styles.cardHeader, isSmallDevice && styles.cardHeaderSmall]}>
+              <Text style={[styles.cardTitle, isSmallDevice && styles.cardTitleSmall]}>Welcome Back</Text>
+              <Text style={[styles.cardSubtitle, isSmallDevice && styles.cardSubtitleSmall]}>
+                Sign in with your registered email or mobile number to access your health records.
               </Text>
             </View>
 
-            {/* EMAIL OR PHONE */}
-            <CustomInput
-              label="Email or Mobile Phone"
-              placeholder="Enter your email or 10-digit phone"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
+            {/* INPUT: EMAIL OR PHONE */}
+            <View style={[styles.fieldGroup, isSmallDevice && styles.fieldGroupSmall]}>
+              <Text style={styles.fieldLabel}>
+                Email or Mobile Number <Text style={styles.requiredMark}>*</Text>
+              </Text>
+              <View style={[styles.inputBox, isSmallDevice && styles.inputBoxSmall, email ? styles.inputBoxFilled : null]}>
+                <Ionicons
+                  name={email.includes('@') ? 'mail-outline' : 'call-outline'}
+                  size={18}
+                  color={email ? colors.primary : colors.slate}
+                  style={styles.inputPrefixIcon}
+                />
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Enter email or 10-digit mobile"
+                  placeholderTextColor="#94A3B8"
+                  value={email}
+                  onChangeText={setEmail}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+                    }, 100);
+                  }}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {email.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setEmail('')}
+                    style={styles.clearBtn}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
 
-            {/* PASSWORD WITH EYE TOGGLE */}
-            <CustomInput
-              label="Password"
-              placeholder="Enter your password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              isPassword
-            />
+            {/* INPUT: PASSWORD */}
+            <View style={[styles.fieldGroup, isSmallDevice && styles.fieldGroupSmall]}>
+              <View style={styles.fieldLabelRow}>
+                <Text style={styles.fieldLabel}>
+                  Password <Text style={styles.requiredMark}>*</Text>
+                </Text>
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('ForgotPassword')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.forgotPassLink}>Forgot Password?</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={[styles.inputBox, isSmallDevice && styles.inputBoxSmall, password ? styles.inputBoxFilled : null]}>
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={18}
+                  color={password ? colors.primary : colors.slate}
+                  style={styles.inputPrefixIcon}
+                />
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Enter account password"
+                  placeholderTextColor="#94A3B8"
+                  value={password}
+                  onChangeText={setPassword}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 140 : 170, animated: true });
+                    }, 100);
+                  }}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity
+                  style={styles.eyeBtn}
+                  onPress={() => setShowPassword(!showPassword)}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color={showPassword ? colors.primary : colors.slate}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
 
-            {/* FORGOT PASSWORD */}
+            {/* REMEMBER ME TOGGLE */}
             <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={handleForgotPassword}
-              style={styles.forgotBtn}
+              style={[styles.rememberMeRow, isSmallDevice && styles.rememberMeRowSmall]}
+              activeOpacity={0.8}
+              onPress={() => setRememberMe(!rememberMe)}
             >
-              <Text style={styles.forgot}>Forgot Password?</Text>
+              <View style={[styles.checkboxBox, rememberMe && styles.checkboxBoxChecked]}>
+                {rememberMe && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
+              </View>
+              <Text style={styles.rememberMeText}>Remember login on this device</Text>
             </TouchableOpacity>
 
-            {/* INLINE ERROR BANNER */}
+            {/* INLINE ERROR BOX */}
             {errorMessage ? (
               <View style={styles.errorBox}>
-                <Ionicons name="alert-circle" size={18} color="#DC2626" />
-                <Text style={styles.errorText}>{errorMessage}</Text>
+                <Ionicons name="alert-circle" size={17} color="#FF7F50" />
+                <Text style={styles.errorBoxText}>{errorMessage}</Text>
               </View>
             ) : null}
 
-            {/* LOGIN BUTTON */}
-            <CustomButton
-              title={isLoggingIn ? 'Logging In...' : 'Login'}
-              disabled={isLoggingIn}
+            {/* PRIMARY SIGN IN BUTTON */}
+            <TouchableOpacity
+              style={[
+                styles.primarySubmitBtn,
+                isSmallDevice && styles.primarySubmitBtnSmall,
+                isLoggingIn && styles.primarySubmitBtnDisabled,
+              ]}
               onPress={() => {
                 Keyboard.dismiss();
                 handleLogin();
               }}
-            />
+              disabled={isLoggingIn}
+              activeOpacity={0.85}
+            >
+              {isLoggingIn ? (
+                <View style={styles.btnRow}>
+                  <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.primarySubmitBtnText}>Verifying Credentials...</Text>
+                </View>
+              ) : (
+                <View style={styles.btnRow}>
+                  <Text style={styles.primarySubmitBtnText}>Sign In to MediUnify</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
+                </View>
+              )}
+            </TouchableOpacity>
 
-            {/* REGISTER */}
-            <View style={styles.registerContainer}>
-              <Text style={styles.registerText}>Don't have an account?</Text>
+            {/* REGISTER PROMPT */}
+            <View style={[styles.signupFooter, isSmallDevice && styles.signupFooterSmall]}>
+              <Text style={styles.signupFooterText}>Don't have a verified health account?</Text>
               <TouchableOpacity
                 activeOpacity={0.7}
-                onPress={handleRegister}
+                onPress={() => navigation.navigate('Register')}
+                style={styles.signupFooterBtn}
               >
-                <Text style={styles.registerLink}> Create Account</Text>
+                <Text style={styles.signupFooterLink}> Create New Account</Text>
+                <Ionicons name="chevron-forward" size={13} color={colors.teal} />
               </TouchableOpacity>
             </View>
-
-            <TouchableOpacity
-              style={styles.skipHomeLink}
-              onPress={handleSkipToHome}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.skipHomeLinkText}>
-                Explore as Guest / Skip to Home &gt;
-              </Text>
-            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -481,158 +589,298 @@ const LoginScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: '#F8FAFC',
   },
-  safeAreaDesktop: {
-    backgroundColor: colors.background,
-  },
-  webTopBar: {
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-  },
-  webTopBarInner: {
-    maxWidth: 1320,
-    width: '100%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  webLogo: {
-    width: 150,
-    height: 44,
-  },
-  webTopRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  skipToHomeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: colors.lightTeal,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  skipToHomeText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.teal,
-  },
-  content: {
+  scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 24,
-  },
-  contentDesktop: {
-    paddingVertical: 48,
-    justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    backgroundColor: '#F8FAFC',
+  },
+  scrollContentSmall: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  scrollContentTablet: {
+    paddingHorizontal: 24,
+    paddingVertical: 32,
   },
   authCard: {
     width: '100%',
     maxWidth: 440,
     alignSelf: 'center',
-  },
-  authCardDesktop: {
-    backgroundColor: colors.white,
-    borderRadius: 24,
-    padding: 36,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 22,
     borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.07,
-    shadowRadius: 28,
+    borderColor: '#E2E8F0',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  authCardSmall: {
+    padding: 16,
+    borderRadius: 16,
+  },
+  authCardTablet: {
+    padding: 28,
+    borderRadius: 22,
+    maxWidth: 450,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
     elevation: 4,
   },
-  logoContainer: {
+  logoSection: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 14,
   },
-  logo: {
-    width: 220,
-    height: 90,
+  logoSectionSmall: {
+    marginBottom: 10,
   },
-  header: {
-    marginBottom: 24,
+  logoImage: {
+    width: 175,
+    height: 48,
+  },
+  logoImageSmall: {
+    width: 150,
+    height: 40,
+  },
+  taglineText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 3,
+    letterSpacing: 0.2,
+  },
+  segmentedContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+  },
+  segmentedContainerSmall: {
+    marginBottom: 12,
+  },
+  segmentBtn: {
+    flex: 1,
+    paddingVertical: 9,
     alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 9,
   },
-  title: {
-    fontSize: 26,
+  segmentBtnActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  segmentTextActive: {
+    fontSize: 13,
     fontWeight: '800',
-    color: colors.secondary, // Navy Blue
-    marginBottom: 8,
-    textAlign: 'center',
+    color: '#1E3A8A',
   },
-  subtitle: {
+  segmentTextInactive: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  cardHeader: {
+    marginBottom: 16,
+  },
+  cardHeaderSmall: {
+    marginBottom: 12,
+  },
+  cardTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#1E3A8A',
+    letterSpacing: -0.3,
+  },
+  cardTitleSmall: {
+    fontSize: 20,
+  },
+  cardSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  cardSubtitleSmall: {
+    fontSize: 11.5,
+    lineHeight: 16,
+  },
+  fieldGroup: {
+    marginBottom: 14,
+  },
+  fieldGroupSmall: {
+    marginBottom: 10,
+  },
+  fieldLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E3A8A',
+    marginBottom: 6,
+  },
+  requiredMark: {
+    color: '#FF7F50',
+    fontWeight: '800',
+  },
+  forgotPassLink: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  inputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    height: 48,
+  },
+  inputBoxSmall: {
+    height: 44,
+    borderRadius: 12,
+  },
+  inputBoxFilled: {
+    borderColor: '#A7F3D0',
+    backgroundColor: '#FFFFFF',
+  },
+  inputPrefixIcon: {
+    marginRight: 10,
+  },
+  textInput: {
+    flex: 1,
     fontSize: 14,
-    color: colors.slate, // Slate
-    lineHeight: 20,
-    textAlign: 'center',
+    color: '#0F172A',
+    paddingVertical: 0,
   },
-  forgotBtn: {
-    alignSelf: 'flex-end',
+  clearBtn: {
+    padding: 4,
+  },
+  eyeBtn: {
+    padding: 4,
+  },
+  rememberMeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginBottom: 16,
     marginTop: 2,
   },
-  forgot: {
-    textAlign: 'right',
-    color: colors.teal, // Teal
-    fontWeight: '700',
-    fontSize: 13,
+  rememberMeRowSmall: {
+    marginBottom: 12,
   },
-  registerContainer: {
-    flexDirection: 'row',
+  checkboxBox: {
+    width: 18,
+    height: 18,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 22,
+    backgroundColor: '#FFFFFF',
   },
-  registerText: {
-    color: colors.slate,
-    fontSize: 14,
+  checkboxBoxChecked: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
   },
-  registerLink: {
-    color: colors.teal,
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  skipHomeLink: {
-    marginTop: 20,
-    alignSelf: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  skipHomeLinkText: {
-    fontSize: 13,
-    color: colors.slate,
-    fontWeight: '700',
+  rememberMeText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
   },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#FFF2ED',
     borderWidth: 1,
-    borderColor: '#FCA5A5',
-    borderRadius: 10,
+    borderColor: '#FFD7C7',
+    borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginTop: 8,
-    marginBottom: 4,
+    paddingVertical: 9,
+    marginBottom: 14,
   },
-  errorText: {
-    fontSize: 13,
-    color: '#B91C1C',
+  errorBoxText: {
+    fontSize: 12,
+    color: '#FF7F50',
     fontWeight: '600',
     flex: 1,
-    lineHeight: 18,
+    lineHeight: 17,
+  },
+  primarySubmitBtn: {
+    backgroundColor: '#00B894',
+    borderRadius: 14,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  primarySubmitBtnSmall: {
+    height: 44,
+    borderRadius: 12,
+  },
+  primarySubmitBtnDisabled: {
+    opacity: 0.65,
+  },
+  btnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  primarySubmitBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  signupFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    marginTop: 18,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  signupFooterSmall: {
+    marginTop: 14,
+    paddingTop: 10,
+  },
+  signupFooterText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  signupFooterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  signupFooterLink: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#00B894',
   },
 });
 

@@ -8,7 +8,7 @@ const PackageCard = ({ pkg, onPress, onCalculateEmi }) => {
   return (
     <View style={styles.card}>
       <View style={styles.topRow}>
-        <View style={[styles.badgePill, { backgroundColor: pkg.badgeColor || '#E11D48' }]}>
+        <View style={[styles.badgePill, { backgroundColor: pkg.badgeColor || '#00B894' }]}>
           <Text style={styles.badgeText}>{pkg.badge}</Text>
         </View>
         <Text style={styles.durationText}>{pkg.duration}</Text>
@@ -28,7 +28,7 @@ const PackageCard = ({ pkg, onPress, onCalculateEmi }) => {
 
         {pkg.emiStartsAt && (
           <View style={styles.emiBanner}>
-            <Ionicons name="card-outline" size={14} color="#059669" />
+            <Ionicons name="card-outline" size={14} color="#7BC96F" />
             <Text style={styles.emiText}>{pkg.emiStartsAt}</Text>
           </View>
         )}
@@ -38,7 +38,7 @@ const PackageCard = ({ pkg, onPress, onCalculateEmi }) => {
         <Text style={styles.inclusionsTitle}>Package Inclusions:</Text>
         {pkg.inclusions.map((item, index) => (
           <View key={index} style={styles.incItem}>
-            <Ionicons name="checkmark-circle" size={14} color="#059669" />
+            <Ionicons name="checkmark-circle" size={14} color="#7BC96F" />
             <Text style={styles.incText}>{item}</Text>
           </View>
         ))}
@@ -145,8 +145,8 @@ const styles = StyleSheet.create({
   discountBadge: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#059669',
-    backgroundColor: '#ECFDF5',
+    color: '#7BC96F',
+    backgroundColor: '#F2FAF0',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
   emiText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#059669',
+    color: '#7BC96F',
   },
   inclusionsBox: {
     marginBottom: 12,
@@ -184,21 +184,21 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   recommendedBox: {
-    backgroundColor: '#FFF1F2',
+    backgroundColor: '#FFF2ED',
     padding: 10,
     borderRadius: 10,
     marginBottom: 14,
     borderLeftWidth: 3,
-    borderLeftColor: '#E11D48',
+    borderLeftColor: '#FF7F50',
   },
   recLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#9F1239',
+    color: '#FF7F50',
   },
   recText: {
     fontSize: 11,
-    color: '#4C0519',
+    color: '#0F172A',
     marginTop: 2,
     lineHeight: 15,
   },
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
   },
   bookBtn: {
     flex: 1.2,
-    backgroundColor: '#E11D48',
+    backgroundColor: '#00B894',
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: 'center',

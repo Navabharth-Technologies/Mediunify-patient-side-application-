@@ -24,7 +24,7 @@ const ConsentItem = ({
           <Ionicons
             name={isChecked ? 'checkbox' : 'square-outline'}
             size={22}
-            color={isChecked ? '#E11D48' : '#94A3B8'}
+            color={isChecked ? '#00B894' : '#94A3B8'}
           />
         </TouchableOpacity>
 
@@ -52,7 +52,7 @@ const ConsentItem = ({
               <Ionicons
                 name={expanded ? 'chevron-up' : 'chevron-down'}
                 size={13}
-                color="#E11D48"
+                color="#00B894"
               />
             </TouchableOpacity>
           )}
@@ -78,8 +78,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   containerChecked: {
-    borderColor: '#FECDD3',
-    backgroundColor: '#FFF1F2',
+    borderColor: '#B2EBF2',
+    backgroundColor: '#E6F8F5',
   },
   mainRow: {
     flexDirection: 'row',
@@ -107,15 +107,15 @@ const styles = StyleSheet.create({
   reqBadge: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#E11D48',
-    backgroundColor: '#FFE4E6',
+    color: '#FF7F50',
+    backgroundColor: '#FFF2ED',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
   summary: {
     fontSize: 11,
-    color: '#475569',
+    color: '#64748B',
     lineHeight: 16,
   },
   expandToggle: {
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
   expandText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#E11D48',
+    color: '#00B894',
   },
   legalBox: {
     backgroundColor: '#F8FAFC',
@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     padding: 10,
     marginTop: 8,
     borderLeftWidth: 3,
-    borderLeftColor: '#E11D48',
+    borderLeftColor: '#00B894',
   },
   legalText: {
     fontSize: 10,

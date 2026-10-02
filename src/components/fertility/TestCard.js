@@ -32,11 +32,11 @@ const TestCard = ({ test, onPress, onBook }) => {
 
       <View style={styles.specGrid}>
         <View style={styles.specItem}>
-          <Ionicons name="time-outline" size={13} color="#059669" />
+          <Ionicons name="time-outline" size={13} color="#7BC96F" />
           <Text style={styles.specVal}>{test.tat}</Text>
         </View>
         <View style={styles.specItem}>
-          <Ionicons name="flask-outline" size={13} color="#7C3AED" />
+          <Ionicons name="flask-outline" size={13} color="#00C2CB" />
           <Text style={styles.specVal} numberOfLines={1}>
             {test.sampleType}
           </Text>
@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   categoryBadge: {
-    backgroundColor: '#FFF1F2',
+    backgroundColor: '#E0F7FA',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
   categoryText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#E11D48',
+    color: '#00C2CB',
   },
   targetBadge: {
     flexDirection: 'row',
@@ -164,10 +164,10 @@ const styles = StyleSheet.create({
   discountTag: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#059669',
+    color: '#7BC96F',
   },
   bookBtn: {
-    backgroundColor: '#E11D48',
+    backgroundColor: '#00B894',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,

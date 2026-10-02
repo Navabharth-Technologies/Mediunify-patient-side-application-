@@ -1,22 +1,24 @@
-﻿import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Alert,
   useWindowDimensions,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../../utils/alert';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 
 import colors from '../../../theme/colors';
 import pharmacyProducts from '../../../data/pharmacyProducts';
 import { useCart } from '../../../context/CartContext';
 import ProductCard from '../../../components/ProductCard';
+import { useAuthGuard } from '../../../context/AuthGuardContext';
 
 const getCategoryIcon = (category) => {
   switch (category) {
@@ -69,7 +71,7 @@ const ProductDetailsScreen = ({ navigation, route }) => {
 
   if (!product) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
         <View style={styles.notFoundWrap}>
           <Ionicons name="alert-circle-outline" size={48} color={colors.slate} />
           <Text style={styles.notFoundText}>Product not found.</Text>
@@ -87,7 +89,7 @@ const ProductDetailsScreen = ({ navigation, route }) => {
   const handleAddToCart = () => {
     addToCart(product, quantity, 'pharmacy', currentStore);
     showAlert(
-      'Added to Cart! 🛒',
+      'Added to Cart',
       `${quantity} × ${product.name} added to your basket (${currentStore?.name || 'Apollo Pharmacy'}).`,
       [
         { text: 'Continue Shopping', style: 'cancel' },
@@ -99,13 +101,19 @@ const ProductDetailsScreen = ({ navigation, route }) => {
     );
   };
 
+  const { requireLogin } = useAuthGuard();
+
   const handleBuyNow = () => {
+    requireLogin(() => _doBuyNow());
+  };
+
+  const _doBuyNow = () => {
     addToCart(product, quantity, 'pharmacy', currentStore);
-    navigation.navigate('Cart', { initialTab: 'pharmacy' });
+    navigation.navigate('Cart', { initialTab: 'pharmacy', openCheckout: true });
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity

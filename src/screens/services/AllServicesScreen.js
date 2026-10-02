@@ -3,12 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../theme/colors';
 
@@ -31,7 +31,7 @@ const ALL_SERVICES = [
     iconBg: '#E6F8F4',
     badge: 'Instant Slots',
     badgeBg: '#CCFBF1',
-    badgeColor: '#0D9488',
+    badgeColor: '#00B894',
     route: 'DoctorList',
   },
   {
@@ -40,11 +40,11 @@ const ALL_SERVICES = [
     title: 'Online Video Consultation',
     subtitle: 'Connect with top doctors via instant HD video call with digital prescription',
     icon: 'videocam',
-    iconColor: '#2563EB',
-    iconBg: '#EFF6FF',
+    iconColor: '#1E3A8A',
+    iconBg: '#E0F7FA',
     badge: '10-Min Connect',
-    badgeBg: '#DBEAFE',
-    badgeColor: '#1D4ED8',
+    badgeBg: '#E0F7FA',
+    badgeColor: '#1E3A8A',
     route: 'VideoConsultation',
   },
   {
@@ -53,11 +53,11 @@ const ALL_SERVICES = [
     title: 'Pharmacy & Medicines',
     subtitle: '100% genuine branded & affordable Jan Aushadhi generic medicines',
     icon: 'medkit',
-    iconColor: '#EA580C',
-    iconBg: '#FFF7ED',
+    iconColor: '#00B894',
+    iconBg: '#E6F8F5',
     badge: 'Flat 20% OFF',
-    badgeBg: '#FFEDD5',
-    badgeColor: '#C2410C',
+    badgeBg: '#CCFBF1',
+    badgeColor: '#00B894',
     route: 'Pharmacy',
   },
   {
@@ -66,11 +66,11 @@ const ALL_SERVICES = [
     title: 'Lab Tests & Health Checkups',
     subtitle: 'Diagnostic blood tests & comprehensive packages with doorstep sample collection',
     icon: 'flask',
-    iconColor: '#0D9488',
-    iconBg: '#F0FDFA',
+    iconColor: '#00C2CB',
+    iconBg: '#E0F7FA',
     badge: 'Home Collection',
-    badgeBg: '#CCFBF1',
-    badgeColor: '#0F766E',
+    badgeBg: '#E0F7FA',
+    badgeColor: '#00C2CB',
     route: 'LabTests',
   },
   {
@@ -79,11 +79,11 @@ const ALL_SERVICES = [
     title: 'Radiology & Cardiology Scans',
     subtitle: '2D Echo, 12-Lead ECG, MRI, CT Scan, Ultrasound & X-Ray at accredited labs',
     icon: 'scan',
-    iconColor: '#7C3AED',
-    iconBg: '#FAF5FF',
+    iconColor: '#00C2CB',
+    iconBg: '#E0F7FA',
     badge: 'Fast Reports',
-    badgeBg: '#F3E8FF',
-    badgeColor: '#6D28D9',
+    badgeBg: '#E0F7FA',
+    badgeColor: '#1E3A8A',
     route: 'RadiologyLabs',
   },
   {
@@ -93,10 +93,10 @@ const ALL_SERVICES = [
     subtitle: 'Top NABH partner hospitals, cashless surgeries & admission assistance',
     icon: 'business',
     iconColor: '#1E3A8A',
-    iconBg: '#EFF6FF',
+    iconBg: '#E0F7FA',
     badge: 'Cashless Help',
-    badgeBg: '#DBEAFE',
-    badgeColor: '#1E40AF',
+    badgeBg: '#E0F7FA',
+    badgeColor: '#1E3A8A',
     route: 'HospitalCare',
   },
   {
@@ -105,11 +105,11 @@ const ALL_SERVICES = [
     title: 'Home Nursing Care',
     subtitle: 'Certified nursing attendants, post-op recovery, injections & elderly care at home',
     icon: 'home',
-    iconColor: '#059669',
-    iconBg: '#ECFDF5',
+    iconColor: '#7BC96F',
+    iconBg: '#F2FAF0',
     badge: 'Verified Staff',
-    badgeBg: '#D1FAE5',
-    badgeColor: '#047857',
+    badgeBg: '#F2FAF0',
+    badgeColor: '#1E3A8A',
     route: 'NurseBooking',
   },
   {
@@ -118,11 +118,11 @@ const ALL_SERVICES = [
     title: 'Medical Equipment Rental',
     subtitle: 'Hospital beds, oxygen concentrators, wheelchairs & BiPAP on rent or purchase',
     icon: 'fitness',
-    iconColor: '#9333EA',
-    iconBg: '#FAF5FF',
+    iconColor: '#00B894',
+    iconBg: '#E6F8F5',
     badge: 'Sanitized & Tested',
-    badgeBg: '#F3E8FF',
-    badgeColor: '#7E22CE',
+    badgeBg: '#CCFBF1',
+    badgeColor: '#00B894',
     route: 'EquipmentRental',
   },
   {
@@ -131,11 +131,11 @@ const ALL_SERVICES = [
     title: 'Fertility & IVF Care',
     subtitle: 'Confidential IVF, IUI, fertility screening & advanced reproductive guidance',
     icon: 'heart',
-    iconColor: '#DB2777',
-    iconBg: '#FDF2F8',
+    iconColor: '#FF7F50',
+    iconBg: '#FFF2ED',
     badge: '100% Confidential',
-    badgeBg: '#FCE7F3',
-    badgeColor: '#BE185D',
+    badgeBg: '#FFF2ED',
+    badgeColor: '#FF7F50',
     route: 'FertilityIvf',
   },
   {
@@ -144,11 +144,11 @@ const ALL_SERVICES = [
     title: 'Ayurveda & Wellness',
     subtitle: 'Certified Ayurvedic doctors, Panchakarma therapies & herbal health solutions',
     icon: 'leaf',
-    iconColor: '#16A34A',
-    iconBg: '#F0FDF4',
+    iconColor: '#7BC96F',
+    iconBg: '#F2FAF0',
     badge: '100% Natural',
-    badgeBg: '#DCFCE7',
-    badgeColor: '#15803D',
+    badgeBg: '#F2FAF0',
+    badgeColor: '#1E3A8A',
     route: 'AyurvedaWellness',
   },
   {
@@ -157,11 +157,11 @@ const ALL_SERVICES = [
     title: '24x7 Emergency & Ambulance',
     subtitle: 'Immediate GPS-tracked ambulance dispatch & critical helpline support',
     icon: 'warning',
-    iconColor: '#DC2626',
-    iconBg: '#FEF2F2',
+    iconColor: '#FF7F50',
+    iconBg: '#FFF2ED',
     badge: '24/7 Available',
-    badgeBg: '#FEE2E2',
-    badgeColor: '#B91C1C',
+    badgeBg: '#FFF2ED',
+    badgeColor: '#FF7F50',
     route: 'Emergency',
   },
   {
@@ -170,11 +170,11 @@ const ALL_SERVICES = [
     title: 'Health Insurance & Claims',
     subtitle: 'Compare health insurance policies & cashless hospitalization claim assistance',
     icon: 'shield-checkmark',
-    iconColor: '#2563EB',
-    iconBg: '#EFF6FF',
+    iconColor: '#1E3A8A',
+    iconBg: '#E0F7FA',
     badge: 'Cashless Support',
-    badgeBg: '#DBEAFE',
-    badgeColor: '#1D4ED8',
+    badgeBg: '#E0F7FA',
+    badgeColor: '#1E3A8A',
     route: 'HealthInsurance',
   },
   {
@@ -183,11 +183,11 @@ const ALL_SERVICES = [
     title: 'Health Vitals Monitor',
     subtitle: 'Track Blood Pressure, Blood Sugar, Heart Rate & BMI with personalized trends',
     icon: 'pulse',
-    iconColor: '#E11D48',
-    iconBg: '#FFF1F2',
+    iconColor: '#00C2CB',
+    iconBg: '#E0F7FA',
     badge: 'Free Vitals Tool',
-    badgeBg: '#FFE4E6',
-    badgeColor: '#BE123C',
+    badgeBg: '#E0F7FA',
+    badgeColor: '#00C2CB',
     route: 'HealthMonitor',
   },
 ];
@@ -211,7 +211,7 @@ const AllServicesScreen = ({ navigation }) => {
   }, [searchQuery, selectedCategory]);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* HEADER */}
@@ -362,7 +362,7 @@ const AllServicesScreen = ({ navigation }) => {
           ))
         )}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: Platform.OS === 'ios' ? 95 : 85 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -377,20 +377,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 14,
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
   backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
   headerTextCol: {
     flex: 1,

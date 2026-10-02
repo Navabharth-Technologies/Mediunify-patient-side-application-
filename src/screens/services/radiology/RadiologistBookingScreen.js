@@ -4,7 +4,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -13,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +23,11 @@ import {
   getCurrentPositionWebSafe,
   reverseGeocodeWebSafe,
 } from '../../../utils/locationHelper';
+import {
+  getSlotStatus,
+  validateAndBookSlot,
+  subscribeToSlotChanges,
+} from '../../../services/slotBookingService';
 
 
 const RadiologistBookingScreen = ({
@@ -77,6 +82,40 @@ const RadiologistBookingScreen = ({
 
   const [selectedTime, setSelectedTime] =
     useState('');
+
+  const [slotTick, setSlotTick] =
+    useState(0);
+
+  useEffect(() => {
+    const unsub = subscribeToSlotChanges(() => {
+      setSlotTick((t) => t + 1);
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    if (selectedTime && radiologist?.id) {
+      const st = getSlotStatus({
+        date: selectedDate,
+        time: selectedTime,
+        serviceType: 'radiology',
+        providerId: radiologist.id,
+      });
+      if (!st.available) {
+        // find first available slot
+        const firstAvail = radiologist.slots?.find((s) => {
+          const sSt = getSlotStatus({
+            date: selectedDate,
+            time: s,
+            serviceType: 'radiology',
+            providerId: radiologist.id,
+          });
+          return sSt.available;
+        });
+        setSelectedTime(firstAvail || '');
+      }
+    }
+  }, [selectedDate, slotTick, radiologist]);
 
 
   // ==================================================
@@ -356,6 +395,24 @@ const RadiologistBookingScreen = ({
       return;
     }
 
+    const slotValidation = await validateAndBookSlot({
+      date: selectedDate,
+      time: selectedTime,
+      serviceType: 'radiology',
+      providerId: radiologist?.id || radiologist?.name,
+      bookingDetails: {
+        radiologistName: radiologist?.name,
+        patientName: name.trim(),
+      },
+    });
+
+    if (!slotValidation.success) {
+      Alert.alert(
+        'Slot Unavailable',
+        slotValidation.message || 'This slot is no longer available. Please select another time.'
+      );
+      return;
+    }
 
     const bookingData = {
 
@@ -461,7 +518,7 @@ const RadiologistBookingScreen = ({
 
     return (
 
-      <SafeAreaView
+      <SafeAreaView edges={['top', 'left', 'right']}
         style={styles.container}
       >
 
@@ -490,7 +547,7 @@ const RadiologistBookingScreen = ({
 
   return (
 
-    <SafeAreaView
+    <SafeAreaView edges={['top', 'left', 'right']}
       style={styles.container}
     >
 
@@ -677,45 +734,61 @@ const RadiologistBookingScreen = ({
           >
 
             {radiologist.slots.map(
-              (slot) => (
+              (slot) => {
+                const status = getSlotStatus({
+                  date: selectedDate,
+                  time: slot,
+                  serviceType: 'radiology',
+                  providerId: radiologist.id,
+                });
+                const isAvailable = status.available;
+                const isSelected = selectedTime === slot;
 
-                <TouchableOpacity
-                  key={slot}
-                  style={[
-                    styles.slotButton,
-                    selectedTime === slot &&
-                      styles.selectedSlot,
-                  ]}
-                  onPress={() =>
-                    setSelectedTime(
-                      slot
-                    )
-                  }
-                >
-
-                  <Ionicons
-                    name="time-outline"
-                    size={16}
-                    color={
-                      selectedTime === slot
-                        ? '#FFFFFF'
-                        : '#00838F'
-                    }
-                  />
-
-                  <Text
+                return (
+                  <TouchableOpacity
+                    key={slot}
                     style={[
-                      styles.slotText,
-                      selectedTime === slot &&
-                        styles.selectedSlotText,
+                      styles.slotButton,
+                      isSelected && styles.selectedSlot,
+                      !isAvailable && styles.slotButtonDisabled,
                     ]}
+                    disabled={!isAvailable}
+                    onPress={() => setSelectedTime(slot)}
                   >
-                    {slot}
-                  </Text>
 
-                </TouchableOpacity>
+                    <Ionicons
+                      name="time-outline"
+                      size={16}
+                      color={
+                        isSelected
+                          ? '#FFFFFF'
+                          : isAvailable
+                          ? '#00838F'
+                          : '#94A3B8'
+                      }
+                    />
 
-              )
+                    <Text
+                      style={[
+                        styles.slotText,
+                        isSelected && styles.selectedSlotText,
+                        !isAvailable && styles.slotTextDisabled,
+                      ]}
+                    >
+                      {slot}
+                    </Text>
+
+                    {!isAvailable && (
+                      <View style={styles.slotStatusBadge}>
+                        <Text style={styles.slotStatusBadgeText}>
+                          {status.status === 'PASSED' ? 'Passed' : 'Booked'}
+                        </Text>
+                      </View>
+                    )}
+
+                  </TouchableOpacity>
+                );
+              }
             )}
 
           </View>
@@ -1254,6 +1327,12 @@ const styles =
         '#00838F',
     },
 
+    slotButtonDisabled: {
+      backgroundColor: '#F1F5F9',
+      borderColor: '#E2E8F0',
+      opacity: 0.6,
+    },
+
     slotText: {
       marginLeft: 4,
       fontSize: 10,
@@ -1263,6 +1342,26 @@ const styles =
 
     selectedSlotText: {
       color: '#FFFFFF',
+    },
+
+    slotTextDisabled: {
+      color: '#94A3B8',
+      textDecorationLine: 'line-through',
+    },
+
+    slotStatusBadge: {
+      backgroundColor: '#FFF2ED',
+      paddingHorizontal: 3,
+      paddingVertical: 1,
+      borderRadius: 3,
+      marginLeft: 3,
+    },
+
+    slotStatusBadgeText: {
+      fontSize: 7.5,
+      fontWeight: '700',
+      color: '#FF7F50',
+      textTransform: 'uppercase',
     },
 
 

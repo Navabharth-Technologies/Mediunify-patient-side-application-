@@ -1,8 +1,6 @@
 import React from 'react';
-
-import {
-  createNativeStackNavigator,
-} from '@react-navigation/native-stack';
+import { Platform } from 'react-native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import SplashScreen from '../screens/auth/SplashScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -21,15 +19,14 @@ const AuthNavigator = () => {
         headerShown: false,
       }}
     >
+      <Stack.Screen
+        name="Login"
+        component={LoginScreen}
+      />
 
       <Stack.Screen
         name="Splash"
         component={SplashScreen}
-      />
-
-      <Stack.Screen
-        name="Login"
-        component={LoginScreen}
       />
 
       <Stack.Screen
