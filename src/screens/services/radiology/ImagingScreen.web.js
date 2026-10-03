@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   Image,
   ScrollView,
@@ -12,7 +11,10 @@ import {
   Platform,
   Modal,
   ActivityIndicator,
+  Linking,
+  BackHandler,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../../theme/colors';
@@ -29,6 +31,7 @@ import {
   getTestById,
   getProvidersForTest,
   RADIOLOGY_CENTRES_FILTERED,
+  getGoogleMapsDirectionsUrl,
 } from '../../../data/radiologyCatalogData';
 import {
   getSlotStatus,
@@ -66,10 +69,30 @@ export default function ImagingScreenWeb({ navigation, route }) {
   const mainScrollRef = useRef(null);
 
   // ==================================================
-  // PRIMARY NAVIGATION STATE MACHINE
-  // 'categories' | 'tests' | 'providers' | 'booking' | 'payment' | 'confirmation' | 'my-bookings'
+  // PRIMARY NAVIGATION STATE MACHINE & DYNAMIC HISTORY STACK
+  // 'categories' | 'tests' | 'providers' | 'centre-details' | 'booking' | 'payment' | 'confirmation' | 'my-bookings'
   // ==================================================
   const [viewMode, setViewMode] = useState('categories');
+  const historyStackRef = useRef([]);
+
+  // Push state snapshot to navigation history
+  const pushHistory = useCallback((snapshot) => {
+    historyStackRef.current.push(snapshot);
+  }, []);
+
+  // Responsive card dimension calculators
+  const getCategoryCardWidth = () => {
+    if (width < 420) return '100%';
+    if (width < 768) return '47%';
+    if (width < 1024) return '31%';
+    return '23.5%';
+  };
+
+  const getTestCardWidth = () => {
+    if (width < 600) return '100%';
+    if (width < 1024) return '48%';
+    return '31.5%';
+  };
   const [selectedCity, setSelectedCity] = useState('Mysuru');
   const [globalSearch, setGlobalSearch] = useState('');
 
@@ -156,11 +179,191 @@ export default function ImagingScreenWeb({ navigation, route }) {
   const [rescheduleDateIndex, setRescheduleDateIndex] = useState(0);
   const [rescheduleSlot, setRescheduleSlot] = useState('');
 
-  // Load Bookings & User Info from Storage on Mount
+  // Load Home Location (Single Source of Truth)
+  const loadHomeLocation = async () => {
+    try {
+      const savedCity = await AsyncStorage.getItem('@mediunify_selected_city');
+      const savedLoc = await AsyncStorage.getItem('@unnathi_user_location');
+      let effective = savedCity || savedLoc || 'Mysuru';
+      const lower = effective.toLowerCase().trim();
+      let normalized = 'Mysuru';
+      if (lower.includes('mys')) normalized = 'Mysuru';
+      else if (lower.includes('bengal') || lower.includes('bangal')) normalized = 'Bengaluru';
+      else if (lower.includes('hassan')) normalized = 'Hassan';
+      else if (lower.includes('mandya')) normalized = 'Mandya';
+      else if (lower.includes('mangal')) normalized = 'Mangaluru';
+      else normalized = effective;
+      setSelectedCity(normalized);
+    } catch (e) {
+      loadHomeLocation();
+    }
+  };
+
+    // Scroll to top on view changes
+  const scrollToTop = () => {
+    if (mainScrollRef.current) {
+      try {
+        mainScrollRef.current.scrollTo({ y: 0, animated: true });
+      } catch (e) {}
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (e) {}
+    }
+  };
+
+  // ==================================================
+  // BULLETPROOF NAVIGATION HISTORY GO BACK HANDLER
+  // Guarantees: Back button ALWAYS returns to immediately previous screen/step in history.
+  // ==================================================
+  const handleGoBack = useCallback(() => {
+    // 1. Close any active modal first
+    if (testDetailsModal) {
+      setTestDetailsModal(null);
+      return true;
+    }
+    if (reportModal) {
+      setReportModal(null);
+      return true;
+    }
+    if (receiptModal) {
+      setReceiptModal(null);
+      return true;
+    }
+    if (rescheduleModal) {
+      setRescheduleModal(null);
+      return true;
+    }
+    if (showAddPatientForm) {
+      setShowAddPatientForm(false);
+      return true;
+    }
+
+    // 2. Pop from dynamic history stack
+    if (historyStackRef.current.length > 0) {
+      const prev = historyStackRef.current.pop();
+      if (prev.viewMode) setViewMode(prev.viewMode);
+      if (prev.selectedCategory !== undefined) setSelectedCategory(prev.selectedCategory);
+      if (prev.selectedTest !== undefined) setSelectedTest(prev.selectedTest);
+      if (prev.selectedProvider !== undefined) setSelectedProvider(prev.selectedProvider);
+      if (prev.bookingStep !== undefined) setBookingStep(prev.bookingStep);
+      scrollToTop();
+      return true;
+    }
+
+    // 3. Fallback ladder if history stack is empty
+    if (viewMode === 'payment') {
+      setViewMode('booking');
+      setBookingStep(3);
+      scrollToTop();
+      return true;
+    }
+    if (viewMode === 'booking') {
+      if (bookingStep > 1) {
+        setBookingStep((s) => s - 1);
+        scrollToTop();
+        return true;
+      }
+      if (selectedProvider) {
+        setViewMode('centre-details');
+      } else {
+        setViewMode('providers');
+      }
+      scrollToTop();
+      return true;
+    }
+    if (viewMode === 'centre-details') {
+      setViewMode('providers');
+      scrollToTop();
+      return true;
+    }
+    if (viewMode === 'providers') {
+      setViewMode('tests');
+      scrollToTop();
+      return true;
+    }
+    if (viewMode === 'tests') {
+      setViewMode('categories');
+      scrollToTop();
+      return true;
+    }
+    if (viewMode === 'my-bookings' || viewMode === 'confirmation') {
+      setViewMode('categories');
+      scrollToTop();
+      return true;
+    }
+
+    // 4. Root screen: return to previous navigation screen in app (Home)
+    if (navigation?.canGoBack && navigation.canGoBack()) {
+      navigation.goBack();
+      return true;
+    } else if (navigation?.navigate) {
+      navigation.navigate('Home');
+      return true;
+    }
+    return false;
+  }, [
+    testDetailsModal,
+    reportModal,
+    receiptModal,
+    rescheduleModal,
+    showAddPatientForm,
+    viewMode,
+    bookingStep,
+    selectedProvider,
+    navigation,
+  ]);
+
+  // Android System Hardware Back Button Handler
   useEffect(() => {
+    const onBackPress = () => {
+      // If at root and history is empty, let system exit screen to Home
+      if (
+        viewMode === 'categories' &&
+        historyStackRef.current.length === 0 &&
+        !testDetailsModal &&
+        !reportModal &&
+        !receiptModal &&
+        !rescheduleModal &&
+        !showAddPatientForm
+      ) {
+        if (navigation?.canGoBack && navigation.canGoBack()) {
+          navigation.goBack();
+          return true;
+        }
+        return false;
+      }
+      return handleGoBack();
+    };
+
+    const sub = BackHandler?.addEventListener
+      ? BackHandler.addEventListener('hardwareBackPress', onBackPress)
+      : null;
+    return () => {
+      if (sub && sub.remove) sub.remove();
+    };
+  }, [
+    viewMode,
+    handleGoBack,
+    testDetailsModal,
+    reportModal,
+    receiptModal,
+    rescheduleModal,
+    showAddPatientForm,
+    navigation,
+  ]);
+
+  // Load Bookings, User Info & Location on Mount and on Navigation Focus
+  useEffect(() => {
+    loadHomeLocation();
     loadBookingsFromStorage();
     loadUserData();
-  }, []);
+    const unsub = navigation?.addListener ? navigation.addListener('focus', loadHomeLocation) : null;
+    return () => {
+      if (unsub) unsub();
+    };
+  }, [navigation]);
 
   const loadUserData = async () => {
     try {
@@ -320,60 +523,151 @@ export default function ImagingScreenWeb({ navigation, route }) {
     return days;
   }, []);
 
-  // Scroll to top on view changes
-  const scrollToTop = () => {
-    if (mainScrollRef.current) {
-      try {
-        mainScrollRef.current.scrollTo({ y: 0, animated: true });
-      } catch (e) {}
-    }
-    if (typeof window !== 'undefined') {
-      try {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } catch (e) {}
-    }
-  };
 
   // Switch View Helper
   const navigateToView = (newView) => {
+    pushHistory({
+      viewMode,
+      selectedCategory,
+      selectedTest,
+      selectedProvider,
+      bookingStep,
+    });
     setViewMode(newView);
     scrollToTop();
   };
 
-  // --------------------------------------------------
   // 1. CATEGORY CLICK -> SHOW TESTS
-  // --------------------------------------------------
   const handleSelectCategory = (category) => {
+    pushHistory({
+      viewMode: 'categories',
+      selectedCategory: null,
+      selectedTest: null,
+      selectedProvider: null,
+      bookingStep: 1,
+    });
     setSelectedCategory(category);
     setSelectedTest(null);
     setSelectedProvider(null);
-    navigateToView('tests');
+    setViewMode('tests');
+    scrollToTop();
   };
 
-  // --------------------------------------------------
-  // 2. TEST CLICK -> SHOW PROVIDERS
-  // --------------------------------------------------
+  // 2. TEST CLICK -> SHOW CENTRES (PROVIDERS)
   const handleSelectTest = (test) => {
+    pushHistory({
+      viewMode: 'tests',
+      selectedCategory,
+      selectedTest: null,
+      selectedProvider: null,
+      bookingStep: 1,
+    });
     setSelectedTest(test);
     setSelectedProvider(null);
-    navigateToView('providers');
+    setViewMode('providers');
+    scrollToTop();
   };
 
-  // --------------------------------------------------
-  // 3. BOOK PROVIDER CLICK -> OPEN BOOKING WIZARD
-  // --------------------------------------------------
+  // 3. CENTRE CLICK / DETAILS -> SHOW CENTRE DETAILS
+  const handleOpenCentreDetails = (provider) => {
+    pushHistory({
+      viewMode: 'providers',
+      selectedCategory,
+      selectedTest,
+      selectedProvider: null,
+      bookingStep: 1,
+    });
+    setSelectedProvider(provider);
+    setViewMode('centre-details');
+    scrollToTop();
+  };
+
+  // 4. FROM CENTRE DETAILS -> SELECT DATE & TIME / BOOKING
+  const handleProceedFromCentreDetails = () => {
+    pushHistory({
+      viewMode: 'centre-details',
+      selectedCategory,
+      selectedTest,
+      selectedProvider,
+      bookingStep: 1,
+    });
+    setBookingStep(1);
+    setSelectedDateIndex(0);
+    const chosenDay = appointmentDays[0] || { isoDate: new Date().toISOString().split('T')[0] };
+    const preferred = (selectedProvider?.availableSlots && selectedProvider.availableSlots[0]) || '10:00 AM';
+    const validSlot = getFirstAvailableSlot(chosenDay.isoDate, selectedProvider?.id, preferred);
+    setSelectedTimeSlot(validSlot);
+    setViewMode('booking');
+    scrollToTop();
+  };
+
+  // 5. BOOK PROVIDER CLICK DIRECTLY -> OPEN BOOKING WIZARD
   const handleStartBooking = (provider, test = null) => {
     const activeTest = test || selectedTest || getTestsByCategory(selectedCategory?.id)[0];
     setSelectedTest(activeTest);
     setSelectedProvider(provider);
+    pushHistory({
+      viewMode,
+      selectedCategory,
+      selectedTest: activeTest,
+      selectedProvider: provider,
+      bookingStep: 1,
+    });
     setBookingStep(1);
     setSelectedDateIndex(0);
-    // Auto pick first available slot for today
     const chosenDay = appointmentDays[0] || { isoDate: new Date().toISOString().split('T')[0] };
     const preferred = (provider.availableSlots && provider.availableSlots[0]) || '10:00 AM';
     const validSlot = getFirstAvailableSlot(chosenDay.isoDate, provider.id, preferred);
     setSelectedTimeSlot(validSlot);
-    navigateToView('booking');
+    setViewMode('booking');
+    scrollToTop();
+  };
+
+  // Forward transition helpers in Booking Wizard
+  const handleContinueToStep2 = () => {
+    if (!selectedPatient) {
+      showAlert('Patient Missing', 'Please select a patient.');
+      return;
+    }
+    pushHistory({
+      viewMode: 'booking',
+      selectedCategory,
+      selectedTest,
+      selectedProvider,
+      bookingStep: 1,
+    });
+    setBookingStep(2);
+    scrollToTop();
+  };
+
+  const handleContinueToStep3 = () => {
+    if (!selectedTimeSlot) {
+      showAlert('Slot Missing', 'Please select an appointment time slot.');
+      return;
+    }
+    pushHistory({
+      viewMode: 'booking',
+      selectedCategory,
+      selectedTest,
+      selectedProvider,
+      bookingStep: 2,
+    });
+    setBookingStep(3);
+    scrollToTop();
+  };
+
+  const handleOpenMyBookings = () => {
+    if (viewMode !== 'my-bookings') {
+      pushHistory({
+        viewMode,
+        selectedCategory,
+        selectedTest,
+        selectedProvider,
+        bookingStep,
+      });
+      setViewMode('my-bookings');
+      scrollToTop();
+    }
   };
 
   // --------------------------------------------------
@@ -426,7 +720,15 @@ export default function ImagingScreenWeb({ navigation, route }) {
       showAlert('Slot Unavailable', 'This slot is no longer available. Please select another time.');
       return;
     }
-    navigateToView('payment');
+    pushHistory({
+      viewMode: 'booking',
+      selectedCategory,
+      selectedTest,
+      selectedProvider,
+      bookingStep: 3,
+    });
+    setViewMode('payment');
+    scrollToTop();
   };
 
   // --------------------------------------------------
@@ -489,6 +791,13 @@ export default function ImagingScreenWeb({ navigation, route }) {
         patientAge: selectedPatient.age,
         patientGender: selectedPatient.gender,
         patientPhone: selectedPatient.phone,
+        providerId: selectedProvider.id,
+        facilityId: selectedProvider.id,
+        facilityName: selectedProvider.name,
+        latitude: selectedProvider.latitude,
+        longitude: selectedProvider.longitude,
+        city: selectedProvider.city,
+        directionsUrl: getGoogleMapsDirectionsUrl(selectedProvider),
         date: chosenDay.isoDate,
         appointmentDate: chosenDay.fullLabel || chosenDay.isoDate,
         formattedDate: chosenDay.fullLabel,
@@ -541,6 +850,13 @@ export default function ImagingScreenWeb({ navigation, route }) {
           testName: selectedTest.name,
           bookingType: 'Radiology',
           facilityName: selectedProvider.name,
+          providerName: selectedProvider.name,
+          centerName: selectedProvider.name,
+          address: selectedProvider.address || `${selectedProvider.area}, ${selectedProvider.city}`,
+          latitude: selectedProvider.latitude,
+          longitude: selectedProvider.longitude,
+          city: selectedProvider.city,
+          directionsUrl: getGoogleMapsDirectionsUrl(selectedProvider),
           date: chosenDay.isoDate,
           day: chosenDay.fullLabel,
           time: selectedTimeSlot,
@@ -759,254 +1075,168 @@ export default function ImagingScreenWeb({ navigation, route }) {
   }, [userBookings, myBookingsTab]);
 
   return (
-    <SafeAreaView style={styles.safeContainer}>
+    <SafeAreaView style={styles.safeContainer} edges={['top', 'left', 'right']}>
+      {/* ============================================================
+          PINNED TOP APP BAR (Back button, Context Title, Location, My Bookings)
+          Visible & accessible across iOS, Android, and Tablet
+      ============================================================ */}
+      <View style={styles.pinnedTopAppBar}>
+        <TouchableOpacity
+          style={styles.pinnedBackBtn}
+          onPress={handleGoBack}
+          activeOpacity={0.7}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityLabel="Go back to previous screen"
+        >
+          <Ionicons name="arrow-back" size={20} color="#0C3B6B" />
+        </TouchableOpacity>
+
+        <View style={styles.pinnedTitleContainer}>
+          <Text style={styles.pinnedTitleText} numberOfLines={1} ellipsizeMode="tail">
+            {viewMode === 'categories'
+              ? 'Scan & X-Ray'
+              : viewMode === 'tests'
+              ? selectedCategory?.name || 'Select Scan'
+              : viewMode === 'providers'
+              ? 'Choose Centre'
+              : viewMode === 'centre-details'
+              ? 'Centre Details'
+              : viewMode === 'booking'
+              ? bookingStep === 1
+                ? 'Select Patient'
+                : bookingStep === 2
+                ? 'Select Date & Time'
+                : 'Review Booking'
+              : viewMode === 'payment'
+              ? 'Payment'
+              : viewMode === 'confirmation'
+              ? 'Confirmed'
+              : viewMode === 'my-bookings'
+              ? 'My Bookings'
+              : 'Scan & X-Ray'}
+          </Text>
+          <View style={styles.pinnedCityBadge}>
+            <Ionicons name="location-sharp" size={10} color="#00B894" />
+            <Text style={styles.pinnedCityText} numberOfLines={1} ellipsizeMode="tail">
+              {width < 360 ? selectedCity : `${selectedCity} • Home`}
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={[
+            styles.pinnedMyBookingsBtn,
+            viewMode === 'my-bookings' && styles.pinnedMyBookingsBtnActive,
+            width < 380 && { paddingHorizontal: 8 },
+          ]}
+          onPress={handleOpenMyBookings}
+          activeOpacity={0.7}
+          accessibilityLabel="View My Bookings"
+        >
+          <Ionicons
+            name="calendar-outline"
+            size={16}
+            color={viewMode === 'my-bookings' ? '#FFFFFF' : '#0369A1'}
+          />
+          {width >= 360 && (
+            <Text
+              style={[
+                styles.pinnedMyBookingsBtnText,
+                viewMode === 'my-bookings' && styles.pinnedMyBookingsBtnTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              {width < 420 ? 'Bookings' : 'My Bookings'}
+            </Text>
+          )}
+          {userBookings.length > 0 && (
+            <View style={styles.pinnedBadgeDot}>
+              <Text style={styles.pinnedBadgeDotText}>{userBookings.length}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         ref={mainScrollRef}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ============================================================
-            GLOBAL HEADER HERO & BREADCRUMB
-        ============================================================ */}
-        <View
-          style={[
-            styles.heroBannerWrap,
-            Platform.OS === 'web'
-              ? {
-                  backgroundImage:
-                    'linear-gradient(135deg, #E0F2FE 0%, #E6F8F2 50%, #F0FDF4 100%)',
-                }
-              : { backgroundColor: '#E0F2FE' },
-          ]}
-        >
-          <View style={styles.heroInnerContainer}>
-            {/* Top Navigation Row: Breadcrumb & Utility Links */}
-            <View style={styles.topNavRow}>
-              <View style={styles.breadcrumbTrail}>
-                <TouchableOpacity
-                  onPress={() => navigation?.navigate('Home')}
-                  style={styles.crumbTouch}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="home-outline" size={14} color="#0369A1" />
-                  <Text style={styles.crumbLink}>Home</Text>
-                </TouchableOpacity>
-
-                <Ionicons name="chevron-forward" size={12} color="#64748B" />
-
-                <TouchableOpacity
-                  onPress={() => navigateToView('categories')}
-                  style={styles.crumbTouch}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.crumbLink,
-                      viewMode === 'categories' && styles.crumbActive,
-                    ]}
-                  >
-                    Radiology
-                  </Text>
-                </TouchableOpacity>
-
-                {selectedCategory && viewMode !== 'categories' && (
-                  <>
-                    <Ionicons name="chevron-forward" size={12} color="#64748B" />
-                    <TouchableOpacity
-                      onPress={() => navigateToView('tests')}
-                      style={styles.crumbTouch}
-                      activeOpacity={0.7}
-                    >
-                      <Text
-                        style={[
-                          styles.crumbLink,
-                          viewMode === 'tests' && styles.crumbActive,
-                        ]}
-                      >
-                        {selectedCategory.name}
-                      </Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-
-                {selectedTest && (viewMode === 'providers' || viewMode === 'booking' || viewMode === 'payment') && (
-                  <>
-                    <Ionicons name="chevron-forward" size={12} color="#64748B" />
-                    <TouchableOpacity
-                      onPress={() => navigateToView('providers')}
-                      style={styles.crumbTouch}
-                      activeOpacity={0.7}
-                    >
-                      <Text
-                        style={[
-                          styles.crumbLink,
-                          viewMode === 'providers' && styles.crumbActive,
-                        ]}
-                      >
-                        {selectedTest.name}
-                      </Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-
-                {viewMode === 'booking' && (
-                  <>
-                    <Ionicons name="chevron-forward" size={12} color="#64748B" />
-                    <Text style={styles.crumbActive}>Book Appointment</Text>
-                  </>
-                )}
-
-                {viewMode === 'payment' && (
-                  <>
-                    <Ionicons name="chevron-forward" size={12} color="#64748B" />
-                    <Text style={styles.crumbActive}>Secure Payment</Text>
-                  </>
-                )}
-
-                {viewMode === 'confirmation' && (
-                  <>
-                    <Ionicons name="chevron-forward" size={12} color="#64748B" />
-                    <Text style={styles.crumbActive}>Confirmation</Text>
-                  </>
-                )}
-
-                {viewMode === 'my-bookings' && (
-                  <>
-                    <Ionicons name="chevron-forward" size={12} color="#64748B" />
-                    <Text style={styles.crumbActive}>My Radiology Bookings</Text>
-                  </>
-                )}
-              </View>
-
-              {/* Utility Badges: City Selector & My Bookings Button */}
-              <View style={styles.topUtilityRow}>
-                {/* City Selector */}
-                <View style={styles.citySelectorPill}>
-                  <Ionicons name="location-sharp" size={15} color="#00B894" />
-                  <Text style={styles.cityLabel}>City:</Text>
-                  <View style={styles.cityPillOptions}>
-                    {CITIES.map((city) => (
-                      <TouchableOpacity
-                        key={city}
-                        style={[
-                          styles.cityOptionBtn,
-                          selectedCity === city && styles.cityOptionBtnActive,
-                        ]}
-                        onPress={() => setSelectedCity(city)}
-                        activeOpacity={0.8}
-                      >
-                        <Text
-                          style={[
-                            styles.cityOptionText,
-                            selectedCity === city && styles.cityOptionTextActive,
-                          ]}
-                        >
-                          {city}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+        {/* HERO BANNER SECTION (Shown only on root categories page, concise & user-friendly) */}
+        {viewMode === 'categories' && (
+          <View
+            style={[
+              styles.heroBannerWrap,
+              Platform.OS === 'web'
+                ? {
+                    backgroundImage:
+                      'linear-gradient(135deg, #E0F2FE 0%, #E6F8F2 50%, #F0FDF4 100%)',
+                  }
+                : { backgroundColor: '#E0F2FE' },
+            ]}
+          >
+            <View style={styles.heroInnerContainer}>
+              <View style={styles.heroContentBlock}>
+                <View style={styles.heroBadgeRow}>
+                  <View style={styles.accreditedTag}>
+                    <Ionicons name="shield-checkmark" size={13} color="#00B894" />
+                    <Text style={styles.accreditedTagText}>NABH & NABL Accredited Centres</Text>
+                  </View>
+                  <View style={styles.pacsTag}>
+                    <Ionicons name="document-text-outline" size={13} color="#0369A1" />
+                    <Text style={styles.pacsTagText}>Digital Reports Online</Text>
                   </View>
                 </View>
 
-                {/* My Bookings Quick Button */}
-                <TouchableOpacity
-                  style={[
-                    styles.myBookingsHeaderBtn,
-                    viewMode === 'my-bookings' && styles.myBookingsHeaderBtnActive,
-                  ]}
-                  onPress={() => {
-                    if (navigation && navigation.navigate) {
-                      navigation.navigate('MyTests', { initialTab: 'radiology' });
-                    } else {
-                      navigateToView('my-bookings');
-                    }
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name="calendar-outline"
-                    size={16}
-                    color={viewMode === 'my-bookings' ? '#FFFFFF' : '#0369A1'}
+                <Text style={styles.heroHeading}>Scan & X-Ray</Text>
+                <Text style={styles.heroSubheading}>
+                  Book verified imaging centres with instant digital reports in {selectedCity}.
+                </Text>
+
+                {/* Search Bar */}
+                <View style={styles.heroSearchBox}>
+                  <Ionicons name="search" size={18} color="#00B894" style={styles.searchIcon} />
+                  <TextInput
+                    style={styles.heroSearchInput}
+                    placeholder="Search MRI, CT, X-Ray, Ultrasound, 2D Echo..."
+                    placeholderTextColor="#94A3B8"
+                    value={globalSearch}
+                    onChangeText={setGlobalSearch}
                   />
-                  <Text
-                    style={[
-                      styles.myBookingsHeaderBtnText,
-                      viewMode === 'my-bookings' && styles.myBookingsHeaderBtnTextActive,
-                    ]}
-                  >
-                    My Bookings
-                  </Text>
-                  {userBookings.length > 0 && (
-                    <View style={styles.bookingCountBadge}>
-                      <Text style={styles.bookingCountBadgeText}>{userBookings.length}</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Hero Main Titles & Search Bar */}
-            <View style={styles.heroContentBlock}>
-              <View style={styles.heroBadgeRow}>
-                <View style={styles.accreditedTag}>
-                  <Ionicons name="shield-checkmark" size={14} color="#00B894" />
-                  <Text style={styles.accreditedTagText}>NABH & NABL Accredited Radiology Network</Text>
-                </View>
-                <View style={styles.pacsTag}>
-                  <Ionicons name="document-text-outline" size={14} color="#0369A1" />
-                  <Text style={styles.pacsTagText}>Digital PACS Portal + WhatsApp Report</Text>
-                </View>
-              </View>
-
-              <Text style={styles.heroHeading}>
-                Precision Radiology & Diagnostic Scans
-              </Text>
-              <Text style={styles.heroSubheading}>
-                Book advanced 3T MRI, 128-Slice CT, 3D Ultrasound, Digital X-Ray & Cardiology Diagnostics in {selectedCity} with up to 25% MediUnify partner savings.
-              </Text>
-
-              {/* Integrated Search Bar */}
-              <View style={styles.heroSearchBox}>
-                <Ionicons name="search" size={20} color="#00B894" style={styles.searchIcon} />
-                <TextInput
-                  style={styles.heroSearchInput}
-                  placeholder="Search by Scan Name (e.g. MRI Brain, CT Chest, 2D Echo, Ultrasound)..."
-                  placeholderTextColor="#94A3B8"
-                  value={globalSearch}
-                  onChangeText={setGlobalSearch}
-                />
-                {globalSearch.length > 0 && (
-                  <TouchableOpacity
-                    onPress={() => setGlobalSearch('')}
-                    style={styles.clearSearchBtn}
-                  >
-                    <Ionicons name="close-circle" size={18} color="#94A3B8" />
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Popular Search Chips */}
-              <View style={styles.popularChipsWrap}>
-                <Text style={styles.popularChipsLabel}>Popular Scans:</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.popularChipsScroll}>
-                  {POPULAR_SEARCH_CHIPS.map((chip) => (
+                  {globalSearch.length > 0 && (
                     <TouchableOpacity
-                      key={chip}
-                      style={styles.popularChipPill}
-                      onPress={() => {
-                        setGlobalSearch(chip);
-                        // If on categories, search might reveal specific items
-                      }}
-                      activeOpacity={0.7}
+                      onPress={() => setGlobalSearch('')}
+                      style={styles.clearSearchBtn}
                     >
-                      <Text style={styles.popularChipText}>{chip}</Text>
+                      <Ionicons name="close-circle" size={18} color="#94A3B8" />
                     </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                  )}
+                </View>
+
+                {/* Popular Search Chips */}
+                <View style={styles.popularChipsWrap}>
+                  <Text style={styles.popularChipsLabel}>Popular:</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.popularChipsScroll}
+                  >
+                    {POPULAR_SEARCH_CHIPS.map((chip) => (
+                      <TouchableOpacity
+                        key={chip}
+                        style={styles.popularChipPill}
+                        onPress={() => setGlobalSearch(chip)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.popularChipText}>{chip}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
               </View>
             </View>
           </View>
-        </View>
+        )}
 
         {/* ============================================================
             MAIN CONTENT AREA BASED ON VIEW MODE
@@ -1017,9 +1247,9 @@ export default function ImagingScreenWeb({ navigation, route }) {
             <View style={styles.sectionWrap}>
               <View style={styles.sectionHeaderRow}>
                 <View>
-                  <Text style={styles.sectionTitle}>Radiology Scan Categories</Text>
+                  <Text style={styles.sectionTitle}>Browse Modalities</Text>
                   <Text style={styles.sectionSubtitle}>
-                    Select an imaging category to browse all available scans, clinical guidelines & diagnostic centres
+                    Select a scan category to view available tests in {selectedCity}
                   </Text>
                 </View>
                 <Text style={styles.categoryCountLabel}>
@@ -1177,7 +1407,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
 
               <View style={styles.testsGrid}>
                 {displayedTests.map((test) => (
-                  <View key={test.id} style={styles.testCard}>
+                  <View key={test.id} style={[styles.testCard, { width: getTestCardWidth() }]}>
                     {/* Top Row: Name and Fasting Badge */}
                     <View style={styles.testCardTopRow}>
                       <View style={styles.testCategoryTag}>
@@ -1262,7 +1492,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                           onPress={() => handleSelectTest(test)}
                           activeOpacity={0.8}
                         >
-                          <Text style={styles.compareCentresBtnText}>Compare Centres</Text>
+                          <Text style={styles.compareCentresBtnText}>Select Centre</Text>
                           <Ionicons name="chevron-forward" size={14} color="#FFFFFF" />
                         </TouchableOpacity>
                       </View>
@@ -1320,7 +1550,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                     activeOpacity={0.8}
                   >
                     <Ionicons name="swap-horizontal" size={14} color="#0369A1" />
-                    <Text style={styles.changeTestPillBtnText}>Choose Another Scan</Text>
+                    <Text style={styles.changeTestPillBtnText}>Change Scan</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -1329,7 +1559,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                     activeOpacity={0.8}
                   >
                     <Ionicons name="reader-outline" size={14} color="#00B894" />
-                    <Text style={styles.viewProtocolBtnText}>View Clinical Protocol</Text>
+                    <Text style={styles.viewProtocolBtnText}>Protocol</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1462,6 +1692,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                 <View style={styles.providersList}>
                   {displayedProviders.map((provider) => (
                     <View key={provider.id} style={styles.providerCard}>
+                      <TouchableOpacity activeOpacity={0.9} onPress={() => handleOpenCentreDetails(provider)}>
                       {/* Provider Header: Name, Location, Distance, Rating */}
                       <View style={styles.providerCardHeader}>
                         <View style={styles.providerIdentity}>
@@ -1516,6 +1747,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                         </View>
                       </View>
 
+                      </TouchableOpacity>
                       {/* Available Slots Preview */}
                       <View style={styles.providerSlotsBlock}>
                         <View style={styles.slotsLabelRow}>
@@ -1581,12 +1813,24 @@ export default function ImagingScreenWeb({ navigation, route }) {
                         {/* Action Buttons */}
                         <View style={styles.providerActionButtons}>
                           <TouchableOpacity
+                            style={styles.providerDirectionsBtn}
+                            onPress={() => {
+                              const url = getGoogleMapsDirectionsUrl(provider);
+                              Linking.openURL(url);
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons name="navigate-outline" size={15} color="#00B894" />
+                            <Text style={styles.providerDirectionsBtnText}>Directions</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
                             style={styles.providerDetailsBtn}
-                            onPress={() => setTestDetailsModal({ ...selectedTest, provider })}
+                            onPress={() => handleOpenCentreDetails(provider)}
                             activeOpacity={0.7}
                           >
                             <Ionicons name="information-circle-outline" size={16} color="#0369A1" />
-                            <Text style={styles.providerDetailsBtnText}>View Details</Text>
+                            <Text style={styles.providerDetailsBtnText}>Details</Text>
                           </TouchableOpacity>
 
                           <TouchableOpacity
@@ -1594,8 +1838,8 @@ export default function ImagingScreenWeb({ navigation, route }) {
                             onPress={() => handleStartBooking(provider, selectedTest)}
                             activeOpacity={0.8}
                           >
-                            <Text style={styles.providerBookBtnText}>Book Appointment</Text>
-                            <Ionicons name="calendar" size={15} color="#FFFFFF" />
+                            <Text style={styles.providerBookBtnText}>Book Slot</Text>
+                            <Ionicons name="calendar" size={14} color="#FFFFFF" />
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -1606,17 +1850,159 @@ export default function ImagingScreenWeb({ navigation, route }) {
             </View>
           )}
 
-          {/* VIEW 4: APPOINTMENT BOOKING FLOW (4 STEPS) */}
+                    {/* VIEW: CENTRE DETAILS (Dedicated screen in navigation history) */}
+          {viewMode === 'centre-details' && selectedProvider && selectedTest && (
+            <View style={styles.sectionWrap}>
+              <View style={styles.centreDetailsCard}>
+                {/* Top Row: Centre Identity & Rating */}
+                <View style={styles.centreDetailsTopRow}>
+                  <View style={styles.centreDetailsNameCol}>
+                    <Text style={styles.centreDetailsTitle}>{selectedProvider.name}</Text>
+                    <View style={styles.centreLocationRow}>
+                      <Ionicons name="location-outline" size={15} color="#64748B" />
+                      <Text style={styles.centreAddressText}>
+                        {selectedProvider.address || `${selectedProvider.area}, ${selectedProvider.city}`}
+                      </Text>
+                      <Text style={styles.centreDot}>•</Text>
+                      <Ionicons name="navigate-outline" size={13} color="#0369A1" />
+                      <Text style={styles.centreDistanceText}>{selectedProvider.distance} away</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.centreRatingBox}>
+                    <View style={styles.ratingNumberRow}>
+                      <Ionicons name="star" size={15} color="#F59E0B" />
+                      <Text style={styles.centreRatingScore}>{selectedProvider.rating}</Text>
+                    </View>
+                    <Text style={styles.centreReviewsText}>{selectedProvider.reviewsCount} reviews</Text>
+                  </View>
+                </View>
+
+                {/* Accreditations & Badges */}
+                <View style={styles.centreAccredRow}>
+                  {selectedProvider.accreditations?.map((acc) => (
+                    <View key={acc} style={styles.centreAccredChip}>
+                      <Ionicons name="shield-checkmark" size={12} color="#00B894" />
+                      <Text style={styles.centreAccredText}>{acc}</Text>
+                    </View>
+                  ))}
+                  {selectedProvider.cashlessSupported && (
+                    <View style={[styles.centreAccredChip, { backgroundColor: '#ECFDF5' }]}>
+                      <Ionicons name="card-outline" size={12} color="#059669" />
+                      <Text style={[styles.centreAccredText, { color: '#059669' }]}>Cashless Insurance</Text>
+                    </View>
+                  )}
+                  <View style={styles.centreAccredChip}>
+                    <Ionicons name="time-outline" size={12} color="#64748B" />
+                    <Text style={styles.centreAccredText}>{selectedProvider.openHours}</Text>
+                  </View>
+                </View>
+
+                {/* Google Maps Directions Action */}
+                <TouchableOpacity
+                  style={styles.centreDirectionsBtn}
+                  onPress={() => {
+                    const url = getGoogleMapsDirectionsUrl(selectedProvider);
+                    Linking.openURL(url);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="navigate" size={16} color="#00B894" />
+                  <Text style={styles.centreDirectionsBtnText}>Get Directions on Google Maps</Text>
+                  <Ionicons name="open-outline" size={14} color="#00B894" />
+                </TouchableOpacity>
+
+                <View style={styles.centreDivider} />
+
+                {/* Facilities & Equipment Section */}
+                <Text style={styles.centreSectionHeading}>Imaging Equipment & Machinery</Text>
+                <View style={styles.centreFacilitiesList}>
+                  {selectedProvider.facilities?.map((fac) => (
+                    <View key={fac} style={styles.centreFacilityItem}>
+                      <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+                      <Text style={styles.centreFacilityText}>{fac}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                <View style={styles.centreDivider} />
+
+                {/* Selected Test Details Box */}
+                <Text style={styles.centreSectionHeading}>Selected Radiology Procedure</Text>
+                <View style={styles.centreTestSummaryBox}>
+                  <View style={styles.centreTestSummaryTop}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.centreTestName}>{selectedTest.name}</Text>
+                      <Text style={styles.centreTestModality}>{selectedCategory?.name || 'Radiology Scan'}</Text>
+                    </View>
+                    <View style={styles.centrePriceCol}>
+                      <Text style={styles.centreFinalPrice}>
+                        ₹{Math.round(selectedTest.typicalPrice * selectedProvider.discountMultiplier).toLocaleString('en-IN')}
+                      </Text>
+                      <Text style={styles.centreMrpPrice}>₹{selectedTest.mrp.toLocaleString('en-IN')}</Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.centreTestPurpose}>{selectedTest.purpose}</Text>
+
+                  <View style={styles.centreTestMetaRow}>
+                    <View style={styles.centreMetaItem}>
+                      <Ionicons name="time-outline" size={13} color="#64748B" />
+                      <Text style={styles.centreMetaText}>Duration: {selectedTest.duration}</Text>
+                    </View>
+                    <View style={styles.centreMetaItem}>
+                      <Ionicons name="document-text-outline" size={13} color="#00B894" />
+                      <Text style={[styles.centreMetaText, { color: '#00B894', fontWeight: '700' }]}>
+                        Report in {selectedProvider.turnaroundTime}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Preparation Guidelines */}
+                  <View style={styles.centrePrepBox}>
+                    <Ionicons name="information-circle-outline" size={16} color="#0369A1" />
+                    <Text style={styles.centrePrepText}>
+                      {selectedTest.preparation}
+                      {selectedTest.fastingRequired ? ` Requires ${selectedTest.fastingHours} hrs fasting.` : ''}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Primary Action Buttons */}
+                <View style={styles.centreActionFooterRow}>
+                  <TouchableOpacity
+                    style={styles.centreBackActionBtn}
+                    onPress={handleGoBack}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="arrow-back" size={16} color="#64748B" />
+                    <Text style={styles.centreBackActionBtnText}>Back</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.centreBookActionBtn}
+                    onPress={handleProceedFromCentreDetails}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.centreBookActionBtnText}>Select Date & Time</Text>
+                    <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* VIEW 4: APPOINTMENT BOOKING FLOW (3 STEPS) */}
           {viewMode === 'booking' && selectedTest && selectedProvider && (
             <View style={styles.bookingFlowContainer}>
-              {/* Stepper Header */}
+              {/* Stepper Header (100% responsive, no fixed width clipping) */}
               <View style={styles.stepperHeader}>
                 <View style={styles.stepperProgressRow}>
                   {[
-                    { num: 1, label: 'Select Patient' },
-                    { num: 2, label: 'Date & Time Slot' },
-                    { num: 3, label: 'Review Booking' },
-                  ].map((s) => (
+                    { num: 1, label: isMobile ? 'Patient' : 'Select Patient' },
+                    { num: 2, label: isMobile ? 'Date & Time' : 'Date & Time Slot' },
+                    { num: 3, label: isMobile ? 'Review' : 'Review Booking' },
+                  ].map((s, idx) => (
                     <React.Fragment key={s.num}>
                       <TouchableOpacity
                         style={styles.stepItem}
@@ -1633,7 +2019,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                           ]}
                         >
                           {bookingStep > s.num ? (
-                            <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                            <Ionicons name="checkmark" size={12} color="#FFFFFF" />
                           ) : (
                             <Text
                               style={[
@@ -1650,11 +2036,12 @@ export default function ImagingScreenWeb({ navigation, route }) {
                             styles.stepLabel,
                             bookingStep === s.num && styles.stepLabelActive,
                           ]}
+                          numberOfLines={1}
                         >
                           {s.label}
                         </Text>
                       </TouchableOpacity>
-                      {s.num < 3 && (
+                      {idx < 2 && (
                         <View
                           style={[
                             styles.stepConnector,
@@ -1668,9 +2055,9 @@ export default function ImagingScreenWeb({ navigation, route }) {
               </View>
 
               {/* Main Booking Content Grid (Left Wizard, Right Summary) */}
-              <View style={styles.bookingMainLayout}>
+              <View style={[styles.bookingMainLayout, { flexDirection: isDesktop ? 'row' : 'column' }]}>
                 {/* Left Column: Active Step Content */}
-                <View style={styles.bookingWizardLeftCol}>
+                <View style={[styles.bookingWizardLeftCol, isDesktop && { flex: 2 }]}>
                   {/* STEP 1: SELECT PATIENT */}
                   {bookingStep === 1 && (
                     <View style={styles.wizardCard}>
@@ -1679,7 +2066,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                         <View>
                           <Text style={styles.wizardStepHeading}>Step 1: Select Patient</Text>
                           <Text style={styles.wizardStepSub}>
-                            Choose who this scan appointment is for or add a new dependent
+                            Choose a patient or add a family member
                           </Text>
                         </View>
                       </View>
@@ -1711,13 +2098,13 @@ export default function ImagingScreenWeb({ navigation, route }) {
 
                               <View style={styles.patientInfoCol}>
                                 <View style={styles.patientNameRelationRow}>
-                                  <Text style={styles.patientNameText}>{pat.name}</Text>
+                                  <Text style={styles.patientNameText} numberOfLines={1} ellipsizeMode="tail">{pat.name}</Text>
                                   <View style={styles.relationBadge}>
                                     <Text style={styles.relationBadgeText}>{pat.relation}</Text>
                                   </View>
                                 </View>
-                                <Text style={styles.patientMetaText}>
-                                  {pat.age} Years • {pat.gender} • {pat.phone}
+                                <Text style={styles.patientMetaText} numberOfLines={1} ellipsizeMode="tail">
+                                  {pat.age} Yrs • {pat.gender} • {pat.phone}
                                 </Text>
                               </View>
 
@@ -1737,7 +2124,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                           activeOpacity={0.8}
                         >
                           <Ionicons name="add-circle-outline" size={18} color="#00B894" />
-                          <Text style={styles.addNewPatientBtnText}>+ Add New Patient / Family Member</Text>
+                          <Text style={styles.addNewPatientBtnText}>{isMobile ? '+ Add Family Member' : '+ Add New Patient / Family Member'}</Text>
                         </TouchableOpacity>
                       ) : (
                         <View style={styles.newPatientFormBox}>
@@ -1833,14 +2220,24 @@ export default function ImagingScreenWeb({ navigation, route }) {
                         </View>
                       )}
 
-                      {/* Step 1 Next Action */}
+                      {/* Step 1 Footer Actions */}
                       <View style={styles.wizardFooterBtnRow}>
                         <TouchableOpacity
+                          style={styles.wizardBackBtn}
+                          onPress={handleGoBack}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="arrow-back" size={16} color="#64748B" />
+                          <Text style={styles.wizardBackBtnText}>Back</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
                           style={styles.wizardNextBtn}
-                          onPress={() => setBookingStep(2)}
+                          onPress={handleContinueToStep2}
                           activeOpacity={0.85}
                         >
-                          <Text style={styles.wizardNextBtnText}>Continue to Date & Slot →</Text>
+                          <Text style={styles.wizardNextBtnText}>Continue</Text>
+                          <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -2082,11 +2479,12 @@ export default function ImagingScreenWeb({ navigation, route }) {
                         </View>
                       </View>
 
-                      {/* Navigation Buttons */}
+                      {/* Step 2 Footer Actions */}
                       <View style={styles.wizardFooterBtnRow}>
                         <TouchableOpacity
                           style={styles.wizardBackBtn}
-                          onPress={() => setBookingStep(1)}
+                          onPress={handleGoBack}
+                          activeOpacity={0.8}
                         >
                           <Ionicons name="arrow-back" size={16} color="#64748B" />
                           <Text style={styles.wizardBackBtnText}>Back</Text>
@@ -2094,10 +2492,11 @@ export default function ImagingScreenWeb({ navigation, route }) {
 
                         <TouchableOpacity
                           style={styles.wizardNextBtn}
-                          onPress={() => setBookingStep(3)}
+                          onPress={handleContinueToStep3}
                           activeOpacity={0.85}
                         >
-                          <Text style={styles.wizardNextBtnText}>Review Booking Details →</Text>
+                          <Text style={styles.wizardNextBtnText}>Continue</Text>
+                          <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -2181,11 +2580,12 @@ export default function ImagingScreenWeb({ navigation, route }) {
                         </View>
                       </View>
 
-                      {/* Navigation Buttons */}
+                      {/* Step 3 Footer Actions */}
                       <View style={styles.wizardFooterBtnRow}>
                         <TouchableOpacity
                           style={styles.wizardBackBtn}
-                          onPress={() => setBookingStep(2)}
+                          onPress={handleGoBack}
+                          activeOpacity={0.8}
                         >
                           <Ionicons name="arrow-back" size={16} color="#64748B" />
                           <Text style={styles.wizardBackBtnText}>Back</Text>
@@ -2196,7 +2596,8 @@ export default function ImagingScreenWeb({ navigation, route }) {
                           onPress={handleProceedToPayment}
                           activeOpacity={0.85}
                         >
-                          <Text style={styles.wizardNextBtnText}>Proceed to Payment →</Text>
+                          <Text style={styles.wizardNextBtnText}>Proceed to Payment</Text>
+                          <Ionicons name="lock-closed" size={15} color="#FFFFFF" />
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -2204,7 +2605,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                 </View>
 
                 {/* Right Column: Persistent Order Summary Breakdown */}
-                <View style={styles.bookingSummaryRightCol}>
+                <View style={[styles.bookingSummaryRightCol, isDesktop && { flex: 1 }]}>
                   <View style={styles.summaryCard}>
                     <Text style={styles.summaryCardTitle}>Price Breakdown</Text>
                     <View style={styles.summaryDivider} />
@@ -2261,9 +2662,9 @@ export default function ImagingScreenWeb({ navigation, route }) {
           {/* VIEW 5: SECURE PAYMENT PAGE */}
           {viewMode === 'payment' && selectedTest && selectedProvider && (
             <View style={styles.sectionWrap}>
-              <View style={styles.paymentContainer}>
+              <View style={[styles.paymentContainer, { flexDirection: isDesktop ? 'row' : 'column' }]}>
                 {/* Left: Payment Method Selection */}
-                <View style={styles.paymentMethodsCol}>
+                <View style={[styles.paymentMethodsCol, isDesktop && { flex: 2 }]}>
                   <View style={styles.paymentCard}>
                     <View style={styles.paymentHeaderRow}>
                       <Ionicons name="lock-closed" size={20} color="#00B894" />
@@ -2431,31 +2832,46 @@ export default function ImagingScreenWeb({ navigation, route }) {
                       )}
                     </View>
 
-                    {/* Pay CTA */}
-                    <TouchableOpacity
-                      style={styles.executePayBtn}
-                      onPress={handleExecutePayment}
-                      disabled={isProcessingPayment}
-                      activeOpacity={0.88}
-                    >
-                      {isProcessingPayment ? (
-                        <ActivityIndicator color="#FFFFFF" size="small" />
-                      ) : (
-                        <>
-                          <Ionicons name="lock-closed" size={16} color="#FFFFFF" />
-                          <Text style={styles.executePayBtnText}>
-                            {paymentMethod === 'pay_at_centre'
-                              ? 'Confirm Slot & Pay at Centre'
-                              : `Pay ₹${Math.round(selectedTest.typicalPrice * selectedProvider.discountMultiplier).toLocaleString('en-IN')} Securely`}
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
+                    {/* Payment Footer Actions */}
+                    <View style={styles.wizardFooterBtnRow}>
+                      <TouchableOpacity
+                        style={styles.wizardBackBtn}
+                        onPress={handleGoBack}
+                        activeOpacity={0.8}
+                        disabled={isProcessingPayment}
+                      >
+                        <Ionicons name="arrow-back" size={16} color="#64748B" />
+                        <Text style={styles.wizardBackBtnText}>Back</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.executePayBtn,
+                          isProcessingPayment && styles.executePayBtnDisabled,
+                        ]}
+                        onPress={handleExecutePayment}
+                        disabled={isProcessingPayment}
+                        activeOpacity={0.85}
+                      >
+                        {isProcessingPayment ? (
+                          <ActivityIndicator color="#FFFFFF" size="small" />
+                        ) : (
+                          <>
+                            <Ionicons name="lock-closed" size={16} color="#FFFFFF" />
+                            <Text style={styles.executePayBtnText}>
+                              {paymentMethod === 'pay_at_centre'
+                                ? 'Confirm Slot & Pay at Centre'
+                                : `Pay ₹${Math.round(selectedTest.typicalPrice * selectedProvider.discountMultiplier).toLocaleString('en-IN')} Securely`}
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
 
                 {/* Right: Payment Recap */}
-                <View style={styles.paymentRecapCol}>
+                <View style={[styles.paymentRecapCol, isDesktop && { flex: 1 }]}>
                   <View style={styles.recapCard}>
                     <Text style={styles.recapCardTitle}>Appointment Details</Text>
                     <View style={styles.summaryDivider} />
@@ -2518,7 +2934,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                 </View>
                 <Text style={styles.confirmTitle}>Appointment Confirmed!</Text>
                 <Text style={styles.confirmSubtitle}>
-                  Your radiology scan slot has been reserved. Centre notified and preparation instructions sent via SMS & WhatsApp.
+                  Your scan appointment is confirmed. Please arrive 15 minutes before your time slot.
                 </Text>
 
                 <View style={styles.bookingIdBadge}>
@@ -2575,6 +2991,24 @@ export default function ImagingScreenWeb({ navigation, route }) {
                 {/* Confirmation Actions */}
                 <View style={styles.confirmActionsRow}>
                   <TouchableOpacity
+                    style={styles.confirmDirectionsBtn}
+                    onPress={() => {
+                      const url = latestBooking.directionsUrl || getGoogleMapsDirectionsUrl({
+                        name: latestBooking.providerName,
+                        address: latestBooking.providerAddress,
+                        latitude: latestBooking.latitude,
+                        longitude: latestBooking.longitude,
+                        city: latestBooking.city,
+                      });
+                      Linking.openURL(url);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="navigate" size={16} color="#00B894" style={{ marginRight: 6 }} />
+                    <Text style={styles.confirmDirectionsBtnText}>Get Directions</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
                     style={styles.confirmReceiptBtn}
                     onPress={() => setReceiptModal(latestBooking)}
                     activeOpacity={0.8}
@@ -2593,27 +3027,12 @@ export default function ImagingScreenWeb({ navigation, route }) {
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[styles.confirmMyBookingsBtn, { backgroundColor: '#1E3A8A' }]}
-                    onPress={() => {
-                      if (navigation && navigation.navigate) {
-                        navigation.navigate('MyTests', { initialTab: 'radiology' });
-                      } else {
-                        navigateToView('my-bookings');
-                      }
-                    }}
+                    style={styles.confirmMyBookingsBtn}
+                    onPress={handleOpenMyBookings}
                     activeOpacity={0.85}
                   >
                     <Ionicons name="documents-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                    <Text style={styles.confirmMyBookingsBtnText}>Go to My Tests</Text>
-                    <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.confirmMyBookingsBtn}
-                    onPress={() => navigateToView('my-bookings')}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.confirmMyBookingsBtnText}>View Bookings</Text>
+                    <Text style={styles.confirmMyBookingsBtnText}>View My Bookings</Text>
                     <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
@@ -2756,6 +3175,24 @@ export default function ImagingScreenWeb({ navigation, route }) {
                       {/* Action Buttons */}
                       <View style={styles.userBookingActionsRow}>
                         <TouchableOpacity
+                          style={styles.bookingActionDirectionsBtn}
+                          onPress={() => {
+                            const url = b.directionsUrl || getGoogleMapsDirectionsUrl({
+                              name: b.providerName || b.centerName,
+                              address: b.providerAddress || b.address,
+                              latitude: b.latitude,
+                              longitude: b.longitude,
+                              city: b.city,
+                            });
+                            Linking.openURL(url);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="navigate-outline" size={14} color="#00B894" />
+                          <Text style={styles.bookingActionDirectionsText}>Get Directions</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
                           style={styles.bookingActionReceiptBtn}
                           onPress={() => setReceiptModal(b)}
                           activeOpacity={0.7}
@@ -2891,6 +3328,20 @@ export default function ImagingScreenWeb({ navigation, route }) {
             </ScrollView>
 
             <View style={styles.modalFooter}>
+              {testDetailsModal?.provider && (
+                <TouchableOpacity
+                  style={styles.modalDirectionsBtn}
+                  onPress={() => {
+                    const url = getGoogleMapsDirectionsUrl(testDetailsModal.provider);
+                    Linking.openURL(url);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="navigate" size={15} color="#00B894" style={{ marginRight: 6 }} />
+                  <Text style={styles.modalDirectionsBtnText}>Get Directions</Text>
+                </TouchableOpacity>
+              )}
+
               <TouchableOpacity
                 style={styles.modalCancelBtn}
                 onPress={() => setTestDetailsModal(null)}
@@ -3256,6 +3707,343 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
 
+  // Pinned Top App Bar (iOS, Android, Tablet)
+  pinnedTopAppBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    minHeight: 56,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    zIndex: 10,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  pinnedBackBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F1F5F9',
+  },
+  pinnedTitleContainer: {
+    flex: 1,
+    marginHorizontal: 8,
+    justifyContent: 'center',
+    minWidth: 0,
+  },
+  pinnedTitleText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0C3B6B',
+  },
+  pinnedCityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 2,
+  },
+  pinnedCityText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  pinnedMyBookingsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 16,
+    backgroundColor: '#E0F2FE',
+    position: 'relative',
+    gap: 5,
+  },
+  pinnedMyBookingsBtnActive: {
+    backgroundColor: '#0369A1',
+  },
+  pinnedMyBookingsBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0369A1',
+  },
+  pinnedMyBookingsBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  pinnedBadgeDot: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#00B894',
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  pinnedBadgeDotText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  // Centre Details View Styles
+  centreDetailsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#64748B',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  centreDetailsTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 14,
+  },
+  centreDetailsNameCol: {
+    flex: 1,
+    minWidth: 200,
+  },
+  centreDetailsTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0C3B6B',
+    marginBottom: 6,
+  },
+  centreLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    flexWrap: 'wrap',
+  },
+  centreAddressText: {
+    fontSize: 13,
+    color: '#64748B',
+  },
+  centreDot: {
+    color: '#94A3B8',
+    fontSize: 13,
+  },
+  centreDistanceText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0369A1',
+  },
+  centreRatingBox: {
+    alignItems: 'flex-end',
+  },
+  centreRatingScore: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  centreReviewsText: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  centreAccredRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  centreAccredChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  centreAccredText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  centreDirectionsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#E6F8F2',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginBottom: 16,
+  },
+  centreDirectionsBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  centreDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 16,
+  },
+  centreSectionHeading: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0C3B6B',
+    marginBottom: 10,
+  },
+  centreFacilitiesList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  centreFacilityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  centreFacilityText: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  centreTestSummaryBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  centreTestSummaryTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  centreTestName: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0C3B6B',
+  },
+  centreTestModality: {
+    fontSize: 12,
+    color: '#0369A1',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  centrePriceCol: {
+    alignItems: 'flex-end',
+  },
+  centreFinalPrice: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#00B894',
+  },
+  centreMrpPrice: {
+    fontSize: 11,
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  centreTestPurpose: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  centreTestMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 10,
+    flexWrap: 'wrap',
+  },
+  centreMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  centreMetaText: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  centrePrepBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F0F9FF',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  centrePrepText: {
+    flex: 1,
+    fontSize: 11,
+    color: '#0369A1',
+    lineHeight: 16,
+  },
+  centreActionFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    gap: 12,
+  },
+  centreBackActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+  },
+  centreBackActionBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  centreBookActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#00B894',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  centreBookActionBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
   // Hero Section
   heroBannerWrap: {
     width: '100%',
@@ -3272,31 +4060,10 @@ const styles = StyleSheet.create({
   topNavRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     flexWrap: 'wrap',
     gap: 12,
-    marginBottom: 20,
-  },
-  breadcrumbTrail: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flexWrap: 'wrap',
-  },
-  crumbTouch: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  crumbLink: {
-    fontSize: 13,
-    color: '#0369A1',
-    fontWeight: '500',
-  },
-  crumbActive: {
-    fontSize: 13,
-    color: '#1E293B',
-    fontWeight: '700',
+    marginBottom: 16,
   },
   topUtilityRow: {
     flexDirection: 'row',
@@ -3535,9 +4302,7 @@ const styles = StyleSheet.create({
     marginHorizontal: -8,
   },
   categoryCard: {
-    width: '25%', // Default desktop 4 columns
-    minWidth: 260,
-    flexGrow: 1,
+    flexGrow: 0,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 18,
@@ -3769,9 +4534,7 @@ const styles = StyleSheet.create({
     marginHorizontal: -8,
   },
   testCard: {
-    width: '33.33%',
-    minWidth: 290,
-    flexGrow: 1,
+    flexGrow: 0,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 18,
@@ -4392,26 +5155,30 @@ const styles = StyleSheet.create({
   },
   stepperHeader: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginBottom: 20,
+    marginBottom: 16,
+    width: '100%',
   },
   stepperProgressRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
   },
   stepItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 5,
+    flexShrink: 1,
   },
   stepCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
@@ -4423,7 +5190,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#059669',
   },
   stepCircleNum: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#64748B',
   },
@@ -4431,7 +5198,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   stepLabel: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '600',
     color: '#64748B',
   },
@@ -4440,10 +5207,10 @@ const styles = StyleSheet.create({
     color: '#0C3B6B',
   },
   stepConnector: {
-    width: 50,
+    flex: 1,
     height: 2,
     backgroundColor: '#E2E8F0',
-    marginHorizontal: 12,
+    marginHorizontal: 6,
   },
   stepConnectorActive: {
     backgroundColor: '#00B894',
@@ -4456,22 +5223,22 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   bookingWizardLeftCol: {
-    flex: 2,
-    minWidth: 320,
+    flex: 1,
+    width: '100%',
   },
   bookingSummaryRightCol: {
-    flex: 1,
-    minWidth: 280,
+    width: '100%',
   },
   wizardCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 22,
+    borderRadius: 14,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     shadowColor: '#64748B',
     shadowOpacity: 0.05,
     shadowRadius: 8,
+    width: '100%',
   },
   wizardStepTitleRow: {
     flexDirection: 'row',
@@ -4501,12 +5268,13 @@ const styles = StyleSheet.create({
   patientCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
+    padding: 12,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
     backgroundColor: '#FAFCFD',
-    gap: 12,
+    gap: 10,
+    width: '100%',
   },
   patientCardSelected: {
     borderColor: '#00B894',
@@ -4533,11 +5301,13 @@ const styles = StyleSheet.create({
   },
   patientInfoCol: {
     flex: 1,
+    minWidth: 0,
   },
   patientNameRelationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 6,
   },
   patientNameText: {
     fontSize: 15,
@@ -4675,19 +5445,27 @@ const styles = StyleSheet.create({
   // Wizard Footer
   wizardFooterBtnRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 24,
+    justifyContent: 'space-between',
+    marginTop: 20,
     paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
+    gap: 10,
+    width: '100%',
   },
   wizardBackBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+    gap: 5,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+    minWidth: 80,
   },
   wizardBackBtnText: {
     fontSize: 13,
@@ -4695,11 +5473,16 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   wizardNextBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     backgroundColor: '#00B894',
-    paddingHorizontal: 22,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
     borderRadius: 10,
-    marginLeft: 'auto',
+    minHeight: 44,
   },
   wizardNextBtnText: {
     fontSize: 13,
@@ -4936,39 +5719,50 @@ const styles = StyleSheet.create({
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+    alignItems: 'flex-start',
+    marginBottom: 10,
+    gap: 8,
+    width: '100%',
   },
   summaryRowLabel: {
+    flex: 1,
     fontSize: 13,
     color: '#64748B',
+    lineHeight: 18,
   },
   summaryRowValue: {
     fontSize: 13,
     fontWeight: '700',
     color: '#1E293B',
+    textAlign: 'right',
   },
   summaryDiscountLabel: {
+    flex: 1,
     fontSize: 13,
     fontWeight: '600',
     color: '#00B894',
+    lineHeight: 18,
   },
   summaryDiscountValue: {
     fontSize: 13,
     fontWeight: '800',
     color: '#00B894',
+    textAlign: 'right',
   },
   summaryFreeValue: {
     fontSize: 12,
     fontWeight: '800',
     color: '#059669',
+    textAlign: 'right',
   },
   summaryTotalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 6,
     marginBottom: 12,
+    gap: 8,
+    width: '100%',
   },
   summaryTotalLabel: {
     fontSize: 15,
@@ -5006,12 +5800,11 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   paymentMethodsCol: {
-    flex: 2,
-    minWidth: 320,
+    flex: 1,
+    width: '100%',
   },
   paymentRecapCol: {
-    flex: 1,
-    minWidth: 280,
+    width: '100%',
   },
   paymentCard: {
     backgroundColor: '#FFFFFF',
@@ -6008,5 +6801,144 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748B',
     fontStyle: 'italic',
+  },
+  // MOBILE APP BAR & ENHANCED RESPONSIVE STYLES
+  mobileAppBar: {
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    gap: 12,
+  },
+  mobileBackBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mobileAppBarTitleWrap: {
+    flex: 1,
+  },
+  mobileAppBarTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  mobileAppBarSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  mobileAppBarBookingsBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#E0F2FE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  mobileAppBarBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    backgroundColor: '#00B894',
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  mobileAppBarBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  homeLocationTag: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 6,
+  },
+  homeLocationTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  cityLocationBadgeText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginLeft: 4,
+  },
+  providerDirectionsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    gap: 4,
+  },
+  providerDirectionsBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  modalDirectionsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#00B894',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+  modalDirectionsBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  confirmDirectionsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderColor: '#00B894',
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+  },
+  confirmDirectionsBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#00B894',
+  },
+  bookingActionDirectionsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    gap: 4,
+  },
+  bookingActionDirectionsText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
   },
 });

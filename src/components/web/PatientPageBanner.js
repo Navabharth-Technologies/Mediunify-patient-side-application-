@@ -72,9 +72,7 @@ const PatientPageBanner = ({
               </View>
             ) : null}
 
-            <h1 style={{ margin: 0, padding: 0 }}>
-              <Text style={styles.titleText}>{title}</Text>
-            </h1>
+            <Text style={styles.titleText}>{title}</Text>
 
             {subtitle ? (
               typeof subtitle === 'string' ? (

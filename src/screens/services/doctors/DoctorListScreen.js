@@ -448,94 +448,60 @@ const DoctorListScreen = ({ navigation, route }) => {
   const renderDoctor = ({ item }) => {
     return (
       <View style={[styles.card, isDesktopWeb && styles.cardDesktop]}>
-        {/* LEFT COLUMN: CLINIC INFO + DOCTOR PROFILE */}
-        <View style={styles.cardLeftCol}>
-          {/* Top Row: Clinic Name & Area + Distance Badge */}
-          <View style={styles.cardHeaderRow}>
+        {/* Doctor Main Details */}
+        <TouchableOpacity
+          style={styles.doctorMainRow}
+          activeOpacity={0.88}
+          onPress={() =>
+            navigation.navigate('DoctorDetails', {
+              doctor: item,
+            })
+          }
+        >
+          <DoctorAvatar image={item.image} name={item.name} />
+
+          <View style={styles.doctorInfoCol}>
+            <View style={styles.nameBadgeRow}>
+              <Text style={styles.doctorName} numberOfLines={1}>{item.name}</Text>
+              <Ionicons name="checkmark-circle" size={15} color="#00B894" />
+            </View>
+
+            <Text style={styles.specialtyText} numberOfLines={1}>
+              {item.specialty} • {item.experienceYears || '10+'} yrs exp
+            </Text>
+
             <View style={styles.clinicLocationWrap}>
-              <Ionicons name="business" size={13} color="#0D9488" />
+              <Ionicons name="business-outline" size={12} color="#0D9488" />
               <Text style={styles.clinicNameText} numberOfLines={1}>
-                {item.clinicName} • {item.clinicArea}
+                {item.clinicName}
               </Text>
+              <Text style={styles.distanceBadgeText}>• {item.distance}</Text>
             </View>
-            <View style={styles.distanceBadge}>
-              <Ionicons name="navigate" size={10} color="#00B894" />
-              <Text style={styles.distanceBadgeText}>{item.distance}</Text>
+
+            {/* Ratings & Slot Badges */}
+            <View style={styles.metricsRow}>
+              <View style={styles.ratingChip}>
+                <Ionicons name="star" size={11} color="#FFA000" />
+                <Text style={styles.ratingChipText}>{item.rating}</Text>
+                <Text style={styles.reviewsCountText}>({item.reviewCount})</Text>
+              </View>
+
+              <View style={styles.slotBadge}>
+                <Ionicons name="flash-outline" size={11} color="#0D9488" />
+                <Text style={styles.slotBadgeText}>{item.nextSlot}</Text>
+              </View>
             </View>
           </View>
+        </TouchableOpacity>
 
-          {/* Doctor Main Details */}
-          <TouchableOpacity
-            style={styles.doctorMainRow}
-            activeOpacity={0.88}
-            onPress={() =>
-              navigation.navigate('DoctorDetails', {
-                doctor: item,
-              })
-            }
-          >
-            <DoctorAvatar image={item.image} name={item.name} />
-
-            <View style={styles.doctorInfoCol}>
-              <View style={styles.nameBadgeRow}>
-                <Text style={styles.doctorName}>{item.name}</Text>
-                <Ionicons name="checkmark-circle" size={16} color="#00B894" />
-              </View>
-
-              <View style={styles.specBadgeRow}>
-                <Text style={styles.specialtyText}>{item.specialty}</Text>
-                <Text style={styles.specDot}>•</Text>
-                <Text style={styles.experienceText}>{item.experienceYears || '10+'} yrs exp</Text>
-              </View>
-
-              <Text style={styles.qualificationText} numberOfLines={1}>
-                {item.qualification}
-              </Text>
-
-              {/* Ratings & Format Badges */}
-              <View style={styles.metricsRow}>
-                <View style={styles.ratingChip}>
-                  <Ionicons name="star" size={12} color="#FFA000" />
-                  <Text style={styles.ratingChipText}>{item.rating}</Text>
-                  <Text style={styles.reviewsCountText}>({item.reviewCount})</Text>
-                </View>
-
-                <View style={styles.inClinicBadge}>
-                  <Ionicons name="medkit-outline" size={11} color="#0D9488" />
-                  <Text style={styles.inClinicBadgeText}>In-Clinic</Text>
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* RIGHT COLUMN (DESKTOP) / BOTTOM HUB (MOBILE): BOOKING & ACTION HUB */}
-        <View style={[styles.cardRightCol, isDesktopWeb && styles.cardRightColDesktop]}>
-          <View style={styles.hubSlotAndFee}>
-            <View style={styles.hubSlotItem}>
-              <Ionicons name="time-outline" size={14} color="#0D9488" />
-              <View>
-                <Text style={styles.hubSlotLabel}>Next Available Slot</Text>
-                <Text style={styles.hubSlotValue}>{item.nextSlot}</Text>
-              </View>
-            </View>
-
-            <View style={styles.hubFeeItem}>
-              <Text style={styles.hubFeeLabel}>Consultation Fee</Text>
-              <Text style={styles.hubFeeAmount}>₹{item.fee}</Text>
-            </View>
+        {/* BOTTOM FOOTER: FEE & SIDE-BY-SIDE ACTIONS */}
+        <View style={[styles.cardFooterRow, isDesktopWeb && styles.cardFooterRowDesktop]}>
+          <View style={styles.feeWrap}>
+            <Text style={styles.feeLabel}>Fee</Text>
+            <Text style={styles.feeAmount}>₹{item.fee}</Text>
           </View>
 
-          <View style={styles.hubActionsWrap}>
-            <TouchableOpacity
-              style={styles.bookAppointmentButton}
-              activeOpacity={0.88}
-              onPress={() => setSelectedDoctorForBooking(item)}
-            >
-              <Text style={styles.bookAppointmentButtonText}>Book Clinic Visit</Text>
-              <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
-            </TouchableOpacity>
-
+          <View style={styles.cardActionsWrap}>
             <TouchableOpacity
               style={styles.navigateButton}
               activeOpacity={0.82}
@@ -543,6 +509,15 @@ const DoctorListScreen = ({ navigation, route }) => {
             >
               <Ionicons name="navigate-outline" size={13} color="#1E3A8A" />
               <Text style={styles.navigateButtonText}>Directions</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.bookAppointmentButton}
+              activeOpacity={0.88}
+              onPress={() => setSelectedDoctorForBooking(item)}
+            >
+              <Text style={styles.bookAppointmentButtonText}>Book Visit</Text>
+              <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         </View>
@@ -1016,12 +991,22 @@ const DoctorListScreen = ({ navigation, route }) => {
               onPress={() => navigation.goBack()}
               activeOpacity={0.8}
             >
-              <Ionicons name="arrow-back" size={22} color="#1E3A8A" />
+              <Ionicons name="arrow-back" size={20} color="#1E3A8A" />
             </TouchableOpacity>
 
             <View style={styles.headerCenter}>
               <Text style={styles.headerTitle}>Doctors</Text>
-              <Text style={styles.headerSub}>Consult top doctors online or in-clinic</Text>
+              <TouchableOpacity
+                style={styles.headerLocationBtn}
+                onPress={() => setLocationModalVisible(true)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="location-sharp" size={11} color="#0D9488" />
+                <Text style={styles.headerLocationText} numberOfLines={1}>
+                  {loadingGps ? 'Detecting...' : userLocality.split(',')[0]}
+                </Text>
+                <Ionicons name="chevron-down" size={10} color="#0D9488" />
+              </TouchableOpacity>
             </View>
 
             <TouchableOpacity
@@ -1031,7 +1016,7 @@ const DoctorListScreen = ({ navigation, route }) => {
             >
               <Ionicons
                 name="options-outline"
-                size={20}
+                size={18}
                 color={activeFiltersCount > 0 ? '#FFFFFF' : '#1E3A8A'}
               />
               {activeFiltersCount > 0 && (
@@ -1057,90 +1042,67 @@ const DoctorListScreen = ({ navigation, route }) => {
             UNIFIED SEARCH & LOCATION CONSOLE (DESKTOP & MOBILE)
         ================================================== */}
         <View style={[styles.searchConsoleContainer, isDesktopWeb && styles.searchConsoleContainerDesktop]}>
-          {/* 1. STANDALONE LOCATION CARD */}
-          <TouchableOpacity
-            style={[styles.standaloneLocationCard, isDesktopWeb && styles.standaloneLocationCardDesktop]}
-            onPress={() => setLocationModalVisible(true)}
-            activeOpacity={0.85}
-          >
-            <View style={styles.consoleLocIconWrap}>
-              <Ionicons name="location-sharp" size={18} color="#0D9488" />
-            </View>
-            <View style={styles.consoleLocInfo}>
-              <Text style={styles.consoleLocLabel}>LOCATION</Text>
-              <Text style={styles.consoleLocValue} numberOfLines={1}>
-                {loadingGps ? 'Detecting GPS...' : userLocality}
-              </Text>
-            </View>
-            <View style={styles.consoleChangeBadge}>
-              <Text style={styles.consoleChangeBtnText}>Change</Text>
-              <Ionicons name="chevron-down" size={13} color="#0D9488" />
-            </View>
+          {isDesktopWeb && (
             <TouchableOpacity
-              style={[styles.consoleGpsBtn, loadingGps && { opacity: 0.6 }]}
-              onPress={(e) => {
-                if (e?.stopPropagation) e.stopPropagation();
-                detectLocation();
-              }}
-              disabled={loadingGps}
-              activeOpacity={0.8}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={[styles.standaloneLocationCard, styles.standaloneLocationCardDesktop]}
+              onPress={() => setLocationModalVisible(true)}
+              activeOpacity={0.85}
             >
-              {loadingGps ? (
-                <ActivityIndicator size="small" color="#0D9488" />
-              ) : (
-                <Ionicons name="locate" size={16} color="#0D9488" />
-              )}
+              <View style={styles.consoleLocIconWrap}>
+                <Ionicons name="location-sharp" size={18} color="#0D9488" />
+              </View>
+              <View style={styles.consoleLocInfo}>
+                <Text style={styles.consoleLocLabel}>LOCATION</Text>
+                <Text style={styles.consoleLocValue} numberOfLines={1}>
+                  {loadingGps ? 'Detecting GPS...' : userLocality}
+                </Text>
+              </View>
+              <View style={styles.consoleChangeBadge}>
+                <Text style={styles.consoleChangeBtnText}>Change</Text>
+                <Ionicons name="chevron-down" size={13} color="#0D9488" />
+              </View>
             </TouchableOpacity>
-          </TouchableOpacity>
+          )}
 
-          {/* 2. STANDALONE SEARCH CARD */}
+          {/* STANDALONE SEARCH CARD */}
           <View style={[styles.standaloneSearchCard, isDesktopWeb && styles.standaloneSearchCardDesktop]}>
-            <Ionicons name="search-outline" size={20} color="#0D9488" style={{ marginRight: 10 }} />
+            <Ionicons name="search-outline" size={18} color="#0D9488" style={{ marginRight: 8 }} />
             <TextInput
               style={[styles.consoleSearchInput, isDesktopWeb && { fontSize: 14.5 }]}
-              placeholder="Search in-clinic doctors, specialties, clinics, or symptoms..."
+              placeholder="Search doctors, specialties, clinics..."
               placeholderTextColor="#94A3B8"
               value={search}
               onChangeText={setSearch}
             />
             {search.length > 0 && (
-              <TouchableOpacity onPress={() => setSearch('')} style={{ padding: 6, marginRight: 6 }}>
-                <Ionicons name="close-circle" size={19} color="#94A3B8" />
+              <TouchableOpacity onPress={() => setSearch('')} style={{ padding: 4, marginRight: 4 }}>
+                <Ionicons name="close-circle" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
+
+            {!isDesktopWeb && (
+              <TouchableOpacity
+                style={[styles.consoleGpsBtn, loadingGps && { opacity: 0.6 }]}
+                onPress={() => detectLocation()}
+                disabled={loadingGps}
+                activeOpacity={0.8}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                {loadingGps ? (
+                  <ActivityIndicator size="small" color="#0D9488" />
+                ) : (
+                  <Ionicons name="locate" size={16} color="#0D9488" />
+                )}
               </TouchableOpacity>
             )}
 
             {isDesktopWeb && (
               <TouchableOpacity
                 style={styles.consoleSearchActionBtn}
-                onPress={() => {
-                  // Keep search interactive
-                }}
                 activeOpacity={0.85}
               >
                 <Ionicons name="search" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
                 <Text style={styles.consoleSearchActionBtnText}>Search</Text>
-              </TouchableOpacity>
-            )}
-
-            {!isDesktopWeb && (
-              <TouchableOpacity
-                style={[styles.filterTriggerPill, activeFiltersCount > 0 && styles.filterTriggerPillActive]}
-                onPress={() => setFilterModalVisible(true)}
-              >
-                <Ionicons
-                  name="filter"
-                  size={14}
-                  color={activeFiltersCount > 0 ? '#FFFFFF' : '#1E3A8A'}
-                />
-                <Text
-                  style={[
-                    styles.filterTriggerPillText,
-                    activeFiltersCount > 0 && styles.filterTriggerPillTextActive,
-                  ]}
-                >
-                  {activeFiltersCount > 0 ? `${activeFiltersCount}` : 'Filters'}
-                </Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1160,16 +1122,19 @@ const DoctorListScreen = ({ navigation, route }) => {
           {/* Right Content Column: Results count & Doctors Cards */}
           <View style={[styles.doctorsColWrap, isWideScreen && styles.doctorsColWrapDesktop]}>
             <View style={styles.resultsHeaderRow}>
-              <View>
-                <Text style={styles.sectionHeadingTitle}>Top Doctors Near You</Text>
-                <Text style={styles.resultsCountText}>
-                  Showing {totalDoctors > 0 ? (safeCurrentPage - 1) * DOCTORS_PER_PAGE + 1 : 0}–{Math.min(safeCurrentPage * DOCTORS_PER_PAGE, totalDoctors)} of {totalDoctors} {totalDoctors === 1 ? 'doctor' : 'doctors'} available near {userLocality.split(',')[0]}
-                </Text>
+              <View style={styles.resultsHeadingWrap}>
+                <Text style={styles.sectionHeadingTitle}>Doctors</Text>
+                <View style={styles.resultsCountBadge}>
+                  <Text style={styles.resultsCountBadgeText}>{totalDoctors}</Text>
+                </View>
               </View>
 
-              {/* Interactive Sort Options */}
-              <View style={styles.sortPillsRow}>
-                <Text style={styles.sortLabel}>Sort:</Text>
+              {/* Interactive Horizontal Sort Options */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.sortPillsScroll}
+              >
                 {[
                   { id: 'nearest', label: 'Nearest' },
                   { id: 'rating', label: 'Top Rated' },
@@ -1190,7 +1155,7 @@ const DoctorListScreen = ({ navigation, route }) => {
                     </TouchableOpacity>
                   );
                 })}
-              </View>
+              </ScrollView>
             </View>
 
             {selectedSpecialty !== 'all' && (
@@ -1332,18 +1297,18 @@ const DoctorListScreen = ({ navigation, route }) => {
             onPress={Keyboard.dismiss}
           >
             <TouchableOpacity
-              style={[styles.locationModalCard, { maxHeight: '88%' }]}
+              style={[styles.locationModalCard, { maxHeight: '85%' }]}
               activeOpacity={1}
               onPress={() => {}}
             >
               {/* MODAL HEADER */}
               <View style={styles.modalHeaderRow}>
                 <View style={styles.locationModalIconBox}>
-                  <Ionicons name="location" size={22} color={colors.primary} />
+                  <Ionicons name="location" size={20} color="#0D9488" />
                 </View>
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <Text style={styles.modalHeaderTitle}>Select Location</Text>
-                  <Text style={styles.modalHeaderSub}>Find doctors in your neighborhood</Text>
+                  <Text style={styles.modalHeaderSub}>Find doctors near your area</Text>
                 </View>
                 <TouchableOpacity
                   style={styles.modalCloseBtn}
@@ -1352,20 +1317,51 @@ const DoctorListScreen = ({ navigation, route }) => {
                     setLocationModalVisible(false);
                   }}
                 >
-                  <Ionicons name="close" size={20} color={colors.secondary} />
+                  <Ionicons name="close" size={18} color="#64748B" />
                 </TouchableOpacity>
               </View>
 
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="on-drag"
-                bounces={false}
-              >
-                {/* LIVE MAP PICKER BUTTON */}
+              {/* SEARCH LOCALITY INPUT */}
+              <View style={styles.localitySearchBox}>
+                <Ionicons name="search-outline" size={16} color="#94A3B8" />
+                <TextInput
+                  style={styles.localitySearchInput}
+                  placeholder="Search area, locality, or city..."
+                  placeholderTextColor="#94A3B8"
+                  value={locationSearchQuery}
+                  onChangeText={setLocationSearchQuery}
+                />
+                {locationSearchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setLocationSearchQuery('')}>
+                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* DUAL QUICK ACTIONS: CURRENT GPS & LIVE MAP */}
+              <View style={styles.quickLocActionsRow}>
                 <TouchableOpacity
-                  style={styles.liveMapPickBtn}
-                  activeOpacity={0.88}
+                  style={[styles.quickLocActionBtn, styles.quickLocActionBtnActive]}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    detectLocation();
+                  }}
+                  disabled={loadingGps}
+                >
+                  {loadingGps ? (
+                    <ActivityIndicator size="small" color="#0D9488" />
+                  ) : (
+                    <Ionicons name="navigate" size={15} color="#0D9488" />
+                  )}
+                  <Text style={styles.quickLocActionText}>
+                    {loadingGps ? 'Locating...' : 'Use Current GPS'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.quickLocActionBtn}
+                  activeOpacity={0.8}
                   onPress={() => {
                     Keyboard.dismiss();
                     setLocationModalVisible(false);
@@ -1384,61 +1380,19 @@ const DoctorListScreen = ({ navigation, route }) => {
                     });
                   }}
                 >
-                  <View style={styles.liveMapIconBox}>
-                    <Ionicons name="map" size={18} color="#FFFFFF" />
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={styles.liveMapBtnTitle}>Pick Location on Live Map</Text>
-                    <Text style={styles.liveMapBtnSub}>Drag & drop marker on real-time map</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                  <Ionicons name="map-outline" size={15} color="#0D9488" />
+                  <Text style={styles.quickLocActionText}>Pick on Map</Text>
                 </TouchableOpacity>
+              </View>
 
-                {/* GPS CURRENT LOCATION BUTTON */}
-                <TouchableOpacity
-                  style={styles.currentGpsBtn}
-                  activeOpacity={0.85}
-                  onPress={() => {
-                    Keyboard.dismiss();
-                    detectLocation();
-                  }}
-                  disabled={loadingGps}
-                >
-                  {loadingGps ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
-                  ) : (
-                    <View style={styles.gpsIconCircle}>
-                      <Ionicons name="navigate" size={16} color="#FFFFFF" />
-                    </View>
-                  )}
-                  <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={styles.currentGpsTitle}>Use My Current Live GPS</Text>
-                    <Text style={styles.currentGpsSub}>
-                      {loadingGps ? 'Fetching GPS coordinates...' : 'Auto-detect position and calculate distances'}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-                </TouchableOpacity>
-
-                {/* SEARCH LOCALITY INPUT */}
-                <View style={styles.localitySearchBox}>
-                  <Ionicons name="search-outline" size={17} color={colors.textSecondary} />
-                  <TextInput
-                    style={styles.localitySearchInput}
-                    placeholder="Search area, locality, or city..."
-                    placeholderTextColor="#94A3B8"
-                    value={locationSearchQuery}
-                    onChangeText={setLocationSearchQuery}
-                  />
-                  {locationSearchQuery.length > 0 && (
-                    <TouchableOpacity onPress={() => setLocationSearchQuery('')}>
-                      <Ionicons name="close-circle" size={16} color="#94A3B8" />
-                    </TouchableOpacity>
-                  )}
-                </View>
-
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                bounces={false}
+              >
                 {/* POPULAR LOCALITIES LIST */}
-                <Text style={styles.popularLocTitle}>Select Area / Locality</Text>
+                <Text style={styles.popularLocTitle}>POPULAR AREAS</Text>
                 <View style={styles.localitiesListContainer}>
                   {filteredLocalities.map((loc) => {
                     const isSelected = userLocality === loc.full;
@@ -1449,21 +1403,20 @@ const DoctorListScreen = ({ navigation, route }) => {
                         activeOpacity={0.7}
                         onPress={() => handleSelectLocality(loc)}
                       >
-                        <View style={[styles.localityPinCircle, isSelected && styles.localityPinCircleActive]}>
-                          <Ionicons
-                            name={isSelected ? 'location' : 'location-outline'}
-                            size={16}
-                            color={isSelected ? colors.primary : colors.textSecondary}
-                          />
-                        </View>
+                        <Ionicons
+                          name={isSelected ? 'location-sharp' : 'location-outline'}
+                          size={16}
+                          color={isSelected ? '#00B894' : '#94A3B8'}
+                          style={{ marginRight: 10 }}
+                        />
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.localityName, isSelected && styles.localityNameActive]}>
                             {loc.name}
                           </Text>
-                          <Text style={styles.localityCity}>{loc.city}</Text>
                         </View>
+                        <Text style={styles.localityCity}>{loc.city}</Text>
                         {isSelected && (
-                          <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                          <Ionicons name="checkmark-circle" size={16} color="#00B894" style={{ marginLeft: 6 }} />
                         )}
                       </TouchableOpacity>
                     );
@@ -1472,11 +1425,11 @@ const DoctorListScreen = ({ navigation, route }) => {
 
                 {/* CUSTOM ADDRESS MANUAL ENTRY */}
                 <View style={styles.customLocBox}>
-                  <Text style={styles.customLocLabel}>Or Type Any Custom Area / Street</Text>
+                  <Text style={styles.customLocLabel}>Or enter custom area</Text>
                   <View style={styles.customLocInputRow}>
                     <TextInput
                       style={styles.customLocInput}
-                      placeholder="e.g. Ring Road, Bogadi, Mysore"
+                      placeholder="e.g. Bogadi 2nd Stage, Mysore"
                       placeholderTextColor="#94A3B8"
                       value={customLocalityInput}
                       onChangeText={setCustomLocalityInput}
@@ -2012,10 +1965,17 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.secondary,
   },
-  headerSub: {
-    fontSize: 11,
-    color: colors.textSecondary,
+  headerLocationBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
     marginTop: 1,
+  },
+  headerLocationText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0D9488',
+    maxWidth: 160,
   },
   filterHeaderBtn: {
     width: 34,
@@ -2576,42 +2536,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 0,
     paddingVertical: 4,
-    marginBottom: 12,
-    flexWrap: 'wrap',
-    gap: 8,
+    marginBottom: 10,
+    gap: 10,
   },
-  resultsCountText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  sectionHeadingTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#0F172A',
-    letterSpacing: -0.3,
-  },
-  sortedByText: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  sortPillsRow: {
+  resultsHeadingWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    flexWrap: 'wrap',
   },
-  sortLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#64748B',
-    marginRight: 2,
+  sectionHeadingTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -0.2,
+  },
+  resultsCountBadge: {
+    backgroundColor: '#CCFBF1',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  resultsCountBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0D9488',
+  },
+  sortPillsScroll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 2,
   },
   sortPillBtn: {
     paddingHorizontal: 10,
-    paddingVertical: 4.5,
-    borderRadius: 16,
+    paddingVertical: 5,
+    borderRadius: 14,
     backgroundColor: '#F1F5F9',
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -3039,97 +2998,40 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
-    padding: 16,
-    marginBottom: 14,
+    padding: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
     elevation: 2,
   },
   cardDesktop: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    padding: 18,
-    gap: 18,
-  },
-  cardLeftCol: {
-    flex: 1,
-    minWidth: 0,
-  },
-  cardRightCol: {
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  cardRightColDesktop: {
-    width: 230,
-    paddingTop: 0,
-    paddingLeft: 18,
-    borderTopWidth: 0,
-    borderLeftWidth: 1,
-    borderLeftColor: '#F1F5F9',
-    justifyContent: 'space-between',
-  },
-
-  // CARD HEADER & CLINIC INFO
-  cardHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  clinicLocationWrap: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 8,
-    gap: 5,
-  },
-  clinicNameText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.secondary,
-  },
-  distanceBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDFA',
-    borderWidth: 1,
-    borderColor: '#CCFBF1',
-    paddingHorizontal: 8,
-    paddingVertical: 3.5,
-    borderRadius: 8,
-    gap: 4,
-  },
-  distanceBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#00B894',
+    padding: 16,
+    marginBottom: 12,
   },
 
   // DOCTOR MAIN & AVATAR
   doctorMainRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 6,
   },
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 16,
+    width: 60,
+    height: 60,
+    borderRadius: 12,
     backgroundColor: '#E2E8F0',
   },
   avatarWrapper: {
     position: 'relative',
-    marginRight: 14,
+    marginRight: 12,
   },
   avatarFallback: {
-    width: 72,
-    height: 72,
-    borderRadius: 16,
+    width: 60,
+    height: 60,
+    borderRadius: 12,
     backgroundColor: '#CCFBF1',
     justifyContent: 'center',
     alignItems: 'center',
@@ -3138,71 +3040,70 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   avatarFallbackText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '900',
     color: '#0D9488',
     letterSpacing: 0.5,
   },
   avatarFallbackIcon: {
     position: 'absolute',
-    bottom: 4,
-    right: 4,
+    bottom: 3,
+    right: 3,
   },
   onlineStatusDot: {
     position: 'absolute',
     bottom: 2,
     right: 2,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: '#10B981',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: '#FFFFFF',
   },
   doctorInfoCol: {
     flex: 1,
+    minWidth: 0,
   },
   nameBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
   },
   doctorName: {
-    fontSize: 15.5,
+    fontSize: 15,
     fontWeight: '800',
     color: '#0F172A',
   },
-  specBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginTop: 2,
-  },
   specialtyText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#00B894',
-  },
-  specDot: {
-    color: '#94A3B8',
-    fontSize: 12,
-  },
-  experienceText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#64748B',
-  },
-  qualificationText: {
-    fontSize: 11,
-    color: '#64748B',
     marginTop: 1,
+  },
+  clinicLocationWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+    gap: 4,
+  },
+  clinicNameText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#0D9488',
+    maxWidth: '70%',
+  },
+  distanceBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#94A3B8',
   },
 
   // METRICS & BADGES
   metricsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 6,
     gap: 6,
     flexWrap: 'wrap',
   },
@@ -3212,131 +3113,100 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFBEB',
     borderWidth: 1,
     borderColor: '#FEF3C7',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: 6,
     gap: 3,
   },
   ratingChipText: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '800',
     color: '#B45309',
   },
   reviewsCountText: {
-    fontSize: 10,
+    fontSize: 9.5,
     color: '#92400E',
   },
-  videoBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 4,
-  },
-  videoDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#3B82F6',
-  },
-  videoBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#2563EB',
-  },
-  inClinicBadge: {
+  slotBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F0FDFA',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: 6,
     gap: 3,
   },
-  inClinicBadgeText: {
-    fontSize: 10,
+  slotBadgeText: {
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#0D9488',
   },
 
-  // BOOKING ACTION HUB (RIGHT COLUMN ON DESKTOP)
-  hubSlotAndFee: {
-    gap: 8,
-    marginBottom: 12,
-  },
-  hubSlotItem: {
+  // CARD FOOTER & ACTIONS
+  cardFooterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 7,
-  },
-  hubSlotLabel: {
-    fontSize: 9.5,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  hubSlotValue: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  hubFeeItem: {
-    flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'baseline',
-    paddingHorizontal: 4,
+    paddingTop: 10,
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
   },
-  hubFeeLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '500',
+  cardFooterRowDesktop: {
+    paddingTop: 12,
+    marginTop: 12,
   },
-  hubFeeAmount: {
-    fontSize: 17,
+  feeWrap: {
+    flexDirection: 'column',
+  },
+  feeLabel: {
+    fontSize: 10,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  feeAmount: {
+    fontSize: 16,
     fontWeight: '900',
     color: '#00B894',
   },
-  hubActionsWrap: {
-    gap: 8,
-  },
-  bookAppointmentButton: {
-    width: '100%',
-    height: 40,
+  cardActionsWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#00B894',
-    paddingHorizontal: 14,
-    borderRadius: 9,
-    gap: 6,
-  },
-  bookAppointmentButtonText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    gap: 8,
   },
   navigateButton: {
-    width: '100%',
-    height: 36,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#EFF6FF',
-    paddingHorizontal: 14,
-    borderRadius: 9,
-    gap: 6,
     borderWidth: 1,
     borderColor: '#DBEAFE',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    gap: 4,
   },
   navigateButtonText: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '700',
     color: '#1E3A8A',
+  },
+  bookAppointmentButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00B894',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    gap: 4,
+  },
+  bookAppointmentButtonText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 
   // EMPTY
@@ -3394,136 +3264,92 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // LIVE MAP PICKER
-  liveMapPickBtn: {
+  // LOCATION MODAL QUICK ACTIONS & LIST
+  quickLocActionsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDFA',
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#99F6E4',
-    marginBottom: 10,
-  },
-  liveMapIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  liveMapBtnTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#0F766E',
-  },
-  liveMapBtnSub: {
-    fontSize: 10.5,
-    color: '#0D9488',
-    marginTop: 2,
-  },
-  currentGpsBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    borderRadius: 14,
-    padding: 12,
+    gap: 8,
     marginBottom: 12,
-    borderWidth: 1.5,
-    borderColor: '#A7F3D0',
   },
-  gpsIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
+  quickLocActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    gap: 6,
   },
-  currentGpsTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.primary,
+  quickLocActionBtnActive: {
+    backgroundColor: '#CCFBF1',
+    borderColor: '#99F6E4',
   },
-  currentGpsSub: {
-    fontSize: 10,
-    color: '#065F46',
-    marginTop: 2,
+  quickLocActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0D9488',
   },
 
   localitySearchBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 42,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 38,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     marginBottom: 10,
   },
   localitySearchInput: {
     flex: 1,
-    marginLeft: 8,
-    fontSize: 13,
+    marginLeft: 6,
+    fontSize: 12.5,
     color: colors.text,
   },
 
   popularLocTitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
-    color: colors.secondary,
+    color: '#64748B',
+    letterSpacing: 0.4,
     marginBottom: 6,
+    textTransform: 'uppercase',
   },
   localitiesListContainer: {
-    gap: 4,
+    gap: 2,
   },
   localityRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 9,
     paddingHorizontal: 10,
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 4,
+    borderColor: '#F1F5F9',
+    marginBottom: 3,
   },
   localityRowActive: {
-    backgroundColor: '#EFF6FF',
-    borderColor: colors.primary,
-  },
-  localityPinCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  localityPinCircleActive: {
-    backgroundColor: colors.lightTeal,
+    backgroundColor: '#F0FDFA',
+    borderColor: '#00B894',
   },
   localityName: {
     fontSize: 13,
     fontWeight: '700',
-    color: colors.text,
+    color: '#1E293B',
   },
   localityNameActive: {
-    color: colors.primary,
+    color: '#00B894',
     fontWeight: '800',
   },
   localityCity: {
-    fontSize: 10,
-    color: colors.textSecondary,
-    marginTop: 1,
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '500',
   },
 
   customLocBox: {

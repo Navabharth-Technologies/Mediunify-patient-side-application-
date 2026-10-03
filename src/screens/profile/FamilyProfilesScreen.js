@@ -351,20 +351,20 @@ const FamilyProfilesScreen = ({ navigation }) => {
           onPress={() => navigation.goBack()}
           activeOpacity={0.8}
         >
-          <Ionicons name="arrow-back" size={22} color={colors.secondary} />
+          <Ionicons name="arrow-back" size={20} color="#1E293B" />
         </TouchableOpacity>
 
         <View style={styles.headerTitleWrap}>
           <Text style={styles.headerTitle}>Family Profiles</Text>
-          <Text style={styles.headerSubtitle}>Manage health records for your family</Text>
         </View>
 
         <TouchableOpacity
           style={styles.addHeaderBtn}
           onPress={() => setShowAddModal(true)}
-          activeOpacity={0.8}
+          activeOpacity={0.85}
         >
-          <Ionicons name="person-add" size={20} color={colors.primary} />
+          <Ionicons name="add" size={16} color="#FFFFFF" />
+          <Text style={styles.addHeaderBtnText}>Add</Text>
         </TouchableOpacity>
       </View>
 
@@ -375,19 +375,22 @@ const FamilyProfilesScreen = ({ navigation }) => {
         {/* BANNER */}
         <View style={styles.banner}>
           <View style={styles.bannerIconCircle}>
-            <Ionicons name="people" size={28} color={colors.primary} />
+            <Ionicons name="people" size={20} color="#0D9488" />
           </View>
           <View style={styles.bannerInfo}>
-            <Text style={styles.bannerTitle}>One Account, Entire Family Care</Text>
+            <Text style={styles.bannerTitle}>Manage & Book for Family</Text>
             <Text style={styles.bannerSub}>
-              Book appointments, order medicines, and track lab tests for any family member.
+              Select an active member to book appointments, lab tests, and medicines.
             </Text>
           </View>
         </View>
 
         {/* MEMBERS LIST */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Linked Family Members ({members.length})</Text>
+          <Text style={styles.sectionTitle}>Family Members</Text>
+          <View style={styles.memberCountBadge}>
+            <Text style={styles.memberCountBadgeText}>{members.length}</Text>
+          </View>
         </View>
 
         {members.map((member) => {
@@ -400,7 +403,7 @@ const FamilyProfilesScreen = ({ navigation }) => {
               onPress={() => handleSelectActiveMember(member)}
             >
               <View style={styles.cardTop}>
-                <View style={styles.avatarCircle}>
+                <View style={[styles.avatarCircle, isActive && styles.avatarCircleActive]}>
                   <Ionicons
                     name={
                       member.relation === 'Self'
@@ -409,14 +412,14 @@ const FamilyProfilesScreen = ({ navigation }) => {
                         ? 'woman'
                         : 'man'
                     }
-                    size={22}
-                    color={colors.primary}
+                    size={20}
+                    color={isActive ? '#00B894' : '#0D9488'}
                   />
                 </View>
 
                 <View style={styles.memberInfo}>
                   <View style={styles.nameRow}>
-                    <Text style={styles.memberName}>{member.name}</Text>
+                    <Text style={styles.memberName} numberOfLines={1}>{member.name}</Text>
                     {member.isPrimary && (
                       <View style={styles.primaryBadge}>
                         <Text style={styles.primaryBadgeText}>Primary</Text>
@@ -432,49 +435,40 @@ const FamilyProfilesScreen = ({ navigation }) => {
                   <TouchableOpacity
                     onPress={() => handleDeleteMember(member)}
                     style={styles.trashBtn}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Ionicons name="trash-outline" size={18} color="#E53935" />
+                    <Ionicons name="trash-outline" size={17} color="#EF4444" />
                   </TouchableOpacity>
                 )}
               </View>
 
-              <View style={styles.divider} />
-
-              {/* MEDICAL STATS */}
-              <View style={styles.statsRow}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statLabel}>Blood Group</Text>
-                  <Text style={styles.statValue}>{member.bloodGroup}</Text>
+              {/* MEDICAL STATS CHIPS */}
+              <View style={styles.statsChipsRow}>
+                <View style={styles.statChip}>
+                  <Ionicons name="water" size={11} color="#EF4444" />
+                  <Text style={styles.statChipText}>Blood: {member.bloodGroup || 'N/A'}</Text>
                 </View>
-
-                <View style={styles.statItem}>
-                  <Text style={styles.statLabel}>Allergies</Text>
-                  <Text style={styles.statValue}>{member.allergies}</Text>
+                <View style={styles.statChip}>
+                  <Ionicons name="medical-outline" size={11} color="#0D9488" />
+                  <Text style={styles.statChipText}>Allergies: {member.allergies || 'None'}</Text>
                 </View>
-
-                {member.conditions && (
-                  <View style={styles.statItem}>
-                    <Text style={styles.statLabel}>Condition</Text>
-                    <Text style={styles.statValue}>{member.conditions}</Text>
-                  </View>
-                )}
               </View>
 
               {/* SWITCH / ACTIVE BUTTON */}
               <View style={styles.cardBottomAction}>
-                <View style={styles.activeCheckRow}>
+                <View style={[styles.activeStatusPill, isActive && styles.activeStatusPillActive]}>
                   <Ionicons
-                    name={isActive ? 'radio-button-on' : 'radio-button-off'}
-                    size={16}
-                    color={isActive ? colors.primary : colors.slate}
+                    name={isActive ? 'checkmark-circle' : 'radio-button-off'}
+                    size={15}
+                    color={isActive ? '#FFFFFF' : '#64748B'}
                   />
                   <Text
                     style={[
-                      styles.activeCheckText,
-                      isActive && styles.activeCheckTextActive,
+                      styles.activeStatusText,
+                      isActive && styles.activeStatusTextActive,
                     ]}
                   >
-                    {isActive ? 'Active Booking Profile' : 'Tap to Switch Active Profile'}
+                    {isActive ? 'Active Booking Patient' : 'Tap to Select as Active'}
                   </Text>
                 </View>
               </View>
@@ -485,14 +479,14 @@ const FamilyProfilesScreen = ({ navigation }) => {
         {/* ADD MEMBER BUTTON */}
         <TouchableOpacity
           style={styles.addBtnLarge}
-          activeOpacity={0.85}
+          activeOpacity={0.88}
           onPress={() => setShowAddModal(true)}
         >
-          <Ionicons name="add-circle" size={22} color={colors.white} />
-          <Text style={styles.addBtnLargeText}>Add New Family Member</Text>
+          <Ionicons name="add-circle" size={19} color="#FFFFFF" />
+          <Text style={styles.addBtnLargeText}>Add Family Member</Text>
         </TouchableOpacity>
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 30 }} />
       </ScrollView>
 
       {/* ADD MEMBER MODAL */}
@@ -529,7 +523,7 @@ const FamilyProfilesScreen = ({ navigation }) => {
                   }}
                   style={styles.modalCloseBtn}
                 >
-                  <Ionicons name="close" size={22} color={colors.secondary} />
+                  <Ionicons name="close" size={20} color="#64748B" />
                 </TouchableOpacity>
               </View>
 
@@ -545,7 +539,7 @@ const FamilyProfilesScreen = ({ navigation }) => {
                 <TextInput
                   style={styles.modalInput}
                   placeholder="e.g. Priya Kumar"
-                  placeholderTextColor={colors.slate}
+                  placeholderTextColor="#94A3B8"
                   value={name}
                   onChangeText={setName}
                   onFocus={() => {
@@ -557,7 +551,7 @@ const FamilyProfilesScreen = ({ navigation }) => {
 
                 <Text style={styles.inputLabel}>Relationship</Text>
                 {Platform.OS === 'web' ? (
-                  <View style={[styles.pillsScroll, { flexWrap: 'wrap', rowGap: 8 }]}>
+                  <View style={[styles.pillsScroll, { flexWrap: 'wrap', rowGap: 6 }]}>
                     {RELATIONSHIPS.map((rel) => (
                       <TouchableOpacity
                         key={rel}
@@ -598,7 +592,7 @@ const FamilyProfilesScreen = ({ navigation }) => {
                     <TextInput
                       style={styles.modalInput}
                       placeholder="e.g. 28"
-                      placeholderTextColor={colors.slate}
+                      placeholderTextColor="#94A3B8"
                       value={age}
                       onChangeText={setAge}
                       onFocus={() => {
@@ -631,9 +625,9 @@ const FamilyProfilesScreen = ({ navigation }) => {
                   </View>
                 </View>
 
-                <Text style={[styles.inputLabel, { marginTop: 12 }]}>Blood Group</Text>
+                <Text style={[styles.inputLabel, { marginTop: 10 }]}>Blood Group</Text>
                 {Platform.OS === 'web' ? (
-                  <View style={[styles.pillsScroll, { flexWrap: 'wrap', rowGap: 8 }]}>
+                  <View style={[styles.pillsScroll, { flexWrap: 'wrap', rowGap: 6 }]}>
                     {BLOOD_GROUPS.map((bg) => (
                       <TouchableOpacity
                         key={bg}
@@ -668,11 +662,11 @@ const FamilyProfilesScreen = ({ navigation }) => {
                   </ScrollView>
                 )}
 
-                <Text style={[styles.inputLabel, { marginTop: 12 }]}>Known Allergies (Optional)</Text>
+                <Text style={[styles.inputLabel, { marginTop: 10 }]}>Known Allergies (Optional)</Text>
                 <TextInput
                   style={styles.modalInput}
                   placeholder="e.g. Penicillin, Peanuts, None"
-                  placeholderTextColor={colors.slate}
+                  placeholderTextColor="#94A3B8"
                   value={allergies}
                   onChangeText={setAllergies}
                   onFocus={() => {
@@ -704,66 +698,64 @@ const FamilyProfilesScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F4F8FA',
+    backgroundColor: '#F8FAFC',
   },
   header: {
-    minHeight: 60,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: '#E2E8F0',
   },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F4F8FA',
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 8,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
   },
   headerTitleWrap: {
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: colors.secondary,
-  },
-  headerSubtitle: {
-    fontSize: 10,
-    color: colors.slate,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
   },
   addHeaderBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#E8F7F4',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scrollContent: {
-    padding: 16,
-  },
-  banner: {
-    backgroundColor: '#E8F7F4',
-    borderRadius: 16,
-    padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 18,
+    backgroundColor: '#00B894',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    gap: 3,
+  },
+  addHeaderBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  scrollContent: {
+    padding: 14,
+  },
+  banner: {
+    backgroundColor: '#F0FDFA',
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#C0EFE5',
+    borderColor: '#CCFBF1',
   },
   bannerIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.white,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#CCFBF1',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -772,238 +764,274 @@ const styles = StyleSheet.create({
   },
   bannerTitle: {
     fontSize: 13,
-    fontWeight: '900',
-    color: colors.secondary,
+    fontWeight: '800',
+    color: '#0F766E',
   },
   bannerSub: {
-    fontSize: 10,
-    color: colors.slate,
+    fontSize: 11,
+    color: '#64748B',
     marginTop: 2,
-    lineHeight: 14,
+    lineHeight: 15,
   },
   sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: colors.secondary,
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  memberCountBadge: {
+    backgroundColor: '#CCFBF1',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  memberCountBadgeText: {
+    color: '#0D9488',
+    fontSize: 11,
+    fontWeight: '800',
   },
   memberCard: {
-    backgroundColor: colors.white,
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 10,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   memberCardActive: {
-    borderColor: colors.primary,
+    borderColor: '#00B894',
     backgroundColor: '#FAFFFD',
   },
   cardTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   avatarCircle: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: '#E8F7F4',
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  avatarCircleActive: {
+    backgroundColor: '#CCFBF1',
+  },
   memberInfo: {
     flex: 1,
+    minWidth: 0,
   },
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   memberName: {
     fontSize: 14,
-    fontWeight: '900',
-    color: colors.secondary,
+    fontWeight: '800',
+    color: '#0F172A',
   },
   primaryBadge: {
-    backgroundColor: '#E8F8F2',
+    backgroundColor: '#CCFBF1',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 6,
   },
   primaryBadgeText: {
-    color: '#00A382',
-    fontSize: 9,
-    fontWeight: '900',
+    color: '#0D9488',
+    fontSize: 9.5,
+    fontWeight: '800',
   },
   memberMeta: {
-    fontSize: 11,
-    color: colors.slate,
-    marginTop: 2,
+    fontSize: 11.5,
+    color: '#64748B',
+    fontWeight: '500',
+    marginTop: 1,
   },
   trashBtn: {
     padding: 6,
   },
-  divider: {
-    height: 1,
-    backgroundColor: '#F0F4F6',
-    marginVertical: 12,
-  },
-  statsRow: {
+  statsChipsRow: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 6,
+    marginTop: 8,
+    flexWrap: 'wrap',
   },
-  statItem: {
-    flex: 1,
-  },
-  statLabel: {
-    fontSize: 10,
-    color: colors.slate,
-  },
-  statValue: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.secondary,
-    marginTop: 2,
-  },
-  cardBottomAction: {
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F4F6',
-  },
-  activeCheckRow: {
+  statChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
-  activeCheckText: {
+  statChipText: {
     fontSize: 11,
-    color: colors.slate,
-    fontWeight: '700',
+    color: '#475569',
+    fontWeight: '600',
   },
-  activeCheckTextActive: {
-    color: colors.primary,
-    fontWeight: '900',
+  cardBottomAction: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
   },
-  addBtnLarge: {
-    backgroundColor: colors.primary,
-    height: 50,
-    borderRadius: 14,
+  activeStatusPill: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 5,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  activeStatusPillActive: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
+  },
+  activeStatusText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  activeStatusTextActive: {
+    color: '#FFFFFF',
+  },
+  addBtnLarge: {
+    backgroundColor: '#00B894',
+    height: 44,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     marginTop: 6,
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
   },
   addBtnLargeText: {
-    color: colors.white,
-    fontSize: 13,
-    fontWeight: '900',
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '800',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: colors.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 16,
     maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   modalTitle: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: colors.secondary,
+    fontSize: 15.5,
+    fontWeight: '800',
+    color: '#0F172A',
   },
   modalCloseBtn: {
     padding: 4,
   },
   inputLabel: {
     fontSize: 11,
-    fontWeight: '800',
-    color: colors.slate,
+    fontWeight: '700',
+    color: '#334155',
     marginBottom: 4,
     textTransform: 'uppercase',
   },
   modalInput: {
-    backgroundColor: '#F8FAFB',
+    backgroundColor: '#F8FAFC',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 12,
-    height: 44,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 10,
+    height: 42,
     fontSize: 13,
-    color: colors.secondary,
+    color: '#0F172A',
     fontWeight: '600',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   pillsScroll: {
     flexDirection: 'row',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   modalPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 14,
-    backgroundColor: '#F0F4F6',
-    marginRight: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    marginRight: 6,
   },
   modalPillActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#0D9488',
   },
   modalPillText: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '700',
-    color: colors.secondary,
+    color: '#475569',
   },
   modalPillTextActive: {
-    color: colors.white,
-    fontWeight: '900',
+    color: '#FFFFFF',
   },
   genderPill: {
     flex: 1,
-    height: 44,
+    height: 42,
     borderRadius: 10,
-    backgroundColor: '#F0F4F6',
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
   genderPillActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#0D9488',
   },
   genderText: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.secondary,
+    color: '#475569',
   },
   genderTextActive: {
-    color: colors.white,
-    fontWeight: '900',
+    color: '#FFFFFF',
   },
   saveBtn: {
-    backgroundColor: colors.primary,
-    height: 48,
-    borderRadius: 14,
+    backgroundColor: '#00B894',
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 16,
-    marginBottom: 20,
+    marginTop: 14,
+    marginBottom: 10,
   },
   saveBtnText: {
-    color: colors.white,
-    fontSize: 13,
-    fontWeight: '900',
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '800',
   },
 });
 

@@ -27,6 +27,7 @@ const LANGUAGES_LIST = ['All', 'English', 'Kannada', 'Hindi', 'Telugu', 'Malayal
 const VideoConsultationScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 992;
+  const isTablet = width >= 600;
   const scrollViewRef = useRef(null);
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -67,13 +68,24 @@ const VideoConsultationScreen = ({ navigation, route }) => {
     }));
   };
 
-  // Filter state
+  // Filter & Sort state
   const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [sortModalVisible, setSortModalVisible] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('All');
   const [minExperience, setMinExperience] = useState('all'); // 'all' | '5' | '10' | '15'
   const [maxFee, setMaxFee] = useState('all'); // 'all' | '500' | '700'
   const [onlyAvailableToday, setOnlyAvailableToday] = useState(false);
   const [sortBy, setSortBy] = useState('nearest'); // 'nearest' | 'rating' | 'experience' | 'fee' | 'earliest'
+
+  const getSortLabel = (id) => {
+    switch (id) {
+      case 'rating': return 'Top Rated';
+      case 'experience': return 'Experience';
+      case 'fee': return 'Lowest Fee';
+      case 'earliest': return 'Earliest';
+      default: return 'Nearest';
+    }
+  };
 
   // Selected Doctor for Profile Quick View Modal
   const [profileDoctor, setProfileDoctor] = useState(null);
@@ -81,7 +93,7 @@ const VideoConsultationScreen = ({ navigation, route }) => {
   // Selected Doctor for Video Booking Modal
   const [selectedDoctorForBooking, setSelectedDoctorForBooking] = useState(null);
 
-  // Active filters count
+  // Active filters count (excluding sort, as Sort has its own dedicated button)
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (selectedSpecialty !== 'all') count++;
@@ -89,9 +101,8 @@ const VideoConsultationScreen = ({ navigation, route }) => {
     if (minExperience !== 'all') count++;
     if (maxFee !== 'all') count++;
     if (onlyAvailableToday) count++;
-    if (sortBy !== 'nearest') count++;
     return count;
-  }, [selectedSpecialty, selectedLanguage, minExperience, maxFee, onlyAvailableToday, sortBy]);
+  }, [selectedSpecialty, selectedLanguage, minExperience, maxFee, onlyAvailableToday]);
 
   const resetFilters = () => {
     setSelectedSpecialty('all');
@@ -216,24 +227,7 @@ const VideoConsultationScreen = ({ navigation, route }) => {
   const renderDoctor = ({ item }) => {
     return (
       <View style={styles.card}>
-        {/* CARD HEADER: BADGE & APPOINTMENT STATUS */}
-        <View style={styles.cardHeader}>
-          <View style={styles.onlineBadge}>
-            <View style={styles.onlineDot} />
-            <Text style={styles.onlineText}>
-              {item.availableToday
-                ? 'Accepting Instant Video Calls'
-                : 'Next Video Slot Tomorrow'}
-            </Text>
-          </View>
-          <View style={styles.discountBadge}>
-            <Text style={styles.discountBadgeText}>
-              {item.discount || 'Verified Specialist'}
-            </Text>
-          </View>
-        </View>
-
-        {/* DOCTOR MAIN ROW */}
+        {/* Doctor Info Row */}
         <TouchableOpacity
           style={styles.doctorMainRow}
           activeOpacity={0.88}
@@ -243,67 +237,45 @@ const VideoConsultationScreen = ({ navigation, route }) => {
 
           <View style={styles.doctorInfoCol}>
             <View style={styles.nameRow}>
-              <Text style={styles.doctorName}>{item.name}</Text>
-              <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
+              <Text style={styles.doctorName} numberOfLines={1}>{item.name}</Text>
+              <Ionicons name="checkmark-circle" size={15} color="#007D69" style={{ marginLeft: 4 }} />
             </View>
 
-            <Text style={styles.specialtyText}>{item.specialty}</Text>
-            <Text style={styles.qualificationText} numberOfLines={1}>
-              {item.qualification}
+            <Text style={styles.specialtyText} numberOfLines={1}>
+              {item.specialty} • {item.experience}
             </Text>
 
-            {/* EXPERIENCE & RATING CHIPS */}
+            {/* Price, Rating, Next Available Slot */}
             <View style={styles.metricsRow}>
-              <View style={styles.experienceChip}>
-                <Ionicons name="ribbon-outline" size={12} color="#1E3A8A" />
-                <Text style={styles.experienceChipText}>{item.experience}</Text>
-              </View>
+              <Text style={styles.feeAmount}>₹{item.fee}</Text>
+
+              <Text style={styles.metricsBullet}>•</Text>
 
               <View style={styles.ratingChip}>
                 <Ionicons name="star" size={12} color="#FFA000" />
                 <Text style={styles.ratingChipText}>{item.rating}</Text>
-                <Text style={styles.reviewsCountText}>
-                  ({item.videoConsultCount ? `${item.videoConsultCount}+ Calls` : `${item.reviewCount || 200} Reviews`})
+              </View>
+
+              <Text style={styles.metricsBullet}>•</Text>
+
+              <View style={styles.slotBox}>
+                <Ionicons name="videocam" size={12} color={item.availableToday ? '#007D69' : '#0284C7'} />
+                <Text style={[styles.slotText, item.availableToday && { color: '#007D69', fontWeight: '700' }]}>
+                  {item.availableToday ? 'Today' : 'Tomorrow'}
                 </Text>
               </View>
             </View>
           </View>
         </TouchableOpacity>
 
-        {/* DETAILS ROW: LANGUAGES SPOKEN */}
-        <View style={styles.languagesRow}>
-          <Ionicons name="chatbubble-ellipses-outline" size={13} color={colors.secondary} />
-          <Text style={styles.languagesLabel}>Speaks:</Text>
-          <Text style={styles.languagesText} numberOfLines={1}>
-            {item.languages ? item.languages.join(', ') : 'English, Kannada, Hindi'}
-          </Text>
-        </View>
-
-        {/* NEXT AVAILABLE SLOT & CONSULTATION FEE */}
-        <View style={styles.slotAndFeeRow}>
-          <View style={styles.slotBox}>
-            <Ionicons name="videocam" size={13} color={colors.primary} />
-            <Text style={styles.slotText}>{item.nextSlot || 'Today, 15 Mins'}</Text>
-          </View>
-
-          <View style={styles.feeBox}>
-            {item.mrpFee && <Text style={styles.mrpText}>₹{item.mrpFee}</Text>}
-            <Text style={styles.feeAmount}>₹{item.fee}</Text>
-            <Text style={{ fontSize: 11, color: '#64748B', marginLeft: 4 }}>
-              Online Video Call
-            </Text>
-          </View>
-        </View>
-
-        {/* DUAL ACTION BUTTONS: DOCTOR BIO & BOOK VIDEO SLOT */}
+        {/* Clear Action Row: View Details & Book Video Call */}
         <View style={styles.cardActionsRow}>
           <TouchableOpacity
             style={styles.bioButton}
             activeOpacity={0.82}
             onPress={() => setProfileDoctor(item)}
           >
-            <Ionicons name="information-circle-outline" size={16} color={colors.secondary} />
-            <Text style={styles.bioButtonText}>Doctor Bio</Text>
+            <Text style={styles.bioButtonText}>View Details</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -311,9 +283,8 @@ const VideoConsultationScreen = ({ navigation, route }) => {
             activeOpacity={0.88}
             onPress={() => setSelectedDoctorForBooking(item)}
           >
-            <Ionicons name="videocam" size={16} color="#FFFFFF" />
-            <Text style={styles.bookVideoButtonText}>Book Video Slot</Text>
-            <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
+            <Ionicons name="videocam" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Text style={styles.bookVideoButtonText}>Book Video Call</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -772,7 +743,7 @@ const VideoConsultationScreen = ({ navigation, route }) => {
             HEADER (Mobile Only)
         ================================================== */}
         {!isDesktopWeb && (
-          <View style={styles.header}>
+          <View style={[styles.header, isTablet && { maxWidth: 780, width: '100%', alignSelf: 'center' }]}>
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => navigation.goBack()}
@@ -782,46 +753,56 @@ const VideoConsultationScreen = ({ navigation, route }) => {
             </TouchableOpacity>
 
             <View style={styles.headerCenter}>
-              <View style={styles.headerTitleRow}>
-                <Text style={styles.headerTitle}>
-                  Doctor Video Consultations
-                </Text>
-                <View style={[styles.liveDot, { backgroundColor: '#00B894' }]} />
-              </View>
-              <Text style={styles.headerSubtitle}>
-                Consult Top Certified Doctors Online • 15 Mins Response
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.filterHeaderBtn, activeFiltersCount > 0 && styles.filterHeaderBtnActive]}
-              activeOpacity={0.8}
-              onPress={() => setFilterModalVisible(true)}
-            >
-              <Ionicons
-                name="options-outline"
-                size={20}
-                color={activeFiltersCount > 0 ? '#FFFFFF' : colors.secondary}
-              />
-              {activeFiltersCount > 0 && (
-                <View style={styles.filterBadgeCount}>
-                  <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+              {Platform.OS === 'ios' ? (
+                <View style={styles.headerCenterIos}>
+                  <Text
+                    style={styles.headerTitleIos}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.82}
+                  >
+                    Doctor Video Consultations
+                  </Text>
+                  <Text style={styles.headerSubtitleIos} numberOfLines={1}>
+                    Consult Top Certified Doctors
+                  </Text>
+                </View>
+              ) : (
+                <View>
+                  <View style={styles.headerTitleRow}>
+                    <Text style={styles.headerTitle}>
+                      Doctor Video Consultations
+                    </Text>
+                    <View style={[styles.liveDot, { backgroundColor: '#00B894' }]} />
+                  </View>
+                  <Text style={styles.headerSubtitle}>
+                    Consult Top Certified Doctors
+                  </Text>
                 </View>
               )}
+            </View>
+
+            {/* Quick access to My Online Consultations Hub */}
+            <TouchableOpacity
+              style={styles.myConsultationsHeaderBtn}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate('MyOnlineConsultations')}
+            >
+              <Ionicons name="videocam-outline" size={15} color="#007D69" style={{ marginRight: 4 }} />
+              <Text style={styles.myConsultationsHeaderText}>My Calls</Text>
             </TouchableOpacity>
           </View>
         )}
 
-
         {/* ==================================================
-            SEARCH BAR & FILTER CHIP (Desktop & Mobile)
+            SEARCH BAR (Desktop & Mobile)
         ================================================== */}
-        <View style={[styles.searchBarContainer, isDesktopWeb && styles.searchBarContainerDesktop]}>
+        <View style={[styles.searchBarContainer, isDesktopWeb && styles.searchBarContainerDesktop, isTablet && !isDesktopWeb && { maxWidth: 780, width: '100%', alignSelf: 'center' }]}>
           <View style={[styles.searchBox, isDesktopWeb && styles.searchBoxDesktop]}>
-            <Ionicons name="search-outline" size={20} color={colors.primary} />
+            <Ionicons name="search-outline" size={19} color={colors.primary} />
             <TextInput
               style={[styles.searchInput, isDesktopWeb && { fontSize: 14.5 }]}
-              placeholder="Search online video doctors by name, specialty, or hospital..."
+              placeholder="Search doctors by name, specialty, or clinic..."
               placeholderTextColor="#94A3B8"
               value={search}
               onChangeText={setSearch}
@@ -841,33 +822,52 @@ const VideoConsultationScreen = ({ navigation, route }) => {
               </TouchableOpacity>
             )}
           </View>
+        </View>
 
-          {!isDesktopWeb && (
+        {/* ==================================================
+            CLEAN CONTROL SECTION: [ Filter ]   [ Sort ]
+            (Only ONE Filter button on the entire screen!)
+        ================================================== */}
+        {!isDesktopWeb && (
+          <View style={[styles.controlBarContainer, isTablet && { maxWidth: 780, width: '100%', alignSelf: 'center' }]}>
             <TouchableOpacity
-              style={[styles.filterTriggerPill, activeFiltersCount > 0 && styles.filterTriggerPillActive]}
+              style={[styles.controlBtn, activeFiltersCount > 0 && styles.controlBtnActive]}
               onPress={() => setFilterModalVisible(true)}
+              activeOpacity={0.8}
             >
               <Ionicons
-                name="filter"
-                size={14}
-                color={activeFiltersCount > 0 ? '#FFFFFF' : colors.secondary}
+                name="options-outline"
+                size={16}
+                color={activeFiltersCount > 0 ? '#FFFFFF' : '#007D69'}
+                style={{ marginRight: 7 }}
               />
-              <Text
-                style={[
-                  styles.filterTriggerPillText,
-                  activeFiltersCount > 0 && styles.filterTriggerPillTextActive,
-                ]}
-              >
-                {activeFiltersCount > 0 ? `${activeFiltersCount} Filters` : 'Filters'}
+              <Text style={[styles.controlBtnText, activeFiltersCount > 0 && styles.controlBtnTextActive]}>
+                Filter{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ''}
               </Text>
             </TouchableOpacity>
-          )}
-        </View>
+
+            <TouchableOpacity
+              style={[styles.controlBtn, sortBy !== 'nearest' && styles.controlBtnActive]}
+              onPress={() => setSortModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="swap-vertical-outline"
+                size={16}
+                color={sortBy !== 'nearest' ? '#FFFFFF' : '#007D69'}
+                style={{ marginRight: 7 }}
+              />
+              <Text style={[styles.controlBtnText, sortBy !== 'nearest' && styles.controlBtnTextActive]}>
+                Sort{sortBy !== 'nearest' ? `: ${getSortLabel(sortBy)}` : ''}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* ==================================================
             MAIN CONTENT AREA: DESKTOP 2-COLUMN (VISIBLE FILTER SIDEBAR + DOCTORS LIST)
         ================================================== */}
-        <View style={[styles.mainLayoutWrap, isDesktopWeb && styles.mainLayoutWrapDesktop]}>
+        <View style={[styles.mainLayoutWrap, isDesktopWeb && styles.mainLayoutWrapDesktop, isTablet && !isDesktopWeb && { maxWidth: 780, width: '100%', alignSelf: 'center' }]}>
           {/* Left Filter Sidebar - Visible on Desktop! */}
           {isDesktopWeb && (
             <View style={styles.desktopSidebarCol}>
@@ -878,37 +878,10 @@ const VideoConsultationScreen = ({ navigation, route }) => {
           {/* Right Content Column: Results count & Doctors Cards */}
           <View style={[styles.doctorsColWrap, isDesktopWeb && styles.doctorsColWrapDesktop]}>
             <View style={styles.resultsHeaderRow}>
-              <View>
-                <Text style={styles.sectionHeadingTitle}>Top Doctors Near You</Text>
-                <Text style={styles.resultsCountText}>
-                  Showing {totalDoctors > 0 ? (safeCurrentPage - 1) * DOCTORS_PER_PAGE + 1 : 0}–{Math.min(safeCurrentPage * DOCTORS_PER_PAGE, totalDoctors)} of {totalDoctors} {totalDoctors === 1 ? 'doctor' : 'doctors'} available for video consultation
-                </Text>
-              </View>
-
-              {/* Interactive Sort Options (Matching In-Clinic Design) */}
-              <View style={styles.sortPillsRow}>
-                <Text style={styles.sortLabel}>Sort:</Text>
-                {[
-                  { id: 'nearest', label: 'Nearest' },
-                  { id: 'rating', label: 'Top Rated' },
-                  { id: 'experience', label: 'Experience' },
-                  { id: 'fee', label: 'Lowest Fee' },
-                ].map((item) => {
-                  const isSortActive = sortBy === item.id;
-                  return (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={[styles.sortPillBtn, isSortActive && styles.sortPillBtnActive]}
-                      onPress={() => setSortBy(item.id)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.sortPillText, isSortActive && styles.sortPillTextActive]}>
-                        {item.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              <Text style={styles.sectionHeadingTitle}>Available Doctors</Text>
+              <Text style={styles.resultsCountText}>
+                {totalDoctors} {totalDoctors === 1 ? 'doctor' : 'doctors'}
+              </Text>
             </View>
 
             {selectedSpecialty !== 'all' && (
@@ -1044,7 +1017,7 @@ const VideoConsultationScreen = ({ navigation, route }) => {
         onRequestClose={() => setProfileDoctor(null)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.profileModalCard}>
+          <View style={[styles.profileModalCard, isTablet && styles.tabletModalWidth]}>
             <View style={styles.modalHeaderRow}>
               <Text style={styles.modalHeaderTitle}>Doctor Information</Text>
               <TouchableOpacity
@@ -1134,10 +1107,10 @@ const VideoConsultationScreen = ({ navigation, route }) => {
         onRequestClose={() => setFilterModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.filterSheetCard}>
+          <View style={[styles.filterSheetCard, isTablet && styles.tabletModalWidth]}>
             <View style={styles.modalHeaderRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalHeaderTitle}>Filter & Sort Video Doctors</Text>
+                <Text style={styles.modalHeaderTitle}>Filter Doctors</Text>
                 <Text style={styles.modalHeaderSub}>Refine by Specialization, Language & Fee</Text>
               </View>
               <TouchableOpacity onPress={resetFilters}>
@@ -1406,32 +1379,7 @@ const VideoConsultationScreen = ({ navigation, route }) => {
                 })}
               </View>
 
-              {/* 5. SORT BY */}
-              <Text style={styles.filterGroupTitle}>Sort Results By</Text>
-              <View style={styles.filterOptionsGrid}>
-                {[
-                  { label: 'Nearest Doctor', value: 'nearest' },
-                  { label: 'Highest Rated', value: 'rating' },
-                  { label: 'Most Experienced', value: 'experience' },
-                  { label: 'Fee: Low to High', value: 'fee' },
-                  { label: 'Earliest Slot', value: 'earliest' },
-                ].map((opt) => {
-                  const isSelected = sortBy === opt.value;
-                  return (
-                    <TouchableOpacity
-                      key={opt.value}
-                      style={[styles.filterOptionPill, isSelected && styles.filterOptionPillActive]}
-                      onPress={() => setSortBy(opt.value)}
-                    >
-                      <Text style={[styles.filterOptionText, isSelected && styles.filterOptionTextActive]}>
-                        {opt.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* 6. ONLY AVAILABLE TODAY TOGGLE */}
+              {/* 5. ONLY AVAILABLE TODAY TOGGLE */}
               <TouchableOpacity
                 style={styles.toggleRow}
                 activeOpacity={0.8}
@@ -1439,7 +1387,7 @@ const VideoConsultationScreen = ({ navigation, route }) => {
               >
                 <View style={{ flex: 1 }}>
                   <Text style={styles.toggleLabel}>Available Today Only</Text>
-                  <Text style={styles.toggleSub}>Show doctors taking instant video appointments today</Text>
+                  <Text style={styles.toggleSub}>Instant video consultations today</Text>
                 </View>
                 <View
                   style={[
@@ -1457,15 +1405,93 @@ const VideoConsultationScreen = ({ navigation, route }) => {
               </TouchableOpacity>
             </ScrollView>
 
-            <TouchableOpacity
-              style={styles.applyFilterBtn}
-              activeOpacity={0.88}
-              onPress={() => setFilterModalVisible(false)}
-            >
-              <Text style={styles.applyFilterBtnText}>
-                Show {filteredDoctors.length} Online Doctors
-              </Text>
-            </TouchableOpacity>
+            {/* Filter Actions: Clear & Apply */}
+            <View style={styles.filterModalActionsRow}>
+              <TouchableOpacity
+                style={styles.filterClearBtn}
+                onPress={resetFilters}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.filterClearBtnText}>Clear</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.filterApplyBtn}
+                activeOpacity={0.88}
+                onPress={() => setFilterModalVisible(false)}
+              >
+                <Text style={styles.filterApplyBtnText}>
+                  Apply ({filteredDoctors.length} Doctors)
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ==================================================
+          SORT MODAL / BOTTOM SHEET
+      ================================================== */}
+      <Modal
+        visible={sortModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSortModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.sortSheetCard, isTablet && styles.tabletModalWidth]}>
+            <View style={styles.modalHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalHeaderTitle}>Sort Doctors</Text>
+                <Text style={styles.modalHeaderSub}>Choose how you want to order doctors</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setSortModalVisible(false)}
+                style={styles.modalCloseCircle}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={18} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.sortOptionsList}>
+              {[
+                { id: 'nearest', label: 'Nearest Doctor', icon: 'location-outline' },
+                { id: 'rating', label: 'Top Rated', icon: 'star-outline' },
+                { id: 'experience', label: 'Most Experienced', icon: 'ribbon-outline' },
+                { id: 'fee', label: 'Fee: Low to High', icon: 'pricetag-outline' },
+                { id: 'earliest', label: 'Earliest Slot', icon: 'time-outline' },
+              ].map((opt) => {
+                const isSelected = sortBy === opt.id;
+                return (
+                  <TouchableOpacity
+                    key={opt.id}
+                    style={[styles.sortOptionRow, isSelected && styles.sortOptionRowSelected]}
+                    onPress={() => {
+                      setSortBy(opt.id);
+                      setSortModalVisible(false);
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons
+                      name={opt.icon}
+                      size={18}
+                      color={isSelected ? '#007D69' : '#64748B'}
+                      style={{ marginRight: 12 }}
+                    />
+                    <Text style={[styles.sortOptionLabel, isSelected && styles.sortOptionLabelSelected]}>
+                      {opt.label}
+                    </Text>
+                    <Ionicons
+                      name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                      size={19}
+                      color={isSelected ? '#007D69' : '#CBD5E1'}
+                      style={{ marginLeft: 'auto' }}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         </View>
       </Modal>
@@ -1507,7 +1533,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: Platform.OS === 'ios' ? 9 : 8,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
@@ -1524,6 +1550,20 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 10,
     marginRight: 8,
+  },
+  headerCenterIos: {
+    justifyContent: 'center',
+  },
+  headerTitleIos: {
+    fontSize: 15.5,
+    fontWeight: '800',
+    color: colors.secondary,
+    letterSpacing: -0.2,
+  },
+  headerSubtitleIos: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 1.5,
   },
   headerTitleRow: {
     flexDirection: 'row',
@@ -1546,36 +1586,162 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 1,
   },
-  filterHeaderBtn: {
-    width: 40,
-    height: 40,
+  myConsultationsHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E6F4F1',
+    paddingHorizontal: Platform.OS === 'ios' ? 10 : 12,
+    paddingVertical: Platform.OS === 'ios' ? 6 : 7,
+    borderRadius: 16,
+  },
+  myConsultationsHeaderText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#007D69',
+  },
+
+  // CLEAN CONTROL BAR: [ Filter ]   [ Sort ]
+  controlBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 8,
+    width: '100%',
+  },
+  controlBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
     borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  controlBtnActive: {
+    backgroundColor: '#007D69',
+    borderColor: '#007D69',
+  },
+  controlBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#007D69',
+  },
+  controlBtnTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // TABLET WIDTH & MODAL WIDTH
+  tabletWidth: {
+    maxWidth: 780,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  tabletModalWidth: {
+    maxWidth: 640,
+    width: '100%',
+    alignSelf: 'center',
+  },
+
+  // SORT MODAL SHEET
+  sortSheetCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 28,
+    width: '100%',
+    maxWidth: 640,
+    alignSelf: 'center',
+  },
+  sortOptionsList: {
+    paddingVertical: 10,
+    gap: 8,
+  },
+  sortOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  sortOptionRowSelected: {
+    backgroundColor: '#E6F4F1',
+    borderColor: '#99F6E4',
+  },
+  sortOptionLabel: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  sortOptionLabelSelected: {
+    color: '#007D69',
+    fontWeight: '800',
+  },
+  modalCloseCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'relative',
   },
-  filterHeaderBtnActive: {
-    backgroundColor: colors.secondary,
+
+  // FILTER MODAL ACTIONS
+  filterModalActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
   },
-  filterBadgeCount: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: colors.coral,
-    borderRadius: 9,
-    minWidth: 18,
-    height: 18,
+  filterClearBtn: {
+    flex: 1,
+    minHeight: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 4,
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  filterBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
+  filterClearBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  filterApplyBtn: {
+    flex: 2,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: '#007D69',
+    shadowColor: '#007D69',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  filterApplyBtnText: {
+    fontSize: 13.5,
     fontWeight: '800',
+    color: '#FFFFFF',
   },
 
   // HERO BANNER
@@ -1903,10 +2069,12 @@ const styles = StyleSheet.create({
   },
   doctorsColWrap: {
     width: '100%',
+    paddingHorizontal: 16,
   },
   doctorsColWrapDesktop: {
     flex: 1,
     minWidth: 0,
+    paddingHorizontal: 0,
   },
 
   // DESKTOP SIDEBAR CARD
@@ -2314,230 +2482,138 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 14,
+    borderRadius: 16,
+    padding: 16,
     marginBottom: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    shadowColor: '#000',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
     elevation: 2,
-  },
-
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  onlineBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    gap: 5,
-  },
-  onlineDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#059669',
-  },
-  onlineText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#047857',
-  },
-  discountBadge: {
-    backgroundColor: '#FFF2ED',
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  discountBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#FF7F50',
+    width: '100%',
   },
 
   // DOCTOR MAIN ROW
   doctorMainRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 10,
+    alignItems: 'center',
+    marginBottom: 12,
   },
   avatar: {
-    width: 68,
-    height: 68,
-    borderRadius: 16,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: '#E2E8F0',
-    marginRight: 12,
+    marginRight: 14,
   },
   doctorInfoCol: {
     flex: 1,
+    justifyContent: 'center',
   },
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
   },
   doctorName: {
-    fontSize: 15,
+    fontSize: 15.5,
     fontWeight: '800',
-    color: colors.secondary,
+    color: '#0F172A',
   },
   specialtyText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primary,
+    fontSize: 12.5,
+    color: '#007D69',
+    fontWeight: '600',
     marginTop: 2,
   },
-  qualificationText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginTop: 1,
-  },
-
   metricsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 6,
     gap: 8,
+    flexWrap: 'wrap',
   },
-  experienceChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 4,
-  },
-  experienceChipText: {
-    fontSize: 10,
+  feeAmount: {
+    fontSize: 14.5,
     fontWeight: '800',
-    color: '#1E3A8A',
+    color: '#0F172A',
+  },
+  metricsBullet: {
+    fontSize: 12,
+    color: '#94A3B8',
   },
   ratingChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
     gap: 3,
   },
   ratingChipText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  reviewsCountText: {
-    fontSize: 10,
-    color: colors.textSecondary,
-  },
-
-  // LANGUAGES
-  languagesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginBottom: 10,
-    gap: 5,
-  },
-  languagesLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
-    color: colors.secondary,
-  },
-  languagesText: {
-    flex: 1,
-    fontSize: 11,
-    color: colors.text,
-  },
-
-  // SLOT & FEE
-  slotAndFeeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 2,
+    color: '#334155',
   },
   slotBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
   slotText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  feeBox: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 6,
-  },
-  mrpText: {
-    fontSize: 12,
-    color: '#94A3B8',
-    textDecorationLine: 'line-through',
-  },
-  feeAmount: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.secondary,
+    fontWeight: '600',
+    color: '#007D69',
   },
 
   // CARD ACTIONS
   cardActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingTop: 8,
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
+    width: '100%',
   },
   bioButton: {
     flex: 1,
-    maxWidth: 180,
-    height: 40,
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    gap: 6,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   bioButtonText: {
     fontSize: 13,
     fontWeight: '700',
-    color: colors.secondary,
+    color: '#007D69',
   },
   bookVideoButton: {
-    flex: 1.6,
-    maxWidth: 240,
-    height: 40,
+    flex: 1.5,
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    gap: 6,
+    backgroundColor: '#007D69',
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    shadowColor: '#007D69',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
   bookVideoButtonText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#FFFFFF',
   },
 
@@ -2578,6 +2654,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
 
   // PROFILE QUICK MODAL
@@ -2587,6 +2664,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: 20,
     paddingBottom: 30,
+    width: '100%',
   },
   modalHeaderRow: {
     flexDirection: 'row',
@@ -2726,6 +2804,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: 20,
     paddingBottom: 30,
+    width: '100%',
   },
   resetTextBtn: {
     fontSize: 13,

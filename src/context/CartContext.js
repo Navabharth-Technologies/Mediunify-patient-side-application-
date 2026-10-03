@@ -1,15 +1,13 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  getPharmacyStoreForCity,
+  getPharmacyCityConfig,
+  normalizePharmacyCity,
+} from '../data/pharmacyStores';
 
-const DEFAULT_PHARMACY_STORE = {
-  id: 'store-apollo-kuvempu',
-  name: 'Apollo Pharmacy - Kuvempunagar',
-  locality: 'Kuvempunagar',
-  address: '#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023',
-  deliveryTime: '15-25 mins',
-  phone: '+91 821 2548901',
-  partnerTier: 'Platinum Partner',
-};
+const DEFAULT_PHARMACY_STORE = getPharmacyStoreForCity('Mysuru');
 
 const CartContext = createContext();
 
@@ -30,12 +28,13 @@ export const CartProvider = ({ children }) => {
 
   const [orders, setOrders] = useState(DEFAULT_ORDERS);
   const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [selectedCity, setSelectedCity] = useState('Mysuru');
   const [selectedPharmacyStore, setSelectedPharmacyStoreState] = useState(DEFAULT_PHARMACY_STORE);
   const [selectedAddress, setSelectedAddress] = useState({
     name: 'User',
     phone: '9876543210',
     addressLine: 'No. 24, 5th Cross, Kuvempunagar',
-    city: 'Mysore',
+    city: 'Mysuru',
     state: 'Karnataka',
     pincode: '570023',
     tag: 'Home',
@@ -73,10 +72,11 @@ export const CartProvider = ({ children }) => {
       const storedAddress = await AsyncStorage.getItem(ADDRESS_STORAGE_KEY);
       if (storedAddress) setSelectedAddress(JSON.parse(storedAddress));
 
-      const storedStore = await AsyncStorage.getItem(SELECTED_STORE_KEY);
-      if (storedStore) {
-        setSelectedPharmacyStoreState(JSON.parse(storedStore));
-      }
+      const storedCity = (await AsyncStorage.getItem('@mediunify_selected_city')) || (await AsyncStorage.getItem('@unnathi_user_location'));
+      const activeCity = normalizePharmacyCity(storedCity);
+      setSelectedCity(activeCity);
+      const activeStore = getPharmacyStoreForCity(activeCity);
+      setSelectedPharmacyStoreState(activeStore);
 
       const storedPharm = await AsyncStorage.getItem(PHARMACY_CART_KEY);
       if (storedPharm) setPharmacyCart(JSON.parse(storedPharm));
@@ -90,6 +90,31 @@ export const CartProvider = ({ children }) => {
       console.log('Error loading saved cart data:', e);
     }
   };
+
+  const syncLocationWithHome = async () => {
+    try {
+      const storedCity = (await AsyncStorage.getItem('@mediunify_selected_city')) || (await AsyncStorage.getItem('@unnathi_user_location'));
+      const activeCity = normalizePharmacyCity(storedCity);
+      setSelectedCity(activeCity);
+      const activeStore = getPharmacyStoreForCity(activeCity);
+      setSelectedPharmacyStoreState(activeStore);
+      return activeCity;
+    } catch (e) {
+      return 'Mysuru';
+    }
+  };
+
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const onStorage = (e) => {
+        if (!e || e.key === '@mediunify_selected_city' || e.key === '@unnathi_user_location') {
+          syncLocationWithHome();
+        }
+      };
+      window.addEventListener('storage', onStorage);
+      return () => window.removeEventListener('storage', onStorage);
+    }
+  }, []);
 
   const setSelectedPharmacyStore = async (store) => {
     setSelectedPharmacyStoreState(store);
@@ -193,25 +218,19 @@ export const CartProvider = ({ children }) => {
         return [...prev, { ...product, quantity: quantityToAdd, cartType: 'lab' }];
       });
     } else {
-      const targetStore = storeOverride || selectedPharmacyStore || {
-        id: product.storeId || 'store-apollo-kuvempu',
-        name: product.storeName || 'Apollo Pharmacy - Kuvempunagar',
-        locality: product.storeArea || 'Kuvempunagar',
-        address: product.storeAddress || '#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023',
-        deliveryTime: product.deliveryTime || '15-25 mins',
-        phone: product.storePhone || '+91 821 2548901',
-        partnerTier: product.partnerTier || 'Platinum Partner',
-      };
+      const cityStore = getPharmacyStoreForCity(selectedCity);
+      const targetStore = storeOverride || cityStore || selectedPharmacyStore;
 
       const productWithStore = {
         ...product,
-        storeId: product.storeId || targetStore.id || 'store-apollo-kuvempu',
-        storeName: product.storeName || targetStore.name || 'Apollo Pharmacy - Kuvempunagar',
-        storeArea: product.storeArea || targetStore.locality || 'Kuvempunagar',
-        storeAddress: product.storeAddress || targetStore.address || '#45, 8th Cross, Complex Road, Kuvempunagar, Mysore - 570023',
+        storeId: product.storeId || targetStore.id,
+        storeName: product.storeName || targetStore.name,
+        storeArea: product.storeArea || targetStore.locality || selectedCity,
+        storeAddress: product.storeAddress || targetStore.address || '',
+        storeCity: product.storeCity || targetStore.city || selectedCity,
         deliveryTime: product.deliveryTime || targetStore.deliveryTime || '15-25 mins',
         storePhone: product.storePhone || targetStore.phone || '+91 821 2548901',
-        partnerTier: product.partnerTier || targetStore.partnerTier || 'Platinum Partner',
+        partnerTier: product.partnerTier || targetStore.partnerTier || 'Verified Partner',
         cartType: 'pharmacy',
       };
 
@@ -668,10 +687,14 @@ export const CartProvider = ({ children }) => {
       console.log('Error saving order to storage:', e);
     }
 
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('mediunify_orders_updated', { detail: updatedOrders }));
-      window.dispatchEvent(new Event('storage'));
-    }
+    try {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('mediunify_orders_updated', { detail: updatedOrders }));
+        if (typeof Event === 'function') {
+          window.dispatchEvent(new Event('storage'));
+        }
+      }
+    } catch (_evtErr) {}
 
     // Background sync to central server
     try {
@@ -714,10 +737,14 @@ export const CartProvider = ({ children }) => {
       console.log('Error saving returned order:', e);
     }
 
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('mediunify_orders_updated', { detail: updatedOrders }));
-      window.dispatchEvent(new Event('storage'));
-    }
+    try {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('mediunify_orders_updated', { detail: updatedOrders }));
+        if (typeof Event === 'function') {
+          window.dispatchEvent(new Event('storage'));
+        }
+      }
+    } catch (_evtErr) {}
   };
 
   const updateAddress = async (address) => {
@@ -801,10 +828,13 @@ export const CartProvider = ({ children }) => {
         applyCoupon,
         removeCoupon,
 
-        // Selected Pharmacy Store
+        // Selected Pharmacy Store & Location Single Source of Truth
+        selectedCity,
+        pharmacyCityConfig: getPharmacyCityConfig(selectedCity),
         selectedPharmacyStore,
         setSelectedPharmacyStore,
         setPharmacyStore: setSelectedPharmacyStore,
+        syncLocationWithHome,
         pharmacyStores: [],
 
         // Address & Orders

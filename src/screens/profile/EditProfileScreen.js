@@ -13,11 +13,13 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   TouchableWithoutFeedback,
+  Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import colors from '../../theme/colors';
 import { syncActiveUser } from '../../services/dataSyncService';
 
@@ -60,6 +62,7 @@ const EditProfileScreen = ({ navigation, route }) => {
   const initialPhoneDigits = rawInitialPhone.length >= 10 ? rawInitialPhone.slice(-10) : rawInitialPhone;
 
   // Personal Info Form State
+  const [photo, setPhoto] = useState(passedUser.photo || '');
   const [name, setName] = useState(passedUser.name || 'Ramesh Kumar');
   const [email, setEmail] = useState(passedUser.email || 'ramesh.kumar@example.com');
   const [phone, setPhone] = useState(initialPhoneDigits || '9845012345');
@@ -70,6 +73,86 @@ const EditProfileScreen = ({ navigation, route }) => {
   const [emergencyContact, setEmergencyContact] = useState(
     (passedUser.emergencyContact || '').replace(/[^0-9]/g, '').slice(-10) || ''
   );
+
+  useEffect(() => {
+    const loadSavedPhoto = async () => {
+      try {
+        const storedPhoto = await AsyncStorage.getItem('@unnathi_user_photo');
+        if (storedPhoto && !passedUser.photo) {
+          setPhoto(storedPhoto);
+        }
+      } catch (e) {}
+    };
+    loadSavedPhoto();
+  }, [passedUser.photo]);
+
+  const handlePickFromGallery = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        showAlert('Permission Denied', 'Please allow photo gallery permissions to choose a profile image.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!res.canceled && res.assets && res.assets[0]?.uri) {
+        setPhoto(res.assets[0].uri);
+      }
+    } catch (e) {
+      showAlert('Gallery Error', 'Could not access photo library.');
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        showAlert('Permission Denied', 'Please grant camera access to capture a profile picture.');
+        return;
+      }
+      const res = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!res.canceled && res.assets && res.assets[0]?.uri) {
+        setPhoto(res.assets[0].uri);
+      }
+    } catch (e) {
+      showAlert('Camera Error', 'Could not open camera.');
+    }
+  };
+
+  const handlePhotoOptions = () => {
+    showAlert(
+      'Profile Photo',
+      'Select an option to update your profile photo',
+      [
+        {
+          text: 'Choose from Gallery',
+          onPress: handlePickFromGallery,
+        },
+        {
+          text: 'Take Photo',
+          onPress: handleTakePhoto,
+        },
+        ...(photo
+          ? [
+              {
+                text: 'Remove Photo',
+                style: 'destructive',
+                onPress: () => setPhoto(''),
+              },
+            ]
+          : []),
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
 
   // OTP Verification Modal State (when changing Phone or Email)
   const [otpModalVisible, setOtpModalVisible] = useState(false);
@@ -307,7 +390,14 @@ const EditProfileScreen = ({ navigation, route }) => {
         gender,
         age: finalAge,
         emergencyContact: formattedEmergency,
+        photo: photo || '',
       };
+
+      if (photo) {
+        await AsyncStorage.setItem('@unnathi_user_photo', photo);
+      } else {
+        await AsyncStorage.removeItem('@unnathi_user_photo');
+      }
 
       // Save updated data in AsyncStorage
       await AsyncStorage.setItem('userName', trimmedName);
@@ -481,8 +571,7 @@ const EditProfileScreen = ({ navigation, route }) => {
         </TouchableOpacity>
 
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerBadge}>PATIENT ACCOUNT</Text>
-          <Text style={styles.headerTitle}>Edit Profile</Text>
+          <Text style={styles.headerTitle}>Personal Information</Text>
         </View>
 
         <TouchableOpacity
@@ -490,7 +579,7 @@ const EditProfileScreen = ({ navigation, route }) => {
           onPress={handleSave}
           activeOpacity={0.85}
         >
-          <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+          <Ionicons name="checkmark" size={16} color="#FFFFFF" />
           <Text style={styles.saveHeaderBtnText}>Save</Text>
         </TouchableOpacity>
       </View>
@@ -513,23 +602,42 @@ const EditProfileScreen = ({ navigation, route }) => {
         >
         {/* AVATAR HERO EDIT */}
         <View style={styles.avatarCard}>
-          <View style={styles.avatarCircle}>
-            <Ionicons name="person" size={44} color="#FFFFFF" />
-            <TouchableOpacity
-              style={styles.cameraIconBtn}
-              onPress={() => showAlert('Change Photo', 'Upload or capture a new patient profile photo.')}
-            >
-              <Ionicons name="camera" size={14} color="#FFFFFF" />
-            </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.avatarCircle}
+            onPress={handlePhotoOptions}
+            activeOpacity={0.85}
+          >
+            {photo ? (
+              <Image source={{ uri: photo }} style={styles.avatarImg} />
+            ) : (
+              <View style={styles.avatarFallback}>
+                <Text style={styles.avatarInitialText}>
+                  {name?.trim() ? name.trim().charAt(0).toUpperCase() : 'U'}
+                </Text>
+              </View>
+            )}
+            <View style={styles.cameraIconBtn}>
+              <Ionicons name="camera" size={13} color="#FFFFFF" />
+            </View>
+          </TouchableOpacity>
+          <View style={styles.avatarNameRow}>
+            <Text style={styles.avatarName}>{name || 'Patient Name'}</Text>
+            <Ionicons name="checkmark-circle" size={16} color="#00B894" />
           </View>
-          <Text style={styles.avatarName}>{name || 'Patient Name'}</Text>
-          <Text style={styles.avatarSubtitle}>Active Patient Profile</Text>
+          <TouchableOpacity
+            style={styles.changePhotoBtn}
+            onPress={handlePhotoOptions}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="image-outline" size={13} color="#0D9488" />
+            <Text style={styles.changePhotoText}>{photo ? 'Change Photo' : 'Upload Photo'}</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* SECTION 1: PERSONAL DETAILS */}
+        {/* SECTION 1: BASIC DETAILS */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Personal & Contact Information</Text>
-          <Text style={styles.sectionSubtitle}>Used for prescriptions, lab tests and appointments</Text>
+          <Text style={styles.sectionTitle}>Basic Details</Text>
+          <Text style={styles.sectionSubtitle}>Personal and medical profile details</Text>
         </View>
 
         <View style={styles.formCard}>
@@ -537,7 +645,7 @@ const EditProfileScreen = ({ navigation, route }) => {
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Full Name</Text>
             <View style={styles.inputWrap}>
-              <Ionicons name="person-outline" size={18} color={colors.teal} />
+              <Ionicons name="person-outline" size={17} color="#0D9488" />
               <TextInput
                 style={styles.textInput}
                 value={name}
@@ -547,46 +655,135 @@ const EditProfileScreen = ({ navigation, route }) => {
                     scrollViewRef.current?.scrollTo({ y: 60, animated: true });
                   }, 100);
                 }}
-                placeholder="Enter full name"
+                placeholder="Enter your full name"
                 placeholderTextColor="#94A3B8"
               />
             </View>
           </View>
 
-          {/* EMAIL */}
+          {/* GENDER */}
           <View style={styles.inputGroup}>
-            <View style={styles.labelRow}>
-              <Text style={styles.inputLabel}>Email Address</Text>
-              {isEmailChanged ? (
-                <View style={styles.otpBadgeTag}>
-                  <Ionicons name="key-outline" size={11} color="#0284C7" />
-                  <Text style={styles.otpBadgeTagText}>OTP Required to change</Text>
-                </View>
-              ) : null}
-            </View>
-            <View style={[styles.inputWrap, isEmailChanged && styles.inputWrapHighlight]}>
-              <Ionicons name="mail-outline" size={18} color={colors.teal} />
-              <TextInput
-                style={styles.textInput}
-                value={email}
-                onChangeText={setEmail}
-                onFocus={() => {
-                  setTimeout(() => {
-                    scrollViewRef.current?.scrollTo({ y: 130, animated: true });
-                  }, 100);
-                }}
-                placeholder="Enter email address"
-                placeholderTextColor="#94A3B8"
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
+            <Text style={styles.inputLabel}>Gender</Text>
+            <View style={styles.genderPillsRow}>
+              {GENDERS.map((g) => (
+                <TouchableOpacity
+                  key={g}
+                  style={[
+                    styles.genderPill,
+                    gender === g && styles.genderPillActive,
+                  ]}
+                  onPress={() => setGender(g)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name={g === 'Male' ? 'male-outline' : g === 'Female' ? 'female-outline' : 'person-outline'}
+                    size={14}
+                    color={gender === g ? '#FFFFFF' : '#64748B'}
+                  />
+                  <Text
+                    style={[
+                      styles.genderPillText,
+                      gender === g && styles.genderPillTextActive,
+                    ]}
+                  >
+                    {g}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
 
+          {/* DATE OF BIRTH & AGE ROW */}
+          <View style={styles.rowInputs}>
+            <View style={[styles.inputGroup, { flex: 1.2, marginRight: 8 }]}>
+              <Text style={styles.inputLabel}>Date of Birth</Text>
+              <View style={styles.inputWrap}>
+                <Ionicons name="calendar-outline" size={17} color="#0D9488" />
+                <TextInput
+                  style={styles.textInput}
+                  value={dob}
+                  onChangeText={handleDobChange}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+                    }, 100);
+                  }}
+                  placeholder="DD/MM/YYYY"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="number-pad"
+                  maxLength={10}
+                />
+              </View>
+            </View>
+
+            <View style={[styles.inputGroup, { flex: 0.8 }]}>
+              <Text style={styles.inputLabel}>Age</Text>
+              <View style={styles.inputWrap}>
+                <Ionicons name="hourglass-outline" size={17} color="#0D9488" />
+                <TextInput
+                  style={styles.textInput}
+                  value={age}
+                  onChangeText={setAge}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+                    }, 100);
+                  }}
+                  placeholder="e.g. 28 Yrs"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
+            </View>
+          </View>
+
+          {/* BLOOD GROUP */}
+          <View style={[styles.inputGroup, { marginBottom: 0 }]}>
+            <Text style={styles.inputLabel}>Blood Group</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.bloodGroupScroll}
+            >
+              {BLOOD_GROUPS.map((bg) => (
+                <TouchableOpacity
+                  key={bg}
+                  style={[
+                    styles.bloodPill,
+                    bloodGroup === bg && styles.bloodPillActive,
+                  ]}
+                  onPress={() => setBloodGroup(bg)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name="water"
+                    size={12}
+                    color={bloodGroup === bg ? '#FFFFFF' : '#EF4444'}
+                  />
+                  <Text
+                    style={[
+                      styles.bloodPillText,
+                      bloodGroup === bg && styles.bloodPillTextActive,
+                    ]}
+                  >
+                    {bg}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+
+        {/* SECTION 2: CONTACT INFORMATION */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Contact Information</Text>
+          <Text style={styles.sectionSubtitle}>For appointments, lab reports & medicine delivery</Text>
+        </View>
+
+        <View style={styles.formCard}>
           {/* PHONE (10 DIGITS ONLY) */}
           <View style={styles.inputGroup}>
             <View style={styles.labelRow}>
-              <Text style={styles.inputLabel}>Mobile Phone Number</Text>
+              <Text style={styles.inputLabel}>Mobile Phone</Text>
               <Text
                 style={[
                   styles.charCountText,
@@ -620,7 +817,7 @@ const EditProfileScreen = ({ navigation, route }) => {
                 onChangeText={handlePhoneChange}
                 onFocus={() => {
                   setTimeout(() => {
-                    scrollViewRef.current?.scrollTo({ y: 210, animated: true });
+                    scrollViewRef.current?.scrollTo({ y: 360, animated: true });
                   }, 100);
                 }}
                 placeholder="10-digit mobile number"
@@ -629,9 +826,9 @@ const EditProfileScreen = ({ navigation, route }) => {
                 maxLength={10}
               />
               {phone.length === 10 ? (
-                <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                <Ionicons name="checkmark-circle" size={17} color="#10B981" />
               ) : phone.length > 0 ? (
-                <Ionicons name="alert-circle" size={18} color="#F59E0B" />
+                <Ionicons name="alert-circle" size={17} color="#F59E0B" />
               ) : null}
             </View>
             {phone.length > 0 && phone.length < 10 ? (
@@ -645,143 +842,38 @@ const EditProfileScreen = ({ navigation, route }) => {
             ) : null}
           </View>
 
-          {/* DATE OF BIRTH & AGE ROW */}
-          <View style={styles.rowInputs}>
-            <View style={[styles.inputGroup, { flex: 1.2, marginRight: 8 }]}>
-              <Text style={styles.inputLabel}>Date of Birth (DOB)</Text>
-              <View style={styles.inputWrap}>
-                <Ionicons name="calendar-outline" size={18} color={colors.teal} />
-                <TextInput
-                  style={styles.textInput}
-                  value={dob}
-                  onChangeText={handleDobChange}
-                  onFocus={() => {
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: 300, animated: true });
-                    }, 100);
-                  }}
-                  placeholder="DD/MM/YYYY"
-                  placeholderTextColor="#94A3B8"
-                  keyboardType="number-pad"
-                  maxLength={10}
-                />
-              </View>
-            </View>
-
-            <View style={[styles.inputGroup, { flex: 0.8 }]}>
-              <Text style={styles.inputLabel}>Age</Text>
-              <View style={styles.inputWrap}>
-                <Ionicons name="hourglass-outline" size={18} color={colors.teal} />
-                <TextInput
-                  style={styles.textInput}
-                  value={age}
-                  onChangeText={setAge}
-                  onFocus={() => {
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: 300, animated: true });
-                    }, 100);
-                  }}
-                  placeholder="e.g. 28 Yrs"
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-            </View>
-          </View>
-
-          {/* GENDER */}
+          {/* EMAIL */}
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Gender</Text>
-            <View style={styles.genderPillsRow}>
-              {GENDERS.map((g) => (
-                <TouchableOpacity
-                  key={g}
-                  style={[
-                    styles.genderPill,
-                    gender === g && styles.genderPillActive,
-                  ]}
-                  onPress={() => setGender(g)}
-                >
-                  <Text
-                    style={[
-                      styles.genderPillText,
-                      gender === g && styles.genderPillTextActive,
-                    ]}
-                  >
-                    {g}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <View style={styles.labelRow}>
+              <Text style={styles.inputLabel}>Email Address</Text>
+              {isEmailChanged ? (
+                <View style={styles.otpBadgeTag}>
+                  <Ionicons name="key-outline" size={11} color="#0284C7" />
+                  <Text style={styles.otpBadgeTagText}>OTP Required to change</Text>
+                </View>
+              ) : null}
             </View>
-          </View>
-
-          {/* BLOOD GROUP */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Blood Group</Text>
-            {Platform.OS === 'web' ? (
-              <View style={[styles.bloodGroupScroll, { flexDirection: 'row', flexWrap: 'wrap' }]}>
-                {BLOOD_GROUPS.map((bg) => (
-                  <TouchableOpacity
-                    key={bg}
-                    style={[
-                      styles.bloodPill,
-                      bloodGroup === bg && styles.bloodPillActive,
-                    ]}
-                    onPress={() => setBloodGroup(bg)}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name="water"
-                      size={12}
-                      color={bloodGroup === bg ? '#FFFFFF' : '#EF4444'}
-                    />
-                    <Text
-                      style={[
-                        styles.bloodPillText,
-                        bloodGroup === bg && styles.bloodPillTextActive,
-                      ]}
-                    >
-                      {bg}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ) : (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.bloodGroupScroll}
-              >
-                {BLOOD_GROUPS.map((bg) => (
-                  <TouchableOpacity
-                    key={bg}
-                    style={[
-                      styles.bloodPill,
-                      bloodGroup === bg && styles.bloodPillActive,
-                    ]}
-                    onPress={() => setBloodGroup(bg)}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name="water"
-                      size={12}
-                      color={bloodGroup === bg ? '#FFFFFF' : '#EF4444'}
-                    />
-                    <Text
-                      style={[
-                        styles.bloodPillText,
-                        bloodGroup === bg && styles.bloodPillTextActive,
-                      ]}
-                    >
-                      {bg}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
+            <View style={[styles.inputWrap, isEmailChanged && styles.inputWrapHighlight]}>
+              <Ionicons name="mail-outline" size={17} color="#0D9488" />
+              <TextInput
+                style={styles.textInput}
+                value={email}
+                onChangeText={setEmail}
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollTo({ y: 440, animated: true });
+                  }, 100);
+                }}
+                placeholder="Enter email address"
+                placeholderTextColor="#94A3B8"
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
           </View>
 
           {/* EMERGENCY CONTACT (10 DIGITS ONLY) */}
-          <View style={styles.inputGroup}>
+          <View style={[styles.inputGroup, { marginBottom: 0 }]}>
             <View style={styles.labelRow}>
               <Text style={styles.inputLabel}>Emergency Contact</Text>
               {emergencyContact.length > 0 ? (
@@ -798,165 +890,31 @@ const EditProfileScreen = ({ navigation, route }) => {
               ) : null}
             </View>
             <View style={styles.inputWrap}>
-              <Ionicons name="heart-outline" size={18} color="#DC2626" />
+              <View style={[styles.countryCodeBadge, { backgroundColor: '#FEE2E2' }]}>
+                <Text style={[styles.countryCodeText, { color: '#DC2626' }]}>+91</Text>
+              </View>
               <TextInput
                 style={styles.textInput}
                 value={emergencyContact}
                 onChangeText={handleEmergencyContactChange}
                 onFocus={() => {
                   setTimeout(() => {
-                    scrollViewRef.current?.scrollTo({ y: 480, animated: true });
+                    scrollViewRef.current?.scrollTo({ y: 520, animated: true });
                   }, 100);
                 }}
-                placeholder="10-digit emergency phone"
+                placeholder="10-digit emergency contact"
                 placeholderTextColor="#94A3B8"
                 keyboardType="number-pad"
                 maxLength={10}
               />
               {emergencyContact.length === 10 ? (
-                <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                <Ionicons name="checkmark-circle" size={17} color="#10B981" />
               ) : null}
             </View>
           </View>
         </View>
 
-        {/* ==========================================
-            SECTION 2: CHANGE PASSWORD & SECURITY
-        ========================================== */}
-        <View style={styles.sectionHeaderRow}>
-          <View>
-            <Text style={styles.sectionTitle}>Account Security & Password</Text>
-            <Text style={styles.sectionSubtitle}>Manage login credentials & password</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.passwordToggleBtn}
-            onPress={() => setShowPasswordSection(!showPasswordSection)}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name={showPasswordSection ? 'chevron-up' : 'chevron-down'}
-              size={18}
-              color={colors.teal}
-            />
-            <Text style={styles.passwordToggleText}>
-              {showPasswordSection ? 'Hide' : 'Change'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {showPasswordSection && (
-          <View style={styles.passwordCard}>
-            <View style={styles.securityPill}>
-              <Ionicons name="shield-checkmark" size={14} color={colors.freshGreen} />
-              <Text style={styles.securityPillText}>256-BIT ENCRYPTED CREDENTIALS</Text>
-            </View>
-
-            {/* CURRENT PASSWORD */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Current Password</Text>
-              <View style={styles.inputWrap}>
-                <Ionicons name="lock-closed-outline" size={18} color={colors.teal} />
-                <TextInput
-                  style={[styles.textInput, { flex: 1 }]}
-                  value={currentPassword}
-                  onChangeText={setCurrentPassword}
-                  onFocus={() => {
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: 640, animated: true });
-                    }, 100);
-                  }}
-                  placeholder="Enter current password"
-                  placeholderTextColor="#94A3B8"
-                  secureTextEntry={!showCurrentPw}
-                />
-                <TouchableOpacity onPress={() => setShowCurrentPw(!showCurrentPw)}>
-                  <Ionicons
-                    name={showCurrentPw ? 'eye-off-outline' : 'eye-outline'}
-                    size={18}
-                    color="#64748B"
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* NEW PASSWORD */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>New Password</Text>
-              <View style={styles.inputWrap}>
-                <Ionicons name="key-outline" size={18} color={colors.teal} />
-                <TextInput
-                  style={[styles.textInput, { flex: 1 }]}
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                  onFocus={() => {
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: 720, animated: true });
-                    }, 100);
-                  }}
-                  placeholder="Minimum 6 characters"
-                  placeholderTextColor="#94A3B8"
-                  secureTextEntry={!showNewPw}
-                />
-                <TouchableOpacity onPress={() => setShowNewPw(!showNewPw)}>
-                  <Ionicons
-                    name={showNewPw ? 'eye-off-outline' : 'eye-outline'}
-                    size={18}
-                    color="#64748B"
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* CONFIRM NEW PASSWORD */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Confirm New Password</Text>
-              <View style={styles.inputWrap}>
-                <Ionicons name="checkmark-done-outline" size={18} color={colors.teal} />
-                <TextInput
-                  style={[styles.textInput, { flex: 1 }]}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  onFocus={() => {
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: 800, animated: true });
-                    }, 100);
-                  }}
-                  placeholder="Re-enter new password"
-                  placeholderTextColor="#94A3B8"
-                  secureTextEntry={!showConfirmPw}
-                />
-                <TouchableOpacity onPress={() => setShowConfirmPw(!showConfirmPw)}>
-                  <Ionicons
-                    name={showConfirmPw ? 'eye-off-outline' : 'eye-outline'}
-                    size={18}
-                    color="#64748B"
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* PRIMARY SAVE BUTTON */}
-        <TouchableOpacity
-          style={styles.primarySaveBtn}
-          onPress={handleSave}
-          disabled={saving}
-          activeOpacity={0.88}
-        >
-          <Ionicons name="save-outline" size={20} color="#FFFFFF" />
-          <Text style={styles.primarySaveBtnText}>
-            {saving ? 'Saving Details...' : 'Save Profile Changes'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.cancelBtn}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.cancelBtnText}>Discard & Go Back</Text>
-        </TouchableOpacity>
+        <View style={{ height: 40 }} />
       </ScrollView>
       </KeyboardAvoidingView>
 
@@ -1115,24 +1073,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
   backBtn: {
     padding: 8,
-    borderRadius: 12,
+    borderRadius: 10,
     backgroundColor: '#F1F5F9',
   },
   headerTitleWrap: {
     alignItems: 'center',
-  },
-  headerBadge: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: colors.teal,
-    letterSpacing: 0.5,
   },
   headerTitle: {
     fontSize: 16,
@@ -1142,15 +1094,15 @@ const styles = StyleSheet.create({
   saveHeaderBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.teal,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 12,
-    gap: 4,
+    backgroundColor: '#00B894',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    gap: 3,
   },
   saveHeaderBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '800',
   },
   scrollContent: {
@@ -1159,25 +1111,45 @@ const styles = StyleSheet.create({
   avatarCard: {
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingVertical: 20,
+    paddingVertical: 18,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
   avatarCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.teal,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: '#0D9488',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
     position: 'relative',
+    borderWidth: 2,
+    borderColor: '#CCFBF1',
+  },
+  avatarImg: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+  },
+  avatarFallback: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0D9488',
+  },
+  avatarInitialText: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '900',
   },
   cameraIconBtn: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#0F766E',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#0D9488',
     width: 26,
     height: 26,
     borderRadius: 13,
@@ -1185,65 +1157,83 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#FFFFFF',
+    elevation: 3,
+  },
+  avatarNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
   avatarName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
   },
-  avatarSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '600',
-    marginTop: 2,
+  changePhotoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 14,
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+  },
+  changePhotoText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0D9488',
   },
   sectionHeader: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 8,
+    paddingBottom: 6,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 18,
-    paddingBottom: 8,
+    paddingTop: 16,
+    paddingBottom: 6,
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
-    color: '#1E293B',
+    color: '#0F172A',
+    letterSpacing: -0.2,
   },
   sectionSubtitle: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748B',
-    marginTop: 2,
+    marginTop: 1,
   },
   formCard: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    borderRadius: 18,
-    padding: 16,
+    borderRadius: 14,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
   inputGroup: {
-    marginBottom: 14,
+    marginBottom: 12,
   },
   labelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 5,
   },
   inputLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#334155',
   },
   charCountText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#94A3B8',
   },
@@ -1254,28 +1244,28 @@ const styles = StyleSheet.create({
     color: '#10B981',
   },
   countryCodeBadge: {
-    backgroundColor: '#E2E8F0',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 6,
-    marginRight: 8,
+    marginRight: 6,
   },
   countryCodeText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
     color: '#334155',
   },
   otpBadgeTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
     backgroundColor: '#E0F2FE',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
     borderRadius: 6,
   },
   otpBadgeTagText: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '700',
     color: '#0284C7',
   },
@@ -1285,10 +1275,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 48,
-    gap: 8,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 42,
+    gap: 6,
   },
   inputWrapHighlight: {
     borderColor: '#38BDF8',
@@ -1303,20 +1293,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0FDF4',
   },
   inlineWarningText: {
-    fontSize: 11,
+    fontSize: 10.5,
     color: '#D97706',
     fontWeight: '600',
-    marginTop: 4,
+    marginTop: 3,
   },
   inlineInfoText: {
-    fontSize: 11,
+    fontSize: 10.5,
     color: '#0284C7',
     fontWeight: '600',
-    marginTop: 4,
+    marginTop: 3,
   },
   textInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     color: '#0F172A',
     fontWeight: '600',
   },
@@ -1325,24 +1315,26 @@ const styles = StyleSheet.create({
   },
   genderPillsRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
   },
   genderPill: {
     flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F1F5F9',
-    paddingVertical: 10,
-    borderRadius: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    gap: 4,
   },
   genderPillActive: {
-    backgroundColor: colors.teal,
-    borderColor: colors.teal,
+    backgroundColor: '#0D9488',
+    borderColor: '#0D9488',
   },
   genderPillText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#475569',
   },
@@ -1350,26 +1342,26 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   bloodGroupScroll: {
-    gap: 8,
+    gap: 6,
     paddingVertical: 2,
   },
   bloodPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   bloodPillActive: {
     backgroundColor: '#EF4444',
     borderColor: '#EF4444',
   },
   bloodPillText: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '700',
     color: '#334155',
   },
@@ -1380,23 +1372,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F0FDFA',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#CCFBF1',
     gap: 4,
   },
   passwordToggleText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
-    color: colors.teal,
+    color: '#0D9488',
   },
   passwordCard: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    borderRadius: 18,
-    padding: 16,
+    borderRadius: 14,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#CCFBF1',
     marginTop: 4,
@@ -1406,46 +1398,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#ECFDF5',
     alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    gap: 5,
-    marginBottom: 14,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 4,
+    marginBottom: 10,
   },
   securityPillText: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '800',
-    color: colors.freshGreen,
+    color: '#0D9488',
   },
   primarySaveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.teal,
+    backgroundColor: '#00B894',
     marginHorizontal: 16,
-    marginTop: 20,
-    paddingVertical: 14,
-    borderRadius: 16,
-    gap: 8,
-    shadowColor: colors.teal,
-    shadowOffset: { width: 0, height: 4 },
+    marginTop: 18,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 6,
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 6,
+    elevation: 3,
   },
   primarySaveBtnText: {
     color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '900',
+    fontSize: 14,
+    fontWeight: '800',
   },
   cancelBtn: {
     alignItems: 'center',
-    paddingVertical: 12,
-    marginTop: 6,
+    paddingVertical: 10,
+    marginTop: 4,
   },
   cancelBtnText: {
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: 12.5,
+    fontWeight: '700',
     color: '#64748B',
   },
 

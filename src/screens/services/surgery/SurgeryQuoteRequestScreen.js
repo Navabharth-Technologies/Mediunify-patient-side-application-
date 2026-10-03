@@ -45,6 +45,56 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   const { hospital, surgery } = route.params || {};
+  useEffect(() => {
+    loadPatientAndFamilyContext();
+  }, []);
+
+  const loadPatientAndFamilyContext = async () => {
+    try {
+      const storedName = await AsyncStorage.getItem('userName');
+      const storedPhone = await AsyncStorage.getItem('userPhone');
+      if (storedName) setPatientName(storedName);
+      if (storedPhone) setPatientPhone(storedPhone);
+
+      const savedFam = await AsyncStorage.getItem('@unnathi_family_members');
+      if (savedFam) {
+        try {
+          const parsed = JSON.parse(savedFam);
+          if (Array.isArray(parsed)) setFamilyMembers(parsed);
+        } catch (e) {}
+      }
+
+      const activePtStr = await AsyncStorage.getItem('@unnathi_active_patient');
+      if (activePtStr) {
+        try {
+          const activePt = JSON.parse(activePtStr);
+          if (activePt && (activePt.name || activePt.displayName)) {
+            const pName = (activePt.displayName || activePt.name || '').replace(/\s*\([Ss]elf\)/g, '').trim();
+            if (pName) setPatientName(pName);
+            if (activePt.age) setPatientAge(String(activePt.age));
+            if (activePt.gender) setPatientGender(activePt.gender);
+            if (activePt.phone) setPatientPhone(activePt.phone);
+          }
+        } catch (e) {}
+      }
+    } catch (e) {
+      console.log('Error loading patient context:', e);
+    }
+  };
+
+  const handleSelectFamilyMember = (member) => {
+    if (member === 'self') {
+      setSelectedFamilyMemberId('self');
+      loadPatientAndFamilyContext();
+      return;
+    }
+    setSelectedFamilyMemberId(member.id || member._id || member.name);
+    setPatientName(member.name || member.displayName || '');
+    if (member.age) setPatientAge(String(member.age));
+    if (member.gender) setPatientGender(member.gender);
+    if (member.phone) setPatientPhone(member.phone);
+  };
+
 
   // Form State
   const [patientName, setPatientName] = useState('Ramesh Kumar');
@@ -56,6 +106,9 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
   const [insuranceProvider, setInsuranceProvider] = useState('Star Health Insurance');
   const [uploadedReport, setUploadedReport] = useState(null);
   const [medicalNotes, setMedicalNotes] = useState('');
+  const [familyMembers, setFamilyMembers] = useState([]);
+  const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState('self');
+
 
   // Success Modal
   const [successModalVisible, setSuccessModalVisible] = useState(false);
@@ -241,6 +294,62 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
         {/* SECTION: PATIENT INFORMATION */}
         <Text style={styles.formSectionTitle}>1. Patient Details</Text>
         <View style={styles.formCard}>
+          {/* Patient Selection: Self vs Family Member */}
+          <Text style={styles.inputLabel}>Select Patient *</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.familyPillsRow}>
+            <TouchableOpacity
+              style={[
+                styles.familyMemberPill,
+                selectedFamilyMemberId === 'self' && styles.familyMemberPillActive,
+              ]}
+              onPress={() => handleSelectFamilyMember('self')}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="person"
+                size={14}
+                color={selectedFamilyMemberId === 'self' ? '#FFFFFF' : '#1E3A8A'}
+              />
+              <Text
+                style={[
+                  styles.familyMemberPillText,
+                  selectedFamilyMemberId === 'self' && styles.familyMemberPillTextActive,
+                ]}
+              >
+                Self
+              </Text>
+            </TouchableOpacity>
+
+            {familyMembers.map((member, idx) => {
+              const mId = member.id || member._id || `fam-${idx}`;
+              const isSelected = selectedFamilyMemberId === mId;
+              const label = member.name || member.displayName || `Member ${idx + 1}`;
+              const rel = member.relation || member.relationship || 'Family';
+              return (
+                <TouchableOpacity
+                  key={mId}
+                  style={[styles.familyMemberPill, isSelected && styles.familyMemberPillActive]}
+                  onPress={() => handleSelectFamilyMember(member)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name="people"
+                    size={14}
+                    color={isSelected ? '#FFFFFF' : '#64748B'}
+                  />
+                  <Text
+                    style={[
+                      styles.familyMemberPillText,
+                      isSelected && styles.familyMemberPillTextActive,
+                    ]}
+                  >
+                    {label} ({rel})
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
           <Text style={styles.inputLabel}>Patient Full Name</Text>
           <TextInput
             style={styles.input}
@@ -577,6 +686,36 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
 // ==================================================
 
 const styles = StyleSheet.create({
+  familyPillsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  familyMemberPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  familyMemberPillActive: {
+    backgroundColor: '#1E3A8A',
+    borderColor: '#1E3A8A',
+  },
+  familyMemberPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  familyMemberPillTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+
   safeArea: {
     flex: 1,
     backgroundColor: '#F8FAFC',

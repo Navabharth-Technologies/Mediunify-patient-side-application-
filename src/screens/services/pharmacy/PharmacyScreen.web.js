@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,10 +12,16 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import { useCart } from '../../../context/CartContext';
-import pharmacyProducts, { POPULAR_LOCALITIES } from '../../../data/pharmacyProducts';
+import pharmacyProducts from '../../../data/pharmacyProducts';
+import {
+  getPharmacyStoreForCity,
+  getPharmacyCityConfig,
+  normalizePharmacyCity,
+} from '../../../data/pharmacyStores';
 import WebFooter from '../../../components/web/WebFooter';
 
 // ==================================================
@@ -597,17 +603,47 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
   const [searchQuery, setSearchQuery] = useState(route?.params?.query || route?.params?.search || '');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedCondition, setSelectedCondition] = useState(null);
-  const [showAddressModal, setShowAddressModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadSuccessToast, setUploadSuccessToast] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
 
-  // Delivery Address
-  const [currentAddress, setCurrentAddress] = useState(
-    selectedAddress?.locality
-      ? `${selectedAddress.locality}, ${selectedAddress.city || 'Mysuru'}`
-      : 'Kuvempunagar, Mysuru'
-  );
+  // Home Screen Location (Single Source of Truth)
+  const [currentCity, setCurrentCity] = useState('Mysuru');
+
+  const loadHomeLocation = useCallback(async () => {
+    try {
+      const saved =
+        (await AsyncStorage.getItem('@mediunify_selected_city')) ||
+        (await AsyncStorage.getItem('@unnathi_user_location'));
+      if (saved) {
+        setCurrentCity(normalizePharmacyCity(saved));
+      }
+    } catch (e) {}
+  }, []);
+
+  useEffect(() => {
+    loadHomeLocation();
+    const unsub = navigation?.addListener ? navigation.addListener('focus', loadHomeLocation) : null;
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const handleStorage = (e) => {
+        if (!e || e.key === '@mediunify_selected_city' || e.key === '@unnathi_user_location') {
+          loadHomeLocation();
+        }
+      };
+      window.addEventListener('storage', handleStorage);
+      return () => {
+        if (unsub) unsub();
+        window.removeEventListener('storage', handleStorage);
+      };
+    }
+
+    return () => {
+      if (unsub) unsub();
+    };
+  }, [navigation, loadHomeLocation]);
+
+  const cityConfig = useMemo(() => getPharmacyCityConfig(currentCity), [currentCity]);
 
   // Scroll ref & auto-scroll to products
   const mainScrollRef = useRef(null);
@@ -776,7 +812,23 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
     }
   };
 
-  const activeSlide = PHARMACY_HERO_SLIDES[activeSlideIndex];
+  const heroSlides = useMemo(() => {
+    return PHARMACY_HERO_SLIDES.map((slide) => {
+      if (slide.id === 'pharma-slide-1') {
+        return {
+          ...slide,
+          bullets: [
+            cityConfig.bulletDelivery || `Superfast express delivery to your doorstep across ${currentCity}`,
+            slide.bullets[1],
+            slide.bullets[2],
+          ],
+        };
+      }
+      return slide;
+    });
+  }, [currentCity, cityConfig]);
+
+  const activeSlide = heroSlides[activeSlideIndex] || PHARMACY_HERO_SLIDES[0];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -791,22 +843,17 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
             <Ionicons name="arrow-back" size={22} color="#1E3A8A" />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.headerLocalityBtn}
-            onPress={() => setShowAddressModal(true)}
-            activeOpacity={0.8}
-          >
+          <View style={styles.headerLocalityBtn}>
             <View style={styles.headerLocalityIconWrap}>
               <Ionicons name="location" size={14} color="#00B894" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.headerDeliverTo}>Deliver to</Text>
               <Text style={styles.headerLocalityName} numberOfLines={1}>
-                {currentAddress}
+                {currentCity}
               </Text>
             </View>
-            <Ionicons name="chevron-down" size={14} color="#64748B" />
-          </TouchableOpacity>
+          </View>
 
           <TouchableOpacity
             style={styles.headerCartBtn}
@@ -1566,58 +1613,6 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
           </View>
         </Modal>
 
-        {/* ============================================================
-            12. MODAL: DELIVERY LOCALITY SELECTOR
-        ============================================================ */}
-        <Modal
-          visible={showAddressModal}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowAddressModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalCard}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select Delivery Location in Mysuru</Text>
-                <TouchableOpacity onPress={() => setShowAddressModal(false)}>
-                  <Ionicons name="close" size={22} color="#64748B" />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView style={{ maxHeight: 380, paddingVertical: 10 }}>
-                {POPULAR_LOCALITIES.map((loc, idx) => {
-                  const isActive = currentAddress.includes(loc.name);
-                  return (
-                    <TouchableOpacity
-                      key={idx}
-                      style={[styles.localitySelectItem, isActive && styles.localitySelectItemActive]}
-                      onPress={() => {
-                        setCurrentAddress(`${loc.name}, Mysuru`);
-                        updateAddress({ locality: loc.name, city: 'Mysuru' });
-                        setShowAddressModal(false);
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons
-                        name="location"
-                        size={18}
-                        color={isActive ? '#00B894' : '#64748B'}
-                        style={{ marginRight: 12 }}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.localityName, isActive && styles.localityNameActive]}>
-                          {loc.name}
-                        </Text>
-                        <Text style={styles.localitySub}>Pincode: {loc.pincode} • Express Delivery Available</Text>
-                      </View>
-                      {Boolean(isActive) ? <Ionicons name="checkmark-circle" size={18} color="#00B894" /> : null}
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
 
         {/* Upload Success Toast */}
         {Boolean(uploadSuccessToast) ? (

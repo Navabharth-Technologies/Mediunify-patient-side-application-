@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Image,
   useWindowDimensions,
   Platform,
 } from 'react-native';
@@ -16,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import colors from '../../../theme/colors';
 import pharmacyProducts from '../../../data/pharmacyProducts';
+import { EXTENDED_PRODUCTS, getProductImage } from './PharmacyScreen';
 import { useCart } from '../../../context/CartContext';
 import ProductCard from '../../../components/ProductCard';
 import { useAuthGuard } from '../../../context/AuthGuardContext';
@@ -59,12 +61,16 @@ const ProductDetailsScreen = ({ navigation, route }) => {
   // Find product from dataset if not passed directly
   const product = useMemo(() => {
     if (passedProduct) return passedProduct;
-    return pharmacyProducts.find((p) => p.id === productId) || pharmacyProducts[0];
+    return (
+      EXTENDED_PRODUCTS.find((p) => p.id === productId) ||
+      pharmacyProducts.find((p) => p.id === productId) ||
+      pharmacyProducts[0]
+    );
   }, [passedProduct, productId]);
 
   // Related products from same category
   const relatedProducts = useMemo(() => {
-    return pharmacyProducts
+    return EXTENDED_PRODUCTS
       .filter((p) => p.category === product?.category && p.id !== product?.id)
       .slice(0, 4);
   }, [product]);
@@ -152,15 +158,23 @@ const ProductDetailsScreen = ({ navigation, route }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* PRODUCT VISUAL / ICON HERO */}
+        {/* PRODUCT VISUAL / IMAGE HERO */}
         <View style={styles.imageCard}>
-          <View style={styles.iconCircle}>
-            <Ionicons
-              name={getCategoryIcon(product.category)}
-              size={80}
-              color={colors.primary}
+          {getProductImage(product) ? (
+            <Image
+              source={{ uri: getProductImage(product) }}
+              style={styles.productHeroImage}
+              resizeMode="contain"
             />
-          </View>
+          ) : (
+            <View style={styles.iconCircle}>
+              <Ionicons
+                name={getCategoryIcon(product.category)}
+                size={80}
+                color={colors.primary}
+              />
+            </View>
+          )}
 
           {product.discount && (
             <View style={styles.discountTag}>
@@ -170,7 +184,7 @@ const ProductDetailsScreen = ({ navigation, route }) => {
 
           {product.inStock && (
             <View style={styles.stockTag}>
-              <Ionicons name="checkmark-circle" size={12} color="#FF5252" />
+              <Ionicons name="checkmark-circle" size={12} color="#00B894" />
               <Text style={styles.stockTagText}>In Stock</Text>
             </View>
           )}
@@ -428,14 +442,19 @@ const styles = StyleSheet.create({
   },
   imageCard: {
     height: 220,
-    backgroundColor: '#E8F7F4',
+    backgroundColor: '#FFFFFF',
     margin: 16,
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
     borderWidth: 1,
-    borderColor: '#D4EFE8',
+    borderColor: '#E2E8F0',
+    padding: 16,
+  },
+  productHeroImage: {
+    width: '100%',
+    height: 180,
   },
   iconCircle: {
     width: 130,

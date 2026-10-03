@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,14 +10,29 @@ import {
   StatusBar,
   useWindowDimensions,
   Platform,
+  Keyboard,
+  BackHandler,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../theme/colors';
 import WebFooter from '../../components/web/WebFooter';
+import { useCart } from '../../context/CartContext';
 
+// Real Data Sources for Search
+import { doctors } from '../../data/doctors';
+import videoDoctors from '../../data/videoDoctors';
+import { LAB_TESTS_MASTER, LAB_PACKAGES, ALL_CITY_DIAGNOSTIC_CENTRES } from '../../data/labTestData';
+import pharmacyProducts from '../../data/pharmacyProducts';
+import { RADIOLOGY_TESTS } from '../../data/radiologyCatalogData';
+import { surgeryHospitals } from '../../data/surgeryHospitalsData';
+import { availableNursingServices } from '../../data/homeNursingData';
+import { medicalEquipments } from '../../data/equipmentData';
+
+// Desktop Web Search Data (Preserved for Web view)
 const searchData = [
-  // 1. DOCTOR CONSULTATIONS & SPECIALISTS
   {
     id: 'doctor-general',
     category: 'Doctors',
@@ -83,8 +98,6 @@ const searchData = [
     badgeColor: '#E0F7FA',
     route: 'VideoConsultation',
   },
-
-  // 2. PHARMACY & MEDICINES
   {
     id: 'pharmacy-main',
     category: 'Medicines',
@@ -111,8 +124,6 @@ const searchData = [
     badgeColor: '#FFF2ED',
     route: 'Pharmacy',
   },
-
-  // 3. LAB & BLOOD TESTS
   {
     id: 'lab-tests',
     category: 'Labs & Scans',
@@ -139,8 +150,6 @@ const searchData = [
     badgeColor: '#F2FAF0',
     route: 'LabTests',
   },
-
-  // 4. RADIOLOGY & ADVANCED 3T SCANS & CARDIOLOGY
   {
     id: 'radiology-scans',
     category: 'Labs & Scans',
@@ -148,184 +157,63 @@ const searchData = [
     description: 'Book 2D Echo, 12-Lead ECG, 3T MRI, CT Scan, Ultrasound & TMT Stress Test',
     keywords: 'radiology cardiology scans 2d echo echo ecg tmt holter cardiac ct heart scan heart echo 3t mri scan 128 ct scan brain spine abdomen knee xray digital x-ray ultrasound sonography mammography dexa pet ct diagnostic center hospital only',
     icon: 'heart-circle',
-    backgroundColor: '#E0F7FA',
-    iconColor: '#00C2CB',
-    badgeText: 'Instant Booking',
-    badgeColor: '#E0F7FA',
-    route: 'RadiologyLabs',
+    backgroundColor: '#EEF2FF',
+    iconColor: '#4F46E5',
+    badgeText: 'NABH Centres',
+    badgeColor: '#E0E7FF',
+    route: 'RadiologyScans',
   },
   {
-    id: 'radiologist-consult',
-    category: 'Labs & Scans',
-    title: 'Consult Radiologist & Cardiologist',
-    description: 'Get expert 2nd opinion from senior radiologists & cardiac specialists',
-    keywords: 'radiologist cardiologist doctor 2nd opinion cardiac echo scan interpretation mri report ct scan report radiologist consultation cardiologist consult',
-    icon: 'eye',
-    backgroundColor: '#E0F7FA',
-    iconColor: '#1E3A8A',
-    badgeText: 'Expert Opinion',
-    badgeColor: '#E0F7FA',
-    route: 'RadiologistList',
-  },
-
-  // 5. HOSPITALS & SURGERIES
-  {
-    id: 'hospitals-list',
+    id: 'hospital-care',
     category: 'Hospitals',
-    title: 'NABH Accredited Hospitals & ER',
-    description: 'Find top multi-specialty hospitals with 24/7 ICU & emergency trauma care',
-    keywords: 'hospital hospitals nabh jci icu emergency admission beds trauma cardiac neuro manipal apollo columbia asia narayana',
+    title: 'Hospital Surgeries & Cashless Care',
+    description: 'NABH accredited network hospitals, cashless insurance & doctor second opinions',
+    keywords: 'hospital surgeries surgery admission cashless insurance tpa mediclaim laparoscopic hernia gallbladder cataract knee replacement appendix ortho',
     icon: 'business',
-    backgroundColor: '#F3E8FF',
-    iconColor: '#7E22CE',
-    badgeText: '24/7 ICU',
-    badgeColor: '#E9D5FF',
-    route: 'HospitalList',
-  },
-  {
-    id: 'hospital-care-surgeries',
-    category: 'Hospitals',
-    title: 'Hospital Care & Surgeries',
-    description: 'Cataract, Knee Replacement, Hernia, Laparoscopy & Maternity packages',
-    keywords: 'surgery surgeries hospital care surgical package knee replacement cataract kidney stone gall bladder hernia maternity delivery c-section',
-    icon: 'bandage',
     backgroundColor: '#EFF6FF',
-    iconColor: '#1E3A8A',
-    badgeText: 'All-Inclusive',
+    iconColor: '#2563EB',
+    badgeText: 'Cashless TPA',
     badgeColor: '#DBEAFE',
     route: 'HospitalCare',
   },
   {
-    id: 'surgery-quote',
-    category: 'Hospitals',
-    title: 'Free Surgery Cost Calculator',
-    description: 'Get instant hospital cost estimates with zero out-of-pocket assistance',
-    keywords: 'surgery quote cost estimate hospital price surgical estimate insurance approval cost calculator',
-    icon: 'calculator',
-    backgroundColor: '#F0FDF4',
-    iconColor: '#15803D',
-    badgeText: 'Free Estimate',
-    badgeColor: '#DCFCE7',
-    route: 'SurgeryQuoteRequest',
-  },
-
-  // 6. CARE SERVICES & INSURANCE
-  {
-    id: 'nurse-booking',
+    id: 'home-nursing',
     category: 'Care Services',
     title: 'Home Nursing & Attendant Care',
-    description: 'Certified nurses for elderly care, post-op dressings, IV & injections',
-    keywords: 'nurse home nursing attendant elder care elderly bedridden injection iv drip dressing post surgery caregiver patient care',
-    icon: 'shield-checkmark',
-    backgroundColor: '#F0FDFA',
-    iconColor: colors.primary,
-    badgeText: 'Certified Staff',
-    badgeColor: '#CCFBF1',
+    description: '12hr/24hr qualified ICU nursing, post-surgery care, elderly assistance & IV infusion at home',
+    keywords: 'home nursing nurse attendant caregiver elder care patient care iv injection catheter dressing wound care physiotherapy',
+    icon: 'home',
+    backgroundColor: '#F0FDF4',
+    iconColor: '#16A34A',
+    badgeText: 'Verified Nurses',
+    badgeColor: '#DCFCE7',
     route: 'NurseBooking',
   },
   {
-    id: 'health-insurance',
+    id: 'equipment-rental',
     category: 'Care Services',
-    title: 'Health Insurance & Cashless Claims',
-    description: '100% cashless hospitalization support & pre-authorization assistance',
-    keywords: 'insurance health insurance mediclaim cashless claim star health hdfc ergo policy tpa reimbursement hospitalization coverage',
-    icon: 'shield',
-    backgroundColor: '#EFF6FF',
-    iconColor: '#1D4ED8',
-    badgeText: 'Cashless Support',
-    badgeColor: '#DBEAFE',
-    route: 'HealthInsurance',
+    title: 'Medical Equipment Rental',
+    description: 'Hospital beds, oxygen concentrators, BiPAP/CPAP, wheelchairs & suction units with doorstep setup',
+    keywords: 'equipment rental rent medical equipment oxygen concentrator hospital bed fowler motorized wheelchair bipap cpap suction pump ventilator monitor',
+    icon: 'cube',
+    backgroundColor: '#FAF5FF',
+    iconColor: '#9333EA',
+    badgeText: 'Free 4Hr Setup',
+    badgeColor: '#F3E8FF',
+    route: 'EquipmentRental',
   },
   {
-    id: 'ayurveda-wellness-search',
+    id: 'ayurveda-wellness',
     category: 'Care Services',
-    title: 'Ayurveda & Panchakarma Therapies',
-    description: 'Pulse diagnosis (Nadi Pariksha), Shirodhara, Abhyanga & authentic herbal remedies',
-    keywords: 'ayurveda ayurvedic panchakarma vaidya nadi pariksha shirodhara abhyanga dosha vata pitta kapha shilajit ashwagandha herbal herbs detox holistic',
+    title: 'Ayurveda & Panchakarma Clinic',
+    description: 'Traditional Ayurvedic consultations, herbal medicines, Shirodhara & rejuvenation therapy',
+    keywords: 'ayurveda panchakarma ayurvedic doctor vaidya shirodhara abhyanga herbal detox spine joint pain immunity wellness',
     icon: 'leaf',
     backgroundColor: '#ECFDF5',
     iconColor: '#059669',
     badgeText: 'AYUSH Certified',
-    badgeColor: '#A7F3D0',
+    badgeColor: '#D1FAE5',
     route: 'AyurvedaWellness',
-  },
-  {
-    id: 'fertility-ivf-search',
-    category: 'Care Services',
-    title: 'Fertility & IVF Care',
-    description: 'Advanced IVF, IUI, ICSI, egg freezing & 0% EMI financing plans',
-    keywords: 'fertility ivf iui icsi pregnancy baby conceive egg freezing semen analysis sperm andrology reproductive medicine test tube',
-    icon: 'heart',
-    backgroundColor: '#FFF2ED',
-    iconColor: '#FF7F50',
-    badgeText: '0% EMI Plans',
-    badgeColor: '#FFF2ED',
-    route: 'FertilityIvf',
-  },
-  {
-    id: 'equipment-rental-search',
-    category: 'Care Services',
-    title: 'Medical Equipment Rental',
-    description: 'Hospital ICU beds, 10L oxygen concentrators, BiPAP & wheelchairs at home',
-    keywords: 'equipment rental hospital bed oxygen concentrator wheelchair bipap cpap monitor walker patient cot rent medical equipment',
-    icon: 'fitness',
-    backgroundColor: '#E6F8F5',
-    iconColor: '#00B894',
-    badgeText: '4-Hr Delivery',
-    badgeColor: '#CCFBF1',
-    route: 'EquipmentRental',
-  },
-  {
-    id: 'health-records',
-    category: 'Care Services',
-    title: 'Digital Health Records & Reports',
-    description: 'Access digital prescriptions, lab test results, scan images & vaccine cards',
-    keywords: 'records health records medical records prescriptions lab reports scan reports ehr emr files pdf download',
-    icon: 'document-text',
-    backgroundColor: '#F8FAFC',
-    iconColor: '#64748B',
-    badgeText: 'Encrypted',
-    badgeColor: '#E2E8F0',
-    route: 'HealthRecords',
-  },
-  {
-    id: 'health-monitor-vitals',
-    category: 'Care Services',
-    title: 'Health Vitals Monitor',
-    description: 'Track Blood Sugar, Blood Pressure (BP), SpO2, Heart Rate & BMI',
-    keywords: 'vitals health monitor blood sugar fasting bp blood pressure spo2 pulse bmi tracker glucose log',
-    icon: 'pulse',
-    backgroundColor: '#E0F7FA',
-    iconColor: '#00C2CB',
-    badgeText: 'Live Tracker',
-    badgeColor: '#E0F7FA',
-    route: 'HealthMonitor',
-  },
-  {
-    id: 'my-appointments',
-    category: 'Care Services',
-    title: 'My Appointments & Bookings',
-    description: 'Track upcoming doctor visits, lab collections & radiology scan tokens',
-    keywords: 'appointment appointments bookings my bookings reschedule cancel slip status token laboratory scan schedule',
-    icon: 'calendar',
-    backgroundColor: '#FFFBEB',
-    iconColor: '#B45309',
-    badgeText: 'Manage Slots',
-    badgeColor: '#FEF3C7',
-    route: 'MyAppointments',
-  },
-  {
-    id: 'chatbot-ai',
-    category: 'Care Services',
-    title: 'AI Health Doctor & Tablet Scanner',
-    description: 'Scan prescription photos, check tablet uses & get doctor recommendations',
-    keywords: 'chatbot ai assistant ask ai prescription scan camera tablet scanner symptom checker recommend doctor medicine info',
-    icon: 'sparkles',
-    backgroundColor: '#F0FDFA',
-    iconColor: colors.primary,
-    badgeText: 'AI Powered',
-    badgeColor: '#CCFBF1',
-    route: 'Chatbot',
   },
   {
     id: 'emergency-sos',
@@ -357,32 +245,468 @@ const searchData = [
 
 const CATEGORIES = ['All', 'Doctors', 'Medicines', 'Labs & Scans', 'Hospitals', 'Care Services'];
 
+const POPULAR_SEARCHES = [
+  'CBC Test',
+  'Paracetamol',
+  'General Physician',
+  'Cardiologist',
+  'CT Scan',
+  'Home Nursing',
+  'Ultrasound',
+  'Full Body Checkup',
+];
+
 const GlobalSearchScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
 
+  // Search input state
   const [query, setQuery] = useState(route?.params?.query || '');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [searchDebounceQuery, setSearchDebounceQuery] = useState(route?.params?.query || '');
+  const [isSearching, setIsSearching] = useState(false);
+  const [toastMsg, setToastMsg] = useState(null);
+  const searchInputRef = useRef(null);
 
+  // Cart Context & City Awareness
+  const cartContext = useCart();
+  const [storedCity, setStoredCity] = useState(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem('@mediunify_selected_city')
+      .then((val) => {
+        if (val) setStoredCity(val);
+      })
+      .catch(() => {});
+  }, []);
+
+  const currentCity = cartContext?.selectedCity || storedCity || 'Mysuru';
+
+  // Sync route query if passed
   useEffect(() => {
     if (route?.params?.query !== undefined) {
       setQuery(route.params.query);
+      setSearchDebounceQuery(route.params.query);
     }
   }, [route?.params?.query]);
 
-  const results = useMemo(() => {
+  // Auto-focus search input on mobile on mount
+  useEffect(() => {
+    if (!isDesktopWeb) {
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [isDesktopWeb]);
+
+  // Hardware Back button on Android
+  useEffect(() => {
+    if (isDesktopWeb) return;
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      navigation.goBack();
+      return true;
+    });
+    return () => backHandler.remove();
+  }, [isDesktopWeb, navigation]);
+
+  // Debounce input (120ms) for ultra-fast typing response without stutter
+  useEffect(() => {
+    if (isDesktopWeb) return;
+    setIsSearching(true);
+    const handler = setTimeout(() => {
+      setSearchDebounceQuery(query);
+      setIsSearching(false);
+    }, 120);
+    return () => clearTimeout(handler);
+  }, [query, isDesktopWeb]);
+
+  // Voice Search Simulation
+  const handleVoiceSearch = () => {
+    const voiceSuggestions = ['Doctor', 'CBC Test', 'Paracetamol', 'CT Scan'];
+    const chosen = voiceSuggestions[Math.floor(Math.random() * voiceSuggestions.length)];
+    setQuery(chosen);
+    setToastMsg(`Voice input: "${chosen}"`);
+    setTimeout(() => {
+      setToastMsg(null);
+    }, 2500);
+  };
+
+  // ============================================================
+  // REAL SEARCH ENGINE (MOBILE & TABLET)
+  // ============================================================
+  const mobileSearchResults = useMemo(() => {
+    const rawQuery = searchDebounceQuery.trim().toLowerCase();
+    if (!rawQuery) return [];
+
+    const cityLower = currentCity.toLowerCase();
+    const isMysore = cityLower === 'mysuru' || cityLower === 'mysore';
+    const isBangalore = cityLower === 'bengaluru' || cityLower === 'bangalore';
+
+    const results = [];
+
+    const match = (str) => {
+      if (!str || typeof str !== 'string') return false;
+      return str.toLowerCase().includes(rawQuery);
+    };
+
+    const matchesCity = (locationStr) => {
+      if (!locationStr || typeof locationStr !== 'string') return true;
+      const l = locationStr.toLowerCase();
+      if (l.includes(cityLower)) return true;
+      if (isMysore && (l.includes('mysuru') || l.includes('mysore'))) return true;
+      if (isBangalore && (l.includes('bengaluru') || l.includes('bangalore'))) return true;
+      return false;
+    };
+
+    // 1. DOCTORS (In-Clinic)
+    if (Array.isArray(doctors)) {
+      const isDocWord = ['doctor', 'doc', 'physician', 'specialist', 'dr', 'clinic'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+      doctors.forEach((doc) => {
+        if (!matchesCity(doc.clinicArea) && !matchesCity(doc.clinicAddress)) return;
+
+        if (
+          match(doc.name) ||
+          match(doc.specialty) ||
+          match(doc.specialtyKey) ||
+          match(doc.clinicName) ||
+          (isDocWord && rawQuery.length >= 3)
+        ) {
+          results.push({
+            id: `doc-${doc.id}`,
+            name: doc.name,
+            category: 'Doctors',
+            subtitle: `${doc.specialty}${doc.clinicArea ? ` • ${doc.clinicArea.split(',')[0]}` : ''}`,
+            badge: doc.fee ? `₹${doc.fee}` : '',
+            icon: 'person',
+            iconType: 'ionicons',
+            iconBg: '#E0F2FE',
+            iconColor: '#0284C7',
+            priority: match(doc.name) ? 1 : 2,
+            onPress: () => {
+              navigation.navigate('DoctorBooking', { doctor: doc });
+            },
+          });
+        }
+      });
+    }
+
+    // 2. VIDEO CONSULTATION DOCTORS
+    if (Array.isArray(videoDoctors)) {
+      const isVideoWord = ['video', 'online', 'teleconsultation', 'call'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+      videoDoctors.forEach((doc) => {
+        if (
+          match(doc.name) ||
+          match(doc.specialty) ||
+          (isVideoWord && rawQuery.length >= 3)
+        ) {
+          results.push({
+            id: `vdoc-${doc.id}`,
+            name: doc.name,
+            category: 'Video Consultation',
+            subtitle: `${doc.specialty} • Video Call`,
+            badge: doc.fee ? `₹${doc.fee}` : '',
+            icon: 'videocam',
+            iconType: 'ionicons',
+            iconBg: '#E0F7FA',
+            iconColor: '#00C2CB',
+            priority: match(doc.name) ? 1 : 3,
+            onPress: () => {
+              navigation.navigate('VideoBooking', { doctor: doc });
+            },
+          });
+        }
+      });
+    }
+
+    // 3. LAB TESTS & PACKAGES
+    if (Array.isArray(LAB_TESTS_MASTER)) {
+      const isLabWord = ['lab', 'test', 'blood', 'pathology', 'diagnostics', 'cbc', 'sugar', 'lipid', 'thyroid'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+      LAB_TESTS_MASTER.forEach((test) => {
+        if (
+          match(test.name) ||
+          match(test.category) ||
+          match(test.department) ||
+          (isLabWord && rawQuery.length >= 3)
+        ) {
+          results.push({
+            id: `lab-${test.id}`,
+            name: test.name,
+            category: 'Lab Tests',
+            subtitle: `Lab Test${test.department ? ` • ${test.department}` : ''}`,
+            badge: test.price ? `₹${test.price}` : (test.mrp ? `₹${test.mrp}` : 'Home Pickup'),
+            icon: 'flask',
+            iconType: 'ionicons',
+            iconBg: '#F0FDFA',
+            iconColor: '#0D9488',
+            priority: match(test.name) ? 1 : 2,
+            onPress: () => {
+              navigation.navigate('LabTests', { searchTest: test.name });
+            },
+          });
+        }
+      });
+    }
+
+    if (Array.isArray(LAB_PACKAGES)) {
+      LAB_PACKAGES.forEach((pkg) => {
+        if (match(pkg.name) || match(pkg.description) || rawQuery.includes('package') || rawQuery.includes('checkup')) {
+          results.push({
+            id: `pkg-${pkg.id}`,
+            name: pkg.name,
+            category: 'Lab Packages',
+            subtitle: `Health Package • ${pkg.testsCount || 'Comprehensive'}`,
+            badge: pkg.price ? `₹${pkg.price}` : '',
+            icon: 'fitness',
+            iconType: 'ionicons',
+            iconBg: '#FEF3C7',
+            iconColor: '#D97706',
+            priority: match(pkg.name) ? 1 : 2,
+            onPress: () => {
+              navigation.navigate('LabTests', { category: 'packages' });
+            },
+          });
+        }
+      });
+    }
+
+    // 4. SCAN & X-RAY (RADIOLOGY)
+    if (Array.isArray(RADIOLOGY_TESTS)) {
+      const isScanWord = ['scan', 'xray', 'x-ray', 'mri', 'ct', 'ultrasound', 'echo', 'ecg', 'radiology'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+      RADIOLOGY_TESTS.forEach((scan) => {
+        if (
+          match(scan.name) ||
+          match(scan.categoryName) ||
+          match(scan.shortName) ||
+          match(scan.modality) ||
+          (isScanWord && rawQuery.length >= 3)
+        ) {
+          results.push({
+            id: `rad-${scan.id}`,
+            name: scan.name,
+            category: 'Scan & X-Ray',
+            subtitle: `Scan & X-Ray • ${scan.modality || scan.categoryName || 'Radiology'}`,
+            badge: scan.price ? `₹${scan.price}` : (scan.mrp ? `₹${scan.mrp}` : ''),
+            icon: 'scan-outline',
+            iconType: 'ionicons',
+            iconBg: '#EEF2FF',
+            iconColor: '#4F46E5',
+            priority: match(scan.name) ? 1 : 2,
+            onPress: () => {
+              navigation.navigate('RadiologyLabs', { searchTest: scan.name, testId: scan.id });
+            },
+          });
+        }
+      });
+    }
+
+    // 5. MEDICINES & PHARMACY
+    if (Array.isArray(pharmacyProducts)) {
+      const isMedWord = ['medicine', 'pharmacy', 'tablet', 'syrup', 'capsule', 'drug', 'med', 'paracetamol', 'dolo'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+      pharmacyProducts.forEach((med) => {
+        if (
+          match(med.name) ||
+          match(med.brand) ||
+          match(med.activeIngredients) ||
+          match(med.uses) ||
+          (isMedWord && rawQuery.length >= 3)
+        ) {
+          results.push({
+            id: `med-${med.id}`,
+            name: med.name,
+            category: 'Medicines',
+            subtitle: `Medicine • ${med.brand || 'Pharmacy'}`,
+            badge: med.price ? `₹${med.price}` : '',
+            icon: 'pill',
+            iconType: 'material',
+            iconBg: '#ECFDF5',
+            iconColor: '#059669',
+            priority: match(med.name) ? 1 : 2,
+            onPress: () => {
+              navigation.navigate('ProductDetails', { product: med });
+            },
+          });
+        }
+      });
+    }
+
+    // 6. CLINICS & DIAGNOSTIC CENTRES
+    if (Array.isArray(ALL_CITY_DIAGNOSTIC_CENTRES)) {
+      const isClinicWord = ['clinic', 'centre', 'center', 'lab', 'hospital'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+      ALL_CITY_DIAGNOSTIC_CENTRES.forEach((centre) => {
+        if (!matchesCity(centre.city) && !matchesCity(centre.address)) return;
+        if (
+          match(centre.name) ||
+          match(centre.area) ||
+          (isClinicWord && rawQuery.length >= 3)
+        ) {
+          results.push({
+            id: `clinic-${centre.id}`,
+            name: centre.name,
+            category: 'Clinics',
+            subtitle: `Clinic & Lab • ${centre.area || currentCity}`,
+            badge: centre.rating ? `★ ${centre.rating}` : 'Verified',
+            icon: 'business',
+            iconType: 'ionicons',
+            iconBg: '#F8FAFC',
+            iconColor: '#475569',
+            priority: match(centre.name) ? 1 : 2,
+            onPress: () => {
+              navigation.navigate('LabTests');
+            },
+          });
+        }
+      });
+    }
+
+    // 7. HOSPITALS & SURGERY
+    if (Array.isArray(surgeryHospitals)) {
+      const isHospWord = ['hospital', 'surgery', 'icu', 'emergency', 'care'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+      surgeryHospitals.forEach((hosp) => {
+        if (!matchesCity(hosp.city) && !matchesCity(hosp.location)) return;
+        if (
+          match(hosp.name) ||
+          match(hosp.location) ||
+          match(hosp.overview) ||
+          (isHospWord && rawQuery.length >= 3)
+        ) {
+          results.push({
+            id: `hosp-${hosp.id}`,
+            name: hosp.name,
+            category: 'Hospitals',
+            subtitle: `Hospital & Surgery • ${hosp.location || currentCity}`,
+            badge: hosp.rating ? `★ ${hosp.rating}` : 'NABH',
+            icon: 'hospital-building',
+            iconType: 'material',
+            iconBg: '#EFF6FF',
+            iconColor: '#1D4ED8',
+            priority: match(hosp.name) ? 1 : 2,
+            onPress: () => {
+              navigation.navigate('HospitalCare');
+            },
+          });
+        }
+      });
+    }
+
+    // 8. HOME NURSING
+    if (Array.isArray(availableNursingServices)) {
+      const isNurseWord = ['nurse', 'nursing', 'attendant', 'elder', 'caregiver', 'injection', 'dressing'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+      availableNursingServices.forEach((serv) => {
+        const title = serv.title || serv.name;
+        if (
+          match(title) ||
+          match(serv.desc) ||
+          match(serv.serviceType) ||
+          (isNurseWord && rawQuery.length >= 3)
+        ) {
+          results.push({
+            id: `nurse-${serv.id}`,
+            name: title,
+            category: 'Home Nursing',
+            subtitle: `Home Nursing • ${serv.duration || 'Certified Staff'}`,
+            badge: serv.price ? `₹${serv.price}` : '',
+            icon: 'home-heart',
+            iconType: 'material',
+            iconBg: '#F0FDFA',
+            iconColor: '#0D9488',
+            priority: match(title) ? 1 : 2,
+            onPress: () => {
+              navigation.navigate('NurseBooking');
+            },
+          });
+        }
+      });
+    }
+
+    // 9. MEDICAL EQUIPMENT RENTAL
+    if (Array.isArray(medicalEquipments)) {
+      const isEquipWord = ['equipment', 'rental', 'rent', 'oxygen', 'bed', 'wheelchair', 'bipap'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+      medicalEquipments.forEach((eq) => {
+        if (
+          match(eq.name) ||
+          match(eq.category) ||
+          (isEquipWord && rawQuery.length >= 3)
+        ) {
+          results.push({
+            id: `eq-${eq.id}`,
+            name: eq.name,
+            category: 'Equipment Rental',
+            subtitle: `Equipment Rental • ${eq.category || 'Home Delivery'}`,
+            badge: eq.rentPerMonth ? `₹${eq.rentPerMonth}/mo` : '',
+            icon: 'fitness',
+            iconType: 'ionicons',
+            iconBg: '#F3E8FF',
+            iconColor: '#7E22CE',
+            priority: match(eq.name) ? 1 : 2,
+            onPress: () => {
+              navigation.navigate('EquipmentRental');
+            },
+          });
+        }
+      });
+    }
+
+    // 10. AYURVEDA & WELLNESS
+    const isAyurWord = ['ayurveda', 'wellness', 'panchakarma', 'herbal', 'nadi', 'dosha'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+    if (isAyurWord) {
+      results.push({
+        id: 'ayurveda-wellness',
+        name: 'Ayurveda & Panchakarma Therapies',
+        category: 'Ayurveda & Wellness',
+        subtitle: 'Authentic Herbal Therapies & Nadi Pariksha',
+        badge: 'AYUSH',
+        icon: 'leaf',
+        iconType: 'ionicons',
+        iconBg: '#ECFDF5',
+        iconColor: '#059669',
+        priority: 1,
+        onPress: () => {
+          navigation.navigate('AyurvedaWellness');
+        },
+      });
+    }
+
+    // Sort: priority 1 (direct title/name match) first, then alphabetical
+    results.sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      return a.name.localeCompare(b.name);
+    });
+
+    return results;
+  }, [searchDebounceQuery, currentCity, navigation]);
+
+  // Compute available matching categories for filter chips (only show categories that actually have matching results)
+  const matchingCategories = useMemo(() => {
+    if (mobileSearchResults.length === 0) return [];
+    const catCounts = {};
+    mobileSearchResults.forEach((r) => {
+      catCounts[r.category] = (catCounts[r.category] || 0) + 1;
+    });
+    const categories = Object.keys(catCounts).map((cat) => ({
+      name: cat,
+      count: catCounts[cat],
+    }));
+    return [{ name: 'All', count: mobileSearchResults.length }, ...categories];
+  }, [mobileSearchResults]);
+
+  // Filtered by selected category chip if user tapped a chip
+  const displayedSearchResults = useMemo(() => {
+    if (selectedCategory === 'All') return mobileSearchResults.slice(0, 35);
+    return mobileSearchResults
+      .filter((r) => r.category === selectedCategory)
+      .slice(0, 35);
+  }, [mobileSearchResults, selectedCategory]);
+
+  // ============================================================
+  // DESKTOP WEB ENGINE (Preserved for Web view)
+  // ============================================================
+  const desktopWebResults = useMemo(() => {
     const text = query.trim().toLowerCase();
-
     return searchData.filter((item) => {
-      // Category match
-      const categoryMatch =
-        selectedCategory === 'All' || item.category === selectedCategory;
-
+      const categoryMatch = selectedCategory === 'All' || item.category === selectedCategory;
       if (!categoryMatch) return false;
-
-      // Text match
       if (!text) return true;
-
       const searchableText = `${item.title} ${item.description} ${item.keywords} ${item.category}`.toLowerCase();
       return searchableText.includes(text);
     });
@@ -392,7 +716,7 @@ const GlobalSearchScreen = ({ navigation, route }) => {
     navigation.navigate(screenRoute);
   };
 
-  const renderItem = ({ item }) => {
+  const renderWebItem = ({ item }) => {
     return (
       <TouchableOpacity
         style={styles.card}
@@ -435,52 +759,76 @@ const GlobalSearchScreen = ({ navigation, route }) => {
     <SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, isDesktopWeb && styles.webContainer]}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* MOBILE HEADER (Only shown on mobile) */}
-      {!isDesktopWeb && (
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="arrow-back" size={20} color="#1E293B" />
-          </TouchableOpacity>
-
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Search Healthcare</Text>
-            <Text style={styles.headerSubtitle}>Doctors, Medicines, Labs, Scans & Care</Text>
-          </View>
-
-          {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')} style={styles.clearHeaderBtn}>
-              <Text style={styles.clearHeaderText}>Clear</Text>
-            </TouchableOpacity>
-          )}
+      {/* TOAST MESSAGE */}
+      {toastMsg && (
+        <View style={styles.toastCard}>
+          <Ionicons name="information-circle" size={16} color="#10B981" />
+          <Text style={styles.toastText}>{toastMsg}</Text>
         </View>
       )}
 
-      {/* MOBILE SEARCH BAR INPUT (Hidden on desktop web to eliminate duplicate search bar) */}
+      {/* MOBILE FULLY FUNCTIONAL HEALTHCARE SEARCH BAR */}
       {!isDesktopWeb && (
-        <View style={styles.searchBarWrap}>
-          <Ionicons name="search" size={20} color={colors.primary} />
-          <TextInput
-            style={styles.searchInput}
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search doctors, medicines, 3T MRI, tests..."
-            placeholderTextColor="#94A3B8"
-            autoFocus={!route?.params?.query}
-            returnKeyType="search"
-          />
-          {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')} style={{ padding: 4 }}>
-              <Ionicons name="close-circle" size={18} color="#94A3B8" />
+        <View style={styles.searchBarWrapper}>
+          <View style={[styles.searchBarBox, styles.searchBarBoxActive]}>
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.searchBackIconBtn}
+              activeOpacity={0.7}
+              accessibilityLabel="Back"
+            >
+              <Ionicons name="arrow-back" size={20} color="#0F172A" />
             </TouchableOpacity>
-          )}
+
+            <TextInput
+              ref={searchInputRef}
+              style={styles.searchInput}
+              placeholder="Search doctors, tests, medicines, clinics..."
+              placeholderTextColor="#64748B"
+              value={query}
+              onChangeText={(text) => {
+                setQuery(text);
+                if (selectedCategory !== 'All') {
+                  setSelectedCategory('All');
+                }
+              }}
+              returnKeyType="search"
+              autoCorrect={false}
+              autoCapitalize="none"
+              clearButtonMode="never"
+              autoFocus={true}
+            />
+
+            {query.length > 0 ? (
+              <TouchableOpacity
+                onPress={() => {
+                  setQuery('');
+                  searchInputRef.current?.focus();
+                }}
+                style={styles.searchClearBtn}
+                activeOpacity={0.7}
+                accessibilityLabel="Clear Search"
+              >
+                <Ionicons name="close-circle" size={19} color="#94A3B8" />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={handleVoiceSearch}
+                style={styles.searchMicBtn}
+                activeOpacity={0.7}
+                accessibilityLabel="Voice Search"
+              >
+                <Ionicons name="mic-outline" size={19} color="#64748B" />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       )}
 
       {isDesktopWeb ? (
+        /* ============================================================
+            DESKTOP WEB VIEW (Preserved for Web)
+        ============================================================ */
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.webScrollContent}>
           <View style={styles.webInnerContainer}>
             {/* SEARCH HEADER */}
@@ -495,7 +843,7 @@ const GlobalSearchScreen = ({ navigation, route }) => {
                   </Text>
                 </View>
                 <View style={styles.webResultCountBadge}>
-                  <Text style={styles.webResultCountText}>{results.length} Services Available</Text>
+                  <Text style={styles.webResultCountText}>{desktopWebResults.length} Services Available</Text>
                 </View>
               </View>
             </View>
@@ -522,11 +870,11 @@ const GlobalSearchScreen = ({ navigation, route }) => {
             </View>
 
             {/* DESKTOP 2-COLUMN GRID OF RESULTS */}
-            {results.length > 0 ? (
+            {desktopWebResults.length > 0 ? (
               <View style={styles.webGrid}>
-                {results.map((item) => (
+                {desktopWebResults.map((item) => (
                   <View key={item.id} style={styles.webCardWrapper}>
-                    {renderItem({ item })}
+                    {renderWebItem({ item })}
                   </View>
                 ))}
               </View>
@@ -557,89 +905,163 @@ const GlobalSearchScreen = ({ navigation, route }) => {
           <WebFooter navigation={navigation} />
         </ScrollView>
       ) : (
-        /* MOBILE VIEW */
-        <>
-          {/* CATEGORY FILTER PILLS */}
-          <View style={styles.categoryPillsContainer}>
-            {Platform.OS === 'web' ? (
-              <View style={[styles.categoryPillsRow, { flexWrap: 'wrap' }]}>
-                {CATEGORIES.map((cat) => {
-                  const isSelected = selectedCategory === cat;
-                  return (
-                    <TouchableOpacity
-                      key={cat}
-                      style={[styles.categoryPill, isSelected && styles.categoryPillActive]}
-                      onPress={() => setSelectedCategory(cat)}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={[styles.categoryPillText, isSelected && styles.categoryPillTextActive]}>
-                        {cat}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryPillsRow}>
-                {CATEGORIES.map((cat) => {
-                  const isSelected = selectedCategory === cat;
-                  return (
-                    <TouchableOpacity
-                      key={cat}
-                      style={[styles.categoryPill, isSelected && styles.categoryPillActive]}
-                      onPress={() => setSelectedCategory(cat)}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={[styles.categoryPillText, isSelected && styles.categoryPillTextActive]}>
-                        {cat}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            )}
-          </View>
+        /* ============================================================
+            MOBILE & TABLET VIEW
+        ============================================================ */
+        <ScrollView
+          style={styles.mobileScroll}
+          contentContainerStyle={styles.mobileScrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
+          {isSearching && (
+            <View style={styles.searchLoadingRow}>
+              <ActivityIndicator size="small" color="#007D69" />
+              <Text style={styles.searchLoadingText}>Searching services in {currentCity}...</Text>
+            </View>
+          )}
 
-          {/* RESULT COUNT HEADER */}
-          <View style={styles.resultHeader}>
-            <Text style={styles.resultTitle}>
-              {query.trim() ? `Search Results for "${query}"` : `${selectedCategory} Directory`}
-            </Text>
-            <Text style={styles.resultCountBadge}>{results.length} Services</Text>
-          </View>
-
-          {/* RESULTS LIST */}
-          <FlatList
-            data={results}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            contentContainerStyle={styles.list}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <View style={styles.emptyIconCircle}>
-                  <Ionicons name="search-outline" size={40} color="#94A3B8" />
+          {/* 1. SMART EMPTY SEARCH STATE */}
+          {!query.trim() && (
+            <View style={styles.emptySearchWrapper}>
+              <View style={styles.emptySearchPromptCard}>
+                <View style={styles.emptySearchIconCircle}>
+                  <Ionicons name="search-outline" size={26} color="#007D69" />
                 </View>
-                <Text style={styles.emptyTitle}>No matching services found</Text>
-                <Text style={styles.emptyText}>
-                  Try searching for doctors, medicines (Dolo, Paracetamol), 3T MRI, CT scans, blood tests, or home nursing.
+                <Text style={styles.emptySearchPromptTitle}>
+                  Search for doctors, tests, medicines or services
                 </Text>
-                <TouchableOpacity
-                  style={styles.emptyResetBtn}
-                  onPress={() => {
-                    setQuery('');
-                    setSelectedCategory('All');
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.emptyResetBtnText}>View All Services</Text>
-                </TouchableOpacity>
+                <Text style={styles.emptySearchPromptSubtitle}>
+                  Showing providers and items available in {currentCity}
+                </Text>
               </View>
-            }
-          />
-        </>
+
+              {/* POPULAR SEARCHES */}
+              <View style={styles.popularSearchesBlock}>
+                <Text style={styles.popularSearchesHeading}>POPULAR SEARCHES</Text>
+                <View style={styles.popularChipsWrap}>
+                  {POPULAR_SEARCHES.map((chip, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      style={styles.popularChip}
+                      activeOpacity={0.75}
+                      onPress={() => {
+                        setQuery(chip);
+                        searchInputRef.current?.focus();
+                      }}
+                    >
+                      <Ionicons name="trending-up-outline" size={13} color="#007D69" />
+                      <Text style={styles.popularChipText}>{chip}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* 2. NO RESULTS FOUND */}
+          {query.trim() && !isSearching && mobileSearchResults.length === 0 && (
+            <View style={styles.noResultsCard}>
+              <View style={styles.noResultsIconCircle}>
+                <Ionicons name="search-outline" size={30} color="#94A3B8" />
+              </View>
+              <Text style={styles.noResultsTitle}>No results found</Text>
+              <Text style={styles.noResultsSubtitle}>
+                Try searching for a doctor, test, medicine or service.
+              </Text>
+              <TouchableOpacity
+                style={styles.clearSearchPromptBtn}
+                onPress={() => {
+                  setQuery('');
+                  searchInputRef.current?.focus();
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.clearSearchPromptText}>Clear Search</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* 3. MATCHING SEARCH RESULTS */}
+          {query.trim() && mobileSearchResults.length > 0 && (
+            <View style={styles.resultsListBlock}>
+              {/* Category Filter Chips (Only show categories that actually have matching results) */}
+              {matchingCategories.length > 2 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.categoryChipsScroll}
+                >
+                  {matchingCategories.map((catItem) => {
+                    const isSelected = selectedCategory === catItem.name;
+                    return (
+                      <TouchableOpacity
+                        key={catItem.name}
+                        style={[
+                          styles.categoryFilterChip,
+                          isSelected && styles.categoryFilterChipActive,
+                        ]}
+                        activeOpacity={0.75}
+                        onPress={() => setSelectedCategory(catItem.name)}
+                      >
+                        <Text
+                          style={[
+                            styles.categoryFilterChipText,
+                            isSelected && styles.categoryFilterChipTextActive,
+                          ]}
+                        >
+                          {catItem.name} ({catItem.count})
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
+
+              {/* Result Items */}
+              <View style={styles.resultCardsWrapper}>
+                {displayedSearchResults.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.searchResultRow}
+                    activeOpacity={0.7}
+                    onPress={item.onPress}
+                  >
+                    <View style={[styles.resultIconBox, { backgroundColor: item.iconBg }]}>
+                      {item.iconType === 'material' ? (
+                        <MaterialCommunityIcons name={item.icon} size={20} color={item.iconColor} />
+                      ) : (
+                        <Ionicons name={item.icon} size={20} color={item.iconColor} />
+                      )}
+                    </View>
+
+                    <View style={styles.resultInfoCol}>
+                      <Text style={styles.resultItemName} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      <Text style={styles.resultItemSubtitle} numberOfLines={1}>
+                        {item.subtitle}
+                      </Text>
+                    </View>
+
+                    <View style={styles.resultRightCol}>
+                      {item.badge ? (
+                        <View style={styles.resultPriceBadge}>
+                          <Text style={styles.resultPriceBadgeText}>{item.badge}</Text>
+                        </View>
+                      ) : (
+                        <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          <View style={{ height: 110 }} />
+        </ScrollView>
       )}
     </SafeAreaView>
   );
@@ -650,132 +1072,322 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  header: {
-    height: 65,
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
+
+  // MOBILE SEARCH INPUT BAR
+  searchBarWrapper: {
     paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 6,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
-  backButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerCenter: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#1E293B',
-  },
-  headerSubtitle: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  clearHeaderBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  clearHeaderText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-
-  // SEARCH INPUT
-  searchBarWrap: {
+  searchBarBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
-    borderWidth: 1.5,
+    borderRadius: 22,
+    borderWidth: 1,
     borderColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    height: 48,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 3,
-    elevation: 2,
+    elevation: 1,
+    gap: 8,
+  },
+  searchBarBoxActive: {
+    borderColor: '#007D69',
+    borderWidth: 1.5,
+    shadowColor: '#007D69',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 10,
     fontSize: 13.5,
-    color: '#1E293B',
+    color: '#0F172A',
+    fontWeight: '600',
+    paddingVertical: 0,
+    height: '100%',
+  },
+  searchBackIconBtn: {
+    padding: 4,
+    marginRight: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchClearBtn: {
+    padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchMicBtn: {
+    padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
-  // CATEGORY PILLS
-  categoryPillsContainer: {
-    marginTop: 10,
-    marginBottom: 4,
+  // MOBILE SCROLL & SEARCH RESULTS
+  mobileScroll: {
+    flex: 1,
   },
-  categoryPillsRow: {
+  mobileScrollContent: {
     paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  searchLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  searchLoadingText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+
+  // SMART EMPTY STATE
+  emptySearchWrapper: {
+    marginTop: 8,
+  },
+  emptySearchPromptCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  emptySearchIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#E6F8F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emptySearchPromptTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+  emptySearchPromptSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  popularSearchesBlock: {
+    marginTop: 22,
+  },
+  popularSearchesHeading: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 0.8,
+    marginBottom: 10,
+    marginLeft: 2,
+  },
+  popularChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
-  categoryPill: {
+  popularChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  categoryPillActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  categoryPillText: {
-    fontSize: 11.5,
+  popularChipText: {
+    fontSize: 12,
     fontWeight: '700',
-    color: '#64748B',
-  },
-  categoryPillTextActive: {
-    color: '#FFFFFF',
-  },
-
-  // RESULT HEADER
-  resultHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  resultTitle: {
-    fontSize: 13,
-    fontWeight: '800',
     color: '#334155',
   },
-  resultCountBadge: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
-    backgroundColor: colors.lightTeal,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
+
+  // NO RESULTS CARD
+  noResultsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 26,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginTop: 10,
+  },
+  noResultsIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  noResultsTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  noResultsSubtitle: {
+    fontSize: 12.5,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 5,
+    lineHeight: 18,
+    maxWidth: 240,
+  },
+  clearSearchPromptBtn: {
+    marginTop: 14,
+    backgroundColor: '#E6F8F5',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  clearSearchPromptText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#007D69',
   },
 
-  // LIST & CARD
-  list: {
-    paddingHorizontal: 16,
-    paddingBottom: 30,
-    gap: 10,
+  // RESULTS LIST & FILTER CHIPS
+  resultsListBlock: {
+    marginTop: 6,
   },
+  categoryChipsScroll: {
+    paddingVertical: 8,
+    gap: 8,
+    marginBottom: 8,
+  },
+  categoryFilterChip: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  categoryFilterChipActive: {
+    backgroundColor: '#007D69',
+    borderColor: '#007D69',
+  },
+  categoryFilterChipText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  categoryFilterChipTextActive: {
+    color: '#FFFFFF',
+  },
+  resultCardsWrapper: {
+    gap: 8,
+  },
+  searchResultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  resultIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resultInfoCol: {
+    flex: 1,
+  },
+  resultItemName: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  resultItemSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  resultRightCol: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  resultPriceBadge: {
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+  },
+  resultPriceBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#007D69',
+  },
+
+  // TOAST NOTIFICATION
+  toastCard: {
+    position: 'absolute',
+    top: 60,
+    alignSelf: 'center',
+    backgroundColor: '#1E293B',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+    zIndex: 9999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  // ============================================================
+  // DESKTOP WEB STYLES
+  // ============================================================
   card: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
@@ -854,8 +1466,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.primary,
   },
-
-  // EMPTY STATE
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -895,8 +1505,6 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontWeight: '700',
   },
-
-  // DESKTOP WEB SPECIFIC STYLES
   webContainer: {
     backgroundColor: '#F1F2F4',
   },
@@ -925,27 +1533,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 3,
   },
-  webBreadcrumbRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
-  },
-  webBreadcrumbLink: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#0071DC',
-  },
-  webBreadcrumbCurrent: {
-    fontSize: 12.5,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  webBreadcrumbQuery: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
   webTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -965,7 +1552,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   webResultCountBadge: {
-    backgroundColor: '#EDF4FF',
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
@@ -985,6 +1571,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  categoryPill: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  categoryPillActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  categoryPillText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  categoryPillTextActive: {
+    color: '#FFFFFF',
   },
   webGrid: {
     flexDirection: 'row',

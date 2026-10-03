@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,44 +9,410 @@ import {
   Modal,
   Platform,
   StatusBar,
-  Alert,
   useWindowDimensions,
+  ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { saveTransaction } from '../../../services/transactionService';
 import colors from '../../../theme/colors';
 import {
   LAB_CATEGORIES,
   LAB_TESTS_MASTER,
-  LAB_PACKAGES,
-  DIAGNOSTIC_CENTRES,
+  DIAGNOSTIC_CENTRES as BASE_DIAGNOSTIC_CENTRES,
+  ALL_CITY_DIAGNOSTIC_CENTRES,
+  getCentresByCity,
   getAvailableDates,
   TIME_SLOTS,
-  INITIAL_SAVED_ADDRESSES,
   INITIAL_LAB_BOOKINGS,
   INITIAL_LAB_REPORTS,
+  getGoogleMapsDirectionsUrl,
 } from '../../../data/labTestData';
-import { getSlotStatus, validateAndBookSlot, subscribeToSlotChanges } from '../../../services/slotBookingService';
+import {
+  NOVUS_POPULAR_PACKAGES,
+} from '../../../data/novusPackagesData';
+import {
+  getSlotStatus,
+  validateAndBookSlot,
+  subscribeToSlotChanges,
+} from '../../../services/slotBookingService';
 import LabTestsScreenWeb from './LabTestsScreen.web';
 import { showAlert } from '../../../utils/alert';
 import { useCart } from '../../../context/CartContext';
+import { useAuthGuard } from '../../../context/AuthGuardContext';
+
+// Helper to normalize city names
+const normalizeCity = (cityStr) => {
+  if (!cityStr) return '';
+  const s = cityStr.toLowerCase().trim();
+  if (s.includes('mysur') || s.includes('myso')) return 'Mysuru';
+  if (s.includes('bengalur') || s.includes('bangal')) return 'Bengaluru';
+  if (s.includes('hassan')) return 'Hassan';
+  if (s.includes('mandya')) return 'Mandya';
+  if (s.includes('mangal') || s.includes('mangalore')) return 'Mangaluru';
+  if (s.includes('hubli') || s.includes('hubballi')) return 'Hubballi';
+  if (s.includes('belgaum') || s.includes('belagavi')) return 'Belagavi';
+  if (s.includes('tumkur') || s.includes('tumakuru')) return 'Tumakuru';
+  return cityStr.trim();
+};
+
+const QUICK_TAGS = [
+  'Complete Blood Count',
+  'Diabetes HbA1c',
+  'Full Body Checkup',
+];
+
+// =============================================================================
+// MOBILE LAB TEST CATEGORIES (INCLUDES "POPULAR" CATEGORY)
+// =============================================================================
+const MOST_POPULAR_CATEGORY = {
+  id: 'most-popular',
+  name: 'Popular',
+  icon: 'flame-outline',
+  badge: 'Trending',
+  description: 'Most frequently booked routine health checkups, blood tests, and vital panels',
+  subCategories: [
+    { id: 'pop-routine', name: 'Routine Checks' },
+    { id: 'pop-vital', name: 'Vital Organs' },
+    { id: 'pop-diabetes-heart', name: 'Diabetes & Heart' },
+  ],
+};
+
+const MOBILE_LAB_CATEGORIES = [
+  MOST_POPULAR_CATEGORY,
+  ...LAB_CATEGORIES.map((cat) => ({
+    ...cat,
+    icon: (!cat.icon || cat.icon === 'heart-pulse-outline') ? 'pulse-outline' : cat.icon,
+  })),
+];
+
+const POPULAR_CLINICAL_TEST_IDS = [
+  'test-cbc',
+  'test-hba1c',
+  'test-fbs',
+  'test-lipid',
+  'test-thyroid',
+  'test-vitamind',
+  'test-vitaminb12',
+  'test-lft',
+  'test-kft',
+  'test-ferritin',
+];
 
 const LabTestsScreen = (props) => {
-  // Delegate to web version on web platform
+  // 1. Strict Web delegation (Preserves Web Application completely)
   if (Platform.OS === 'web') {
     return <LabTestsScreenWeb {...props} />;
   }
 
   const { navigation, route } = props;
   const { width } = useWindowDimensions();
+  const isTablet = width >= 600;
+  const scrollViewRef = useRef(null);
+  const { requireLogin } = useAuthGuard();
 
-  // Cart integration
-  const { labCart = [], addToCart, removeFromCart, labCartCount = 0, labFinalTotal = 0 } = useCart();
+  // Cart Context
+  const { labCart = [], addToCart, removeFromCart, labCartCount = 0 } = useCart();
+  const isItemInCart = (id) => labCart?.some((item) => item.id === id);
 
-  const isTestInCart = (id) => labCart?.some((item) => item.id === id);
+  // ===========================================================================
+  // 2. LOCATION AS SINGLE SOURCE OF TRUTH (READ ONLY FROM HOME SCREEN)
+  // ===========================================================================
+  const [currentCity, setCurrentCity] = useState('');
+  const [hasResolvedLocation, setHasResolvedLocation] = useState(false);
 
+  const syncHomeScreenLocation = useCallback(async () => {
+    try {
+      const savedCity = await AsyncStorage.getItem('@mediunify_selected_city');
+      const savedLoc = await AsyncStorage.getItem('@unnathi_user_location');
+      const raw = savedCity || savedLoc || route?.params?.city || '';
+      const normalized = normalizeCity(raw);
+      if (normalized) {
+        setCurrentCity(normalized);
+      } else {
+        // No location found on Home Screen
+        setCurrentCity('');
+      }
+    } catch (e) {
+      setCurrentCity('');
+    } finally {
+      setHasResolvedLocation(true);
+    }
+  }, [route?.params?.city]);
+
+  // Synchronize on mount and whenever screen gains focus
+  useEffect(() => {
+    syncHomeScreenLocation();
+    const unsub = navigation.addListener('focus', () => {
+      syncHomeScreenLocation();
+    });
+    return unsub;
+  }, [navigation, syncHomeScreenLocation]);
+
+  // City-specific diagnostic centres (STRICT LOCATION FILTERING)
+  const cityDiagnosticCentres = useMemo(() => {
+    if (!currentCity) return [];
+    return ALL_CITY_DIAGNOSTIC_CENTRES.filter(
+      (c) => c.city.toLowerCase() === currentCity.toLowerCase()
+    );
+  }, [currentCity]);
+
+  // Top Tabs: 'BROWSE' | 'BOOKINGS' | 'REPORTS'
+  const [activeTab, setActiveTab] = useState(route?.params?.initialTab || 'BROWSE');
+
+  // Sub-view in Browse: 'ALL' | 'PACKAGES' | 'TESTS'
+  const [browseSubView, setBrowseSubView] = useState('ALL');
+
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState(route?.params?.query || route?.params?.search || '');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedSubCategory, setSelectedSubCategory] = useState('all');
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [sortModalVisible, setSortModalVisible] = useState(false);
+  const [selectedGenderFilter, setSelectedGenderFilter] = useState('ALL');
+  const [selectedSampleFilter, setSelectedSampleFilter] = useState('ALL');
+  const [selectedCollectionFilter, setSelectedCollectionFilter] = useState('ALL');
+  const [selectedPriceFilter, setSelectedPriceFilter] = useState('ALL');
+  const [selectedSort, setSelectedSort] = useState('RECOMMENDED'); // 'RECOMMENDED' | 'PRICE_LOW_HIGH' | 'PRICE_HIGH_LOW' | 'MOST_TESTS'
+  const [selectedInclusions, setSelectedInclusions] = useState([]); // ['VITAMINS', 'ECG_IMAGING', 'ECHO', 'IRON', 'HBA1C']
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedCategory !== 'all') count++;
+    if (selectedSubCategory !== 'all') count++;
+    if (selectedGenderFilter !== 'ALL') count++;
+    if (selectedSampleFilter !== 'ALL') count++;
+    if (selectedCollectionFilter !== 'ALL') count++;
+    if (selectedPriceFilter !== 'ALL') count++;
+    if (selectedInclusions.length > 0) count += selectedInclusions.length;
+    return count;
+  }, [selectedCategory, selectedSubCategory, selectedGenderFilter, selectedSampleFilter, selectedCollectionFilter, selectedPriceFilter, selectedInclusions]);
+
+  const resetAllFilters = () => {
+    setSelectedCategory('all');
+    setSelectedSubCategory('all');
+    setSelectedGenderFilter('ALL');
+    setSelectedSampleFilter('ALL');
+    setSelectedCollectionFilter('ALL');
+    setSelectedPriceFilter('ALL');
+    setSelectedInclusions([]);
+    setSelectedSort('RECOMMENDED');
+  };
+
+  const getSortLabel = (id) => {
+    switch (id) {
+      case 'PRICE_LOW_HIGH': return 'Price: Low to High';
+      case 'PRICE_HIGH_LOW': return 'Price: High to Low';
+      case 'MOST_TESTS': return 'Most Tests';
+      default: return 'Recommended';
+    }
+  };
+
+  // Toggle inclusion for packages
+  const toggleInclusion = (id) => {
+    setSelectedInclusions((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  // Active Category Object
+  const activeCategoryObj = useMemo(() => {
+    return MOBILE_LAB_CATEGORIES.find((c) => c.id === selectedCategory);
+  }, [selectedCategory]);
+
+  // ===========================================================================
+  // 3. PACKAGES & TESTS DATA FILTERING
+  // ===========================================================================
+  const filteredPackages = useMemo(() => {
+    if (!cityDiagnosticCentres || cityDiagnosticCentres.length === 0) return [];
+
+    let list = NOVUS_POPULAR_PACKAGES.filter((pkg) => {
+      // Category filter
+      if (selectedCategory !== 'all') {
+        if (selectedCategory === 'most-popular') {
+          const isPop =
+            pkg.isMostPopularBooked ||
+            pkg.badge?.toLowerCase().includes('popular') ||
+            ['POP-FB-01', 'POP-EXE-01', 'POP-DIA-01', 'POP-HRT-01'].includes(pkg.id);
+          if (!isPop) return false;
+        } else if (pkg.categoryId !== selectedCategory) {
+          return false;
+        }
+      }
+
+      // Price filter
+      if (selectedPriceFilter === 'UNDER_1000' && pkg.price >= 1000) return false;
+      if (selectedPriceFilter === '1000_2000' && (pkg.price < 1000 || pkg.price > 2000)) return false;
+      if (selectedPriceFilter === 'ABOVE_2000' && pkg.price <= 2000) return false;
+
+      // Key Inclusions
+      if (selectedInclusions.includes('VITAMINS')) {
+        const hasVit = pkg.tests.some(
+          (t) => t.name.toLowerCase().includes('vitamin') || t.parameters.toLowerCase().includes('vitamin')
+        );
+        if (!hasVit) return false;
+      }
+      if (selectedInclusions.includes('ECG_IMAGING')) {
+        const hasEcg = pkg.tests.some(
+          (t) => t.name.toLowerCase().includes('ecg') || t.name.toLowerCase().includes('ultrasound')
+        );
+        if (!hasEcg) return false;
+      }
+      if (selectedInclusions.includes('ECHO')) {
+        const hasEcho = pkg.tests.some((t) => t.name.toLowerCase().includes('echo'));
+        if (!hasEcho) return false;
+      }
+      if (selectedInclusions.includes('IRON')) {
+        const hasIron = pkg.tests.some(
+          (t) => t.name.toLowerCase().includes('iron') || t.name.toLowerCase().includes('ferritin')
+        );
+        if (!hasIron) return false;
+      }
+      if (selectedInclusions.includes('HBA1C')) {
+        const hasHba1c = pkg.tests.some((t) => t.name.toLowerCase().includes('hba1c'));
+        if (!hasHba1c) return false;
+      }
+
+      // Collection filter
+      if (selectedCollectionFilter === 'HOME' && pkg.homeCollectionAvailable === false) return false;
+
+      // Search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchesName = pkg.name.toLowerCase().includes(q);
+        const matchesCode = pkg.code.toLowerCase().includes(q);
+        const matchesCategory = pkg.category.toLowerCase().includes(q);
+        const matchesTests = pkg.tests.some(
+          (t) =>
+            t.name.toLowerCase().includes(q) ||
+            t.parameters.toLowerCase().includes(q)
+        );
+        if (!matchesName && !matchesCode && !matchesCategory && !matchesTests) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    // Sorting
+    const sorted = [...list];
+    if (selectedSort === 'PRICE_LOW_HIGH') {
+      sorted.sort((a, b) => a.price - b.price);
+    } else if (selectedSort === 'PRICE_HIGH_LOW') {
+      sorted.sort((a, b) => b.price - a.price);
+    } else if (selectedSort === 'MOST_TESTS') {
+      sorted.sort((a, b) => b.testsCount - a.testsCount);
+    }
+    return sorted;
+  }, [
+    cityDiagnosticCentres,
+    selectedCategory,
+    selectedPriceFilter,
+    selectedInclusions,
+    selectedCollectionFilter,
+    searchQuery,
+    selectedSort,
+  ]);
+
+  const filteredTests = useMemo(() => {
+    if (!cityDiagnosticCentres || cityDiagnosticCentres.length === 0) return [];
+
+    let list = LAB_TESTS_MASTER.filter((test) => {
+      // Category filter
+      if (selectedCategory !== 'all') {
+        if (selectedCategory === 'most-popular') {
+          const isPop =
+            test.popular === true ||
+            test.isPopular === true ||
+            POPULAR_CLINICAL_TEST_IDS.includes(test.id);
+          if (!isPop) return false;
+
+          // Subcategory filter under Most Popular Tests
+          if (selectedSubCategory !== 'all') {
+            if (
+              selectedSubCategory === 'pop-routine' &&
+              !['test-cbc', 'test-lft', 'test-kft', 'test-ferritin'].includes(test.id)
+            ) {
+              return false;
+            }
+            if (
+              selectedSubCategory === 'pop-vital' &&
+              !['test-thyroid', 'test-vitamind', 'test-vitaminb12', 'test-lft', 'test-kft'].includes(test.id)
+            ) {
+              return false;
+            }
+            if (
+              selectedSubCategory === 'pop-diabetes-heart' &&
+              !['test-hba1c', 'test-fbs', 'test-lipid'].includes(test.id)
+            ) {
+              return false;
+            }
+          }
+        } else if (test.category !== selectedCategory) {
+          return false;
+        } else if (selectedSubCategory !== 'all' && test.subCategory !== selectedSubCategory) {
+          return false;
+        }
+      }
+
+      if (selectedGenderFilter !== 'ALL' && test.genderApplicability !== 'All') {
+        if (selectedGenderFilter === 'MALE' && test.genderApplicability !== 'Male') return false;
+        if (selectedGenderFilter === 'FEMALE' && test.genderApplicability !== 'Female') return false;
+      }
+
+      if (selectedSampleFilter !== 'ALL' && test.sampleType !== selectedSampleFilter) return false;
+      if (selectedCollectionFilter === 'HOME' && !test.homeCollection) return false;
+      if (selectedCollectionFilter === 'CENTRE' && !test.centreCollection) return false;
+
+      if (selectedPriceFilter === 'UNDER_1000' && test.price >= 1000) return false;
+      if (selectedPriceFilter === '1000_2000' && (test.price < 1000 || test.price > 2000)) return false;
+      if (selectedPriceFilter === 'ABOVE_2000' && test.price <= 2000) return false;
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchesName = test.name.toLowerCase().includes(q);
+        const matchesDesc = test.description.toLowerCase().includes(q);
+        const matchesKeywords = test.keywords?.some((k) => k.toLowerCase().includes(q));
+        const matchesSynonyms = test.synonyms?.some((s) => s.toLowerCase().includes(q));
+        const matchesConsumer = test.consumerTerms?.some((c) => c.toLowerCase().includes(q));
+
+        if (!matchesName && !matchesDesc && !matchesKeywords && !matchesSynonyms && !matchesConsumer) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    const sorted = [...list];
+    if (selectedSort === 'PRICE_LOW_HIGH') {
+      sorted.sort((a, b) => a.price - b.price);
+    } else if (selectedSort === 'PRICE_HIGH_LOW') {
+      sorted.sort((a, b) => b.price - a.price);
+    }
+    return sorted;
+  }, [
+    cityDiagnosticCentres,
+    searchQuery,
+    selectedCategory,
+    selectedSubCategory,
+    selectedGenderFilter,
+    selectedSampleFilter,
+    selectedCollectionFilter,
+    selectedPriceFilter,
+    selectedSort,
+  ]);
+
+  // Details Modal States
+  const [selectedTest, setSelectedTest] = useState(null);
+  const [selectedPackage, setSelectedPackage] = useState(null);
+  const [expandedTestIdx, setExpandedTestIdx] = useState(null);
+
+  // Cart Handler for Tests
   const handleToggleCartTest = (test) => {
-    if (isTestInCart(test.id)) {
+    if (isItemInCart(test.id)) {
       removeFromCart(test.id, 'lab');
       showAlert('Removed from Cart', `${test.name} removed from your diagnostic cart.`);
     } else {
@@ -57,19 +423,20 @@ const LabTestsScreen = (props) => {
         itemType: 'lab',
         price: test.price,
         mrp: test.mrp || Math.round(test.price * 1.25),
-        centerName: 'Unnathi Certified Clinical Labs',
+        centerName: cityDiagnosticCentres[0]?.name || `${currentCity} Partner Laboratory`,
         reportTime: test.reportTAT || 'Within 24 Hours',
         sampleType: test.sampleType || 'Blood Sample',
         homeSample: Boolean(test.homeCollection),
-        fastingRequired: test.fastingRequired,
+        fastingRequired: test.fastingRequirement,
       };
       addToCart(cartItem, 1, 'lab');
       showAlert('Added to Cart', `${test.name} has been added to your cart.`);
     }
   };
 
+  // Cart Handler for Packages
   const handleToggleCartPackage = (pkg) => {
-    if (isTestInCart(pkg.id)) {
+    if (isItemInCart(pkg.id)) {
       removeFromCart(pkg.id, 'lab');
       showAlert('Removed from Cart', `${pkg.name} removed from your diagnostic cart.`);
     } else {
@@ -80,9 +447,9 @@ const LabTestsScreen = (props) => {
         itemType: 'lab',
         price: pkg.price,
         mrp: pkg.mrp || Math.round(pkg.price * 1.3),
-        centerName: 'Unnathi Comprehensive Care Lab',
-        reportTime: 'Within 24-48 Hours',
-        sampleType: `${pkg.includedCount || 'Multiple'} Tests Included`,
+        centerName: cityDiagnosticCentres[0]?.name || `${currentCity} Health Care Lab`,
+        reportTime: pkg.tatSummary || 'Within 24-48 Hours',
+        sampleType: `${pkg.testsCount || 'Multiple'} Tests Included`,
         homeSample: true,
         isPackage: true,
       };
@@ -91,105 +458,336 @@ const LabTestsScreen = (props) => {
     }
   };
 
-  // Root Tabs: 'BROWSE' | 'BOOKINGS' | 'REPORTS'
-  const [activeTab, setActiveTab] = useState(route?.params?.initialTab || 'BROWSE');
-
-  // Search & Filter States
-  const [searchQuery, setSearchQuery] = useState(route?.params?.query || route?.params?.search || '');
-  const [selectedCategory, setSelectedCategory] = useState('all'); // 'all' or category ID
-  const [selectedSubCategory, setSelectedSubCategory] = useState('all'); // 'all' or subcategory ID
-  const [selectedGenderFilter, setSelectedGenderFilter] = useState('ALL'); // 'ALL' | 'MALE' | 'FEMALE'
-  const [selectedSampleFilter, setSelectedSampleFilter] = useState('ALL'); // 'ALL' | 'Blood' | 'Urine' | 'Stool' | 'Swab'
-  const [selectedCollectionFilter, setSelectedCollectionFilter] = useState('ALL'); // 'ALL' | 'HOME' | 'CENTRE'
-
-  // Modal Views State
-  const [selectedTest, setSelectedTest] = useState(null);
-  const [selectedPackage, setSelectedPackage] = useState(null);
-
-  // Booking Flow State
-  const [bookingFlowStep, setBookingFlowStep] = useState(1); // 1: Method, 2: Slot/Address, 3: Summary, 4: Payment, 5: Confirmed
-  const [activeBookingTest, setActiveBookingTest] = useState(null);
-  const [collectionMethod, setCollectionMethod] = useState('HOME'); // 'HOME' | 'CENTRE'
-  const [selectedCentreId, setSelectedCentreId] = useState('centre-unnathi-main');
+  // ===========================================================================
+  // 4. BOOKING JOURNEY (5 STEPS - SOURCE OF TRUTH)
+  // ===========================================================================
+  const [activeBookingItem, setActiveBookingItem] = useState(null);
+  const [bookingFlowStep, setBookingFlowStep] = useState(1);
+  const [collectionMethod, setCollectionMethod] = useState('HOME');
+  const [selectedCentreId, setSelectedCentreId] = useState('');
   const [selectedDate, setSelectedDate] = useState(getAvailableDates()[0].dateStr);
   const [selectedSlotId, setSelectedSlotId] = useState('slot-2');
-  const [paymentMethod, setPaymentMethod] = useState('UPI'); // 'UPI' | 'CARD' | 'NET_BANKING' | 'WALLET'
+  const [paymentMethod, setPaymentMethod] = useState('UPI');
   const [confirmedBookingData, setConfirmedBookingData] = useState(null);
+  const [slotTick, setSlotTick] = useState(0);
 
-  // Manual Home Collection Address Form
-  const [homeAddressName, setHomeAddressName] = useState('');
-  const [homeAddressPhone, setHomeAddressPhone] = useState('');
-  const [homeAddressFlat, setHomeAddressFlat] = useState('');
-  const [homeAddressCity, setHomeAddressCity] = useState('');
-  const [homeAddressPincode, setHomeAddressPincode] = useState('');
-  const [homeAddressLandmark, setHomeAddressLandmark] = useState('');
+  // Address fields for Home Sample Collection
+  const [homeAddressName, setHomeAddressName] = useState('Hemanth Gowda');
+  const [homeAddressPhone, setHomeAddressPhone] = useState('9741422544');
+  const [homeAddressFlat, setHomeAddressFlat] = useState('Flat 402, Green Meadows');
+  const [homeAddressPincode, setHomeAddressPincode] = useState('570023');
+  const [homeAddressLandmark, setHomeAddressLandmark] = useState('Near Complex Circle');
 
-  // Bookings & Reports State
+  // Patient Profiles (Self + Family)
+  const [patientProfiles, setPatientProfiles] = useState([
+    { id: 'p-self', name: 'Hemanth Gowda', relation: 'Self', age: 28, gender: 'Male', phone: '9741422544' },
+  ]);
+  const [selectedPatientId, setSelectedPatientId] = useState('p-self');
+
+  // Load patient profiles and family members
+  useEffect(() => {
+    (async () => {
+      try {
+        const storedName = await AsyncStorage.getItem('userName');
+        const storedPhone = await AsyncStorage.getItem('userPhone');
+        const storedPrimary = await AsyncStorage.getItem('@unnathi_primary_user');
+        let effectiveName = storedName || 'Hemanth Gowda';
+        let effectivePhone = storedPhone || '9741422544';
+
+        if (storedPrimary) {
+          try {
+            const p = JSON.parse(storedPrimary);
+            if (p?.name) effectiveName = p.name.replace(/\s*\(Self\)$/i, '').trim();
+            if (p?.phone) effectivePhone = p.phone.trim();
+          } catch (e) {}
+        }
+
+        const selfProfile = {
+          id: 'p-self',
+          name: effectiveName,
+          relation: 'Self',
+          age: 28,
+          gender: 'Male',
+          phone: effectivePhone,
+        };
+
+        const storedFam = await AsyncStorage.getItem('@unnathi_family_members');
+        let familyList = [];
+        if (storedFam) {
+          try {
+            const parsed = JSON.parse(storedFam);
+            if (Array.isArray(parsed)) {
+              familyList = parsed
+                .filter((m) => m && m.relation !== 'Self' && !m.isPrimary)
+                .map((m, idx) => ({
+                  id: m.id || `p-fam-${idx + 1}`,
+                  name: m.name || m.displayName || 'Family Member',
+                  relation: m.relation || 'Family',
+                  age: m.age || 32,
+                  gender: m.gender || 'Not specified',
+                  phone: m.phone || effectivePhone,
+                }));
+            }
+          } catch (e) {}
+        }
+
+        setPatientProfiles([selfProfile, ...familyList]);
+        setHomeAddressName(effectiveName);
+        setHomeAddressPhone(effectivePhone);
+      } catch (e) {}
+    })();
+  }, []);
+
+  // Update default selected centre when city changes
+  useEffect(() => {
+    if (cityDiagnosticCentres.length > 0) {
+      setSelectedCentreId(cityDiagnosticCentres[0].id);
+    }
+  }, [cityDiagnosticCentres]);
+
+  // Subscribe to real-time slot bookings
+  useEffect(() => {
+    const unsub = subscribeToSlotChanges(() => {
+      setSlotTick((prev) => prev + 1);
+    });
+    return unsub;
+  }, []);
+
+  // Ensure selected slot is available
+  useEffect(() => {
+    const providerId = collectionMethod === 'HOME' ? 'home-collection' : selectedCentreId;
+    const currentSlot = TIME_SLOTS.find((s) => s.id === selectedSlotId);
+    const status = getSlotStatus({
+      date: selectedDate,
+      time: currentSlot?.label || '',
+      serviceType: 'lab',
+      providerId,
+    });
+    if (!status.available) {
+      const firstAvail = TIME_SLOTS.find(
+        (s) =>
+          getSlotStatus({
+            date: selectedDate,
+            time: s.label,
+            serviceType: 'lab',
+            providerId,
+          }).available
+      );
+      if (firstAvail) {
+        setSelectedSlotId(firstAvail.id);
+      }
+    }
+  }, [selectedDate, collectionMethod, selectedCentreId, slotTick, selectedSlotId]);
+
+  // Start booking flow for a test or package
+  const startBooking = (item, preferredMethod = null) => {
+    requireLogin(() => {
+      const isPkg = Boolean(item.tests || item.code || item.isPackage);
+      const bookingItem = {
+        ...item,
+        id: item.id || item.code,
+        name: item.name,
+        code: item.code,
+        isPackage: isPkg,
+        testsCount: item.testsCount || (item.tests ? item.tests.length : 1),
+        price: item.price,
+        mrp: item.mrp || Math.round(item.price * 1.5),
+        homeCollection: item.homeCollectionAvailable !== false && item.homeCollection !== false,
+        centreCollection: true,
+        preparation: item.preparationSummary || item.preparation || 'No special fasting required',
+      };
+      setActiveBookingItem(bookingItem);
+      const freshDates = getAvailableDates();
+      if (!freshDates.some((d) => d.dateStr === selectedDate)) {
+        setSelectedDate(freshDates[0].dateStr);
+      }
+      if (preferredMethod) {
+        setCollectionMethod(preferredMethod);
+      } else if (bookingItem.homeCollection) {
+        setCollectionMethod('HOME');
+      } else {
+        setCollectionMethod('CENTRE');
+      }
+      setBookingFlowStep(1);
+    });
+  };
+
+  // Simulate payment & save booking
+  const handleSimulatePayment = async () => {
+    const isHome = collectionMethod === 'HOME';
+    if (
+      isHome &&
+      (!homeAddressName.trim() ||
+        !homeAddressPhone.trim() ||
+        !homeAddressFlat.trim() ||
+        !homeAddressPincode.trim())
+    ) {
+      showAlert('Incomplete Address', 'Please fill in patient name, phone, address, and pincode.');
+      return;
+    }
+
+    const testPrice = activeBookingItem.price;
+    const collectionFee = isHome ? 100 : 0;
+    const total = testPrice + collectionFee;
+    const selectedCentre = cityDiagnosticCentres.find((c) => c.id === selectedCentreId) || cityDiagnosticCentres[0];
+    const selectedSlot = TIME_SLOTS.find((s) => s.id === selectedSlotId);
+    const selectedPat = patientProfiles.find((p) => p.id === selectedPatientId) || patientProfiles[0];
+
+    // Real-Time Atomic Slot Validation
+    const slotValidation = await validateAndBookSlot({
+      date: selectedDate,
+      time: selectedSlot?.label || '8:30 AM – 9:30 AM',
+      serviceType: 'lab',
+      providerId: isHome ? 'home-collection' : selectedCentreId,
+      slotId: selectedSlotId,
+      patientName: homeAddressName.trim() || selectedPat.name,
+    });
+
+    if (!slotValidation.success) {
+      showAlert('Slot Unavailable', 'This slot is no longer available. Please select another time.');
+      return;
+    }
+
+    const manualAddr = isHome
+      ? `${homeAddressFlat.trim()}, ${currentCity} - ${homeAddressPincode.trim()}${
+          homeAddressLandmark.trim() ? ` (Near ${homeAddressLandmark.trim()})` : ''
+        }`
+      : null;
+
+    const newBookingId = `LAB-2026-00${Math.floor(100 + Math.random() * 900)}`;
+
+    const newBooking = {
+      id: newBookingId,
+      testId: activeBookingItem.id,
+      testName: activeBookingItem.name,
+      city: currentCity,
+      collectionMethod: collectionMethod,
+      collectionAddress: manualAddr,
+      collectionContactName: homeAddressName.trim() || selectedPat.name,
+      collectionContactPhone: homeAddressPhone.trim() || selectedPat.phone,
+      diagnosticCentre: isHome ? null : { name: selectedCentre?.name, location: selectedCentre?.location, address: selectedCentre?.address },
+      bookingDate: selectedDate,
+      timeSlot: selectedSlot?.label || '8:30 AM – 9:30 AM',
+      amountPaid: total,
+      testPrice: testPrice,
+      collectionFee: collectionFee,
+      status: 'CONFIRMED',
+      trackingStage: 1,
+      patientName: `${selectedPat.name} (${selectedPat.relation})`,
+      phlebotomistName: isHome ? 'Muralidhar Rao (Certified Phlebotomist)' : null,
+      phlebotomistPhone: isHome ? '+91 98452 33110' : null,
+      reportReady: false,
+    };
+
+    setConfirmedBookingData(newBooking);
+    setBookingsList((prev) => [newBooking, ...prev]);
+    setBookingFlowStep(5);
+
+    try {
+      // 1. Save to @labBookings
+      for (const k of ['@labBookings', 'labBookings']) {
+        const existingRaw = await AsyncStorage.getItem(k);
+        const existingList = existingRaw ? JSON.parse(existingRaw) : [];
+        const nextList = [newBooking, ...(Array.isArray(existingList) ? existingList : [])];
+        await AsyncStorage.setItem(k, JSON.stringify(nextList));
+      }
+
+      // 2. Save for MyTests dashboard
+      const dashboardBooking = {
+        id: newBookingId,
+        bookingRef: newBookingId,
+        testName: newBooking.testName,
+        modality: 'Pathology & Blood',
+        modalityType: 'Blood Test',
+        testCategory: 'Pathology & Blood',
+        testType: isHome ? 'Home Sample Collection' : 'Centre Visit',
+        centerName: newBooking.diagnosticCentre?.name || `${currentCity} Clinical Diagnostic Centre`,
+        department: 'Automated Clinical Pathology',
+        location: isHome ? (manualAddr || currentCity) : (newBooking.diagnosticCentre?.location || currentCity),
+        address: isHome ? (manualAddr || currentCity) : (newBooking.diagnosticCentre?.address || currentCity),
+        appointmentDate: selectedDate,
+        timeSlot: selectedSlot?.label || '08:30 AM – 09:30 AM',
+        patientId: selectedPatientId || 'self',
+        patientName: `${selectedPat.name} (${selectedPat.relation})`,
+        age: selectedPat.age || 28,
+        gender: selectedPat.gender || 'Not specified',
+        status: 'Slot Confirmed',
+        badgeColor: '#00B894',
+        price: total,
+        paymentStatus: paymentMethod === 'WALLET' ? 'Pay on Collection' : 'Paid Online via ' + paymentMethod,
+        instructions: 'Fasting of 10-12 hours required prior to sample collection. Water is permitted.',
+        contactPhone: selectedCentre?.phone || '+91 821 245 9901',
+        canReschedule: true,
+        canCancel: true,
+      };
+
+      const existingBookedTestsRaw = await AsyncStorage.getItem('@mediunify_patient_booked_tests');
+      const existingBookedTests = existingBookedTestsRaw ? JSON.parse(existingBookedTestsRaw) : [];
+      await AsyncStorage.setItem(
+        '@mediunify_patient_booked_tests',
+        JSON.stringify([dashboardBooking, ...(Array.isArray(existingBookedTests) ? existingBookedTests : [])])
+      );
+
+      const existingApptsRaw = await AsyncStorage.getItem('@unnathi_appointments');
+      const existingAppts = existingApptsRaw ? JSON.parse(existingApptsRaw) : [];
+      await AsyncStorage.setItem(
+        '@unnathi_appointments',
+        JSON.stringify([dashboardBooking, ...(Array.isArray(existingAppts) ? existingAppts : [])])
+      );
+
+      // ── Save to Payment History ──────────────────────────────────
+      try {
+        await saveTransaction({
+          id:          `TXN-${newBookingId}`,
+          refId:       newBookingId,
+          service:     'Lab Test',
+          serviceType: 'lab',
+          title:       newBooking.testName || 'Lab Test',
+          facility:    newBooking.diagnosticCentre?.name || `${currentCity} Diagnostic Centre`,
+          rawDate:     new Date().toISOString(),
+          amount:      Number(newBooking.amountPaid || newBooking.testPrice || total || 0),
+          mrp:         Number(newBooking.testPrice || newBooking.amountPaid || total || 0),
+          status:      'Paid',
+          paymentMode: paymentMethod || 'Online UPI',
+          gstin:       '29AABCU9603R1ZX',
+          items:       [{ name: newBooking.testName || 'Lab Test', qty: 1, price: Number(newBooking.testPrice || total || 0) }],
+        });
+      } catch (_txErr) {}
+      // ────────────────────────────────────────────────────────────
+    } catch (saveErr) {
+      console.warn('Error saving lab booking to AsyncStorage:', saveErr);
+    }
+  };
+
+  // ===========================================================================
+  // 5. BOOKINGS & REPORTS STATE
+  // ===========================================================================
   const [bookingsList, setBookingsList] = useState(INITIAL_LAB_BOOKINGS);
-  const [bookingsFilter, setBookingsFilter] = useState('ALL'); // 'ALL' | 'UPCOMING' | 'COMPLETED' | 'CANCELLED'
+  const [bookingsFilter, setBookingsFilter] = useState('ALL');
   const [selectedTrackingBooking, setSelectedTrackingBooking] = useState(null);
 
   const [reportsList, setReportsList] = useState(INITIAL_LAB_REPORTS);
   const [selectedReport, setSelectedReport] = useState(null);
-  const [showDownloadToast, setShowDownloadToast] = useState(false);
 
-  // Scroll reference
-  const mainScrollRef = useRef(null);
-
-  // ---------------------------------------------------------------------------
-  // FILTERING LOGIC (Section 7: Search by name, keywords, synonyms, consumer terms)
-  // ---------------------------------------------------------------------------
-  const filteredTests = useMemo(() => {
-    return LAB_TESTS_MASTER.filter((test) => {
-      // Category filter
-      if (selectedCategory !== 'all' && test.category !== selectedCategory) {
-        return false;
-      }
-      // Sub-category filter
-      if (selectedSubCategory !== 'all' && test.subCategory !== selectedSubCategory) {
-        return false;
-      }
-      // Gender filter
-      if (selectedGenderFilter !== 'ALL' && test.genderApplicability !== 'All') {
-        if (selectedGenderFilter === 'MALE' && test.genderApplicability !== 'Male') return false;
-        if (selectedGenderFilter === 'FEMALE' && test.genderApplicability !== 'Female') return false;
-      }
-      // Sample filter
-      if (selectedSampleFilter !== 'ALL' && test.sampleType !== selectedSampleFilter) {
-        return false;
-      }
-      // Collection filter
-      if (selectedCollectionFilter === 'HOME' && !test.homeCollection) return false;
-      if (selectedCollectionFilter === 'CENTRE' && !test.centreCollection) return false;
-
-      // Multi-keyword and consumer terms search
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchesName = test.name.toLowerCase().includes(q);
-        const matchesDesc = test.description.toLowerCase().includes(q);
-        const matchesKeywords = test.keywords?.some((k) => k.toLowerCase().includes(q));
-        const matchesSynonyms = test.synonyms?.some((s) => s.toLowerCase().includes(q));
-        const matchesAlternate = test.alternateNames?.some((a) => a.toLowerCase().includes(q));
-        const matchesConsumer = test.consumerTerms?.some((c) => c.toLowerCase().includes(q));
-
-        if (!matchesName && !matchesDesc && !matchesKeywords && !matchesSynonyms && !matchesAlternate && !matchesConsumer) {
-          return false;
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem('@labBookings');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const map = new Map();
+            parsed.forEach((b) => { if (b && b.id) map.set(b.id, b); });
+            INITIAL_LAB_BOOKINGS.forEach((b) => { if (b && b.id && !map.has(b.id)) map.set(b.id, b); });
+            setBookingsList(Array.from(map.values()));
+          }
         }
-      }
-      return true;
-    });
-  }, [
-    searchQuery,
-    selectedCategory,
-    selectedSubCategory,
-    selectedGenderFilter,
-    selectedSampleFilter,
-    selectedCollectionFilter,
-  ]);
+      } catch (e) {}
+    })();
+  }, []);
 
-  // Filtered Bookings
   const filteredBookings = useMemo(() => {
-    if (bookingsFilter === 'UPCOMING') {
+    if (bookingsFilter === 'CONFIRMED') {
       return bookingsList.filter((b) => b.status === 'CONFIRMED' || b.status === 'PROCESSING');
     }
     if (bookingsFilter === 'COMPLETED') {
@@ -201,1755 +799,1622 @@ const LabTestsScreen = (props) => {
     return bookingsList;
   }, [bookingsList, bookingsFilter]);
 
-  // Selected Category Object
-  const activeCategoryObj = useMemo(() => {
-    return LAB_CATEGORIES.find((c) => c.id === selectedCategory);
-  }, [selectedCategory]);
-
-  // ---------------------------------------------------------------------------
-  // BOOKING HANDLERS
-  // ---------------------------------------------------------------------------
-  const startBooking = (test, preferredMethod = null) => {
-    setActiveBookingTest(test);
-    const freshDates = getAvailableDates();
-    if (!freshDates.some((d) => d.dateStr === selectedDate)) {
-      setSelectedDate(freshDates[0].dateStr);
-    }
-    // Determine default method based on test configuration
-    if (preferredMethod) {
-      setCollectionMethod(preferredMethod);
-    } else if (test.homeCollection) {
-      setCollectionMethod('HOME');
-    } else {
-      setCollectionMethod('CENTRE');
-    }
-    setBookingFlowStep(1);
-  };
-
-  const handleSimulatePayment = async () => {
-    const isHome = collectionMethod === 'HOME';
-    if (isHome && (!homeAddressName.trim() || !homeAddressPhone.trim() || !homeAddressFlat.trim() || !homeAddressCity.trim() || !homeAddressPincode.trim())) {
-      return;
-    }
-    const testPrice = activeBookingTest.price;
-    const collectionFee = isHome ? 100 : 0;
-    const total = testPrice + collectionFee;
-    const selectedCentre = DIAGNOSTIC_CENTRES.find((c) => c.id === selectedCentreId);
-    const selectedSlot = TIME_SLOTS.find((s) => s.id === selectedSlotId);
-
-    // Real-Time Atomic Slot Validation (Rules 2, 3, 6)
-    const slotValidation = await validateAndBookSlot({
-      date: selectedDate,
-      time: selectedSlot?.label || '8:30 AM – 9:30 AM',
-      serviceType: 'lab',
-      providerId: isHome ? 'home-collection' : selectedCentreId,
-      slotId: selectedSlotId,
-      patientName: homeAddressName.trim() || 'Patient',
-    });
-
-    if (!slotValidation.success) {
-      showAlert('Slot Unavailable', 'This slot is no longer available. Please select another time.');
-      return;
-    }
-
-    const manualAddr = isHome
-      ? `${homeAddressFlat.trim()}, ${homeAddressCity.trim()} - ${homeAddressPincode.trim()}${homeAddressLandmark.trim() ? ` (${homeAddressLandmark.trim()})` : ''}`
-      : null;
-
-    const newBookingId = `LAB-2026-00${Math.floor(100 + Math.random() * 900)}`;
-
-    const newBooking = {
-      id: newBookingId,
-      testId: activeBookingTest.id,
-      testName: activeBookingTest.name,
-      collectionMethod: collectionMethod,
-      collectionAddress: manualAddr,
-      collectionContactName: isHome ? homeAddressName.trim() : null,
-      collectionContactPhone: isHome ? homeAddressPhone.trim() : null,
-      diagnosticCentre: isHome ? null : { name: selectedCentre?.name, location: selectedCentre?.location },
-      bookingDate: selectedDate,
-      timeSlot: selectedSlot?.label || '8:30 AM – 9:30 AM',
-      amountPaid: total,
-      testPrice: testPrice,
-      collectionFee: collectionFee,
-      status: 'CONFIRMED',
-      trackingStage: 1,
-      patientName: homeAddressName.trim() || 'Patient',
-      phlebotomistName: isHome ? 'Muralidhar Rao (Senior Phlebotomist)' : null,
-      phlebotomistPhone: isHome ? '+91 98452 33110' : null,
-      reportReady: false,
-    };
-
-    setConfirmedBookingData(newBooking);
-    setBookingsList([newBooking, ...bookingsList]);
-    setBookingFlowStep(5);
-
-    try {
-      // 1. Save to @labBookings and labBookings
-      for (const k of ['@labBookings', 'labBookings']) {
-        const existingRaw = await AsyncStorage.getItem(k);
-        const existingList = existingRaw ? JSON.parse(existingRaw) : [];
-        const nextList = [newBooking, ...(Array.isArray(existingList) ? existingList : [])];
-        await AsyncStorage.setItem(k, JSON.stringify(nextList));
-      }
-
-      // 2. Format for @mediunify_patient_booked_tests (for MyTestsScreen)
-      const dashboardBooking = {
-        id: newBookingId,
-        bookingRef: newBookingId,
-        testName: newBooking.testName,
-        modality: 'Pathology & Blood',
-        modalityType: 'Blood Test',
-        testCategory: 'Pathology & Blood',
-        testType: isHome ? 'Home Sample Collection' : 'Centre Visit',
-        centerName: newBooking.diagnosticCentre?.name || 'Unnathi Central Pathology & Diagnostic Center',
-        department: 'Automated Clinical Pathology',
-        location: isHome ? (manualAddr || 'Mysuru') : (newBooking.diagnosticCentre?.location || 'Kuvempunagar, Mysuru'),
-        address: isHome ? (manualAddr || 'Mysuru') : (newBooking.diagnosticCentre?.location || 'Kuvempunagar, Mysuru'),
-        appointmentDate: selectedDate,
-        timeSlot: selectedSlot?.label || '08:30 AM – 09:30 AM',
-        patientId: 'self',
-        patientName: homeAddressName.trim() || 'Hemanth Gowda (Self)',
-        age: 28,
-        gender: 'Male',
-        status: 'Slot Confirmed',
-        badgeColor: '#00B894',
-        price: total,
-        paymentStatus: 'Paid Online via UPI',
-        instructions: 'Fasting of 10-12 hours required prior to sample collection. Water is permitted.',
-        doctorPrescription: 'Diagnostic Lab Screening Referral',
-        contactPhone: '+91 821 245 9901',
-        canReschedule: true,
-        canCancel: true,
-        phlebotomist: isHome ? {
-          name: newBooking.phlebotomistName || 'Muralidhar Rao (Senior Phlebotomist)',
-          phone: newBooking.phlebotomistPhone || '+91 98452 33110',
-          vehicle: 'Two-Wheeler (KA-09-ER-5521)',
-          eta: '15 mins',
-        } : null,
-      };
-
-      const existingBookedTestsRaw = await AsyncStorage.getItem('@mediunify_patient_booked_tests');
-      const existingBookedTests = existingBookedTestsRaw ? JSON.parse(existingBookedTestsRaw) : [];
-      const updatedBookedTests = [dashboardBooking, ...(Array.isArray(existingBookedTests) ? existingBookedTests : [])];
-      await AsyncStorage.setItem('@mediunify_patient_booked_tests', JSON.stringify(updatedBookedTests));
-
-      // 3. Save to @unnathi_appointments
-      const existingApptsRaw = await AsyncStorage.getItem('@unnathi_appointments');
-      const existingAppts = existingApptsRaw ? JSON.parse(existingApptsRaw) : [];
-      await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify([dashboardBooking, ...(Array.isArray(existingAppts) ? existingAppts : [])]));
-    } catch (saveErr) {
-      console.warn('Error saving lab booking to AsyncStorage:', saveErr);
-    }
-  };
-
-  // ===========================================================================
-  // RENDER: POPULAR TESTS SECTION
-  // ===========================================================================
-  const popularTests = useMemo(() => {
-    return LAB_TESTS_MASTER.filter((t) => t.popular).sort((a, b) => a.popularRank - b.popularRank);
-  }, []);
-
-  // Recommended Tests (Configured priority, NOT AI)
-  const recommendedTests = useMemo(() => {
-    return LAB_TESTS_MASTER.filter((t) => t.recommended).sort(
-      (a, b) => a.recommendationPriority - b.recommendationPriority
+  // Handle Booking Cancellation
+  const handleCancelBooking = (bookingId) => {
+    showAlert(
+      'Cancel Booking',
+      'Are you sure you want to cancel this lab test appointment?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            const updated = bookingsList.map((b) =>
+              b.id === bookingId ? { ...b, status: 'CANCELLED' } : b
+            );
+            setBookingsList(updated);
+            await AsyncStorage.setItem('@labBookings', JSON.stringify(updated));
+            showAlert('Booking Cancelled', 'Your lab test booking has been cancelled successfully.');
+          },
+        },
+      ]
     );
-  }, []);
+  };
 
-  // Featured Tests
-  const featuredTests = useMemo(() => {
-    return LAB_TESTS_MASTER.filter((t) => t.featured);
-  }, []);
+  // Handle Opening Directions to Diagnostic Centre in Google Maps
+  const handleOpenCentreDirections = (item) => {
+    let centre = null;
+    if (item?.diagnosticCentre) {
+      const dcName = item.diagnosticCentre.name || item.diagnosticCentre;
+      centre =
+        ALL_CITY_DIAGNOSTIC_CENTRES.find(
+          (c) => c.name === dcName || (item.diagnosticCentre.id && c.id === item.diagnosticCentre.id)
+        ) || item.diagnosticCentre;
+    } else if (item?.name || item?.address || item?.latitude) {
+      centre = item;
+    }
+    if (!centre) {
+      centre = { name: `${currentCity} Diagnostic Centre`, address: currentCity };
+    }
+    const url = getGoogleMapsDirectionsUrl(centre);
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.open) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } else {
+      Linking.openURL(url).catch((err) => {
+        console.warn('Could not open Google Maps directions URL:', err);
+      });
+    }
+  };
 
   // ===========================================================================
-  // RENDER: LAB TEST CARD (Section 11)
+  // 6. IF NO LOCATION SELECTED STATE (SECTION 8 OF REQUIREMENT)
   // ===========================================================================
-  const renderLabTestCard = (test) => {
+  if (!hasResolvedLocation) {
     return (
-      <View key={test.id} style={styles.testCard}>
-        {/* Badges Row */}
-        <View style={styles.cardBadgesRow}>
-          {test.popular && (
-            <View style={styles.popularBadge}>
-              <Ionicons name="flame" size={12} color="#FFFFFF" />
-              <Text style={styles.popularBadgeText}>Popular #{test.popularRank}</Text>
-            </View>
-          )}
-          {test.recommended && (
-            <View style={styles.recommendedBadge}>
-              <Ionicons name="thumbs-up" size={11} color="#1E3A8A" />
-              <Text style={styles.recommendedBadgeText}>Recommended</Text>
-            </View>
-          )}
-          {test.featured && (
-            <View style={styles.featuredBadge}>
-              <Ionicons name="star" size={11} color="#D97706" />
-              <Text style={styles.featuredBadgeText}>Featured</Text>
-            </View>
-          )}
-          <View style={styles.sampleBadge}>
-            <Ionicons
-              name={test.sampleType === 'Blood' ? 'water' : test.sampleType === 'Urine' ? 'flask' : 'fitness'}
-              size={11}
-              color="#0284C7"
-            />
-            <Text style={styles.sampleBadgeText}>{test.sampleType}</Text>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#007D69" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (hasResolvedLocation && !currentCity) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+            <Ionicons name="arrow-back" size={22} color={colors.secondary} />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Diagnostic Lab Tests</Text>
           </View>
         </View>
 
-        {/* Test Name & Description */}
-        <TouchableOpacity onPress={() => setSelectedTest(test)} activeOpacity={0.8}>
-          <Text style={styles.testCardTitle} numberOfLines={2}>
-            {test.name}
+        <View style={styles.noLocationContainer}>
+          <View style={styles.noLocationIconCircle}>
+            <Ionicons name="location-outline" size={54} color="#007D69" />
+          </View>
+          <Text style={styles.noLocationTitle}>Location Required</Text>
+          <Text style={styles.noLocationMsg}>
+            Please select your location from the Home Screen to view available lab tests.
+          </Text>
+          <TouchableOpacity
+            style={styles.noLocationBtn}
+            activeOpacity={0.85}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate('Home');
+              }
+            }}
+          >
+            <Ionicons name="home-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+            <Text style={styles.noLocationBtnText}>Go to Home</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ===========================================================================
+  // 7. MAIN RENDER
+  // ===========================================================================
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      {/* TOP HEADER */}
+      <View style={[styles.header, isTablet && styles.tabletContainerWidth]}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+          <Ionicons name="arrow-back" size={22} color={colors.secondary} />
+        </TouchableOpacity>
+
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            Diagnostic Lab Tests
+          </Text>
+          <View style={styles.headerCityBadge}>
+            <Ionicons name="location-sharp" size={11} color="#007D69" />
+            <Text style={styles.headerCityText} numberOfLines={1}>
+              {currentCity || 'Mysuru'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Cart Button */}
+        {labCartCount > 0 && (
+          <TouchableOpacity
+            style={styles.cartHeaderBtn}
+            activeOpacity={0.8}
+            onPress={() => {
+              if (navigation?.navigate) {
+                navigation.navigate('Cart', { tab: 'lab' });
+              }
+            }}
+          >
+            <Ionicons name="cart" size={17} color="#007D69" />
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{labCartCount}</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* NAVIGATION TABS: BROWSE | MY BOOKINGS | LAB REPORTS */}
+      <View style={[styles.tabsRow, isTablet && styles.tabletContainerWidth]}>
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'BROWSE' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('BROWSE')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="flask-outline" size={14} color={activeTab === 'BROWSE' ? '#007D69' : '#64748B'} style={{ marginRight: 5 }} />
+          <Text style={[styles.tabBtnText, activeTab === 'BROWSE' && styles.tabBtnTextActive]}>
+            Browse Tests
           </Text>
         </TouchableOpacity>
-        <Text style={styles.testCardDesc} numberOfLines={2}>
-          {test.description}
-        </Text>
 
-        {/* Collection Availability Indicators (Section 11, 19, 20) */}
-        <View style={styles.availabilityRow}>
-          <View style={styles.availItem}>
-            <Ionicons
-              name={test.homeCollection ? 'checkmark-circle' : 'close-circle'}
-              size={14}
-              color={test.homeCollection ? '#00B894' : '#94A3B8'}
-            />
-            <Text style={[styles.availText, !test.homeCollection && styles.availTextDisabled]}>
-              {test.homeCollection ? 'Home Collection' : 'No Home Collection'}
-            </Text>
-          </View>
-          <View style={styles.availDivider} />
-          <View style={styles.availItem}>
-            <Ionicons
-              name={test.centreCollection ? 'checkmark-circle' : 'close-circle'}
-              size={14}
-              color={test.centreCollection ? '#00B894' : '#94A3B8'}
-            />
-            <Text style={[styles.availText, !test.centreCollection && styles.availTextDisabled]}>
-              {test.centreCollection ? 'Centre Collection' : 'No Centre Collection'}
-            </Text>
-          </View>
-        </View>
-
-        {/* Parameters & TAT snippet */}
-        <View style={styles.metaRow}>
-          <View style={styles.metaItem}>
-            <Ionicons name="time-outline" size={13} color="#64748B" />
-            <Text style={styles.metaText}>TAT: {test.reportTAT}</Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Ionicons name="restaurant-outline" size={13} color="#64748B" />
-            <Text style={styles.metaText}>{test.fastingRequirement.includes('Required') ? 'Fasting' : 'No Fasting'}</Text>
-          </View>
-        </View>
-
-        {/* Price & Action Buttons */}
-        <View style={styles.cardFooterRow}>
-          <View>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-              <Text style={styles.testPriceText}>₹{test.price}</Text>
-              {test.mrp && <Text style={styles.testMrpText}>₹{test.mrp}</Text>}
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'BOOKINGS' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('BOOKINGS')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="calendar-outline" size={14} color={activeTab === 'BOOKINGS' ? '#007D69' : '#64748B'} style={{ marginRight: 5 }} />
+          <Text style={[styles.tabBtnText, activeTab === 'BOOKINGS' && styles.tabBtnTextActive]}>
+            My Bookings
+          </Text>
+          {bookingsList.length > 0 && (
+            <View style={styles.tabBadge}>
+              <Text style={styles.tabBadgeText}>{bookingsList.length}</Text>
             </View>
-            {test.discount && <Text style={styles.testDiscountText}>{test.discount}</Text>}
-          </View>
+          )}
+        </TouchableOpacity>
 
-          <View style={styles.cardBtnsRow}>
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'REPORTS' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('REPORTS')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="document-text-outline" size={14} color={activeTab === 'REPORTS' ? '#007D69' : '#64748B'} style={{ marginRight: 5 }} />
+          <Text style={[styles.tabBtnText, activeTab === 'REPORTS' && styles.tabBtnTextActive]}>
+            Reports
+          </Text>
+          {reportsList.length > 0 && (
+            <View style={styles.tabBadge}>
+              <Text style={styles.tabBadgeText}>{reportsList.length}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* ───────────────────────────────────────────────────────────────────────
+          TAB 1: BROWSE TESTS & PACKAGES
+      ──────────────────────────────────────────────────────────────────────── */}
+      {activeTab === 'BROWSE' && (
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={[styles.scrollContent, isTablet && styles.tabletContainerWidth]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* SEARCH & ACTIONS BAR (SEARCH + COMPACT FILTER & SORT) */}
+          <View style={styles.searchRowContainer}>
+            <View style={styles.searchBox}>
+              <Ionicons name="search-outline" size={17} color="#007D69" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search tests or packages"
+                placeholderTextColor="#94A3B8"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                </TouchableOpacity>
+              )}
+            </View>
+
             <TouchableOpacity
-              style={[styles.cartAddBtnSmall, isTestInCart(test.id) && styles.cartAddBtnSmallActive]}
-              onPress={() => handleToggleCartTest(test)}
+              style={[styles.filterActionBtn, activeFiltersCount > 0 && styles.filterActionBtnActive]}
+              onPress={() => setFilterModalVisible(true)}
               activeOpacity={0.8}
             >
               <Ionicons
-                name={isTestInCart(test.id) ? 'checkmark-circle' : 'cart-outline'}
-                size={14}
-                color={isTestInCart(test.id) ? '#FFFFFF' : '#00B894'}
+                name="options-outline"
+                size={16}
+                color={activeFiltersCount > 0 ? '#FFFFFF' : '#007D69'}
+                style={{ marginRight: 4 }}
               />
-              <Text
-                style={[
-                  styles.cartAddBtnSmallText,
-                  isTestInCart(test.id) && styles.cartAddBtnSmallTextActive,
-                ]}
-              >
-                {isTestInCart(test.id) ? 'In Cart' : 'Add'}
+              <Text style={[styles.filterActionBtnText, activeFiltersCount > 0 && styles.filterActionBtnTextActive]}>
+                Filter{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ''}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.viewDetailsBtn}
-              onPress={() => setSelectedTest(test)}
+              style={[styles.sortActionBtn, selectedSort !== 'RECOMMENDED' && styles.sortActionBtnActive]}
+              onPress={() => setSortModalVisible(true)}
               activeOpacity={0.8}
             >
-              <Text style={styles.viewDetailsBtnText}>Details</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.bookTestBtn}
-              onPress={() => startBooking(test)}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.bookTestBtnText}>Book Test</Text>
+              <Ionicons
+                name="swap-vertical-outline"
+                size={16}
+                color={selectedSort !== 'RECOMMENDED' ? '#FFFFFF' : '#007D69'}
+              />
             </TouchableOpacity>
           </View>
-        </View>
-      </View>
-    );
-  };
 
-  // ===========================================================================
-  // RENDER: MAIN DISCOVERY CONTENT (Section 1)
-  // ===========================================================================
-  const renderBrowseView = () => {
-    return (
-      <ScrollView
-        ref={mainScrollRef}
-        style={styles.scrollContainer}
-        contentContainerStyle={[
-          styles.scrollContent,
-          width >= 600 && { maxWidth: 960, width: '100%', alignSelf: 'center' },
-          labCartCount > 0 && { paddingBottom: Platform.OS === 'ios' ? 150 : 140 },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Banner / Trust Header */}
-        <View style={styles.heroHeaderBox}>
-          <View style={styles.heroTextCol}>
-            <View style={styles.heroMicroPill}>
-              <Ionicons name="shield-checkmark" size={12} color="#00B894" />
-              <Text style={styles.heroMicroPillText}>100% NABL & ICMR Certified Labs</Text>
-            </View>
-            <Text style={styles.mainTitle}>Lab Tests</Text>
-            <Text style={styles.mainSubtitle}>
-              Book diagnostic tests from trusted laboratory services
-            </Text>
+          {/* SUB-VIEW SWITCHER: ALL | PACKAGES | TESTS */}
+          <View style={styles.subViewSwitcher}>
+            {[
+              { id: 'ALL', label: 'All', count: filteredPackages.length + filteredTests.length },
+              { id: 'PACKAGES', label: 'Packages', count: filteredPackages.length },
+              { id: 'TESTS', label: 'Tests', count: filteredTests.length },
+            ].map((sub) => {
+              const isSel = browseSubView === sub.id;
+              return (
+                <TouchableOpacity
+                  key={sub.id}
+                  style={[styles.subViewBtn, isSel && styles.subViewBtnActive]}
+                  onPress={() => setBrowseSubView(sub.id)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.subViewBtnText, isSel && styles.subViewBtnTextActive]}>
+                    {sub.label}
+                  </Text>
+                  <View style={[styles.subViewBadge, isSel && styles.subViewBadgeActive]}>
+                    <Text style={[styles.subViewBadgeText, isSel && styles.subViewBadgeTextActive]}>
+                      {sub.count}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
-        </View>
 
-        {/* Search Bar (Section 7) */}
-        <View style={styles.searchWrap}>
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={18} color="#00B894" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search by test name, sugar, CBC, lipid..."
-              placeholderTextColor="#94A3B8"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close-circle" size={18} color="#94A3B8" />
+          {/* HEALTH CATEGORIES CAROUSEL */}
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionHeading}>Health Categories</Text>
+            {selectedCategory !== 'all' && (
+              <TouchableOpacity onPress={() => setSelectedCategory('all')}>
+                <Text style={styles.resetLinkText}>Reset Category</Text>
               </TouchableOpacity>
             )}
           </View>
-        </View>
 
-        {/* Quick Filter Chips */}
-        <View style={styles.filterChipsRow}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipsScroll}>
-            {[
-              { label: 'All Tests', active: selectedGenderFilter === 'ALL' && selectedCollectionFilter === 'ALL' && selectedSampleFilter === 'ALL', onPress: () => { setSelectedGenderFilter('ALL'); setSelectedCollectionFilter('ALL'); setSelectedSampleFilter('ALL'); } },
-              { label: 'Home Collection', active: selectedCollectionFilter === 'HOME', onPress: () => setSelectedCollectionFilter(selectedCollectionFilter === 'HOME' ? 'ALL' : 'HOME') },
-              { label: 'Lab Visit', active: selectedCollectionFilter === 'CENTRE', onPress: () => setSelectedCollectionFilter(selectedCollectionFilter === 'CENTRE' ? 'ALL' : 'CENTRE') },
-              { label: "Women's", active: selectedGenderFilter === 'FEMALE', onPress: () => setSelectedGenderFilter(selectedGenderFilter === 'FEMALE' ? 'ALL' : 'FEMALE') },
-              { label: "Men's", active: selectedGenderFilter === 'MALE', onPress: () => setSelectedGenderFilter(selectedGenderFilter === 'MALE' ? 'ALL' : 'MALE') },
-              { label: 'Blood Tests', active: selectedSampleFilter === 'Blood', onPress: () => setSelectedSampleFilter(selectedSampleFilter === 'Blood' ? 'ALL' : 'Blood') },
-              { label: 'Urine Tests', active: selectedSampleFilter === 'Urine', onPress: () => setSelectedSampleFilter(selectedSampleFilter === 'Urine' ? 'ALL' : 'Urine') },
-            ].map((chip, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={[styles.filterChip, chip.active && styles.filterChipActive]}
-                onPress={chip.onPress}
-              >
-                <Text style={[styles.filterChipText, chip.active && styles.filterChipTextActive]}>
-                  {chip.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Categories Section (Section 2 & 4) */}
-        <View style={styles.sectionHeaderWrap}>
-          <Text style={styles.sectionTitle}>Test Categories</Text>
-          {selectedCategory !== 'all' && (
-            <TouchableOpacity onPress={() => { setSelectedCategory('all'); setSelectedSubCategory('all'); }}>
-              <Text style={styles.seeAllLink}>View All</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesScroll}>
+            <TouchableOpacity
+              style={[styles.categoryCard, selectedCategory === 'all' && styles.categoryCardActive]}
+              onPress={() => { setSelectedCategory('all'); setSelectedSubCategory('all'); }}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.categoryIconWrap, selectedCategory === 'all' && styles.categoryIconWrapActive]}>
+                <Ionicons name="apps-outline" size={17} color={selectedCategory === 'all' ? '#FFFFFF' : '#007D69'} />
+              </View>
+              <Text style={[styles.categoryName, selectedCategory === 'all' && styles.categoryNameActive]}>
+                All Tests
+              </Text>
             </TouchableOpacity>
-          )}
-        </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
-          {LAB_CATEGORIES.map((cat) => {
-            const isSelected = selectedCategory === cat.id;
-            return (
-              <TouchableOpacity
-                key={cat.id}
-                style={[styles.categoryCard, isSelected && styles.categoryCardActive]}
-                onPress={() => {
-                  if (isSelected) {
-                    setSelectedCategory('all');
+            {MOBILE_LAB_CATEGORIES.map((cat) => {
+              const isSel = selectedCategory === cat.id;
+              const isPopular = cat.id === 'most-popular';
+              return (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[
+                    styles.categoryCard,
+                    isSel && styles.categoryCardActive,
+                    isPopular && !isSel && styles.popularCategoryCard,
+                  ]}
+                  onPress={() => {
+                    setSelectedCategory(isSel ? 'all' : cat.id);
                     setSelectedSubCategory('all');
-                  } else {
-                    setSelectedCategory(cat.id);
-                    setSelectedSubCategory('all');
-                  }
-                }}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.categoryIconCircle, isSelected && styles.categoryIconCircleActive]}>
-                  <Ionicons name={cat.icon} size={22} color={isSelected ? '#FFFFFF' : '#00B894'} />
-                </View>
-                <Text style={[styles.categoryCardName, isSelected && styles.categoryCardNameActive]}>
-                  {cat.name}
-                </Text>
-                <Text style={styles.categoryCardBadge}>{cat.badge}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View
+                    style={[
+                      styles.categoryIconWrap,
+                      isSel && styles.categoryIconWrapActive,
+                      isPopular && !isSel && styles.popularCategoryIconWrap,
+                    ]}
+                  >
+                    <Ionicons
+                      name={cat.icon || 'flask-outline'}
+                      size={17}
+                      color={isSel ? '#FFFFFF' : isPopular ? '#EA580C' : '#007D69'}
+                    />
+                  </View>
+                  <Text
+                    style={[
+                      styles.categoryName,
+                      isSel && styles.categoryNameActive,
+                      isPopular && !isSel && styles.popularCategoryText,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
 
-        {/* Sub-Categories (Section 3: Category -> Sub-category -> Tests) */}
-        {activeCategoryObj && (
-          <View style={styles.subCategoryRow}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subCategoryScroll}>
+          {/* SUBCATEGORIES (WHEN A CATEGORY IS SELECTED) */}
+          {activeCategoryObj?.subCategories && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subCatScroll}>
               <TouchableOpacity
-                style={[styles.subCatChip, selectedSubCategory === 'all' && styles.subCatChipActive]}
+                style={[styles.subCatPill, selectedSubCategory === 'all' && styles.subCatPillActive]}
                 onPress={() => setSelectedSubCategory('all')}
               >
-                <Text style={[styles.subCatChipText, selectedSubCategory === 'all' && styles.subCatChipTextActive]}>
+                <Text style={[styles.subCatText, selectedSubCategory === 'all' && styles.subCatTextActive]}>
                   All {activeCategoryObj.name}
                 </Text>
               </TouchableOpacity>
-              {activeCategoryObj.subCategories.map((sc) => {
-                const isSubSel = selectedSubCategory === sc.id;
+              {activeCategoryObj.subCategories.map((sub) => {
+                const isSel = selectedSubCategory === sub.id;
                 return (
                   <TouchableOpacity
-                    key={sc.id}
-                    style={[styles.subCatChip, isSubSel && styles.subCatChipActive]}
-                    onPress={() => setSelectedSubCategory(isSubSel ? 'all' : sc.id)}
+                    key={sub.id}
+                    style={[styles.subCatPill, isSel && styles.subCatPillActive]}
+                    onPress={() => setSelectedSubCategory(isSel ? 'all' : sub.id)}
                   >
-                    <Text style={[styles.subCatChipText, isSubSel && styles.subCatChipTextActive]}>
-                      {sc.name}
+                    <Text style={[styles.subCatText, isSel && styles.subCatTextActive]}>
+                      {sub.name}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
-          </View>
-        )}
+          )}
 
-        {/* Health Packages Carousel (Section 18) */}
-        {selectedCategory === 'all' && !searchQuery && (
-          <View style={styles.packagesSection}>
-            <View style={styles.sectionHeaderWrap}>
-              <View>
-                <Text style={styles.sectionTitle}>Available Health Packages</Text>
-                <Text style={styles.sectionSub}>Multiple bundled parameters with free doorstep collection</Text>
+          {/* AVAILABLE IN LOCATION STATUS */}
+          <View style={styles.simpleLocationRow}>
+            <Ionicons name="location-sharp" size={13} color="#007D69" style={{ marginRight: 5 }} />
+            <Text style={styles.simpleLocationText}>Available in {currentCity || 'Mysuru'}</Text>
+          </View>
+
+          {/* ───────────────────────────────────────────────────────────────────
+              PACKAGES SECTION
+          ──────────────────────────────────────────────────────────────────── */}
+          {(browseSubView === 'ALL' || browseSubView === 'PACKAGES') && filteredPackages.length > 0 && (
+            <View style={styles.packagesSectionWrap}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionHeading}>Health Packages</Text>
               </View>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.packagesScroll}>
-              {LAB_PACKAGES.map((pkg) => (
-                <View key={pkg.id} style={styles.packageCard}>
-                  <View style={styles.packageCardHeader}>
-                    <View style={styles.packageBadgePill}>
-                      <Text style={styles.packageBadgePillText}>{pkg.badge}</Text>
+
+              {filteredPackages.map((pkg) => {
+                const inCart = isItemInCart(pkg.id);
+                return (
+                  <View key={pkg.id} style={styles.packageCard}>
+                    {/* Category Label */}
+                    {pkg.category ? (
+                      <Text style={styles.cardCategoryText}>{pkg.category}</Text>
+                    ) : null}
+
+                    {/* Package Name */}
+                    <TouchableOpacity onPress={() => setSelectedPackage(pkg)} activeOpacity={0.88}>
+                      <Text style={styles.cardTitle}>{pkg.name}</Text>
+                    </TouchableOpacity>
+
+                    {/* Key Info: 🧪 10 Tests   🏠 Home Sample */}
+                    <View style={styles.pkgMetricsRow}>
+                      <View style={styles.keyInfoItem}>
+                        <Text style={styles.keyInfoIcon}>🧪</Text>
+                        <Text style={styles.keyInfoText}>{pkg.testsCount || 10} Tests</Text>
+                      </View>
+                      <View style={styles.keyInfoItem}>
+                        <Text style={styles.keyInfoIcon}>🏠</Text>
+                        <Text style={styles.keyInfoText}>Home Sample</Text>
+                      </View>
+                      {pkg.tatSummary ? (
+                        <View style={styles.keyInfoItem}>
+                          <Text style={styles.keyInfoIcon}>⚡</Text>
+                          <Text style={styles.keyInfoText} numberOfLines={1}>
+                            {pkg.tatSummary.toLowerCase().includes('same day') ? 'Same Day' : '6-8 hrs'}
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
-                    <Text style={styles.packageParamCount}>{pkg.includedCount} Tests Included</Text>
-                  </View>
-                  <Text style={styles.packageName}>{pkg.name}</Text>
-                  <Text style={styles.packageDesc} numberOfLines={2}>{pkg.description}</Text>
-                  <View style={styles.packagePriceRow}>
-                    <View>
-                      <Text style={styles.packagePrice}>₹{pkg.price}</Text>
-                      <Text style={styles.packageMrp}>₹{pkg.mrp}</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                      <TouchableOpacity
-                        style={[styles.cartAddBtnSmall, isTestInCart(pkg.id) && styles.cartAddBtnSmallActive]}
-                        onPress={() => handleToggleCartPackage(pkg)}
-                        activeOpacity={0.85}
-                      >
-                        <Ionicons
-                          name={isTestInCart(pkg.id) ? 'checkmark-circle' : 'cart-outline'}
-                          size={13}
-                          color={isTestInCart(pkg.id) ? '#FFFFFF' : '#00B894'}
-                        />
-                        <Text
-                          style={[
-                            styles.cartAddBtnSmallText,
-                            isTestInCart(pkg.id) && styles.cartAddBtnSmallTextActive,
-                          ]}
+
+                    {/* Price & Actions */}
+                    <View style={styles.cardFooterRow}>
+                      <View style={styles.priceRow}>
+                        <Text style={styles.cardPrice}>₹{pkg.price}</Text>
+                        {pkg.mrp && <Text style={styles.cardMrp}>₹{pkg.mrp}</Text>}
+                        {pkg.discount && (
+                          <View style={styles.discountBadge}>
+                            <Text style={styles.discountBadgeText}>{pkg.discount}</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <View style={styles.cardActionBtnsRow}>
+                        <TouchableOpacity
+                          style={styles.detailsBtn}
+                          onPress={() => setSelectedPackage(pkg)}
+                          activeOpacity={0.8}
                         >
-                          {isTestInCart(pkg.id) ? 'In Cart' : 'Add'}
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.packageViewBtn}
-                        onPress={() => setSelectedPackage(pkg)}
-                        activeOpacity={0.85}
-                      >
-                        <Text style={styles.packageViewBtnText}>View</Text>
-                      </TouchableOpacity>
+                          <Text style={styles.detailsBtnText}>Details</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.cartIconBtn, inCart && styles.cartIconBtnActive]}
+                          onPress={() => handleToggleCartPackage(pkg)}
+                          activeOpacity={0.8}
+                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                          <Ionicons
+                            name={inCart ? 'checkmark-circle' : 'cart-outline'}
+                            size={16}
+                            color={inCart ? '#FFFFFF' : '#007D69'}
+                          />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.bookPrimaryBtn}
+                          onPress={() => startBooking(pkg)}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.bookPrimaryBtnText}>Book</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {/* Popular Tests Section (Section 8) */}
-        {selectedCategory === 'all' && !searchQuery && (
-          <View style={styles.curatedBlock}>
-            <View style={styles.sectionHeaderWrap}>
-              <View>
-                <Text style={styles.sectionTitle}>Popular Tests</Text>
-                <Text style={styles.sectionSub}>Most frequently prescribed routine diagnostic screenings</Text>
-              </View>
+                );
+              })}
             </View>
-            {popularTests.slice(0, 3).map((test) => renderLabTestCard(test))}
-          </View>
-        )}
+          )}
 
-        {/* Recommended Tests (Section 9: Admin configured priority, NOT AI) */}
-        {selectedCategory === 'all' && !searchQuery && (
-          <View style={styles.curatedBlock}>
-            <View style={styles.sectionHeaderWrap}>
-              <View>
-                <Text style={styles.sectionTitle}>Recommended Preventive Tests</Text>
-                <Text style={styles.sectionSub}>Standard baseline wellness screenings recommended by clinical partners</Text>
+          {/* ───────────────────────────────────────────────────────────────────
+              CLINICAL TESTS SECTION
+          ──────────────────────────────────────────────────────────────────── */}
+          {(browseSubView === 'ALL' || browseSubView === 'TESTS') && filteredTests.length > 0 && (
+            <View style={styles.testsSectionWrap}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionHeading}>Clinical Tests</Text>
               </View>
-            </View>
-            {recommendedTests.slice(0, 2).map((test) => renderLabTestCard(test))}
-          </View>
-        )}
 
-        {/* Featured Tests (Section 10) */}
-        {selectedCategory === 'all' && !searchQuery && (
-          <View style={styles.curatedBlock}>
-            <View style={styles.sectionHeaderWrap}>
-              <View>
-                <Text style={styles.sectionTitle}>Featured Tests</Text>
-                <Text style={styles.sectionSub}>High accuracy rapid turnaround clinical assays</Text>
-              </View>
-            </View>
-            {featuredTests.slice(0, 2).map((test) => renderLabTestCard(test))}
-          </View>
-        )}
+              {filteredTests.map((test) => {
+                const inCart = isItemInCart(test.id);
+                return (
+                  <View key={test.id} style={styles.testCard}>
+                    {/* Category Label */}
+                    {test.popular || selectedCategory === 'most-popular' ? (
+                      <Text style={styles.cardCategoryText}>Popular</Text>
+                    ) : test.category ? (
+                      <Text style={styles.cardCategoryText}>{test.category}</Text>
+                    ) : null}
 
-        {/* All / Filtered Tests Catalog List */}
-        <View style={styles.curatedBlock}>
-          <View style={styles.sectionHeaderWrap}>
-            <View>
-              <Text style={styles.sectionTitle}>
-                {searchQuery
-                  ? `Search Results for "${searchQuery}"`
-                  : selectedCategory !== 'all'
-                  ? `${activeCategoryObj?.name} Tests`
-                  : 'All Diagnostic Tests'}
+                    {/* Test Name */}
+                    <TouchableOpacity onPress={() => setSelectedTest(test)} activeOpacity={0.88}>
+                      <Text style={styles.cardTitle}>{test.name}</Text>
+                    </TouchableOpacity>
+
+                    {/* Key Info: 🧪 Sample   🏠 Home/Lab */}
+                    <View style={styles.pkgMetricsRow}>
+                      <View style={styles.keyInfoItem}>
+                        <Text style={styles.keyInfoIcon}>🧪</Text>
+                        <Text style={styles.keyInfoText}>{test.sampleType || 'Blood'}</Text>
+                      </View>
+                      <View style={styles.keyInfoItem}>
+                        <Text style={styles.keyInfoIcon}>🏠</Text>
+                        <Text style={styles.keyInfoText}>{test.homeCollection ? 'Home Sample' : 'Lab Visit'}</Text>
+                      </View>
+                      {test.reportTAT ? (
+                        <View style={styles.keyInfoItem}>
+                          <Text style={styles.keyInfoIcon}>⏱</Text>
+                          <Text style={styles.keyInfoText} numberOfLines={1}>
+                            {test.reportTAT.length > 10 ? test.reportTAT.split(' ')[0] + ' ' + (test.reportTAT.split(' ')[1] || '') : test.reportTAT}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+
+                    {/* Price & Actions */}
+                    <View style={styles.cardFooterRow}>
+                      <View style={styles.priceRow}>
+                        <Text style={styles.cardPrice}>₹{test.price}</Text>
+                        {test.mrp && <Text style={styles.cardMrp}>₹{test.mrp}</Text>}
+                        {test.discount && (
+                          <View style={styles.discountBadge}>
+                            <Text style={styles.discountBadgeText}>{test.discount}</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <View style={styles.cardActionBtnsRow}>
+                        <TouchableOpacity
+                          style={styles.detailsBtn}
+                          onPress={() => setSelectedTest(test)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.detailsBtnText}>Details</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.cartIconBtn, inCart && styles.cartIconBtnActive]}
+                          onPress={() => handleToggleCartTest(test)}
+                          activeOpacity={0.8}
+                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                          <Ionicons
+                            name={inCart ? 'checkmark-circle' : 'cart-outline'}
+                            size={16}
+                            color={inCart ? '#FFFFFF' : '#007D69'}
+                          />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.bookPrimaryBtn}
+                          onPress={() => startBooking(test)}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.bookPrimaryBtnText}>Book</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+
+          {/* EMPTY SEARCH / FILTER STATE */}
+          {filteredPackages.length === 0 && filteredTests.length === 0 && (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="flask-outline" size={54} color="#CBD5E1" />
+              <Text style={styles.emptyTitle}>No Matching Tests Found</Text>
+              <Text style={styles.emptySub}>
+                We couldn't find any diagnostic tests or packages matching your filters in {currentCity}.
               </Text>
-              <Text style={styles.sectionSub}>{filteredTests.length} tests available</Text>
+              <TouchableOpacity style={styles.resetFilterBtn} onPress={resetAllFilters} activeOpacity={0.8}>
+                <Text style={styles.resetFilterBtnText}>Reset All Filters</Text>
+              </TouchableOpacity>
             </View>
-          </View>
+          )}
+        </ScrollView>
+      )}
 
-          {filteredTests.length === 0 ? (
-            <View style={styles.emptyStateBox}>
-              <Ionicons name="search-outline" size={48} color="#94A3B8" />
-              <Text style={styles.emptyStateTitle}>No tests found</Text>
-              <Text style={styles.emptyStateDesc}>
-                We couldn't find any lab tests matching "{searchQuery}". Try searching for sugar, CBC, cholesterol, or thyroid.
-              </Text>
+      {/* ───────────────────────────────────────────────────────────────────────
+          TAB 2: MY BOOKINGS
+      ──────────────────────────────────────────────────────────────────────── */}
+      {activeTab === 'BOOKINGS' && (
+        <ScrollView
+          contentContainerStyle={[styles.scrollContent, isTablet && styles.tabletContainerWidth]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Filter Pills */}
+          <View style={styles.bookingsFilterRow}>
+            {[
+              { id: 'ALL', label: 'All' },
+              { id: 'CONFIRMED', label: 'Upcoming' },
+              { id: 'COMPLETED', label: 'Completed' },
+              { id: 'CANCELLED', label: 'Cancelled' },
+            ].map((f) => (
               <TouchableOpacity
-                style={styles.emptyResetBtn}
-                onPress={() => {
-                  setSearchQuery('');
-                  setSelectedCategory('all');
-                  setSelectedSubCategory('all');
-                  setSelectedGenderFilter('ALL');
-                  setSelectedSampleFilter('ALL');
-                  setSelectedCollectionFilter('ALL');
-                }}
+                key={f.id}
+                style={[styles.bookingFilterPill, bookingsFilter === f.id && styles.bookingFilterPillActive]}
+                onPress={() => setBookingsFilter(f.id)}
               >
-                <Text style={styles.emptyResetBtnText}>Reset All Filters</Text>
+                <Text style={[styles.bookingFilterText, bookingsFilter === f.id && styles.bookingFilterTextActive]}>
+                  {f.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {filteredBookings.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="calendar-outline" size={50} color="#CBD5E1" />
+              <Text style={styles.emptyTitle}>No Bookings Found</Text>
+              <Text style={styles.emptySub}>You haven't scheduled any diagnostic tests in {currentCity} yet.</Text>
+              <TouchableOpacity style={styles.resetFilterBtn} onPress={() => setActiveTab('BROWSE')}>
+                <Text style={styles.resetFilterBtnText}>Browse Available Tests</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            filteredTests.map((test) => renderLabTestCard(test))
+            filteredBookings.map((b) => {
+              const isConfirmed = b.status === 'CONFIRMED' || b.status === 'PROCESSING';
+              return (
+                <View key={b.id} style={styles.bookingCard}>
+                  <View style={styles.bookingCardHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.bookingIdText}>ID: {b.id}</Text>
+                      <Text style={styles.bookingTestTitle}>{b.testName}</Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        {
+                          backgroundColor:
+                            b.status === 'CONFIRMED'
+                              ? '#ECFDF5'
+                              : b.status === 'COMPLETED'
+                              ? '#EFF6FF'
+                              : '#FEF2F2',
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusBadgeText,
+                          {
+                            color:
+                              b.status === 'CONFIRMED'
+                                ? '#059669'
+                                : b.status === 'COMPLETED'
+                                ? '#2563EB'
+                                : '#DC2626',
+                          },
+                        ]}
+                      >
+                        {b.status}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.bookingMetaRow}>
+                    <Ionicons name="calendar-outline" size={14} color="#64748B" />
+                    <Text style={styles.bookingMetaText}>{b.bookingDate} • {b.timeSlot}</Text>
+                  </View>
+
+                  <View style={styles.bookingMetaRow}>
+                    <Ionicons
+                      name={b.collectionMethod === 'HOME' ? 'home-outline' : 'business-outline'}
+                      size={14}
+                      color="#64748B"
+                    />
+                    <Text style={styles.bookingMetaText} numberOfLines={1}>
+                      {b.collectionMethod === 'HOME'
+                        ? b.collectionAddress || `Home Sample Collection (${currentCity})`
+                        : b.diagnosticCentre?.name || `${currentCity} Partner Diagnostic Center`}
+                    </Text>
+                  </View>
+
+                  {/* Centre Visit Card with Location & Direction Button */}
+                  {b.collectionMethod === 'CENTRE' && (
+                    <View style={styles.centreVisitCardBox}>
+                      <View style={styles.centreVisitHeaderRow}>
+                        <View style={styles.labVisitTag}>
+                          <Ionicons name="location" size={11} color="#007D69" />
+                          <Text style={styles.labVisitTagText}>Lab Visit Appointment</Text>
+                        </View>
+                        {(() => {
+                          const matched = ALL_CITY_DIAGNOSTIC_CENTRES.find(c => c.name === b.diagnosticCentre?.name);
+                          if (!matched?.distanceKm) return null;
+                          return (
+                            <Text style={styles.centreDistanceText}>{matched.distanceKm} km away</Text>
+                          );
+                        })()}
+                      </View>
+
+                      {(() => {
+                        const matched = ALL_CITY_DIAGNOSTIC_CENTRES.find(c => c.name === b.diagnosticCentre?.name);
+                        const fullAddr = matched?.address || b.diagnosticCentre?.address || b.diagnosticCentre?.location;
+                        if (!fullAddr) return null;
+                        return (
+                          <Text style={styles.centreAddressFullText} numberOfLines={2}>
+                            {fullAddr}
+                          </Text>
+                        );
+                      })()}
+
+                      <TouchableOpacity
+                        style={styles.getDirectionsBtn}
+                        onPress={() => handleOpenCentreDirections(b)}
+                        activeOpacity={0.8}
+                        accessibilityRole="button"
+                        accessibilityLabel="Get Directions to Lab in Google Maps"
+                      >
+                        <Ionicons name="navigate" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                        <Text style={styles.getDirectionsBtnText}>Get Directions to Lab</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  <View style={styles.bookingFooterRow}>
+                    <Text style={styles.bookingAmountText}>₹{b.amountPaid}</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                      {b.collectionMethod === 'CENTRE' && (
+                        <TouchableOpacity
+                          style={styles.footerDirectionsBtn}
+                          onPress={() => handleOpenCentreDirections(b)}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="navigate-outline" size={13} color="#007D69" style={{ marginRight: 4 }} />
+                          <Text style={styles.footerDirectionsBtnText}>Directions</Text>
+                        </TouchableOpacity>
+                      )}
+                      {isConfirmed && (
+                        <TouchableOpacity
+                          style={styles.cancelBookingBtn}
+                          onPress={() => handleCancelBooking(b.id)}
+                        >
+                          <Text style={styles.cancelBookingBtnText}>Cancel</Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity
+                        style={styles.trackBookingBtn}
+                        onPress={() => setSelectedTrackingBooking(b)}
+                      >
+                        <Ionicons name="navigate-outline" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
+                        <Text style={styles.trackBookingBtnText}>Track Sample</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              );
+            })
           )}
-        </View>
+        </ScrollView>
+      )}
 
-        {/* Diagnostic Centers Info Banner (Section 24) */}
-        <View style={styles.centresSectionBox}>
-          <View style={styles.centresHeader}>
-            <Ionicons name="business" size={20} color="#00B894" />
-            <Text style={styles.centresTitle}>Our Diagnostic Partners in Mysuru</Text>
-          </View>
-          <Text style={styles.centresDesc}>
-            All sample processing is carried out in certified ISO/NABL accredited laboratory hubs with barcode tracking and digital verification.
-          </Text>
-          <View style={styles.centresList}>
-            {DIAGNOSTIC_CENTRES.map((centre) => (
-              <View key={centre.id} style={styles.centreSnippetRow}>
-                <Ionicons name="medkit-outline" size={16} color="#00B894" />
-                <View style={{ flex: 1, marginLeft: 8 }}>
-                  <Text style={styles.centreSnippetName}>{centre.name}</Text>
-                  <Text style={styles.centreSnippetLoc}>{centre.location} • {centre.distanceKm} km</Text>
-                </View>
-                <View style={styles.ratingPill}>
-                  <Ionicons name="star" size={11} color="#F59E0B" />
-                  <Text style={styles.ratingText}>{centre.rating}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
-      </ScrollView>
-    );
-  };
-
-  // ===========================================================================
-  // RENDER: MY LAB BOOKINGS (Section 30, 31, 32)
-  // ===========================================================================
-  const renderBookingsView = () => {
-    return (
-      <ScrollView
-        style={styles.scrollContainer}
-        contentContainerStyle={[
-          styles.scrollContent,
-          width >= 600 && { maxWidth: 960, width: '100%', alignSelf: 'center' },
-        ]}
-      >
-        {/* Sub filter tabs */}
-        <View style={styles.tabFiltersRow}>
-          {['ALL', 'UPCOMING', 'COMPLETED', 'CANCELLED'].map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tabFilterBtn, bookingsFilter === tab && styles.tabFilterBtnActive]}
-              onPress={() => setBookingsFilter(tab)}
-            >
-              <Text style={[styles.tabFilterText, bookingsFilter === tab && styles.tabFilterTextActive]}>
-                {tab === 'ALL' ? 'All Bookings' : tab.charAt(0) + tab.slice(1).toLowerCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {filteredBookings.length === 0 ? (
-          <View style={styles.emptyStateBox}>
-            <Ionicons name="calendar-outline" size={48} color="#94A3B8" />
-            <Text style={styles.emptyStateTitle}>No Bookings Found</Text>
-            <Text style={styles.emptyStateDesc}>
-              You don't have any lab test bookings in this section.
-            </Text>
-            <TouchableOpacity style={styles.emptyResetBtn} onPress={() => setActiveTab('BROWSE')}>
-              <Text style={styles.emptyResetBtnText}>Book a Lab Test</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          filteredBookings.map((b) => (
-            <View key={b.id} style={styles.bookingCard}>
-              <View style={styles.bookingCardHeader}>
-                <View>
-                  <Text style={styles.bookingIdText}>{b.id}</Text>
-                  <Text style={styles.bookingDateText}>
-                    {b.bookingDate} • {b.timeSlot}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    b.status === 'COMPLETED'
-                      ? styles.statusCompleted
-                      : b.status === 'CANCELLED'
-                      ? styles.statusCancelled
-                      : styles.statusConfirmed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.statusBadgeText,
-                      b.status === 'COMPLETED'
-                        ? styles.statusCompletedText
-                        : b.status === 'CANCELLED'
-                        ? styles.statusCancelledText
-                        : styles.statusConfirmedText,
-                    ]}
-                  >
-                    {b.status}
-                  </Text>
-                </View>
-              </View>
-
-              <Text style={styles.bookingTestName}>{b.testName}</Text>
-
-              <View style={styles.bookingDetailsBox}>
-                <View style={styles.bookingDetailRow}>
-                  <Text style={styles.bookingDetailLabel}>Collection Method:</Text>
-                  <Text style={styles.bookingDetailVal}>
-                    {b.collectionMethod === 'HOME' ? 'Home Collection' : 'Centre Collection'}
-                  </Text>
-                </View>
-                {b.collectionMethod === 'HOME' && (
-                  <View style={styles.bookingDetailRow}>
-                    <Text style={styles.bookingDetailLabel}>Address:</Text>
-                    <Text style={styles.bookingDetailVal} numberOfLines={1}>
-                      {b.collectionAddress}
-                    </Text>
-                  </View>
-                )}
-                {b.collectionMethod === 'CENTRE' && (
-                  <View style={styles.bookingDetailRow}>
-                    <Text style={styles.bookingDetailLabel}>Diagnostic Centre:</Text>
-                    <Text style={styles.bookingDetailVal} numberOfLines={1}>
-                      {b.diagnosticCentre?.name}
-                    </Text>
-                  </View>
-                )}
-                <View style={styles.bookingDetailRow}>
-                  <Text style={styles.bookingDetailLabel}>Amount Paid:</Text>
-                  <Text style={styles.bookingPriceVal}>₹{b.amountPaid}</Text>
-                </View>
-              </View>
-
-              <View style={styles.bookingActionsRow}>
-                <TouchableOpacity
-                  style={styles.trackBookingBtn}
-                  onPress={() => setSelectedTrackingBooking(b)}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="pulse" size={14} color="#00B894" />
-                  <Text style={styles.trackBookingBtnText}>Track Sample Status</Text>
-                </TouchableOpacity>
-
-                {b.reportReady && (
-                  <TouchableOpacity
-                    style={styles.viewReportActionBtn}
-                    onPress={() => {
-                      const rep = reportsList.find((r) => r.bookingId === b.id);
-                      if (rep) setSelectedReport(rep);
-                      else setActiveTab('REPORTS');
-                    }}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons name="document-text" size={14} color="#FFFFFF" />
-                    <Text style={styles.viewReportActionBtnText}>View Report</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+      {/* ───────────────────────────────────────────────────────────────────────
+          TAB 3: LAB REPORTS
+      ──────────────────────────────────────────────────────────────────────── */}
+      {activeTab === 'REPORTS' && (
+        <ScrollView
+          contentContainerStyle={[styles.scrollContent, isTablet && styles.tabletContainerWidth]}
+          showsVerticalScrollIndicator={false}
+        >
+          {reportsList.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="document-text-outline" size={50} color="#CBD5E1" />
+              <Text style={styles.emptyTitle}>No Test Reports Yet</Text>
+              <Text style={styles.emptySub}>Your verified laboratory reports will appear here as soon as they are uploaded.</Text>
             </View>
-          ))
-        )}
-      </ScrollView>
-    );
-  };
-
-  // ===========================================================================
-  // RENDER: MY LAB REPORTS (Section 33, 34, 35)
-  // ===========================================================================
-  const renderReportsView = () => {
-    return (
-      <ScrollView
-        style={styles.scrollContainer}
-        contentContainerStyle={[
-          styles.scrollContent,
-          width >= 600 && { maxWidth: 960, width: '100%', alignSelf: 'center' },
-        ]}
-      >
-        <View style={styles.reportsHeaderBanner}>
-          <Ionicons name="document-attach" size={24} color="#00B894" />
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={styles.reportsBannerTitle}>Certified Laboratory Reports</Text>
-            <Text style={styles.reportsBannerSub}>
-              Digitally verified by registered pathologists and available for download 24/7.
-            </Text>
-          </View>
-        </View>
-
-        {reportsList.length === 0 ? (
-          <View style={styles.emptyStateBox}>
-            <Ionicons name="document-text-outline" size={48} color="#94A3B8" />
-            <Text style={styles.emptyStateTitle}>No Reports Available</Text>
-            <Text style={styles.emptyStateDesc}>
-              Your completed lab test reports will appear here as soon as processing is completed.
-            </Text>
-          </View>
-        ) : (
-          reportsList.map((rep) => (
-            <View key={rep.id} style={styles.reportCard}>
-              <View style={styles.reportCardTop}>
-                <View>
-                  <Text style={styles.reportCardId}>{rep.id}</Text>
-                  <Text style={styles.reportTestName}>{rep.testName}</Text>
+          ) : (
+            reportsList.map((r) => (
+              <View key={r.id} style={styles.reportCard}>
+                <View style={styles.reportIconCol}>
+                  <Ionicons name="document-attach" size={26} color="#007D69" />
                 </View>
-                <View style={styles.reportReadyPill}>
-                  <Ionicons name="checkmark-circle" size={13} color="#15803D" />
-                  <Text style={styles.reportReadyPillText}>Ready</Text>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.reportTestName}>{r.testName}</Text>
+                  <Text style={styles.reportSubText}>{r.reportDate} • {r.diagnosticCentre || `${currentCity} Lab Partner`}</Text>
+                  <View style={styles.reportVerifiedBadge}>
+                    <Ionicons name="checkmark-circle" size={12} color="#059669" />
+                    <Text style={styles.reportVerifiedBadgeText}>Verified by Pathologist</Text>
+                  </View>
                 </View>
-              </View>
-
-              <View style={styles.reportMetaGrid}>
-                <View style={styles.reportMetaItem}>
-                  <Text style={styles.reportMetaLabel}>Lab Centre</Text>
-                  <Text style={styles.reportMetaVal} numberOfLines={1}>{rep.labName}</Text>
-                </View>
-                <View style={styles.reportMetaItem}>
-                  <Text style={styles.reportMetaLabel}>Sample Collected</Text>
-                  <Text style={styles.reportMetaVal}>{rep.sampleCollectionDate}</Text>
-                </View>
-                <View style={styles.reportMetaItem}>
-                  <Text style={styles.reportMetaLabel}>Report Released</Text>
-                  <Text style={styles.reportMetaVal}>{rep.reportDate}</Text>
-                </View>
-                <View style={styles.reportMetaItem}>
-                  <Text style={styles.reportMetaLabel}>Verified By</Text>
-                  <Text style={styles.reportMetaVal} numberOfLines={1}>{rep.pathologistVerified}</Text>
-                </View>
-              </View>
-
-              <View style={styles.reportCardActions}>
                 <TouchableOpacity
-                  style={styles.reportDownloadBtn}
-                  onPress={() => {
-                    setShowDownloadToast(true);
-                    setTimeout(() => setShowDownloadToast(false), 3000);
-                  }}
+                  style={styles.downloadReportBtn}
+                  onPress={() => setSelectedReport(r)}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="download-outline" size={15} color="#00B894" />
-                  <Text style={styles.reportDownloadBtnText}>Download</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.reportViewFullBtn}
-                  onPress={() => setSelectedReport(rep)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.reportViewFullBtnText}>View Full Report</Text>
-                  <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
+                  <Ionicons name="download-outline" size={16} color="#007D69" />
                 </TouchableOpacity>
               </View>
-            </View>
-          ))
-        )}
-      </ScrollView>
-    );
-  };
+            ))
+          )}
+        </ScrollView>
+      )}
 
-  // ===========================================================================
-  // MODAL 1: TEST DETAILS (Section 12, 13, 14, 15, 16, 17)
-  // ===========================================================================
-  const renderTestDetailsModal = () => {
-    if (!selectedTest) return null;
-    const t = selectedTest;
-
-    return (
-      <Modal visible={!!selectedTest} animationType="slide" transparent onRequestClose={() => setSelectedTest(null)}>
+      {/* =======================================================================
+          MODAL 1: FILTER BOTTOM SHEET (NO LOCATION SELECTOR - USER SELECTED HOME)
+      ======================================================================= */}
+      <Modal visible={filterModalVisible} transparent animationType="slide" onRequestClose={() => setFilterModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.detailsModalContent}>
-            {/* Header */}
+          <View style={[styles.sheetModalCard, isTablet && styles.tabletModalWidth]}>
             <View style={styles.modalHeaderRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalHeaderTitle} numberOfLines={2}>{t.name}</Text>
-                <Text style={styles.modalHeaderSubtitle}>Clinical Laboratory Assay</Text>
+                <Text style={styles.modalHeaderTitle}>Filter Lab Tests</Text>
+                <Text style={styles.modalHeaderSub}>Refine by Gender, Collection & Price</Text>
               </View>
-              <TouchableOpacity onPress={() => setSelectedTest(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close" size={24} color="#0F172A" />
+              <TouchableOpacity onPress={resetAllFilters}>
+                <Text style={styles.resetModalText}>Reset</Text>
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: '72%' }}>
-              {/* Description */}
-              <View style={styles.detailsSectionBlock}>
-                <Text style={styles.detailsBlockTitle}>Clinical Overview</Text>
-                <Text style={styles.detailsBlockDesc}>{t.description}</Text>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 440 }}>
+              {/* Gender */}
+              <Text style={styles.filterSectionTitle}>Gender Applicability</Text>
+              <View style={styles.filterOptionsGrid}>
+                {['ALL', 'MALE', 'FEMALE'].map((g) => (
+                  <TouchableOpacity
+                    key={g}
+                    style={[styles.filterPill, selectedGenderFilter === g && styles.filterPillActive]}
+                    onPress={() => setSelectedGenderFilter(g)}
+                  >
+                    <Text style={[styles.filterPillText, selectedGenderFilter === g && styles.filterPillTextActive]}>
+                      {g === 'ALL' ? 'All Genders' : g === 'MALE' ? 'Male' : 'Female'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
 
-              {/* Applicability Badges (Section 5 & 6) */}
-              <View style={styles.applicabilityRow}>
-                <View style={styles.appliBadge}>
-                  <Ionicons name="person-outline" size={14} color="#00B894" />
-                  <Text style={styles.appliBadgeText}>Gender: {t.genderApplicability}</Text>
-                </View>
-                <View style={styles.appliBadge}>
-                  <Ionicons name="calendar-outline" size={14} color="#0284C7" />
-                  <Text style={styles.appliBadgeText}>Age: {t.ageApplicability}</Text>
-                </View>
-                <View style={styles.appliBadge}>
-                  <Ionicons name="water-outline" size={14} color="#00C2CB" />
-                  <Text style={styles.appliBadgeText}>Sample: {t.sampleType}</Text>
-                </View>
+              {/* Collection Method */}
+              <Text style={styles.filterSectionTitle}>Collection Method</Text>
+              <View style={styles.filterOptionsGrid}>
+                {[
+                  { id: 'ALL', label: 'All Methods' },
+                  { id: 'HOME', label: 'Home Collection' },
+                  { id: 'CENTRE', label: 'Centre Visit' },
+                ].map((m) => (
+                  <TouchableOpacity
+                    key={m.id}
+                    style={[styles.filterPill, selectedCollectionFilter === m.id && styles.filterPillActive]}
+                    onPress={() => setSelectedCollectionFilter(m.id)}
+                  >
+                    <Text style={[styles.filterPillText, selectedCollectionFilter === m.id && styles.filterPillTextActive]}>
+                      {m.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
 
-              {/* Fasting & Preparation (Section 14 & 15) */}
-              <View style={styles.instructionCard}>
-                <View style={styles.instructionHeader}>
-                  <Ionicons name="restaurant" size={16} color="#D97706" />
-                  <Text style={styles.instructionTitle}>Fasting Requirement</Text>
-                </View>
-                <Text style={styles.instructionBody}>{t.fastingRequirement}</Text>
+              {/* Price Range */}
+              <Text style={styles.filterSectionTitle}>Price Range</Text>
+              <View style={styles.filterOptionsGrid}>
+                {[
+                  { id: 'ALL', label: 'All Prices' },
+                  { id: 'UNDER_1000', label: 'Under ₹1,000' },
+                  { id: '1000_2000', label: '₹1,000 – ₹2,000' },
+                  { id: 'ABOVE_2000', label: 'Above ₹2,000' },
+                ].map((p) => (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={[styles.filterPill, selectedPriceFilter === p.id && styles.filterPillActive]}
+                    onPress={() => setSelectedPriceFilter(p.id)}
+                  >
+                    <Text style={[styles.filterPillText, selectedPriceFilter === p.id && styles.filterPillTextActive]}>
+                      {p.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
 
-              <View style={styles.instructionCard}>
-                <View style={styles.instructionHeader}>
-                  <Ionicons name="document-text" size={16} color="#0284C7" />
-                  <Text style={styles.instructionTitle}>Preparation Instructions</Text>
-                </View>
-                <Text style={styles.instructionBody}>{t.preparation}</Text>
-              </View>
-
-              {/* Timing & TAT (Section 16 & 17) */}
-              <View style={styles.detailsTwoColGrid}>
-                <View style={styles.detailsColBox}>
-                  <Ionicons name="alarm-outline" size={18} color="#00B894" />
-                  <Text style={styles.colBoxTitle}>Timing</Text>
-                  <Text style={styles.colBoxVal}>{t.timingInstructions}</Text>
-                </View>
-                <View style={styles.detailsColBox}>
-                  <Ionicons name="hourglass-outline" size={18} color="#00B894" />
-                  <Text style={styles.colBoxTitle}>Expected Report TAT</Text>
-                  <Text style={styles.colBoxVal}>{t.reportTAT}</Text>
-                </View>
-              </View>
-
-              {/* Collection Methods Available (Section 19 & 20) */}
-              <View style={styles.collectionOptionsBlock}>
-                <Text style={styles.detailsBlockTitle}>How would you like to provide your sample?</Text>
-                {t.homeCollection && (
-                  <View style={styles.methodOptionCard}>
-                    <Ionicons name="home" size={20} color="#00B894" />
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.methodOptionTitle}>Home Collection (Available)</Text>
-                      <Text style={styles.methodOptionDesc}>Phlebotomist collects sample from your doorstep.</Text>
-                    </View>
-                  </View>
-                )}
-                {t.centreCollection && (
-                  <View style={styles.methodOptionCard}>
-                    <Ionicons name="business" size={20} color="#0284C7" />
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.methodOptionTitle}>Centre Collection (Available)</Text>
-                      <Text style={styles.methodOptionDesc}>Visit any verified partner diagnostic lab in Mysuru.</Text>
-                    </View>
-                  </View>
-                )}
+              {/* Key Inclusions (for Packages) */}
+              <Text style={styles.filterSectionTitle}>Package Key Inclusions</Text>
+              <View style={styles.filterOptionsGrid}>
+                {[
+                  { id: 'VITAMINS', label: 'Vitamins (D/B12)' },
+                  { id: 'ECG_IMAGING', label: 'ECG / Ultrasound' },
+                  { id: 'ECHO', label: 'ECHO Screening' },
+                  { id: 'IRON', label: 'Iron & Ferritin' },
+                  { id: 'HBA1C', label: 'HbA1c Sugar' },
+                ].map((inc) => {
+                  const isInc = selectedInclusions.includes(inc.id);
+                  return (
+                    <TouchableOpacity
+                      key={inc.id}
+                      style={[styles.filterPill, isInc && styles.filterPillActive]}
+                      onPress={() => toggleInclusion(inc.id)}
+                    >
+                      <Text style={[styles.filterPillText, isInc && styles.filterPillTextActive]}>
+                        {inc.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </ScrollView>
 
-            {/* Bottom Booking CTA */}
-            <View style={styles.modalFooterRow}>
-              <View>
-                <Text style={styles.modalPriceText}>₹{t.price}</Text>
-                {t.mrp && <Text style={styles.modalMrpText}>₹{t.mrp}</Text>}
-              </View>
-              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                <TouchableOpacity
-                  style={[
-                    styles.cartAddBtnSmall,
-                    isTestInCart(t.id) && styles.cartAddBtnSmallActive,
-                    { paddingVertical: 10, paddingHorizontal: 14 },
-                  ]}
-                  onPress={() => handleToggleCartTest(t)}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons
-                    name={isTestInCart(t.id) ? 'checkmark-circle' : 'cart-outline'}
-                    size={15}
-                    color={isTestInCart(t.id) ? '#FFFFFF' : '#00B894'}
-                  />
-                  <Text
-                    style={[
-                      styles.cartAddBtnSmallText,
-                      isTestInCart(t.id) && styles.cartAddBtnSmallTextActive,
-                      { fontSize: 13 },
-                    ]}
-                  >
-                    {isTestInCart(t.id) ? 'In Cart' : 'Add to Cart'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.modalPrimaryBtn}
-                  onPress={() => {
-                    const target = t;
-                    setSelectedTest(null);
-                    startBooking(target);
-                  }}
-                  activeOpacity={0.88}
-                >
-                  <Text style={styles.modalPrimaryBtnText}>Proceed to Book →</Text>
-                </TouchableOpacity>
-              </View>
+            <View style={styles.filterActionRow}>
+              <TouchableOpacity style={styles.filterClearBtn} onPress={resetAllFilters}>
+                <Text style={styles.filterClearBtnText}>Clear</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.filterApplyBtn} onPress={() => setFilterModalVisible(false)}>
+                <Text style={styles.filterApplyBtnText}>Apply Filters</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-    );
-  };
 
-  // ===========================================================================
-  // MODAL 2: PACKAGE DETAILS MODAL (Section 18)
-  // ===========================================================================
-  const renderPackageModal = () => {
-    if (!selectedPackage) return null;
-    const pkg = selectedPackage;
-    const includedTests = LAB_TESTS_MASTER.filter((t) => pkg.testIds.includes(t.id));
-
-    return (
-      <Modal visible={!!selectedPackage} animationType="slide" transparent onRequestClose={() => setSelectedPackage(null)}>
+      {/* =======================================================================
+          MODAL 2: SORT BOTTOM SHEET
+      ======================================================================= */}
+      <Modal visible={sortModalVisible} transparent animationType="slide" onRequestClose={() => setSortModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.detailsModalContent}>
+          <View style={[styles.sheetModalCard, isTablet && styles.tabletModalWidth]}>
             <View style={styles.modalHeaderRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.modalHeaderTitle}>{pkg.name}</Text>
-                <Text style={styles.modalHeaderSubtitle}>{pkg.includedCount} Comprehensive Clinical Parameters</Text>
-              </View>
-              <TouchableOpacity onPress={() => setSelectedPackage(null)}>
-                <Ionicons name="close" size={24} color="#0F172A" />
+              <Text style={styles.modalHeaderTitle}>Sort Results</Text>
+              <TouchableOpacity onPress={() => setSortModalVisible(false)}>
+                <Ionicons name="close" size={20} color="#64748B" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: '72%' }} showsVerticalScrollIndicator={false}>
-              <Text style={styles.packageModalDesc}>{pkg.description}</Text>
-              <Text style={styles.includedSectionHeader}>Individual Tests Included ({includedTests.length})</Text>
-
-              {includedTests.map((test) => (
-                <TouchableOpacity
-                  key={test.id}
-                  style={styles.includedItemRow}
-                  onPress={() => {
-                    setSelectedPackage(null);
-                    setSelectedTest(test);
-                  }}
-                >
-                  <Ionicons name="checkmark-circle" size={16} color="#00B894" />
-                  <View style={{ flex: 1, marginLeft: 8 }}>
-                    <Text style={styles.includedItemName}>{test.name}</Text>
-                    <Text style={styles.includedItemDesc} numberOfLines={1}>{test.description}</Text>
-                  </View>
-                  <Text style={styles.includedItemDetailsLink}>Details →</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <View style={styles.modalFooterRow}>
-              <View>
-                <Text style={styles.modalPriceText}>₹{pkg.price}</Text>
-                <Text style={styles.modalMrpText}>₹{pkg.mrp}</Text>
-              </View>
-              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                <TouchableOpacity
-                  style={[
-                    styles.cartAddBtnSmall,
-                    isTestInCart(pkg.id) && styles.cartAddBtnSmallActive,
-                    { paddingVertical: 10, paddingHorizontal: 14 },
-                  ]}
-                  onPress={() => handleToggleCartPackage(pkg)}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons
-                    name={isTestInCart(pkg.id) ? 'checkmark-circle' : 'cart-outline'}
-                    size={15}
-                    color={isTestInCart(pkg.id) ? '#FFFFFF' : '#00B894'}
-                  />
-                  <Text
-                    style={[
-                      styles.cartAddBtnSmallText,
-                      isTestInCart(pkg.id) && styles.cartAddBtnSmallTextActive,
-                      { fontSize: 13 },
-                    ]}
+            <View style={styles.sortOptionsList}>
+              {[
+                { id: 'RECOMMENDED', label: 'Recommended', icon: 'star-outline' },
+                { id: 'PRICE_LOW_HIGH', label: 'Price: Low to High', icon: 'trending-up-outline' },
+                { id: 'PRICE_HIGH_LOW', label: 'Price: High to Low', icon: 'trending-down-outline' },
+                { id: 'MOST_TESTS', label: 'Most Tests Included', icon: 'list-outline' },
+              ].map((opt) => {
+                const isSel = selectedSort === opt.id;
+                return (
+                  <TouchableOpacity
+                    key={opt.id}
+                    style={[styles.sortOptionRow, isSel && styles.sortOptionRowActive]}
+                    onPress={() => {
+                      setSelectedSort(opt.id);
+                      setSortModalVisible(false);
+                    }}
                   >
-                    {isTestInCart(pkg.id) ? 'In Cart' : 'Add to Cart'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.modalPrimaryBtn}
-                  onPress={() => {
-                    // Book primary test of package or first test
-                    const primaryTest = includedTests[0];
-                    setSelectedPackage(null);
-                    if (primaryTest) startBooking(primaryTest);
-                  }}
-                >
-                  <Text style={styles.modalPrimaryBtnText}>Book Package →</Text>
-                </TouchableOpacity>
-              </View>
+                    <Ionicons name={opt.icon} size={18} color={isSel ? '#007D69' : '#64748B'} style={{ marginRight: 12 }} />
+                    <Text style={[styles.sortOptionLabel, isSel && styles.sortOptionLabelActive]}>
+                      {opt.label}
+                    </Text>
+                    <Ionicons
+                      name={isSel ? 'radio-button-on' : 'radio-button-off'}
+                      size={18}
+                      color={isSel ? '#007D69' : '#CBD5E1'}
+                      style={{ marginLeft: 'auto' }}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         </View>
       </Modal>
-    );
-  };
 
-  // ===========================================================================
-  // MODAL 3: BOOKING FLOW (Section 21, 22, 23, 25, 26, 27, 28, 29)
-  // ===========================================================================
-  const renderBookingFlowModal = () => {
-    if (!activeBookingTest) return null;
-    const test = activeBookingTest;
-    const isHome = collectionMethod === 'HOME';
-    const testPrice = test.price;
-    const collectionFee = isHome ? 100 : 0;
-    const totalPrice = testPrice + collectionFee;
-    const availableDates = getAvailableDates();
-    const selectedCentre = DIAGNOSTIC_CENTRES.find((c) => c.id === selectedCentreId);
+      {/* =======================================================================
+          MODAL 3: PACKAGE DETAILS MODAL (EXPANDABLE TEST PARAMETERS ACCORDION)
+      ======================================================================= */}
+      {selectedPackage && (
+        <Modal visible={!!selectedPackage} transparent animationType="slide" onRequestClose={() => setSelectedPackage(null)}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.sheetModalCard, isTablet && styles.tabletModalWidth]}>
+              <View style={styles.modalHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalHeaderTitle} numberOfLines={1}>{selectedPackage.name}</Text>
+                  <Text style={styles.modalHeaderSub}>
+                    {selectedPackage.testsCount} Tests • {selectedPackage.tatSummary || 'Same Day Reports'}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setSelectedPackage(null)}>
+                  <Ionicons name="close" size={22} color="#64748B" />
+                </TouchableOpacity>
+              </View>
 
-    return (
-      <Modal visible={!!activeBookingTest} animationType="slide" transparent onRequestClose={() => setActiveBookingTest(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.bookingModalContent}>
-            {/* Modal Header with Step indicator */}
-            <View style={styles.modalHeaderRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.bookingStepHeaderTitle}>
-                  {bookingFlowStep === 1
-                    ? '1. Select Collection Method'
-                    : bookingFlowStep === 2
-                    ? '2. Select Slot & Address'
-                    : bookingFlowStep === 3
-                    ? '3. Booking Summary'
-                    : bookingFlowStep === 4
-                    ? '4. Payment'
-                    : 'Booking Confirmed'}
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+                {selectedPackage.clinicalNote && (
+                  <View style={styles.clinicalNoteBox}>
+                    <Ionicons name="information-circle-outline" size={16} color="#0284C7" />
+                    <Text style={styles.clinicalNoteText}>{selectedPackage.clinicalNote}</Text>
+                  </View>
+                )}
+
+                <Text style={styles.accordionHeaderTitle}>
+                  Included Tests & Panels ({selectedPackage.tests?.length || selectedPackage.testsCount})
                 </Text>
-                <Text style={styles.bookingStepHeaderSub}>{test.name}</Text>
-              </View>
-              <TouchableOpacity onPress={() => setActiveBookingTest(null)}>
-                <Ionicons name="close" size={24} color="#0F172A" />
-              </TouchableOpacity>
-            </View>
 
-            {/* STEP 1: SELECT COLLECTION METHOD (Section 21) */}
-            {bookingFlowStep === 1 && (
-              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: '72%' }}>
-                <Text style={styles.stepPromptText}>How would you like to provide your sample?</Text>
+                {selectedPackage.tests?.map((t, idx) => {
+                  const isExp = expandedTestIdx === idx;
+                  return (
+                    <View key={idx} style={[styles.accordionItem, isExp && styles.accordionItemActive]}>
+                      <TouchableOpacity
+                        style={styles.accordionTitleRow}
+                        onPress={() => setExpandedTestIdx(isExp ? null : idx)}
+                        activeOpacity={0.75}
+                      >
+                        <Ionicons name="checkmark-circle" size={16} color="#007D69" style={{ marginRight: 8 }} />
+                        <Text style={styles.accordionTitleText} numberOfLines={1}>{t.name}</Text>
+                        <Ionicons name={isExp ? 'chevron-up' : 'chevron-down'} size={16} color="#64748B" style={{ marginLeft: 'auto' }} />
+                      </TouchableOpacity>
 
-                {test.homeCollection && (
-                  <TouchableOpacity
-                    style={[styles.methodSelectCard, isHome && styles.methodSelectCardActive]}
-                    onPress={() => setCollectionMethod('HOME')}
-                    activeOpacity={0.85}
-                  >
-                    <View style={[styles.methodRadio, isHome && styles.methodRadioActive]}>
-                      {isHome && <View style={styles.methodRadioInner} />}
+                      {isExp && (
+                        <View style={styles.accordionBody}>
+                          <Text style={styles.accordionParamLabel}>Parameters:</Text>
+                          <Text style={styles.accordionParamValue}>{t.parameters}</Text>
+                          <View style={styles.accordionMetaGrid}>
+                            <Text style={styles.accordionMetaItem}>Sample: {t.sample}</Text>
+                            <Text style={styles.accordionMetaItem}>Tube: {t.tube}</Text>
+                            <Text style={styles.accordionMetaItem}>TAT: {t.tat}</Text>
+                          </View>
+                        </View>
+                      )}
                     </View>
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.methodSelectTitle}>Home Sample Collection</Text>
-                      <Text style={styles.methodSelectSub}>
-                        Trained certified phlebotomist visits your selected address. Barcoded sample vials with cold chain.
-                      </Text>
-                      <Text style={styles.methodFeeTag}>Doorstep Collection Fee: ₹100</Text>
-                    </View>
-                  </TouchableOpacity>
-                )}
-
-                {test.centreCollection && (
-                  <TouchableOpacity
-                    style={[styles.methodSelectCard, !isHome && styles.methodSelectCardActive]}
-                    onPress={() => setCollectionMethod('CENTRE')}
-                    activeOpacity={0.85}
-                  >
-                    <View style={[styles.methodRadio, !isHome && styles.methodRadioActive]}>
-                      {!isHome && <View style={styles.methodRadioInner} />}
-                    </View>
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.methodSelectTitle}>Diagnostic Centre Visit</Text>
-                      <Text style={styles.methodSelectSub}>
-                        Walk into any verified clinical laboratory partner in Mysuru. Dedicated fast-track queue.
-                      </Text>
-                      <Text style={[styles.methodFeeTag, { color: '#00B894' }]}>Collection Fee: FREE (₹0)</Text>
-                    </View>
-                  </TouchableOpacity>
-                )}
+                  );
+                })}
               </ScrollView>
-            )}
 
-            {/* STEP 2: ADDRESS & DATE / TIME SLOT (Section 22, 23, 25, 26) */}
-            {bookingFlowStep === 2 && (
-              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: '72%' }}>
-                {/* If Home Collection: Manual Address Entry */}
-                {isHome ? (
-                  <View style={styles.stepBlock}>
-                    <View style={styles.manualAddressHeader}>
-                      <Ionicons name="home" size={18} color="#00B894" />
-                      <Text style={styles.stepBlockTitle}>Sample Collection Address</Text>
-                    </View>
-                    <Text style={styles.manualAddressSubtitle}>Enter the address where the phlebotomist should visit</Text>
+              <View style={styles.detailsModalFooter}>
+                <View>
+                  <Text style={styles.detailsModalPrice}>₹{selectedPackage.price}</Text>
+                  {selectedPackage.mrp && <Text style={styles.detailsModalMrp}>₹{selectedPackage.mrp}</Text>}
+                </View>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <TouchableOpacity
+                    style={[styles.cartBtn, isItemInCart(selectedPackage.id) && styles.cartBtnActive]}
+                    onPress={() => handleToggleCartPackage(selectedPackage)}
+                  >
+                    <Text style={[styles.cartBtnText, isItemInCart(selectedPackage.id) && styles.cartBtnTextActive]}>
+                      {isItemInCart(selectedPackage.id) ? 'In Cart' : 'Add to Cart'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.bookPrimaryBtn}
+                    onPress={() => {
+                      const p = selectedPackage;
+                      setSelectedPackage(null);
+                      startBooking(p);
+                    }}
+                  >
+                    <Text style={styles.bookPrimaryBtnText}>Book Package →</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
 
-                    <Text style={styles.addressFieldLabel}>Patient / Contact Name *</Text>
-                    <TextInput
-                      style={styles.addressFieldInput}
-                      placeholder="e.g. Hemanth Gowda"
-                      placeholderTextColor="#94A3B8"
-                      value={homeAddressName}
-                      onChangeText={setHomeAddressName}
-                    />
+      {/* =======================================================================
+          MODAL 4: CLINICAL TEST DETAILS MODAL
+      ======================================================================= */}
+      {selectedTest && (
+        <Modal visible={!!selectedTest} transparent animationType="slide" onRequestClose={() => setSelectedTest(null)}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.sheetModalCard, isTablet && styles.tabletModalWidth]}>
+              <View style={styles.modalHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalHeaderTitle} numberOfLines={1}>{selectedTest.name}</Text>
+                  <Text style={styles.modalHeaderSub}>Clinical Diagnostic Assay • {currentCity}</Text>
+                </View>
+                <TouchableOpacity onPress={() => setSelectedTest(null)}>
+                  <Ionicons name="close" size={22} color="#64748B" />
+                </TouchableOpacity>
+              </View>
 
-                    <Text style={styles.addressFieldLabel}>Contact Phone *</Text>
-                    <TextInput
-                      style={styles.addressFieldInput}
-                      placeholder="e.g. 9741422544"
-                      placeholderTextColor="#94A3B8"
-                      keyboardType="phone-pad"
-                      value={homeAddressPhone}
-                      onChangeText={setHomeAddressPhone}
-                    />
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
+                <Text style={styles.testModalDesc}>{selectedTest.description}</Text>
 
-                    <Text style={styles.addressFieldLabel}>Flat / House No., Street, Area *</Text>
-                    <TextInput
-                      style={styles.addressFieldInput}
-                      placeholder="e.g. 12/A, 3rd Cross, Vijayanagar"
-                      placeholderTextColor="#94A3B8"
-                      value={homeAddressFlat}
-                      onChangeText={setHomeAddressFlat}
-                    />
+                <View style={styles.infoCard}>
+                  <Text style={styles.infoCardTitle}>Fasting Requirement</Text>
+                  <Text style={styles.infoCardBody}>{selectedTest.fastingRequirement}</Text>
+                </View>
 
-                    <View style={styles.addressRowFields}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.addressFieldLabel}>City *</Text>
-                        <TextInput
-                          style={styles.addressFieldInput}
-                          placeholder="e.g. Mysuru"
-                          placeholderTextColor="#94A3B8"
-                          value={homeAddressCity}
-                          onChangeText={setHomeAddressCity}
-                        />
-                      </View>
-                      <View style={{ flex: 1, marginLeft: 10 }}>
-                        <Text style={styles.addressFieldLabel}>Pincode *</Text>
-                        <TextInput
-                          style={styles.addressFieldInput}
-                          placeholder="e.g. 570023"
-                          placeholderTextColor="#94A3B8"
-                          keyboardType="number-pad"
-                          maxLength={6}
-                          value={homeAddressPincode}
-                          onChangeText={setHomeAddressPincode}
-                        />
-                      </View>
-                    </View>
+                <View style={styles.infoCard}>
+                  <Text style={styles.infoCardTitle}>Preparation Instructions</Text>
+                  <Text style={styles.infoCardBody}>{selectedTest.preparation}</Text>
+                </View>
 
-                    <Text style={styles.addressFieldLabel}>Landmark (Optional)</Text>
-                    <TextInput
-                      style={styles.addressFieldInput}
-                      placeholder="e.g. Near City Hospital"
-                      placeholderTextColor="#94A3B8"
-                      value={homeAddressLandmark}
-                      onChangeText={setHomeAddressLandmark}
-                    />
+                <View style={styles.testMetaRow}>
+                  <View style={styles.testMetaCol}>
+                    <Text style={styles.testMetaColLabel}>Sample</Text>
+                    <Text style={styles.testMetaColVal}>{selectedTest.sampleType}</Text>
                   </View>
-                ) : (
-                  /* If Centre Collection: Select Diagnostic Centre (Section 24) */
-                  <View style={styles.stepBlock}>
-                    <Text style={styles.stepBlockTitle}>Select Diagnostic Centre</Text>
-                    {DIAGNOSTIC_CENTRES.map((centre) => {
-                      const isSel = selectedCentreId === centre.id;
+                  <View style={styles.testMetaCol}>
+                    <Text style={styles.testMetaColLabel}>TAT</Text>
+                    <Text style={styles.testMetaColVal}>{selectedTest.reportTAT}</Text>
+                  </View>
+                  <View style={styles.testMetaCol}>
+                    <Text style={styles.testMetaColLabel}>Gender</Text>
+                    <Text style={styles.testMetaColVal}>{selectedTest.genderApplicability}</Text>
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View style={styles.detailsModalFooter}>
+                <View>
+                  <Text style={styles.detailsModalPrice}>₹{selectedTest.price}</Text>
+                  {selectedTest.mrp && <Text style={styles.detailsModalMrp}>₹{selectedTest.mrp}</Text>}
+                </View>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <TouchableOpacity
+                    style={[styles.cartBtn, isItemInCart(selectedTest.id) && styles.cartBtnActive]}
+                    onPress={() => handleToggleCartTest(selectedTest)}
+                  >
+                    <Text style={[styles.cartBtnText, isItemInCart(selectedTest.id) && styles.cartBtnTextActive]}>
+                      {isItemInCart(selectedTest.id) ? 'In Cart' : 'Add to Cart'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.bookPrimaryBtn}
+                    onPress={() => {
+                      const t = selectedTest;
+                      setSelectedTest(null);
+                      startBooking(t);
+                    }}
+                  >
+                    <Text style={styles.bookPrimaryBtnText}>Proceed to Book →</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* =======================================================================
+          MODAL 5: BOOKING FLOW MODAL (5 STEPS - ADAPTED FROM WEB)
+      ======================================================================= */}
+      {activeBookingItem && (
+        <Modal visible={!!activeBookingItem} transparent animationType="slide" onRequestClose={() => setActiveBookingItem(null)}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.bookingModalCard, isTablet && styles.tabletModalWidth]}>
+              <View style={styles.modalHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.bookingStepTitle}>
+                    {bookingFlowStep === 1
+                      ? '1. Patient & Method'
+                      : bookingFlowStep === 2
+                      ? '2. Location & Slot'
+                      : bookingFlowStep === 3
+                      ? '3. Review Summary'
+                      : bookingFlowStep === 4
+                      ? '4. Payment'
+                      : 'Booking Confirmed!'}
+                  </Text>
+                  <Text style={styles.bookingStepSub} numberOfLines={1}>{activeBookingItem.name}</Text>
+                </View>
+                <TouchableOpacity onPress={() => setActiveBookingItem(null)}>
+                  <Ionicons name="close" size={22} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
+              {/* STEP 1: PATIENT PROFILE & METHOD */}
+              {bookingFlowStep === 1 && (
+                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+                  <Text style={styles.stepSectionHeader}>1. Select Patient</Text>
+                  <View style={styles.patientProfilesGrid}>
+                    {patientProfiles.map((p) => {
+                      const isSel = selectedPatientId === p.id;
                       return (
                         <TouchableOpacity
-                          key={centre.id}
-                          style={[styles.centreSelectCard, isSel && styles.centreSelectCardActive]}
-                          onPress={() => setSelectedCentreId(centre.id)}
+                          key={p.id}
+                          style={[styles.patientCard, isSel && styles.patientCardActive]}
+                          onPress={() => {
+                            setSelectedPatientId(p.id);
+                            setHomeAddressName(p.name);
+                            if (p.phone) setHomeAddressPhone(p.phone);
+                          }}
                         >
-                          <Ionicons name="business-outline" size={20} color={isSel ? '#00B894' : '#64748B'} />
-                          <View style={{ flex: 1, marginLeft: 10 }}>
-                            <Text style={styles.centreSelectName}>{centre.name}</Text>
-                            <Text style={styles.centreSelectAddress}>{centre.address}</Text>
-                            <View style={styles.centreMetaRow}>
-                              <Text style={styles.centreMetaText}>{centre.rating}/5 ({centre.reviewsCount}+ reviews)</Text>
-                              <Text style={styles.centreMetaText}>• {centre.distanceKm} km away</Text>
-                            </View>
+                          <Ionicons
+                            name={isSel ? 'radio-button-on' : 'radio-button-off'}
+                            size={16}
+                            color={isSel ? '#007D69' : '#94A3B8'}
+                          />
+                          <View style={{ flex: 1, marginLeft: 8 }}>
+                            <Text style={styles.patientCardName}>{p.name} ({p.relation})</Text>
+                            <Text style={styles.patientCardSub}>{p.age} yrs • {p.gender}</Text>
                           </View>
-                          {isSel && <Ionicons name="checkmark-circle" size={18} color="#00B894" />}
                         </TouchableOpacity>
                       );
                     })}
                   </View>
-                )}
 
-                {/* Date Selector (Section 26) */}
-                <View style={styles.stepBlock}>
-                  <Text style={styles.stepBlockTitle}>Select Date</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.datePillsRow}>
-                    {availableDates.map((item) => {
-                      const isSel = selectedDate === item.dateStr;
+                  <Text style={[styles.stepSectionHeader, { marginTop: 14 }]}>2. How will you provide sample?</Text>
+                  <TouchableOpacity
+                    style={[styles.methodCard, collectionMethod === 'HOME' && styles.methodCardActive]}
+                    onPress={() => setCollectionMethod('HOME')}
+                  >
+                    <Ionicons
+                      name={collectionMethod === 'HOME' ? 'radio-button-on' : 'radio-button-off'}
+                      size={18}
+                      color={collectionMethod === 'HOME' ? '#007D69' : '#94A3B8'}
+                    />
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <Text style={styles.methodCardTitle}>Home Sample Collection</Text>
+                      <Text style={styles.methodCardDesc}>Certified phlebotomist visits your doorstep in {currentCity}.</Text>
+                      <Text style={styles.methodCardFee}>Doorstep Convenience Fee: ₹100</Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.methodCard, collectionMethod === 'CENTRE' && styles.methodCardActive]}
+                    onPress={() => setCollectionMethod('CENTRE')}
+                  >
+                    <Ionicons
+                      name={collectionMethod === 'CENTRE' ? 'radio-button-on' : 'radio-button-off'}
+                      size={18}
+                      color={collectionMethod === 'CENTRE' ? '#007D69' : '#94A3B8'}
+                    />
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <Text style={styles.methodCardTitle}>Diagnostic Centre Visit</Text>
+                      <Text style={styles.methodCardDesc}>Visit any verified partner lab in {currentCity}.</Text>
+                      <Text style={[styles.methodCardFee, { color: '#007D69' }]}>Collection Fee: FREE</Text>
+                    </View>
+                  </TouchableOpacity>
+                </ScrollView>
+              )}
+
+              {/* STEP 2: LOCATION-SPECIFIC ADDRESS / LAB & DATE/SLOT */}
+              {bookingFlowStep === 2 && (
+                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+                  {collectionMethod === 'HOME' ? (
+                    <View style={styles.stepFormBlock}>
+                      <Text style={styles.stepSectionHeader}>Sample Collection Address ({currentCity})</Text>
+                      <Text style={styles.fieldLabel}>Contact Name *</Text>
+                      <TextInput
+                        style={styles.fieldInput}
+                        value={homeAddressName}
+                        onChangeText={setHomeAddressName}
+                        placeholder="e.g. Hemanth Gowda"
+                      />
+
+                      <Text style={styles.fieldLabel}>Contact Phone *</Text>
+                      <TextInput
+                        style={styles.fieldInput}
+                        value={homeAddressPhone}
+                        onChangeText={setHomeAddressPhone}
+                        placeholder="e.g. 9741422544"
+                        keyboardType="phone-pad"
+                      />
+
+                      <Text style={styles.fieldLabel}>House/Flat No., Building & Street *</Text>
+                      <TextInput
+                        style={styles.fieldInput}
+                        value={homeAddressFlat}
+                        onChangeText={setHomeAddressFlat}
+                        placeholder="e.g. #402, Green Meadows, 5th Main"
+                      />
+
+                      <View style={{ flexDirection: 'row', gap: 10 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.fieldLabel}>City (Home Location)</Text>
+                          <TextInput
+                            style={[styles.fieldInput, { backgroundColor: '#F1F5F9', color: '#0F172A', fontWeight: '700' }]}
+                            value={currentCity}
+                            editable={false}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.fieldLabel}>Pincode *</Text>
+                          <TextInput
+                            style={styles.fieldInput}
+                            value={homeAddressPincode}
+                            onChangeText={setHomeAddressPincode}
+                            placeholder="e.g. 570023"
+                            keyboardType="numeric"
+                          />
+                        </View>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.stepFormBlock}>
+                      <Text style={styles.stepSectionHeader}>Select Diagnostic Centre in {currentCity}</Text>
+                      {cityDiagnosticCentres.map((c) => {
+                        const isSel = selectedCentreId === c.id;
+                        return (
+                          <TouchableOpacity
+                            key={c.id}
+                            style={[styles.centreSelectCard, isSel && styles.centreSelectCardActive]}
+                            onPress={() => setSelectedCentreId(c.id)}
+                          >
+                            <Ionicons name="business" size={18} color={isSel ? '#007D69' : '#64748B'} />
+                            <View style={{ flex: 1, marginLeft: 8 }}>
+                              <Text style={styles.centreSelectName}>{c.name}</Text>
+                              <Text style={styles.centreSelectAddr}>{c.address}</Text>
+                              <Text style={styles.centreSelectMeta}>⭐ {c.rating} • {c.distanceKm} km away</Text>
+                            </View>
+                            {isSel && <Ionicons name="checkmark-circle" size={18} color="#007D69" />}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
+
+                  {/* Dates */}
+                  <Text style={[styles.stepSectionHeader, { marginTop: 14 }]}>Select Date</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.datePillsScroll}>
+                    {getAvailableDates().map((d) => {
+                      const isSel = selectedDate === d.dateStr;
                       return (
                         <TouchableOpacity
-                          key={item.dateStr}
+                          key={d.dateStr}
                           style={[styles.datePill, isSel && styles.datePillActive]}
-                          onPress={() => setSelectedDate(item.dateStr)}
+                          onPress={() => setSelectedDate(d.dateStr)}
                         >
-                          <Text style={[styles.datePillDay, isSel && styles.datePillDayActive]}>{item.dayName}</Text>
-                          <Text style={[styles.datePillDate, isSel && styles.datePillDateActive]}>{item.dateStr}</Text>
+                          <Text style={[styles.datePillDay, isSel && styles.datePillDayActive]}>{d.dayName}</Text>
+                          <Text style={[styles.datePillVal, isSel && styles.datePillValActive]}>{d.dateStr}</Text>
                         </TouchableOpacity>
                       );
                     })}
                   </ScrollView>
-                </View>
 
-                {/* Time Slots (Section 26) */}
-                <View style={styles.stepBlock}>
-                  <Text style={styles.stepBlockTitle}>Available Time Slots</Text>
-                  <View style={styles.slotGrid}>
+                  {/* Slots */}
+                  <Text style={[styles.stepSectionHeader, { marginTop: 14 }]}>Select Time Slot</Text>
+                  <View style={styles.slotsGrid}>
                     {TIME_SLOTS.map((slot) => {
                       const isSel = selectedSlotId === slot.id;
-                        const statusObj = getSlotStatus({
-                          date: selectedDate,
-                          time: slot.label,
-                          serviceType: 'lab',
-                          providerId: collectionMethod === 'HOME' ? 'home-collection' : selectedCentreId,
-                        });
-                        const isAvail = statusObj.available;
-                        return (
-                          <TouchableOpacity
-                            key={slot.id}
-                            disabled={!isAvail}
-                            style={[
-                              styles.slotCard,
-                              isSel && styles.slotCardActive,
-                              !isAvail && { borderColor: '#E2E8F0', backgroundColor: '#F1F5F9', opacity: 0.65 },
-                            ]}
-                            onPress={() => isAvail && setSelectedSlotId(slot.id)}
-                          >
-                            <Text
-                              style={[
-                                styles.slotLabel,
-                                isSel && styles.slotLabelActive,
-                                !isAvail && { color: '#94A3B8', textDecorationLine: 'line-through' },
-                              ]}
-                            >
-                              {slot.label}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.slotPeriod,
-                                !isAvail && { color: '#EF4444', fontWeight: '700' },
-                              ]}
-                            >
-                              {!isAvail ? (statusObj.status === 'BOOKED' ? 'Booked' : 'Passed') : slot.period}
-                            </Text>
-                          </TouchableOpacity>
-                        );
+                      const statusObj = getSlotStatus({
+                        date: selectedDate,
+                        time: slot.label,
+                        serviceType: 'lab',
+                        providerId: collectionMethod === 'HOME' ? 'home-collection' : selectedCentreId,
+                      });
+                      const isAvail = statusObj.available;
+                      return (
+                        <TouchableOpacity
+                          key={slot.id}
+                          disabled={!isAvail}
+                          style={[
+                            styles.slotBtn,
+                            isSel && styles.slotBtnActive,
+                            !isAvail && styles.slotBtnDisabled,
+                          ]}
+                          onPress={() => setSelectedSlotId(slot.id)}
+                        >
+                          <Text style={[styles.slotBtnLabel, isSel && styles.slotBtnLabelActive, !isAvail && styles.slotBtnLabelDisabled]}>
+                            {slot.label}
+                          </Text>
+                          <Text style={[styles.slotBtnPeriod, !isAvail && styles.slotBtnLabelDisabled]}>
+                            {!isAvail ? 'Booked' : slot.period}
+                          </Text>
+                        </TouchableOpacity>
+                      );
                     })}
                   </View>
-                </View>
-              </ScrollView>
-            )}
+                </ScrollView>
+              )}
 
-            {/* STEP 3: BOOKING SUMMARY (Section 27) */}
-            {bookingFlowStep === 3 && (
-              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: '72%' }}>
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryHeading}>Order Summary</Text>
-
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Test Name:</Text>
-                    <Text style={styles.summaryVal}>{test.name}</Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Collection Method:</Text>
-                    <Text style={styles.summaryVal}>{isHome ? 'Home Collection' : 'Diagnostic Centre'}</Text>
-                  </View>
-                  {isHome ? (
-                    <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Address:</Text>
-                      <Text style={styles.summaryVal} numberOfLines={2}>
-                        {homeAddressFlat ? `${homeAddressFlat}, ${homeAddressCity} - ${homeAddressPincode}` : 'Not provided'}
+              {/* STEP 3: SUMMARY */}
+              {bookingFlowStep === 3 && (
+                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+                  <View style={styles.summaryBox}>
+                    <Text style={styles.summaryTitle}>Appointment & Test Details</Text>
+                    <View style={styles.summaryItemRow}>
+                      <Text style={styles.summaryItemLabel}>Test / Package:</Text>
+                      <Text style={styles.summaryItemVal} numberOfLines={2}>{activeBookingItem.name}</Text>
+                    </View>
+                    <View style={styles.summaryItemRow}>
+                      <Text style={styles.summaryItemLabel}>Location City:</Text>
+                      <Text style={[styles.summaryItemVal, { color: '#007D69', fontWeight: '800' }]}>{currentCity}</Text>
+                    </View>
+                    <View style={styles.summaryItemRow}>
+                      <Text style={styles.summaryItemLabel}>Patient Name:</Text>
+                      <Text style={styles.summaryItemVal}>{homeAddressName}</Text>
+                    </View>
+                    <View style={styles.summaryItemRow}>
+                      <Text style={styles.summaryItemLabel}>Method:</Text>
+                      <Text style={styles.summaryItemVal}>
+                        {collectionMethod === 'HOME' ? 'Home Sample Collection' : 'Diagnostic Centre Visit'}
                       </Text>
                     </View>
-                  ) : (
-                    <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Centre:</Text>
-                      <Text style={styles.summaryVal} numberOfLines={2}>{selectedCentre?.name}</Text>
+                    {collectionMethod === 'HOME' ? (
+                      <View style={styles.summaryItemRow}>
+                        <Text style={styles.summaryItemLabel}>Home Address:</Text>
+                        <Text style={styles.summaryItemVal}>
+                          {homeAddressFlat}, {currentCity} - {homeAddressPincode}
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={styles.summaryItemRow}>
+                        <Text style={styles.summaryItemLabel}>Centre:</Text>
+                        <Text style={styles.summaryItemVal}>
+                          {cityDiagnosticCentres.find((c) => c.id === selectedCentreId)?.name || cityDiagnosticCentres[0]?.name}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.summaryItemRow}>
+                      <Text style={styles.summaryItemLabel}>Date & Slot:</Text>
+                      <Text style={styles.summaryItemVal}>
+                        {selectedDate} ({TIME_SLOTS.find((s) => s.id === selectedSlotId)?.label})
+                      </Text>
                     </View>
-                  )}
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Date & Time:</Text>
-                    <Text style={styles.summaryVal}>{selectedDate} • {TIME_SLOTS.find((s) => s.id === selectedSlotId)?.label}</Text>
-                  </View>
-                  <View style={styles.summaryDivider} />
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Test Fee:</Text>
-                    <Text style={styles.summaryVal}>₹{testPrice}</Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Collection Charge:</Text>
-                    <Text style={styles.summaryVal}>{collectionFee === 0 ? 'FREE' : `₹${collectionFee}`}</Text>
-                  </View>
-                  <View style={styles.summaryDivider} />
-                  <View style={styles.summaryTotalRow}>
-                    <Text style={styles.summaryTotalLabel}>Total Amount:</Text>
-                    <Text style={styles.summaryTotalVal}>₹{totalPrice}</Text>
-                  </View>
-                </View>
-              </ScrollView>
-            )}
 
-            {/* STEP 4: PAYMENT UI - FRONTEND DEMO ONLY (Section 28) */}
-            {bookingFlowStep === 4 && (
-              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: '72%' }}>
-                <View style={styles.demoPaymentAlert}>
-                  <Ionicons name="information-circle" size={18} color="#0284C7" />
-                  <Text style={styles.demoPaymentAlertText}>
-                    Frontend Prototype: Simulating payment flow. No real transaction will occur.
-                  </Text>
-                </View>
+                    <View style={styles.summaryDivider} />
 
-                <Text style={styles.stepBlockTitle}>Select Payment Method</Text>
+                    <View style={styles.summaryItemRow}>
+                      <Text style={styles.summaryItemLabel}>Test Fee:</Text>
+                      <Text style={styles.summaryItemVal}>₹{activeBookingItem.price}</Text>
+                    </View>
+                    <View style={styles.summaryItemRow}>
+                      <Text style={styles.summaryItemLabel}>Doorstep Collection:</Text>
+                      <Text style={styles.summaryItemVal}>{collectionMethod === 'HOME' ? '₹100' : 'FREE'}</Text>
+                    </View>
 
-                {[
-                  { id: 'UPI', label: 'UPI / Google Pay / PhonePe', icon: 'flash' },
-                  { id: 'CARD', label: 'Credit / Debit Card', icon: 'card' },
-                  { id: 'NET_BANKING', label: 'Net Banking', icon: 'globe' },
-                  { id: 'WALLET', label: 'Digital Wallet / Pay at Sample Collection', icon: 'wallet' },
-                ].map((m) => {
-                  const isSel = paymentMethod === m.id;
-                  return (
+                    <View style={styles.summaryDivider} />
+
+                    <View style={styles.summaryTotalRow}>
+                      <Text style={styles.summaryTotalLabel}>Total Amount:</Text>
+                      <Text style={styles.summaryTotalVal}>
+                        ₹{activeBookingItem.price + (collectionMethod === 'HOME' ? 100 : 0)}
+                      </Text>
+                    </View>
+                  </View>
+                </ScrollView>
+              )}
+
+              {/* STEP 4: PAYMENT SIMULATION */}
+              {bookingFlowStep === 4 && (
+                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+                  <Text style={styles.stepSectionHeader}>Select Payment Mode</Text>
+                  {[
+                    { id: 'UPI', label: 'UPI / Google Pay / PhonePe', icon: 'flash' },
+                    { id: 'CARD', label: 'Credit / Debit Card', icon: 'card' },
+                    { id: 'NET_BANKING', label: 'Net Banking', icon: 'globe' },
+                    { id: 'WALLET', label: 'Pay at Sample Collection', icon: 'wallet' },
+                  ].map((m) => (
                     <TouchableOpacity
                       key={m.id}
-                      style={[styles.paymentMethodCard, isSel && styles.paymentMethodCardActive]}
+                      style={[styles.paymentCard, paymentMethod === m.id && styles.paymentCardActive]}
                       onPress={() => setPaymentMethod(m.id)}
                     >
-                      <Ionicons name={m.icon} size={20} color={isSel ? '#00B894' : '#64748B'} />
-                      <Text style={[styles.paymentMethodLabel, isSel && styles.paymentMethodLabelActive]}>
+                      <Ionicons name={m.icon} size={20} color={paymentMethod === m.id ? '#007D69' : '#64748B'} />
+                      <Text style={[styles.paymentCardText, paymentMethod === m.id && styles.paymentCardTextActive]}>
                         {m.label}
                       </Text>
-                      {isSel && <Ionicons name="checkmark-circle" size={18} color="#00B894" />}
+                      {paymentMethod === m.id && <Ionicons name="checkmark-circle" size={18} color="#007D69" style={{ marginLeft: 'auto' }} />}
                     </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            )}
+                  ))}
+                </ScrollView>
+              )}
 
-            {/* STEP 5: BOOKING CONFIRMED (Section 29) */}
-            {bookingFlowStep === 5 && confirmedBookingData && (
-              <View style={styles.confirmedBox}>
-                <Ionicons name="checkmark-circle" size={60} color="#00B894" />
-                <Text style={styles.confirmedTitle}>Booking Confirmed!</Text>
-                <Text style={styles.confirmedBookingId}>Booking ID: {confirmedBookingData.id}</Text>
-                <Text style={styles.confirmedDesc}>
-                  Your appointment for {confirmedBookingData.testName} has been booked for {confirmedBookingData.bookingDate} ({confirmedBookingData.timeSlot}).
-                </Text>
-
-                <View style={styles.confirmedMetaBox}>
-                  <Text style={styles.confirmedMetaText}>
-                    {confirmedBookingData.collectionMethod === 'HOME'
-                      ? `Phlebotomist assigned: ${confirmedBookingData.phlebotomistName}`
-                      : `Diagnostic Centre: ${confirmedBookingData.diagnosticCentre?.name}`}
+              {/* STEP 5: CONFIRMED */}
+              {bookingFlowStep === 5 && confirmedBookingData && (
+                <View style={styles.confirmedContainer}>
+                  <Ionicons name="checkmark-circle" size={56} color="#007D69" />
+                  <Text style={styles.confirmedHeading}>Booking Confirmed!</Text>
+                  <Text style={styles.confirmedId}>Booking ID: {confirmedBookingData.id}</Text>
+                  <Text style={styles.confirmedSub}>
+                    {confirmedBookingData.testName} scheduled for {confirmedBookingData.bookingDate} ({confirmedBookingData.timeSlot}) in {currentCity}.
                   </Text>
+                  <TouchableOpacity
+                    style={styles.confirmedActionBtn}
+                    onPress={() => {
+                      setActiveBookingItem(null);
+                      setActiveTab('BOOKINGS');
+                    }}
+                  >
+                    <Text style={styles.confirmedActionBtnText}>View My Lab Bookings →</Text>
+                  </TouchableOpacity>
                 </View>
+              )}
 
-                <TouchableOpacity
-                  style={styles.viewBookingsConfirmedBtn}
-                  onPress={() => {
-                    setActiveBookingTest(null);
-                    setActiveTab('BOOKINGS');
-                  }}
-                  activeOpacity={0.88}
-                >
-                  <Text style={styles.viewBookingsConfirmedBtnText}>View My Lab Bookings →</Text>
+              {/* BOOKING MODAL ACTIONS (STEPS 1 - 4) */}
+              {bookingFlowStep < 5 && (
+                <View style={styles.bookingModalFooterRow}>
+                  {bookingFlowStep > 1 && (
+                    <TouchableOpacity style={styles.stepPrevBtn} onPress={() => setBookingFlowStep((s) => s - 1)}>
+                      <Text style={styles.stepPrevBtnText}>Back</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={[styles.stepNextBtn, { flex: 1, marginLeft: bookingFlowStep > 1 ? 10 : 0 }]}
+                    onPress={() => {
+                      if (bookingFlowStep === 1) setBookingFlowStep(2);
+                      else if (bookingFlowStep === 2) {
+                        if (
+                          collectionMethod === 'HOME' &&
+                          (!homeAddressName.trim() || !homeAddressPhone.trim() || !homeAddressFlat.trim() || !homeAddressPincode.trim())
+                        ) {
+                          showAlert('Incomplete Address', 'Please fill in patient name, phone, address, and pincode.');
+                          return;
+                        }
+                        setBookingFlowStep(3);
+                      } else if (bookingFlowStep === 3) setBookingFlowStep(4);
+                      else if (bookingFlowStep === 4) handleSimulatePayment();
+                    }}
+                  >
+                    <Text style={styles.stepNextBtnText}>
+                      {bookingFlowStep === 1
+                        ? 'Continue to Location & Slot'
+                        : bookingFlowStep === 2
+                        ? 'Review Summary'
+                        : bookingFlowStep === 3
+                        ? 'Proceed to Payment'
+                        : `Pay ₹${activeBookingItem.price + (collectionMethod === 'HOME' ? 100 : 0)}`}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* =======================================================================
+          MODAL 6: SAMPLE TRACKING MODAL
+      ======================================================================= */}
+      {selectedTrackingBooking && (
+        <Modal visible={!!selectedTrackingBooking} transparent animationType="slide" onRequestClose={() => setSelectedTrackingBooking(null)}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.sheetModalCard, isTablet && styles.tabletModalWidth]}>
+              <View style={styles.modalHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalHeaderTitle}>Sample Tracking</Text>
+                  <Text style={styles.modalHeaderSub}>Booking ID: {selectedTrackingBooking.id}</Text>
+                </View>
+                <TouchableOpacity onPress={() => setSelectedTrackingBooking(null)}>
+                  <Ionicons name="close" size={22} color="#64748B" />
                 </TouchableOpacity>
               </View>
-            )}
 
-            {/* Modal Bottom Controls */}
-            {bookingFlowStep < 5 && (
-              <View style={styles.modalFooterRow}>
-                {bookingFlowStep > 1 && (
-                  <TouchableOpacity
-                    style={styles.stepBackBtn}
-                    onPress={() => setBookingFlowStep(bookingFlowStep - 1)}
-                  >
-                    <Text style={styles.stepBackBtnText}>Back</Text>
-                  </TouchableOpacity>
+              <View style={{ paddingVertical: 14 }}>
+                {/* If lab centre visit, show centre info and Directions button */}
+                {selectedTrackingBooking.collectionMethod === 'CENTRE' && (
+                  <View style={styles.trackingCentreBox}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <Ionicons name="business" size={16} color="#007D69" />
+                      <Text style={styles.trackingCentreName}>
+                        {selectedTrackingBooking.diagnosticCentre?.name || 'Partner Diagnostic Centre'}
+                      </Text>
+                    </View>
+                    <Text style={styles.trackingCentreAddress}>
+                      {(() => {
+                        const matched = ALL_CITY_DIAGNOSTIC_CENTRES.find(c => c.name === selectedTrackingBooking.diagnosticCentre?.name);
+                        return matched?.address || selectedTrackingBooking.diagnosticCentre?.location || `${currentCity} Partner Center`;
+                      })()}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.trackingGetDirectionsBtn}
+                      onPress={() => handleOpenCentreDirections(selectedTrackingBooking)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="navigate" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      <Text style={styles.trackingGetDirectionsBtnText}>Get Directions to Lab</Text>
+                    </TouchableOpacity>
+                  </View>
                 )}
 
-                <TouchableOpacity
-                  style={[styles.modalPrimaryBtn, { flex: 1, marginLeft: bookingFlowStep > 1 ? 10 : 0 }]}
-                  onPress={() => {
-                    if (bookingFlowStep === 1) setBookingFlowStep(2);
-                    else if (bookingFlowStep === 2) {
-                      if (collectionMethod === 'HOME' && (!homeAddressName.trim() || !homeAddressPhone.trim() || !homeAddressFlat.trim() || !homeAddressCity.trim() || !homeAddressPincode.trim())) {
-                        Alert.alert('Required Details', 'Please fill in Patient Name, Phone, Address, City and Pincode for home sample collection.');
-                        return;
-                      }
-                      setBookingFlowStep(3);
-                    }
-                    else if (bookingFlowStep === 3) setBookingFlowStep(4);
-                    else if (bookingFlowStep === 4) handleSimulatePayment();
-                  }}
-                >
-                  <Text style={styles.modalPrimaryBtnText}>
-                    {bookingFlowStep === 1
-                      ? 'Continue to Slots'
-                      : bookingFlowStep === 2
-                      ? 'Review Summary'
-                      : bookingFlowStep === 3
-                      ? 'Proceed to Pay'
-                      : `Pay ₹${totalPrice}`}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        </View>
-      </Modal>
-    );
-  };
-
-  // ===========================================================================
-  // MODAL 4: TRACKING SAMPLE COLLECTION STATUS (Section 31 & 32)
-  // ===========================================================================
-  const renderTrackingModal = () => {
-    if (!selectedTrackingBooking) return null;
-    const b = selectedTrackingBooking;
-
-    const stages = [
-      { id: 1, title: 'Test Booked', desc: 'Booking confirmed on portal' },
-      { id: 2, title: 'Sample Collection Scheduled', desc: `${b.bookingDate}, ${b.timeSlot}` },
-      { id: 3, title: 'Sample Collected', desc: 'Barcoded and placed in temperature transport' },
-      { id: 4, title: 'Lab Processing', desc: 'Automated clinical chemistry analyzers' },
-      { id: 5, title: 'Report Ready', desc: 'Verified by Pathologist & available online' },
-    ];
-
-    return (
-      <Modal visible={!!selectedTrackingBooking} animationType="slide" transparent onRequestClose={() => setSelectedTrackingBooking(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.detailsModalContent}>
-            <View style={styles.modalHeaderRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.modalHeaderTitle}>Sample Tracking</Text>
-                <Text style={styles.modalHeaderSubtitle}>Booking ID: {b.id}</Text>
-              </View>
-              <TouchableOpacity onPress={() => setSelectedTrackingBooking(null)}>
-                <Ionicons name="close" size={24} color="#0F172A" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: '70%' }}>
-              <Text style={styles.trackingTestTitle}>{b.testName}</Text>
-
-              {/* Timeline (Section 31 & 32) */}
-              <View style={styles.timelineContainer}>
-                {stages.map((stage, idx) => {
-                  const isDone = b.trackingStage >= stage.id;
-                  const isCurr = b.trackingStage === stage.id;
-                  return (
-                    <View key={stage.id} style={styles.timelineStepRow}>
-                      <View style={styles.timelineIconCol}>
-                        <View style={[styles.timelineNode, isDone && styles.timelineNodeDone, isCurr && styles.timelineNodeCurr]}>
-                          <Ionicons name={isDone ? 'checkmark' : 'ellipse'} size={12} color="#FFFFFF" />
-                        </View>
-                        {idx < stages.length - 1 && (
-                          <View style={[styles.timelineLine, isDone && styles.timelineLineDone]} />
-                        )}
+                {[
+                  { step: 1, title: 'Test Booked', desc: `Confirmed for ${selectedTrackingBooking.bookingDate}` },
+                  { step: 2, title: selectedTrackingBooking.collectionMethod === 'CENTRE' ? 'Lab Centre Prepared' : 'Phlebotomist Assigned', desc: selectedTrackingBooking.collectionMethod === 'CENTRE' ? `Visit ${selectedTrackingBooking.diagnosticCentre?.name || 'Diagnostic Centre'}` : `Assigned in ${currentCity}` },
+                  { step: 3, title: 'Sample Collection Scheduled', desc: selectedTrackingBooking.timeSlot },
+                  { step: 4, title: 'Laboratory Processing', desc: `Clinical analyzers in ${currentCity} partner lab` },
+                  { step: 5, title: 'Certified Report Ready', desc: 'Pathologist verified digital report' },
+                ].map((s, idx) => (
+                  <View key={s.step} style={styles.trackStepRow}>
+                    <View style={styles.trackDotCol}>
+                      <View style={[styles.trackDot, idx <= 2 && styles.trackDotActive]}>
+                        <Ionicons name="checkmark" size={11} color="#FFFFFF" />
                       </View>
-                      <View style={styles.timelineTextCol}>
-                        <Text style={[styles.timelineStepTitle, isCurr && styles.timelineStepTitleCurr]}>
-                          {stage.title}
-                        </Text>
-                        <Text style={styles.timelineStepDesc}>{stage.desc}</Text>
-                      </View>
+                      {idx < 4 && <View style={[styles.trackLine, idx < 2 && styles.trackLineActive]} />}
                     </View>
-                  );
-                })}
-              </View>
-            </ScrollView>
-
-            <TouchableOpacity style={styles.modalPrimaryBtn} onPress={() => setSelectedTrackingBooking(null)}>
-              <Text style={styles.modalPrimaryBtnText}>Close Tracker</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    );
-  };
-
-  // ===========================================================================
-  // MODAL 5: DETAILED LAB REPORT VIEWER (Section 34 & 35)
-  // ===========================================================================
-  const renderReportDetailsModal = () => {
-    if (!selectedReport) return null;
-    const r = selectedReport;
-
-    return (
-      <Modal visible={!!selectedReport} animationType="slide" transparent onRequestClose={() => setSelectedReport(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.reportModalContent}>
-            {/* Report Header */}
-            <View style={styles.modalHeaderRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.reportModalTitle}>{r.testName}</Text>
-                <Text style={styles.reportModalSub}>{r.labName}</Text>
-              </View>
-              <TouchableOpacity onPress={() => setSelectedReport(null)}>
-                <Ionicons name="close" size={24} color="#0F172A" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: '72%' }}>
-              {/* Patient and verification box */}
-              <View style={styles.reportPatientCard}>
-                <View style={styles.reportPatientRow}>
-                  <Text style={styles.repPatientLabel}>Patient:</Text>
-                  <Text style={styles.repPatientVal}>{r.patientName} ({r.patientAge}, {r.patientGender})</Text>
-                </View>
-                <View style={styles.reportPatientRow}>
-                  <Text style={styles.repPatientLabel}>Referred By:</Text>
-                  <Text style={styles.repPatientVal}>{r.doctorReferred}</Text>
-                </View>
-                <View style={styles.reportPatientRow}>
-                  <Text style={styles.repPatientLabel}>Collection Date:</Text>
-                  <Text style={styles.repPatientVal}>{r.sampleCollectionDate}</Text>
-                </View>
-                <View style={styles.reportPatientRow}>
-                  <Text style={styles.repPatientLabel}>Report Status:</Text>
-                  <Text style={[styles.repPatientVal, { color: '#00B894', fontWeight: '700' }]}>Verified & Released</Text>
-                </View>
-              </View>
-
-              {/* Quantitative Parameters & Reference Ranges Table (Section 34) */}
-              <Text style={styles.tableHeading}>Observed Test Parameters</Text>
-              <View style={styles.paramsTable}>
-                <View style={styles.paramsTableHeader}>
-                  <Text style={[styles.paramsTableColHeader, { flex: 2.2 }]}>Parameter</Text>
-                  <Text style={[styles.paramsTableColHeader, { flex: 1.2, textAlign: 'right' }]}>Result</Text>
-                  <Text style={[styles.paramsTableColHeader, { flex: 1.8, textAlign: 'right' }]}>Ref Range</Text>
-                </View>
-
-                {r.parameters.map((param, pIdx) => (
-                  <View key={pIdx} style={styles.paramTableRow}>
-                    <View style={{ flex: 2.2 }}>
-                      <Text style={styles.paramNameText}>{param.name}</Text>
-                      <Text style={styles.paramUnitText}>Unit: {param.unit}</Text>
+                    <View style={{ flex: 1, marginLeft: 12, paddingBottom: 16 }}>
+                      <Text style={styles.trackStepTitle}>{s.title}</Text>
+                      <Text style={styles.trackStepDesc}>{s.desc}</Text>
                     </View>
-                    <View style={{ flex: 1.2, alignItems: 'flex-end' }}>
-                      <Text style={[styles.paramResultText, param.status === 'BORDERLINE' && { color: '#D97706' }]}>
-                        {param.observed}
-                      </Text>
-                      <Text style={styles.paramUnitSub}>{param.unit}</Text>
-                    </View>
-                    <Text style={[styles.paramRefText, { flex: 1.8 }]}>{param.reference}</Text>
                   </View>
                 ))}
               </View>
-
-              {/* Pathologist Conclusion & Stamp */}
-              <View style={styles.conclusionCard}>
-                <Text style={styles.conclusionTitle}>Pathologist Impression:</Text>
-                <Text style={styles.conclusionText}>{r.clinicalConclusion}</Text>
-                <View style={styles.conclusionSignRow}>
-                  <Ionicons name="checkmark-done-circle" size={16} color="#00B894" />
-                  <Text style={styles.conclusionSignText}>{r.pathologistVerified}</Text>
-                </View>
-              </View>
-            </ScrollView>
-
-            {/* Footer: Download Report & View in My Health (Section 34 & 35) */}
-            <View style={styles.reportModalFooter}>
-              <TouchableOpacity
-                style={styles.reportDownloadModalBtn}
-                onPress={() => {
-                  setShowDownloadToast(true);
-                  setTimeout(() => setShowDownloadToast(false), 3000);
-                }}
-              >
-                <Ionicons name="download" size={16} color="#00B894" />
-                <Text style={styles.reportDownloadModalBtnText}>Download PDF</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.reportMyHealthBtn}
-                onPress={() => {
-                  setSelectedReport(null);
-                  navigation.navigate('HealthRecords');
-                }}
-              >
-                <Ionicons name="heart" size={16} color="#FFFFFF" />
-                <Text style={styles.reportMyHealthBtnText}>View in My Health</Text>
-              </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </Modal>
-    );
-  };
-
-  return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeContainer}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-
-      {/* Top Header Bar */}
-      <View style={[styles.topNavBar, width >= 600 && { maxWidth: 960, width: '100%', alignSelf: 'center' }]}>
-        <TouchableOpacity
-          style={styles.headerBackBtn}
-          onPress={() => (activeTab !== 'BROWSE' ? setActiveTab('BROWSE') : navigation.goBack())}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="arrow-back" size={22} color="#0F172A" />
-        </TouchableOpacity>
-
-        <View style={styles.headerTitleCol}>
-          <Text style={styles.headerTitle}>
-            {activeTab === 'REPORTS' ? 'My Lab Reports' : activeTab === 'BOOKINGS' ? 'My Bookings' : 'Lab Tests'}
-          </Text>
-          <Text style={styles.headerSub}>Mysuru Healthcare Hub</Text>
-        </View>
-
-        <TouchableOpacity
-          style={styles.headerCartIconBtn}
-          onPress={() => setActiveTab(activeTab === 'REPORTS' ? 'BROWSE' : 'REPORTS')}
-        >
-          <Ionicons name={activeTab === 'REPORTS' ? 'flask-outline' : 'document-text-outline'} size={22} color="#00B894" />
-          {reportsList.length > 0 && activeTab !== 'REPORTS' && (
-            <View style={styles.headerBadge}>
-              <Text style={styles.headerBadgeText}>{reportsList.length}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Download Toast */}
-      {showDownloadToast && (
-        <View style={styles.toastBox}>
-          <Ionicons name="cloud-download" size={16} color="#FFFFFF" />
-          <Text style={styles.toastText}>Official PDF Report downloaded successfully.</Text>
-        </View>
+        </Modal>
       )}
 
-      {/* Active Tab View */}
-      {activeTab === 'BROWSE' && renderBrowseView()}
-      {activeTab === 'BOOKINGS' && renderBookingsView()}
-      {activeTab === 'REPORTS' && renderReportsView()}
+      {/* =======================================================================
+          MODAL 7: REPORT VIEW MODAL
+      ======================================================================= */}
+      {selectedReport && (
+        <Modal visible={!!selectedReport} transparent animationType="slide" onRequestClose={() => setSelectedReport(null)}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.sheetModalCard, isTablet && styles.tabletModalWidth]}>
+              <View style={styles.modalHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalHeaderTitle}>{selectedReport.testName}</Text>
+                  <Text style={styles.modalHeaderSub}>Report Ref: {selectedReport.id} • {currentCity}</Text>
+                </View>
+                <TouchableOpacity onPress={() => setSelectedReport(null)}>
+                  <Ionicons name="close" size={22} color="#64748B" />
+                </TouchableOpacity>
+              </View>
 
-      {/* Modals */}
-      {renderTestDetailsModal()}
-      {renderPackageModal()}
-      {renderBookingFlowModal()}
-      {renderTrackingModal()}
-      {renderReportDetailsModal()}
+              <View style={{ paddingVertical: 16 }}>
+                <View style={styles.reportPreviewCard}>
+                  <Ionicons name="document-text" size={32} color="#007D69" />
+                  <Text style={styles.reportPreviewTitle}>{selectedReport.testName}</Text>
+                  <Text style={styles.reportPreviewMeta}>
+                    Date: {selectedReport.reportDate} | Lab: {selectedReport.diagnosticCentre || `${currentCity} Central Lab`}
+                  </Text>
+                  <Text style={styles.reportPreviewStatus}>Status: Certified & Signed by Chief Pathologist</Text>
+                </View>
 
-      {/* FLOATING CART BAR FOR MOBILE */}
-      {labCartCount > 0 && activeTab === 'BROWSE' && (
-        <View style={styles.mobileFloatingCartBar}>
-          <View style={styles.mobileFloatingCartInfo}>
-            <View style={styles.mobileFloatingCartBadge}>
-              <Ionicons name="flask" size={16} color="#FFFFFF" />
-              <Text style={styles.mobileFloatingCartBadgeText}>{labCartCount}</Text>
-            </View>
-            <View>
-              <Text style={styles.mobileFloatingCartTitle}>Tests Added</Text>
-              <Text style={styles.mobileFloatingCartPrice}>₹{labFinalTotal}</Text>
+                <TouchableOpacity
+                  style={styles.downloadFullBtn}
+                  onPress={() => {
+                    showAlert('Download Report', `Downloading certified PDF report for ${selectedReport.testName}...`);
+                    setSelectedReport(null);
+                  }}
+                >
+                  <Ionicons name="download" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.downloadFullBtnText}>Download Official PDF Report</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-          <TouchableOpacity
-            style={styles.mobileFloatingCartBtn}
-            onPress={() => navigation.navigate('Cart', { initialTab: 'lab' })}
-            activeOpacity={0.88}
-          >
-            <Text style={styles.mobileFloatingCartBtnText}>View Lab Cart</Text>
-            <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
+        </Modal>
       )}
     </SafeAreaView>
   );
@@ -1959,251 +2424,150 @@ const LabTestsScreen = (props) => {
 // STYLES
 // =============================================================================
 const styles = StyleSheet.create({
-  cartAddBtnSmall: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#00B894',
-    backgroundColor: '#F0FDF4',
-  },
-  cartAddBtnSmallActive: {
-    backgroundColor: '#00B894',
-    borderColor: '#00B894',
-  },
-  cartAddBtnSmallText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#00B894',
-  },
-  cartAddBtnSmallTextActive: {
-    color: '#FFFFFF',
-  },
-  mobileFloatingCartBar: {
-    position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 88 : 78,
-    left: 16,
-    right: 16,
-    backgroundColor: '#0F172A',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 8,
-    zIndex: 999,
-  },
-  mobileFloatingCartInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  mobileFloatingCartBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#00B894',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  mobileFloatingCartBadgeText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  mobileFloatingCartTitle: {
-    fontSize: 10.5,
-    color: '#94A3B8',
-  },
-  mobileFloatingCartPrice: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  mobileFloatingCartBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#00B894',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  mobileFloatingCartBtnText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  safeContainer: {
+  safeArea: {
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  topNavBar: {
+  scrollContent: {
+    paddingBottom: 40,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  tabletContainerWidth: {
+    maxWidth: 780,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  tabletModalWidth: {
+    maxWidth: 640,
+    width: '100%',
+    alignSelf: 'center',
+  },
+
+  // HEADER
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
-  headerBackBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     backgroundColor: '#F1F5F9',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
   },
-  headerTitleCol: {
+  headerCenter: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 12,
   },
   headerTitle: {
     fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
   },
-  headerSub: {
-    fontSize: 11,
-    color: '#64748B',
+  headerCityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
   },
-  headerCartIconBtn: {
+  headerCityText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#007D69',
+  },
+  cartHeaderBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E6F4F1',
+    justifyContent: 'center',
+    alignItems: 'center',
     position: 'relative',
-    padding: 6,
   },
-  headerBadge: {
+  cartBadge: {
     position: 'absolute',
-    top: 2,
-    right: 2,
-    backgroundColor: '#EF4444',
-    borderRadius: 8,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
+    top: -4,
+    right: -4,
+    backgroundColor: '#FF7F50',
+    borderRadius: 9,
+    width: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  headerBadgeText: {
+  cartBadgeText: {
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '800',
   },
-  segmentedTabBar: {
+
+  // TABS ROW
+  tabsRow: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
-    gap: 6,
+    paddingHorizontal: 16,
   },
-  segmentedTab: {
+  tabBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#F8FAFC',
-    gap: 6,
+    paddingVertical: 12,
+    borderBottomWidth: 2.5,
+    borderBottomColor: 'transparent',
   },
-  segmentedTabActive: {
-    backgroundColor: '#E6F9F4',
-    borderWidth: 1,
-    borderColor: '#00B894',
+  tabBtnActive: {
+    borderBottomColor: '#007D69',
   },
-  segmentedTabText: {
-    fontSize: 12,
+  tabBtnText: {
+    fontSize: 12.5,
     fontWeight: '600',
     color: '#64748B',
   },
-  segmentedTabTextActive: {
-    color: '#00B894',
-    fontWeight: '700',
-  },
-  scrollContainer: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: Platform.OS === 'ios' ? 95 : 85,
-  },
-  toastBox: {
-    position: 'absolute',
-    top: 110,
-    left: 20,
-    right: 20,
-    backgroundColor: '#0F172A',
-    borderRadius: 8,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    zIndex: 999,
-  },
-  toastText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-
-  // Hero Box
-  heroHeaderBox: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 8,
-  },
-  heroTextCol: {
-    gap: 3,
-  },
-  heroMicroPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E6F9F4',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 2.5,
-    borderRadius: 20,
-    gap: 4,
-  },
-  heroMicroPillText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#00B894',
-  },
-  mainTitle: {
-    fontSize: 18,
+  tabBtnTextActive: {
+    color: '#007D69',
     fontWeight: '800',
-    color: '#0F172A',
-    marginTop: 2,
-    lineHeight: 22,
   },
-  mainSubtitle: {
-    fontSize: 11.5,
+  tabBadge: {
+    marginLeft: 6,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+  },
+  tabBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
     color: '#64748B',
-    lineHeight: 16,
   },
 
-  // Search Wrap
-  searchWrap: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-  },
-  searchBar: {
+  // SEARCH & ACTIONS ROW (SEARCH + FILTER + SORT)
+  searchRowContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 8,
+    gap: 8,
+  },
+  searchBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    height: 42,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
@@ -2213,551 +2577,453 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#0F172A',
   },
-
-  // Filter Chips Row
-  filterChipsRow: {
-    backgroundColor: '#FFFFFF',
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  filterChipsScroll: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  filterChip: {
+  filterActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 42,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
   },
-  filterChipActive: {
-    backgroundColor: '#00B894',
-    borderColor: '#00B894',
+  filterActionBtnActive: {
+    backgroundColor: '#007D69',
+    borderColor: '#007D69',
   },
-  filterChipText: {
-    fontSize: 12,
-    color: '#475569',
-    fontWeight: '600',
-  },
-  filterChipTextActive: {
-    color: '#FFFFFF',
+  filterActionBtnText: {
+    fontSize: 12.5,
     fontWeight: '700',
+    color: '#007D69',
+  },
+  filterActionBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  sortActionBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sortActionBtnActive: {
+    backgroundColor: '#007D69',
+    borderColor: '#007D69',
   },
 
-  // Section Headers
-  sectionHeaderWrap: {
+  // SUB-VIEW SWITCHER (ALL | PACKAGES | TESTS)
+  subViewSwitcher: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    paddingHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 6,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    backgroundColor: '#E2E8F0',
+    padding: 3,
+    borderRadius: 10,
+    gap: 4,
   },
-  sectionTitle: {
+  subViewBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    paddingVertical: 7,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subViewBtnActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  subViewBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  subViewBtnTextActive: {
+    color: '#007D69',
+    fontWeight: '800',
+  },
+  subViewBadge: {
+    marginLeft: 5,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  subViewBadgeActive: {
+    backgroundColor: '#E6F4F1',
+  },
+  subViewBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  subViewBadgeTextActive: {
+    color: '#007D69',
+  },
+
+  // CATEGORIES
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  sectionHeading: {
     fontSize: 15,
     fontWeight: '800',
     color: '#0F172A',
   },
-  sectionSub: {
+  resetLinkText: {
     fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  seeAllLink: {
-    fontSize: 13,
     fontWeight: '700',
-    color: '#00B894',
+    color: '#FF7F50',
   },
-
-  // Category Cards
-  categoryScroll: {
+  categoriesScroll: {
     paddingHorizontal: 16,
+    paddingBottom: 8,
     gap: 10,
   },
   categoryCard: {
-    width: 105,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 12,
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    minWidth: 72,
   },
   categoryCardActive: {
-    borderColor: '#00B894',
-    backgroundColor: '#E6F9F4',
+    borderColor: '#007D69',
+    backgroundColor: '#E6F4F1',
   },
-  categoryIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  categoryIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  categoryIconCircleActive: {
-    backgroundColor: '#00B894',
+  categoryIconWrapActive: {
+    backgroundColor: '#007D69',
   },
-  categoryCardName: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#1E293B',
-    textAlign: 'center',
-  },
-  categoryCardNameActive: {
-    color: '#00B894',
-  },
-  categoryCardBadge: {
-    fontSize: 10,
-    color: '#64748B',
-    marginTop: 2,
-    textAlign: 'center',
-  },
-
-  // Sub Categories
-  subCategoryRow: {
-    marginTop: 10,
-    paddingHorizontal: 16,
-  },
-  subCategoryScroll: {
-    gap: 6,
-  },
-  subCatChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-  },
-  subCatChipActive: {
-    backgroundColor: '#00B894',
-    borderColor: '#00B894',
-  },
-  subCatChipText: {
+  categoryName: {
     fontSize: 11,
     fontWeight: '600',
     color: '#475569',
   },
-  subCatChipTextActive: {
-    color: '#FFFFFF',
+  categoryNameActive: {
+    color: '#007D69',
+    fontWeight: '800',
+  },
+  popularCategoryCard: {
+    borderColor: '#FED7AA',
+    backgroundColor: '#FFF7ED',
+  },
+  popularCategoryIconWrap: {
+    backgroundColor: '#FFEDD5',
+  },
+  popularCategoryText: {
+    color: '#C2410C',
+    fontWeight: '700',
   },
 
-  // Packages
-  packagesSection: {
-    marginTop: 10,
-  },
-  packagesScroll: {
+  // SUBCATEGORIES
+  subCatScroll: {
     paddingHorizontal: 16,
-    gap: 12,
+    paddingBottom: 10,
+    gap: 8,
+  },
+  subCatPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+  },
+  subCatPillActive: {
+    backgroundColor: '#007D69',
+  },
+  subCatText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  subCatTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+
+  // LOCATION STATUS (SIMPLE & CLEAN)
+  simpleLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginTop: 6,
+    marginBottom: 10,
+  },
+  simpleLocationText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#007D69',
+  },
+
+  // CARDS: PACKAGE & TEST
+  packagesSectionWrap: {
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  testsSectionWrap: {
+    paddingHorizontal: 16,
+    marginBottom: 10,
   },
   packageCard: {
-    width: 250,
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     padding: 14,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    elevation: 2,
   },
-  packageCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  packageBadgePill: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  packageBadgePillText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#D97706',
-  },
-  packageParamCount: {
-    fontSize: 11,
-    color: '#00B894',
-    fontWeight: '700',
-  },
-  packageName: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 4,
-  },
-  packageDesc: {
-    fontSize: 12,
-    color: '#64748B',
-    lineHeight: 16,
-    marginBottom: 10,
-  },
-  packagePriceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingTop: 8,
-  },
-  packagePrice: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#00B894',
-  },
-  packageMrp: {
-    fontSize: 11,
-    color: '#94A3B8',
-    textDecorationLine: 'line-through',
-  },
-  packageViewBtn: {
-    backgroundColor: '#00B894',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  packageViewBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-
-  // Curated Block
-  curatedBlock: {
-    marginTop: 4,
-  },
-
-  // Lab Test Card
   testCard: {
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginBottom: 12,
     borderRadius: 14,
     padding: 14,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    elevation: 2,
   },
-  cardBadgesRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 8,
-  },
-  popularBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EF4444',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    gap: 4,
-  },
-  popularBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  recommendedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E0F2FE',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    gap: 4,
-  },
-  recommendedBadgeText: {
-    color: '#0284C7',
-    fontSize: 10,
+  cardCategoryText: {
+    fontSize: 11,
     fontWeight: '700',
+    color: '#007D69',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    marginBottom: 3,
   },
-  featuredBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    gap: 4,
-  },
-  featuredBadgeText: {
-    color: '#D97706',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  sampleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDF4',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    gap: 4,
-  },
-  sampleBadgeText: {
-    color: '#15803D',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  testCardTitle: {
+  cardTitle: {
     fontSize: 15,
     fontWeight: '800',
     color: '#0F172A',
-    marginBottom: 4,
+    marginBottom: 6,
   },
-  testCardDesc: {
-    fontSize: 12,
-    color: '#64748B',
-    lineHeight: 17,
-    marginBottom: 10,
-  },
-  availabilityRow: {
+  pkgMetricsRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    rowGap: 6,
+    columnGap: 6,
+    marginBottom: 10,
+  },
+  keyInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    padding: 8,
-    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    maxWidth: '100%',
   },
-  availItem: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  keyInfoIcon: {
+    fontSize: 12,
   },
-  availText: {
-    fontSize: 11,
-    color: '#0F172A',
+  keyInfoText: {
+    fontSize: 11.5,
     fontWeight: '600',
-  },
-  availTextDisabled: {
-    color: '#94A3B8',
-  },
-  availDivider: {
-    width: 1,
-    height: 16,
-    backgroundColor: '#E2E8F0',
-    marginHorizontal: 4,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metaText: {
-    fontSize: 11,
-    color: '#64748B',
+    color: '#334155',
+    flexShrink: 1,
   },
   cardFooterRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
-    paddingTop: 10,
   },
-  testPriceText: {
-    fontSize: 18,
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+  },
+  cardPrice: {
+    fontSize: 16,
     fontWeight: '800',
-    color: '#00B894',
+    color: '#0F172A',
   },
-  testMrpText: {
+  cardMrp: {
     fontSize: 12,
     color: '#94A3B8',
     textDecorationLine: 'line-through',
   },
-  testDiscountText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#15803D',
+  discountBadge: {
+    backgroundColor: '#FFF2ED',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
-  cardBtnsRow: {
+  discountBadgeText: {
+    color: '#FF7F50',
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
+  cardActionBtnsRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
-  viewDetailsBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
+  detailsBtn: {
+    paddingHorizontal: 14,
+    minHeight: 34,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#F1F5F9',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  viewDetailsBtnText: {
+  detailsBtnText: {
     fontSize: 12,
     fontWeight: '700',
     color: '#334155',
   },
-  bookTestBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+  cartIconBtn: {
+    width: 34,
+    height: 34,
     borderRadius: 8,
-    backgroundColor: '#00B894',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#E6F4F1',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
   },
-  bookTestBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
+  cartIconBtnActive: {
+    backgroundColor: '#007D69',
+    borderColor: '#007D69',
+  },
+  bookPrimaryBtn: {
+    paddingHorizontal: 16,
+    minHeight: 34,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#007D69',
+    borderRadius: 8,
+  },
+  bookPrimaryBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
     color: '#FFFFFF',
   },
 
-  // Centres Snippet
-  centresSectionBox: {
-    margin: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  centresHeader: {
-    flexDirection: 'row',
+  // EMPTY CONTAINER
+  emptyContainer: {
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
+    justifyContent: 'center',
+    padding: 30,
+    marginTop: 20,
   },
-  centresTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  centresDesc: {
-    fontSize: 12,
-    color: '#64748B',
-    lineHeight: 16,
-    marginBottom: 10,
-  },
-  centresList: {
-    gap: 8,
-  },
-  centreSnippetRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    padding: 8,
-  },
-  centreSnippetName: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  centreSnippetLoc: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  ratingPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    gap: 3,
-  },
-  ratingText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#D97706',
-  },
-
-  // Empty State
-  emptyStateBox: {
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    padding: 24,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginVertical: 10,
-  },
-  emptyStateTitle: {
+  emptyTitle: {
     fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
-    marginTop: 10,
+    marginTop: 12,
   },
-  emptyStateDesc: {
-    fontSize: 13,
+  emptySub: {
+    fontSize: 12,
     color: '#64748B',
     textAlign: 'center',
     marginTop: 4,
     lineHeight: 18,
   },
-  emptyResetBtn: {
+  resetFilterBtn: {
     marginTop: 14,
-    backgroundColor: '#00B894',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  emptyResetBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-
-  // Bookings Tab
-  tabFiltersRow: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#007D69',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    gap: 8,
+    borderRadius: 10,
   },
-  tabFilterBtn: {
+  resetFilterBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  // BOOKINGS TAB
+  bookingsFilterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 10,
+  },
+  bookingFilterPill: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  tabFilterBtnActive: {
-    backgroundColor: '#00B894',
+  bookingFilterPillActive: {
+    backgroundColor: '#007D69',
+    borderColor: '#007D69',
   },
-  tabFilterText: {
+  bookingFilterText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#64748B',
   },
-  tabFilterTextActive: {
+  bookingFilterTextActive: {
     color: '#FFFFFF',
     fontWeight: '700',
   },
   bookingCard: {
     backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
     marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 14,
-    padding: 14,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
   bookingCardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
+    justifyContent: 'space-between',
     marginBottom: 8,
   },
   bookingIdText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#00B894',
-  },
-  bookingDateText: {
     fontSize: 11,
+    fontWeight: '700',
     color: '#64748B',
+  },
+  bookingTestTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0F172A',
     marginTop: 2,
   },
   statusBadge: {
@@ -2765,669 +3031,767 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 6,
   },
-  statusConfirmed: {
-    backgroundColor: '#E0F2FE',
-  },
-  statusConfirmedText: {
-    color: '#0284C7',
+  statusBadgeText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
   },
-  statusCompleted: {
-    backgroundColor: '#F0FDF4',
+  bookingMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
   },
-  statusCompletedText: {
-    color: '#15803D',
-    fontSize: 11,
-    fontWeight: '700',
+  bookingMetaText: {
+    fontSize: 12,
+    color: '#475569',
+    flex: 1,
   },
-  statusCancelled: {
-    backgroundColor: '#FEE2E2',
+  bookingFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 10,
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
   },
-  statusCancelledText: {
-    color: '#DC2626',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  bookingTestName: {
+  bookingAmountText: {
     fontSize: 15,
     fontWeight: '800',
     color: '#0F172A',
-    marginBottom: 8,
-  },
-  bookingDetailsBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    padding: 10,
-    gap: 4,
-  },
-  bookingDetailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  bookingDetailLabel: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  bookingDetailVal: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#0F172A',
-    flex: 1,
-    textAlign: 'right',
-  },
-  bookingPriceVal: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#00B894',
-  },
-  bookingActionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
   },
   trackBookingBtn: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
+    backgroundColor: '#007D69',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: 8,
-    backgroundColor: '#F1F5F9',
-    gap: 6,
   },
   trackBookingBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#00B894',
-  },
-  viewReportActionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#00B894',
-    gap: 6,
-  },
-  viewReportActionBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
     color: '#FFFFFF',
   },
-
-  // Reports Tab
-  reportsHeaderBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E6F9F4',
-    margin: 16,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
+  cancelBookingBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: '#FEE2E2',
   },
-  reportsBannerTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  reportsBannerSub: {
+  cancelBookingBtnText: {
     fontSize: 12,
-    color: '#475569',
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  reportCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  reportCardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 10,
-  },
-  reportCardId: {
-    fontSize: 11,
     fontWeight: '700',
-    color: '#64748B',
+    color: '#DC2626',
   },
-  reportTestName: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginTop: 2,
+  centreVisitCardBox: {
+    backgroundColor: '#F0FDFA',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    padding: 10,
+    marginTop: 8,
+    marginBottom: 6,
   },
-  reportReadyPill: {
+  centreVisitHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0FDF4',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  labVisitTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E6FFFA',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
     borderRadius: 6,
     gap: 4,
   },
-  reportReadyPillText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#15803D',
+  labVisitTagText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#007D69',
   },
-  reportMetaGrid: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    padding: 10,
-    gap: 4,
-  },
-  reportMetaItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  reportMetaLabel: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  reportMetaVal: {
+  centreDistanceText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#0F172A',
-    flex: 1,
-    textAlign: 'right',
+    color: '#0D9488',
   },
-  reportCardActions: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
+  centreAddressFullText: {
+    fontSize: 11.5,
+    color: '#334155',
+    lineHeight: 16,
+    marginBottom: 8,
   },
-  reportDownloadBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    gap: 6,
-  },
-  reportDownloadBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#00B894',
-  },
-  reportViewFullBtn: {
-    flex: 1,
+  getDirectionsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
+    backgroundColor: '#007D69',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
     borderRadius: 8,
-    backgroundColor: '#00B894',
-    gap: 6,
   },
-  reportViewFullBtnText: {
+  getDirectionsBtnText: {
     fontSize: 12,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-
-  // Modals General
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-    justifyContent: 'flex-end',
-  },
-  detailsModalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 18,
-    maxHeight: '88%',
-  },
-  modalHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    paddingBottom: 12,
-    marginBottom: 12,
-  },
-  modalHeaderTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  modalHeaderSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  detailsSectionBlock: {
-    marginBottom: 12,
-  },
-  detailsBlockTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 4,
-  },
-  detailsBlockDesc: {
-    fontSize: 13,
-    color: '#475569',
-    lineHeight: 19,
-  },
-  applicabilityRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
-  },
-  appliBadge: {
+  footerDirectionsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 5,
   },
-  appliBadgeText: {
-    fontSize: 11,
+  footerDirectionsBtnText: {
+    fontSize: 11.5,
     fontWeight: '700',
-    color: '#334155',
+    color: '#007D69',
   },
-  instructionCard: {
-    backgroundColor: '#FFFBEB',
+  trackingCentreBox: {
+    backgroundColor: '#F0FDFA',
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: '#CCFBF1',
     borderRadius: 10,
-    padding: 10,
-    marginBottom: 10,
-  },
-  instructionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
-  },
-  instructionTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#92400E',
-  },
-  instructionBody: {
-    fontSize: 12,
-    color: '#78350F',
-    lineHeight: 17,
-  },
-  detailsTwoColGrid: {
-    flexDirection: 'row',
-    gap: 10,
+    padding: 12,
     marginBottom: 14,
   },
-  detailsColBox: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  colBoxTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#64748B',
-    marginTop: 4,
-  },
-  colBoxVal: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginTop: 2,
-  },
-  collectionOptionsBlock: {
-    marginBottom: 12,
-  },
-  methodOptionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 10,
-    marginTop: 6,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  methodOptionTitle: {
+  trackingCentreName: {
     fontSize: 13,
     fontWeight: '700',
     color: '#0F172A',
   },
-  methodOptionDesc: {
-    fontSize: 11,
-    color: '#64748B',
+  trackingCentreAddress: {
+    fontSize: 11.5,
+    color: '#475569',
+    marginBottom: 8,
     marginTop: 2,
   },
-  modalFooterRow: {
+  trackingGetDirectionsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    paddingTop: 12,
-    marginTop: 8,
+    justifyContent: 'center',
+    backgroundColor: '#007D69',
+    paddingVertical: 7,
+    borderRadius: 8,
   },
-  modalPriceText: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#00B894',
-  },
-  modalMrpText: {
+  trackingGetDirectionsBtnText: {
     fontSize: 12,
-    color: '#94A3B8',
-    textDecorationLine: 'line-through',
-  },
-  modalPrimaryBtn: {
-    backgroundColor: '#00B894',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  modalPrimaryBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
     fontWeight: '700',
+    color: '#FFFFFF',
   },
 
-  // Package Modal
-  packageModalDesc: {
-    fontSize: 13,
-    color: '#475569',
-    lineHeight: 18,
-    marginBottom: 12,
+  // REPORTS TAB
+  reportCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  includedSectionHeader: {
-    fontSize: 13,
+  reportIconCol: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#E6F4F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportTestName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  reportSubText: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  reportVerifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  reportVerifiedBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  downloadReportBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // NO LOCATION STATE
+  noLocationContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  noLocationIconCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#E6F4F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  noLocationTitle: {
+    fontSize: 20,
     fontWeight: '800',
     color: '#0F172A',
     marginBottom: 8,
   },
-  includedItemRow: {
+  noLocationMsg: {
+    fontSize: 13.5,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  noLocationBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    padding: 8,
-    marginBottom: 6,
+    backgroundColor: '#007D69',
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
-  includedItemName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  includedItemDesc: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  includedItemDetailsLink: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#00B894',
+  noLocationBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 
-  // Booking Flow Modal
-  bookingModalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 18,
-    maxHeight: '90%',
+  // MODAL OVERLAY & BOTTOM SHEET
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
   },
-  bookingStepHeaderTitle: {
+  sheetModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 28,
+    width: '100%',
+  },
+  bookingModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 28,
+    width: '100%',
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  modalHeaderTitle: {
     fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
   },
-  bookingStepHeaderSub: {
-    fontSize: 12,
-    color: '#00B894',
-    fontWeight: '700',
+  modalHeaderSub: {
+    fontSize: 11.5,
+    color: '#64748B',
     marginTop: 1,
   },
-  stepPromptText: {
-    fontSize: 14,
+  resetModalText: {
+    fontSize: 13,
     fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 12,
+    color: '#FF7F50',
   },
-  methodSelectCard: {
+
+  // FILTER MODAL CONTENT
+  filterSectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  filterOptionsGrid: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  filterPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
   },
-  methodSelectCardActive: {
-    backgroundColor: '#E6F9F4',
-    borderColor: '#00B894',
+  filterPillActive: {
+    backgroundColor: '#E6F4F1',
+    borderColor: '#007D69',
   },
-  methodRadio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#CBD5E1',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
-  },
-  methodRadioActive: {
-    borderColor: '#00B894',
-  },
-  methodRadioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#00B894',
-  },
-  methodSelectTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  methodSelectSub: {
+  filterPillText: {
     fontSize: 12,
-    color: '#64748B',
-    lineHeight: 16,
-    marginVertical: 4,
+    fontWeight: '600',
+    color: '#475569',
   },
-  methodFeeTag: {
-    fontSize: 11,
+  filterPillTextActive: {
+    color: '#007D69',
+    fontWeight: '800',
+  },
+  filterActionRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  filterClearBtn: {
+    flex: 1,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+  },
+  filterClearBtnText: {
+    fontSize: 13,
     fontWeight: '700',
     color: '#64748B',
   },
-
-  // Step 2
-  stepBlock: {
-    marginBottom: 14,
-  },
-  stepBlockHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  filterApplyBtn: {
+    flex: 2,
+    minHeight: 44,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    borderRadius: 12,
+    backgroundColor: '#007D69',
   },
-  stepBlockTitle: {
+  filterApplyBtnText: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  // SORT MODAL CONTENT
+  sortOptionsList: {
+    paddingVertical: 8,
+    gap: 8,
+  },
+  sortOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  sortOptionRowActive: {
+    backgroundColor: '#E6F4F1',
+    borderColor: '#007D69',
+  },
+  sortOptionLabel: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  sortOptionLabelActive: {
+    color: '#007D69',
+    fontWeight: '800',
+  },
+
+  // PACKAGE DETAILS ACCORDION
+  clinicalNoteBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F0F9FF',
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  clinicalNoteText: {
+    fontSize: 11.5,
+    color: '#0369A1',
+    flex: 1,
+  },
+  accordionHeaderTitle: {
     fontSize: 13,
     fontWeight: '800',
     color: '#0F172A',
     marginBottom: 8,
   },
-  addAddressLink: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#00B894',
+  accordionItem: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    marginBottom: 6,
+    overflow: 'hidden',
   },
-  addressCard: {
+  accordionItemActive: {
+    borderColor: '#007D69',
+  },
+  accordionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    padding: 10,
+    backgroundColor: '#FFFFFF',
+  },
+  accordionTitleText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#0F172A',
+    flex: 1,
+  },
+  accordionBody: {
+    padding: 10,
+    backgroundColor: '#F8FAFC',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  accordionParamLabel: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  accordionParamValue: {
+    fontSize: 11.5,
+    color: '#1E293B',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  accordionMetaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 6,
+  },
+  accordionMetaItem: {
+    fontSize: 11,
+    color: '#64748B',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  detailsModalFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 14,
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  detailsModalPrice: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  detailsModalMrp: {
+    fontSize: 12,
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+
+  // TEST MODAL
+  testModalDesc: {
+    fontSize: 13,
+    color: '#475569',
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+  infoCard: {
     backgroundColor: '#F8FAFC',
     borderRadius: 10,
     padding: 10,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginBottom: 6,
   },
-  addressCardActive: {
-    backgroundColor: '#E6F9F4',
-    borderColor: '#00B894',
+  infoCardTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#007D69',
+    marginBottom: 2,
   },
-  addressTagText: {
+  infoCardBody: {
+    fontSize: 12,
+    color: '#334155',
+  },
+  testMetaRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  testMetaCol: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    padding: 8,
+    alignItems: 'center',
+  },
+  testMetaColLabel: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  testMetaColVal: {
     fontSize: 12,
     fontWeight: '700',
     color: '#0F172A',
+    marginTop: 2,
   },
-  addressLineText: {
+
+  // BOOKING JOURNEY
+  bookingStepTitle: {
+    fontSize: 15.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  bookingStepSub: {
+    fontSize: 11.5,
+    color: '#007D69',
+    fontWeight: '700',
+    marginTop: 1,
+  },
+  stepSectionHeader: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  patientProfilesGrid: {
+    gap: 8,
+  },
+  patientCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  patientCardActive: {
+    backgroundColor: '#E6F4F1',
+    borderColor: '#007D69',
+  },
+  patientCardName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  patientCardSub: {
     fontSize: 11,
     color: '#64748B',
-    marginTop: 1,
+  },
+  methodCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 8,
+  },
+  methodCardActive: {
+    backgroundColor: '#E6F4F1',
+    borderColor: '#007D69',
+  },
+  methodCardTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  methodCardDesc: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  methodCardFee: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#007D69',
+    marginTop: 4,
+  },
+
+  // STEP 2 FORMS
+  stepFormBlock: {
+    marginBottom: 8,
+  },
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+    marginTop: 8,
+    marginBottom: 3,
+  },
+  fieldInput: {
+    height: 42,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 10,
+    fontSize: 13,
+    color: '#0F172A',
   },
   centreSelectCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
     padding: 10,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   centreSelectCardActive: {
-    backgroundColor: '#E6F9F4',
-    borderColor: '#00B894',
+    backgroundColor: '#E6F4F1',
+    borderColor: '#007D69',
   },
   centreSelectName: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#0F172A',
   },
-  centreSelectAddress: {
+  centreSelectAddr: {
     fontSize: 11,
     color: '#64748B',
     marginTop: 1,
   },
-  centreMetaRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 3,
+  centreSelectMeta: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#FF7F50',
+    marginTop: 2,
   },
-  centreMetaText: {
-    fontSize: 10,
-    color: '#00B894',
-    fontWeight: '600',
-  },
-  datePillsRow: {
+  datePillsScroll: {
     gap: 8,
+    paddingVertical: 4,
   },
   datePill: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingVertical: 8,
     paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
+    minWidth: 64,
   },
   datePillActive: {
-    backgroundColor: '#00B894',
-    borderColor: '#00B894',
+    backgroundColor: '#007D69',
   },
   datePillDay: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
     color: '#64748B',
   },
   datePillDayActive: {
     color: '#FFFFFF',
   },
-  datePillDate: {
-    fontSize: 13,
-    fontWeight: '800',
+  datePillVal: {
+    fontSize: 12,
+    fontWeight: '700',
     color: '#0F172A',
-    marginTop: 2,
+    marginTop: 1,
   },
-  datePillDateActive: {
+  datePillValActive: {
     color: '#FFFFFF',
   },
-  slotGrid: {
+  slotsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    paddingVertical: 4,
   },
-  slotCard: {
-    width: '48%',
+  slotBtn: {
+    flex: 1,
+    minWidth: 130,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
     backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    padding: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    alignItems: 'center',
   },
-  slotCardActive: {
-    backgroundColor: '#E6F9F4',
-    borderColor: '#00B894',
+  slotBtnActive: {
+    backgroundColor: '#E6F4F1',
+    borderColor: '#007D69',
   },
-  slotLabel: {
-    fontSize: 11,
+  slotBtnDisabled: {
+    backgroundColor: '#F1F5F9',
+    opacity: 0.5,
+  },
+  slotBtnLabel: {
+    fontSize: 12,
     fontWeight: '700',
     color: '#0F172A',
   },
-  slotLabelActive: {
-    color: '#00B894',
+  slotBtnLabelActive: {
+    color: '#007D69',
   },
-  slotPeriod: {
+  slotBtnLabelDisabled: {
+    color: '#94A3B8',
+  },
+  slotBtnPeriod: {
     fontSize: 10,
     color: '#64748B',
-    marginTop: 2,
+    marginTop: 1,
   },
 
-  // Step 3 Summary
-  summaryCard: {
+  // SUMMARY BOX
+  summaryBox: {
     backgroundColor: '#F8FAFC',
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  summaryHeading: {
+  summaryTitle: {
     fontSize: 14,
     fontWeight: '800',
     color: '#0F172A',
     marginBottom: 10,
   },
-  summaryRow: {
+  summaryItemRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 4,
+    marginBottom: 6,
   },
-  summaryLabel: {
+  summaryItemLabel: {
     fontSize: 12,
     color: '#64748B',
   },
-  summaryVal: {
+  summaryItemVal: {
     fontSize: 12,
     fontWeight: '600',
     color: '#0F172A',
@@ -3442,7 +3806,7 @@ const styles = StyleSheet.create({
   summaryTotalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'baseline',
+    alignItems: 'center',
   },
   summaryTotalLabel: {
     fontSize: 14,
@@ -3450,454 +3814,190 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   summaryTotalVal: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#00B894',
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#007D69',
   },
 
-  // Step 4 Payment
-  demoPaymentAlert: {
+  // PAYMENT MODES
+  paymentCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E0F2FE',
-    padding: 10,
-    borderRadius: 8,
-    gap: 8,
-    marginBottom: 12,
-  },
-  demoPaymentAlertText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#0369A1',
-    lineHeight: 16,
-  },
-  paymentMethodCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
     padding: 12,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
     marginBottom: 8,
-    gap: 10,
   },
-  paymentMethodCardActive: {
-    backgroundColor: '#E6F9F4',
-    borderColor: '#00B894',
+  paymentCardActive: {
+    backgroundColor: '#E6F4F1',
+    borderColor: '#007D69',
   },
-  paymentMethodLabel: {
-    flex: 1,
+  paymentCardText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#0F172A',
+    color: '#334155',
+    marginLeft: 10,
   },
-  paymentMethodLabelActive: {
-    color: '#00B894',
-    fontWeight: '700',
+  paymentCardTextActive: {
+    color: '#007D69',
+    fontWeight: '800',
   },
 
-  // Step 5 Confirmed
-  confirmedBox: {
+  // CONFIRMED
+  confirmedContainer: {
     alignItems: 'center',
-    paddingVertical: 16,
+    justifyContent: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 16,
   },
-  confirmedTitle: {
-    fontSize: 20,
+  confirmedHeading: {
+    fontSize: 18,
     fontWeight: '800',
     color: '#0F172A',
-    marginTop: 8,
+    marginTop: 10,
   },
-  confirmedBookingId: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#00B894',
+  confirmedId: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#007D69',
     marginTop: 4,
   },
-  confirmedDesc: {
-    fontSize: 13,
+  confirmedSub: {
+    fontSize: 12.5,
     color: '#475569',
     textAlign: 'center',
-    marginVertical: 12,
+    marginTop: 6,
     lineHeight: 18,
   },
-  confirmedMetaBox: {
-    backgroundColor: '#F8FAFC',
-    padding: 10,
-    borderRadius: 8,
-    width: '100%',
-    marginBottom: 16,
-  },
-  confirmedMetaText: {
-    fontSize: 12,
-    color: '#0F172A',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  viewBookingsConfirmedBtn: {
-    backgroundColor: '#00B894',
+  confirmedActionBtn: {
+    marginTop: 18,
+    backgroundColor: '#007D69',
+    paddingHorizontal: 20,
     paddingVertical: 12,
-    paddingHorizontal: 24,
     borderRadius: 10,
-    width: '100%',
-    alignItems: 'center',
   },
-  viewBookingsConfirmedBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  stepBackBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-  },
-  stepBackBtnText: {
-    color: '#475569',
+  confirmedActionBtnText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 
-  // Tracking Timeline Modal
-  trackingTestTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 16,
-  },
-  timelineContainer: {
-    paddingLeft: 6,
-  },
-  timelineStepRow: {
+  // FOOTER BUTTONS
+  bookingModalFooterRow: {
     flexDirection: 'row',
-    marginBottom: 16,
-  },
-  timelineIconCol: {
     alignItems: 'center',
-    width: 26,
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
   },
-  timelineNode: {
+  stepPrevBtn: {
+    paddingHorizontal: 16,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+  },
+  stepPrevBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  stepNextBtn: {
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#007D69',
+    borderRadius: 10,
+  },
+  stepNextBtnText: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  // TRACKING MODAL
+  trackStepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  trackDotCol: {
+    alignItems: 'center',
+    width: 24,
+  },
+  trackDot: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#CBD5E1',
+    backgroundColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  timelineNodeDone: {
-    backgroundColor: '#00B894',
+  trackDotActive: {
+    backgroundColor: '#007D69',
   },
-  timelineNodeCurr: {
-    backgroundColor: '#0284C7',
-    borderWidth: 2,
-    borderColor: '#BAE6FD',
-  },
-  timelineLine: {
+  trackLine: {
     width: 2,
-    flex: 1,
-    backgroundColor: '#CBD5E1',
-    marginTop: 2,
+    height: 36,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 2,
   },
-  timelineLineDone: {
-    backgroundColor: '#00B894',
+  trackLineActive: {
+    backgroundColor: '#007D69',
   },
-  timelineTextCol: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  timelineStepTitle: {
+  trackStepTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#475569',
+    color: '#0F172A',
   },
-  timelineStepTitleCurr: {
-    color: '#0284C7',
-    fontWeight: '800',
-  },
-  timelineStepDesc: {
-    fontSize: 11,
+  trackStepDesc: {
+    fontSize: 11.5,
     color: '#64748B',
     marginTop: 1,
   },
 
-  // Report Modal
-  reportModalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 18,
-    maxHeight: '92%',
-  },
-  reportModalTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  reportModalSub: {
-    fontSize: 12,
-    color: '#00B894',
-    fontWeight: '700',
-  },
-  reportPatientCard: {
+  // REPORT PREVIEW MODAL
+  reportPreviewCard: {
     backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 12,
-    gap: 4,
+    borderRadius: 12,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-  },
-  reportPatientRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  repPatientLabel: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  repPatientVal: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-  tableHeading: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 6,
-  },
-  paramsTable: {
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    overflow: 'hidden',
-    marginBottom: 12,
-  },
-  paramsTableHeader: {
-    flexDirection: 'row',
-    backgroundColor: '#F1F5F9',
-    padding: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  paramsTableColHeader: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#334155',
-  },
-  paramTableRow: {
-    flexDirection: 'row',
     alignItems: 'center',
-    padding: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  paramNameText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  paramUnitText: {
-    fontSize: 10,
-    color: '#64748B',
-  },
-  paramResultText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#15803D',
-  },
-  paramUnitSub: {
-    fontSize: 9,
-    color: '#94A3B8',
-  },
-  paramRefText: {
-    fontSize: 11,
-    color: '#475569',
-    textAlign: 'right',
-  },
-  conclusionCard: {
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 10,
-  },
-  conclusionTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#166534',
-  },
-  conclusionText: {
-    fontSize: 12,
-    color: '#14532D',
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  conclusionSignRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 6,
-  },
-  conclusionSignText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#00B894',
-  },
-  reportModalFooter: {
-    flexDirection: 'row',
-    gap: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    paddingTop: 12,
-  },
-  reportDownloadModalBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    gap: 6,
-  },
-  reportDownloadModalBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#00B894',
-  },
-  reportMyHealthBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: '#00B894',
-    gap: 6,
-  },
-  reportMyHealthBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-
-  // Add Address Modal
-  addAddressModalContent: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 18,
-    margin: 20,
-  },
-  addAddressTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 12,
-  },
-  tagToggleRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 10,
-  },
-  tagToggleBtn: {
-    flex: 1,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-  },
-  tagToggleBtnActive: {
-    backgroundColor: '#00B894',
-  },
-  tagToggleText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  tagToggleTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  addressInput: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 13,
-    color: '#0F172A',
-    marginBottom: 10,
-  },
-  addAddressBtnRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
-  },
-  cancelAddressBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-  },
-  cancelAddressBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  saveAddressBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#00B894',
-    alignItems: 'center',
-  },
-  saveAddressBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-
-  // ─── MANUAL ADDRESS FORM ───────────────────────────────────────
-  manualAddressHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  manualAddressSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
     marginBottom: 14,
   },
-  addressFieldLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#374151',
-    marginBottom: 5,
-    marginTop: 10,
-  },
-  addressFieldInput: {
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    fontSize: 14,
+  reportPreviewTitle: {
+    fontSize: 15,
+    fontWeight: '800',
     color: '#0F172A',
-    backgroundColor: '#F8FAFC',
+    marginTop: 8,
   },
-  addressRowFields: {
+  reportPreviewMeta: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 4,
+  },
+  reportPreviewStatus: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
+    marginTop: 8,
+  },
+  downloadFullBtn: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#007D69',
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  downloadFullBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });
 

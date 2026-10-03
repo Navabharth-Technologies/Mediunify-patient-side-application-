@@ -263,26 +263,27 @@ const RegisterScreen = ({ navigation, route }) => {
       ]}
       edges={['top', 'left', 'right', 'bottom']}
     >
-      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* TOP COMPLIANCE & GUEST NAVIGATION BAR */}
+      {/* TOP UTILITY BAR */}
       <View style={styles.topUtilityBar}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.navigate('Login')}
           activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="arrow-back" size={18} color="#1E3A8A" />
-          <Text style={styles.backButtonText}>Back to Login</Text>
+          <Ionicons name="arrow-back" size={22} color="#0F172A" />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.guestLink}
           onPress={handleSkipToHome}
           activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Text style={styles.guestLinkText}>Skip & Explore as Guest</Text>
-          <Ionicons name="chevron-forward" size={14} color="#00B894" />
+          <Text style={styles.guestLinkText}>Skip</Text>
+          <Ionicons name="chevron-forward" size={14} color="#007D69" />
         </TouchableOpacity>
       </View>
 
@@ -295,11 +296,11 @@ const RegisterScreen = ({ navigation, route }) => {
           ref={scrollViewRef}
           contentContainerStyle={[
             styles.scrollContent,
-            {
-              paddingBottom: isKeyboardVisible ? (Platform.OS === 'ios' ? 160 : 120) : (isSmallDevice ? 12 : 28),
-            },
             isSmallDevice && styles.scrollContentSmall,
             isTablet && styles.scrollContentTablet,
+            {
+              paddingBottom: isKeyboardVisible ? (Platform.OS === 'ios' ? 160 : 120) : (isSmallDevice ? 20 : 36),
+            },
           ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
@@ -314,58 +315,38 @@ const RegisterScreen = ({ navigation, route }) => {
               isTablet && styles.authCardTablet,
             ]}
           >
-            {/* BRAND LOGO & TAGLINE */}
-            <View style={[styles.logoSection, isSmallDevice && styles.logoSectionSmall]}>
+            {/* BRAND LOGO */}
+            <View style={styles.logoSection}>
               <Image
                 source={require('../../../assets/logo.png')}
-                style={[styles.logoImage, isSmallDevice && styles.logoImageSmall]}
+                style={styles.logoImage}
                 resizeMode="contain"
               />
-              <Text style={styles.taglineText}>Healthcare Unified • Mobile Care</Text>
-            </View>
-
-            {/* AUTH SEGMENTED SWITCHER: LOGIN | CREATE ACCOUNT */}
-            <View style={[styles.segmentedContainer, isSmallDevice && styles.segmentedContainerSmall]}>
-              <TouchableOpacity
-                style={styles.segmentBtn}
-                activeOpacity={0.8}
-                onPress={() => navigation.navigate('Login')}
-              >
-                <Text style={styles.segmentTextInactive}>Login</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.segmentBtn, styles.segmentBtnActive]}
-                activeOpacity={0.9}
-              >
-                <Text style={styles.segmentTextActive}>Create Account</Text>
-                <View style={styles.activeUnderlineTeal} />
-              </TouchableOpacity>
             </View>
 
             {/* CARD HEADING */}
-            <View style={[styles.cardHeader, isSmallDevice && styles.cardHeaderSmall]}>
-              <Text style={[styles.cardTitle, isSmallDevice && styles.cardTitleSmall]}>Create Patient Account</Text>
-              <Text style={[styles.cardSubtitle, isSmallDevice && styles.cardSubtitleSmall]}>
-                Enter your details to create your secure MediUnify digital health record vault.
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Create Account</Text>
+              <Text style={styles.cardSubtitle}>
+                Sign up to book appointments, manage lab tests & view medical records
               </Text>
             </View>
 
             {/* FIELD 1: FULL NAME */}
-            <View style={[styles.fieldGroup, isSmallDevice && styles.fieldGroupSmall]}>
+            <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>
                 Full Name <Text style={styles.requiredMark}>*</Text>
               </Text>
-              <View style={[styles.inputBox, isSmallDevice && styles.inputBoxSmall, name ? styles.inputBoxFilled : null]}>
+              <View style={[styles.inputBox, name ? styles.inputBoxFilled : null]}>
                 <Ionicons
                   name="person-outline"
-                  size={18}
-                  color={name ? colors.primary : colors.slate}
+                  size={19}
+                  color={name ? '#007D69' : '#94A3B8'}
                   style={styles.inputPrefixIcon}
                 />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Enter your full legal name"
+                  placeholder="Enter your full name"
                   placeholderTextColor="#94A3B8"
                   value={name}
                   onChangeText={setName}
@@ -383,56 +364,17 @@ const RegisterScreen = ({ navigation, route }) => {
                     style={styles.clearBtn}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                    <Ionicons name="close-circle" size={17} color="#94A3B8" />
                   </TouchableOpacity>
                 )}
               </View>
             </View>
 
-            {/* FIELD 2: EMAIL ADDRESS */}
-            <View style={[styles.fieldGroup, isSmallDevice && styles.fieldGroupSmall]}>
-              <Text style={styles.fieldLabel}>
-                Email Address <Text style={styles.requiredMark}>*</Text>
-              </Text>
-              <View style={[styles.inputBox, isSmallDevice && styles.inputBoxSmall, email ? styles.inputBoxFilled : null]}>
-                <Ionicons
-                  name="mail-outline"
-                  size={18}
-                  color={email ? colors.primary : colors.slate}
-                  style={styles.inputPrefixIcon}
-                />
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Enter your email address"
-                  placeholderTextColor="#94A3B8"
-                  value={email}
-                  onChangeText={setEmail}
-                  onFocus={() => {
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 40 : 60, animated: true });
-                    }, 100);
-                  }}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                {email.length > 0 && (
-                  <TouchableOpacity
-                    onPress={() => setEmail('')}
-                    style={styles.clearBtn}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-
-            {/* FIELD 3: MOBILE NUMBER (10 DIGITS) */}
-            <View style={[styles.fieldGroup, isSmallDevice && styles.fieldGroupSmall]}>
+            {/* FIELD 2: MOBILE NUMBER (10 DIGITS) */}
+            <View style={styles.fieldGroup}>
               <View style={styles.fieldLabelRow}>
                 <Text style={styles.fieldLabel}>
-                  Mobile Number (10 digits) <Text style={styles.requiredMark}>*</Text>
+                  Mobile Number <Text style={styles.requiredMark}>*</Text>
                 </Text>
                 <Text
                   style={[
@@ -446,7 +388,6 @@ const RegisterScreen = ({ navigation, route }) => {
               <View
                 style={[
                   styles.inputBox,
-                  isSmallDevice && styles.inputBoxSmall,
                   phone.length === 10 ? styles.inputBoxValid : phone.length > 0 ? styles.inputBoxFilled : null,
                 ]}
               >
@@ -455,8 +396,8 @@ const RegisterScreen = ({ navigation, route }) => {
                 </View>
                 <Ionicons
                   name="call-outline"
-                  size={18}
-                  color={phone.length === 10 ? colors.primary : colors.slate}
+                  size={19}
+                  color={phone.length === 10 ? '#007D69' : '#94A3B8'}
                   style={styles.inputPrefixIcon}
                 />
                 <TextInput
@@ -467,31 +408,70 @@ const RegisterScreen = ({ navigation, route }) => {
                   onChangeText={handlePhoneChange}
                   onFocus={() => {
                     setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 100 : 130, animated: true });
+                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 80 : 100, animated: true });
                     }, 100);
                   }}
                   keyboardType="number-pad"
                   maxLength={10}
                 />
                 {phone.length === 10 ? (
-                  <Ionicons name="checkmark-circle" size={18} color="#00B894" />
+                  <Ionicons name="checkmark-circle" size={20} color="#007D69" />
                 ) : phone.length > 0 ? (
                   <TouchableOpacity
                     onPress={() => setPhone('')}
                     style={styles.clearBtn}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                    <Ionicons name="close-circle" size={17} color="#94A3B8" />
                   </TouchableOpacity>
                 ) : null}
               </View>
             </View>
 
-            {/* FIELD 4: CREATE PASSWORD */}
-            <View style={[styles.fieldGroup, isSmallDevice && styles.fieldGroupSmall]}>
+            {/* FIELD 3: EMAIL ADDRESS */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>
+                Email Address <Text style={styles.requiredMark}>*</Text>
+              </Text>
+              <View style={[styles.inputBox, email ? styles.inputBoxFilled : null]}>
+                <Ionicons
+                  name="mail-outline"
+                  size={19}
+                  color={email ? '#007D69' : '#94A3B8'}
+                  style={styles.inputPrefixIcon}
+                />
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Enter your email address"
+                  placeholderTextColor="#94A3B8"
+                  value={email}
+                  onChangeText={setEmail}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 140 : 160, animated: true });
+                    }, 100);
+                  }}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {email.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setEmail('')}
+                    style={styles.clearBtn}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="close-circle" size={17} color="#94A3B8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {/* FIELD 4: PASSWORD */}
+            <View style={styles.fieldGroup}>
               <View style={styles.fieldLabelRow}>
                 <Text style={styles.fieldLabel}>
-                  Create Password <Text style={styles.requiredMark}>*</Text>
+                  Password <Text style={styles.requiredMark}>*</Text>
                 </Text>
                 {password.length > 0 && (
                   <Text
@@ -507,14 +487,13 @@ const RegisterScreen = ({ navigation, route }) => {
               <View
                 style={[
                   styles.inputBox,
-                  isSmallDevice && styles.inputBoxSmall,
                   password.length >= 6 ? styles.inputBoxValid : password.length > 0 ? styles.inputBoxFilled : null,
                 ]}
               >
                 <Ionicons
                   name="lock-closed-outline"
-                  size={18}
-                  color={password ? colors.primary : colors.slate}
+                  size={19}
+                  color={password ? '#007D69' : '#94A3B8'}
                   style={styles.inputPrefixIcon}
                 />
                 <TextInput
@@ -525,7 +504,7 @@ const RegisterScreen = ({ navigation, route }) => {
                   onChangeText={setPassword}
                   onFocus={() => {
                     setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 170 : 200, animated: true });
+                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 200 : 220, animated: true });
                     }, 100);
                   }}
                   secureTextEntry={!showPassword}
@@ -541,21 +520,21 @@ const RegisterScreen = ({ navigation, route }) => {
                   <Ionicons
                     name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                     size={20}
-                    color={showPassword ? colors.primary : colors.slate}
+                    color={showPassword ? '#007D69' : '#94A3B8'}
                   />
                 </TouchableOpacity>
               </View>
             </View>
 
             {/* FIELD 5: CONFIRM PASSWORD */}
-            <View style={[styles.fieldGroup, isSmallDevice && styles.fieldGroupSmall]}>
+            <View style={styles.fieldGroup}>
               <View style={styles.fieldLabelRow}>
                 <Text style={styles.fieldLabel}>
                   Confirm Password <Text style={styles.requiredMark}>*</Text>
                 </Text>
                 {isPasswordMatch && (
                   <View style={styles.matchedBadge}>
-                    <Ionicons name="checkmark-circle" size={13} color="#00B894" />
+                    <Ionicons name="checkmark-circle" size={14} color="#007D69" />
                     <Text style={styles.matchedBadgeText}>Passwords Match</Text>
                   </View>
                 )}
@@ -566,14 +545,13 @@ const RegisterScreen = ({ navigation, route }) => {
               <View
                 style={[
                   styles.inputBox,
-                  isSmallDevice && styles.inputBoxSmall,
                   isPasswordMatch ? styles.inputBoxValid : isPasswordMismatch ? styles.inputBoxWarning : null,
                 ]}
               >
                 <Ionicons
                   name="shield-checkmark-outline"
-                  size={18}
-                  color={confirmPassword ? colors.primary : colors.slate}
+                  size={19}
+                  color={confirmPassword ? '#007D69' : '#94A3B8'}
                   style={styles.inputPrefixIcon}
                 />
                 <TextInput
@@ -584,7 +562,7 @@ const RegisterScreen = ({ navigation, route }) => {
                   onChangeText={setConfirmPassword}
                   onFocus={() => {
                     setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 240 : 280, animated: true });
+                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 260 : 280, animated: true });
                     }, 100);
                   }}
                   secureTextEntry={!showConfirmPassword}
@@ -600,37 +578,37 @@ const RegisterScreen = ({ navigation, route }) => {
                   <Ionicons
                     name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
                     size={20}
-                    color={showConfirmPassword ? colors.primary : colors.slate}
+                    color={showConfirmPassword ? '#007D69' : '#94A3B8'}
                   />
                 </TouchableOpacity>
               </View>
             </View>
 
             {/* FIELD 6: REFERRAL CODE (OPTIONAL) */}
-            <View style={[styles.fieldGroup, isSmallDevice && styles.fieldGroupSmall]}>
+            <View style={styles.fieldGroup}>
               <View style={styles.fieldLabelRow}>
                 <Text style={styles.fieldLabel}>Referral Code (Optional)</Text>
                 <View style={styles.bonusHintBadge}>
-                  <Ionicons name="gift-outline" size={12} color="#00B894" />
+                  <Ionicons name="gift-outline" size={13} color="#007D69" />
                   <Text style={styles.bonusHintBadgeText}>₹250 Bonus</Text>
                 </View>
               </View>
-              <View style={[styles.inputBox, isSmallDevice && styles.inputBoxSmall, referralCode ? styles.inputBoxFilled : null]}>
+              <View style={[styles.inputBox, referralCode ? styles.inputBoxFilled : null]}>
                 <Ionicons
                   name="pricetag-outline"
-                  size={18}
-                  color={referralCode ? colors.primary : colors.slate}
+                  size={19}
+                  color={referralCode ? '#007D69' : '#94A3B8'}
                   style={styles.inputPrefixIcon}
                 />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Have a referral code? (Optional)"
+                  placeholder="Enter referral code"
                   placeholderTextColor="#94A3B8"
                   value={referralCode}
                   onChangeText={setReferralCode}
                   onFocus={() => {
                     setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 320 : 360, animated: true });
+                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 320 : 340, animated: true });
                     }, 100);
                   }}
                   autoCapitalize="characters"
@@ -646,15 +624,15 @@ const RegisterScreen = ({ navigation, route }) => {
 
             {/* TERMS & PRIVACY CHECKBOX */}
             <TouchableOpacity
-              style={[styles.termsRow, isSmallDevice && styles.termsRowSmall]}
+              style={styles.termsRow}
               onPress={() => setAgreedToTerms(!agreedToTerms)}
               activeOpacity={0.8}
             >
               <View style={[styles.checkboxBox, agreedToTerms && styles.checkboxBoxChecked]}>
-                {agreedToTerms && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
+                {agreedToTerms && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
               </View>
               <Text style={styles.termsText}>
-                I agree to the <Text style={styles.termsLink}>MediUnify Terms</Text> and{' '}
+                I agree to the <Text style={styles.termsLink}>Terms of Service</Text> and{' '}
                 <Text style={styles.termsLink}>Privacy Policy</Text>.
               </Text>
             </TouchableOpacity>
@@ -662,16 +640,15 @@ const RegisterScreen = ({ navigation, route }) => {
             {/* INLINE ERROR BANNER */}
             {errorMessage ? (
               <View style={styles.errorBox}>
-                <Ionicons name="alert-circle" size={17} color="#FF7F50" />
+                <Ionicons name="alert-circle" size={18} color="#DC2626" />
                 <Text style={styles.errorBoxText}>{errorMessage}</Text>
               </View>
             ) : null}
 
-            {/* PRIMARY SUBMIT BUTTON: REGISTER & VERIFY MOBILE */}
+            {/* PRIMARY SUBMIT BUTTON */}
             <TouchableOpacity
               style={[
                 styles.primarySubmitBtn,
-                isSmallDevice && styles.primarySubmitBtnSmall,
                 isRegistering && styles.primarySubmitBtnDisabled,
               ]}
               onPress={() => {
@@ -684,36 +661,24 @@ const RegisterScreen = ({ navigation, route }) => {
               {isRegistering ? (
                 <View style={styles.btnRow}>
                   <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.primarySubmitBtnText}>Validating Information...</Text>
+                  <Text style={styles.primarySubmitBtnText}>Creating Account...</Text>
                 </View>
               ) : (
                 <View style={styles.btnRow}>
-                  <Text style={styles.primarySubmitBtnText}>Register & Verify Mobile</Text>
+                  <Text style={styles.primarySubmitBtnText}>Create Account</Text>
                   <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
                 </View>
               )}
             </TouchableOpacity>
 
-            {/* SKIP LOGIN & EXPLORE AS GUEST BUTTON */}
-            <TouchableOpacity
-              style={[styles.guestActionBtn, isSmallDevice && styles.guestActionBtnSmall]}
-              onPress={handleSkipToHome}
-              activeOpacity={0.75}
-            >
-              <Text style={styles.guestActionBtnText}>Skip login & explore as Guest</Text>
-              <Ionicons name="arrow-forward" size={14} color="#00B894" style={{ marginLeft: 4 }} />
-            </TouchableOpacity>
-
             {/* SIGN IN FOOTER */}
-            <View style={[styles.loginFooter, isSmallDevice && styles.loginFooterSmall]}>
-              <Text style={styles.loginFooterText}>Already have a MediUnify account?</Text>
+            <View style={styles.loginFooter}>
+              <Text style={styles.loginFooterText}>Already have an account? </Text>
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => navigation.navigate('Login')}
-                style={styles.loginFooterBtn}
               >
-                <Text style={styles.loginFooterLink}> Sign In</Text>
-                <Ionicons name="chevron-forward" size={13} color={colors.teal} />
+                <Text style={styles.loginFooterLink}>Sign In</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -726,217 +691,146 @@ const RegisterScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
   },
   topUtilityBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 4,
     backgroundColor: '#FFFFFF',
   },
   backButton: {
-    flexDirection: 'row',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
-    gap: 6,
-  },
-  backButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1E3A8A',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
   },
   guestLink: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: '#F0FDF9',
   },
   guestLinkText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
-    color: '#00B894',
+    color: '#007D69',
   },
   scrollContent: {
     flexGrow: 1,
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
   },
   scrollContentSmall: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   scrollContentTablet: {
-    paddingHorizontal: 24,
-    paddingVertical: 28,
+    paddingHorizontal: 32,
+    paddingVertical: 36,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   authCard: {
     width: '100%',
-    maxWidth: 440,
-    alignSelf: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 22,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#1E3A8A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    elevation: 3,
   },
   authCardSmall: {
-    maxWidth: 360,
-    padding: 16,
-    borderRadius: 16,
+    width: '100%',
   },
   authCardTablet: {
-    maxWidth: 480,
-    padding: 28,
+    maxWidth: 460,
+    alignSelf: 'center',
+    backgroundColor: '#FFFFFF',
     borderRadius: 22,
+    padding: 32,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.08,
-    shadowRadius: 20,
-    elevation: 4,
+    shadowRadius: 18,
+    elevation: 3,
   },
   logoSection: {
     alignItems: 'center',
-    marginBottom: 14,
-  },
-  logoSectionSmall: {
-    marginBottom: 10,
+    marginTop: 8,
+    marginBottom: 20,
   },
   logoImage: {
-    width: 175,
+    width: 180,
     height: 48,
   },
-  logoImageSmall: {
-    width: 150,
-    height: 40,
-  },
-  taglineText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748B',
-    marginTop: 3,
-    letterSpacing: 0.2,
-  },
-  segmentedContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 16,
-  },
-  segmentedContainerSmall: {
-    marginBottom: 12,
-  },
-  segmentBtn: {
-    flex: 1,
-    paddingVertical: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 9,
-  },
-  segmentBtnActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  segmentTextActive: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#00B894',
-  },
-  segmentTextInactive: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  activeUnderlineTeal: {
-    width: 24,
-    height: 2.5,
-    backgroundColor: '#00B894',
-    borderRadius: 2,
-    marginTop: 3,
-  },
   cardHeader: {
-    marginBottom: 16,
-  },
-  cardHeaderSmall: {
-    marginBottom: 12,
+    marginBottom: 20,
+    alignItems: 'center',
   },
   cardTitle: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#1E3A8A',
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#0F172A',
     letterSpacing: -0.3,
   },
-  cardTitleSmall: {
-    fontSize: 20,
-  },
   cardSubtitle: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#64748B',
+    marginTop: 6,
+    textAlign: 'center',
     lineHeight: 18,
-    marginTop: 4,
-  },
-  cardSubtitleSmall: {
-    fontSize: 11.5,
-    lineHeight: 16,
   },
   fieldGroup: {
-    marginBottom: 13,
-  },
-  fieldGroupSmall: {
-    marginBottom: 10,
+    marginBottom: 16,
   },
   fieldLabelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 5,
+    marginBottom: 7,
   },
   fieldLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#1E3A8A',
-    marginBottom: 5,
+    color: '#334155',
+    marginBottom: 7,
   },
   requiredMark: {
-    color: '#FF7F50',
+    color: '#EF4444',
     fontWeight: '800',
   },
   counterText: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '700',
     color: '#94A3B8',
   },
   counterTextSuccess: {
-    color: '#00B894',
+    color: '#007D69',
   },
   counterTextWarning: {
-    color: '#FF7F50',
+    color: '#F59E0B',
   },
   countryCodeBadge: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#F0FDF9',
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 8,
-    marginRight: 6,
+    marginRight: 8,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: '#CCFBF1',
   },
   countryCodeText: {
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '800',
-    color: '#1E3A8A',
+    color: '#007D69',
   },
   inputBox: {
     flexDirection: 'row',
@@ -945,33 +839,29 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
     borderRadius: 14,
-    paddingHorizontal: 12,
-    height: 48,
-  },
-  inputBoxSmall: {
-    height: 44,
-    borderRadius: 12,
-    paddingHorizontal: 10,
+    paddingHorizontal: 14,
+    height: 50,
   },
   inputBoxFilled: {
-    borderColor: '#CBD5E1',
+    borderColor: '#007D69',
     backgroundColor: '#FFFFFF',
   },
   inputBoxValid: {
-    borderColor: '#A7F3D0',
+    borderColor: '#007D69',
     backgroundColor: '#FFFFFF',
   },
   inputBoxWarning: {
-    borderColor: '#FFD7C7',
-    backgroundColor: '#FFFBF9',
+    borderColor: '#FCA5A5',
+    backgroundColor: '#FEF2F2',
   },
   inputPrefixIcon: {
-    marginRight: 8,
+    marginRight: 10,
   },
   textInput: {
     flex: 1,
-    fontSize: 13.5,
+    fontSize: 14,
     color: '#0F172A',
+    fontWeight: '500',
     paddingVertical: 0,
   },
   clearBtn: {
@@ -986,49 +876,46 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   matchedBadgeText: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '700',
-    color: '#00B894',
+    color: '#007D69',
   },
   bonusHintBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    backgroundColor: '#E6F8F4',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    gap: 4,
+    backgroundColor: '#F0FDF9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 8,
   },
   bonusHintBadgeText: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '700',
-    color: '#00B894',
+    color: '#007D69',
   },
   appliedTag: {
-    backgroundColor: '#E6F8F4',
-    paddingHorizontal: 7,
+    backgroundColor: '#F0FDF9',
+    paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
   appliedTagText: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '800',
-    color: '#00B894',
+    color: '#007D69',
   },
   termsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 2,
-    marginBottom: 14,
-  },
-  termsRowSmall: {
-    marginBottom: 10,
+    gap: 10,
+    marginTop: 4,
+    marginBottom: 16,
   },
   checkboxBox: {
-    width: 18,
-    height: 18,
-    borderRadius: 5,
+    width: 20,
+    height: 20,
+    borderRadius: 6,
     borderWidth: 1.5,
     borderColor: '#CBD5E1',
     alignItems: 'center',
@@ -1036,53 +923,50 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   checkboxBoxChecked: {
-    backgroundColor: '#00B894',
-    borderColor: '#00B894',
+    backgroundColor: '#007D69',
+    borderColor: '#007D69',
   },
   termsText: {
-    fontSize: 12,
+    fontSize: 12.5,
     color: '#64748B',
     flex: 1,
-    lineHeight: 17,
+    lineHeight: 18,
   },
   termsLink: {
-    color: '#00B894',
+    color: '#007D69',
     fontWeight: '700',
   },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#FFF2ED',
+    backgroundColor: '#FEF2F2',
     borderWidth: 1,
-    borderColor: '#FFD7C7',
+    borderColor: '#FECACA',
     borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    marginBottom: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 16,
   },
   errorBoxText: {
-    fontSize: 12,
-    color: '#FF7F50',
+    fontSize: 12.5,
+    color: '#DC2626',
     fontWeight: '600',
     flex: 1,
     lineHeight: 17,
   },
   primarySubmitBtn: {
-    backgroundColor: '#00B894',
+    backgroundColor: '#007D69',
     borderRadius: 14,
-    height: 48,
+    height: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#00B894',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
+    marginTop: 4,
+    shadowColor: '#007D69',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
     elevation: 3,
-  },
-  primarySubmitBtnSmall: {
-    height: 44,
-    borderRadius: 12,
   },
   primarySubmitBtnDisabled: {
     opacity: 0.65,
@@ -1095,55 +979,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: 0.2,
-  },
-  guestActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: '#F0FDF9',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  guestActionBtnSmall: {
-    marginTop: 10,
-    paddingVertical: 8,
-  },
-  guestActionBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#00B894',
   },
   loginFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    flexWrap: 'wrap',
-    marginTop: 16,
-    paddingTop: 12,
+    marginTop: 22,
+    paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
   },
-  loginFooterSmall: {
-    marginTop: 12,
-    paddingTop: 10,
-  },
   loginFooterText: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#64748B',
     fontWeight: '500',
   },
-  loginFooterBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   loginFooterLink: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '800',
-    color: '#00B894',
+    color: '#007D69',
   },
 });
 

@@ -34,7 +34,7 @@ const QUICK_SUGGESTIONS = [
   ' Update Blood Sugar & BP',
   ' How do I return a medicine?',
   ' Ayurveda & Panchakarma Therapies',
-  'Fertility & IVF Specialists (0% EMI)',
+  '🏥 Surgeries & Hospital Care',
   ' Rent Hospital Bed & Oxygen Concentrator',
 ];
 
@@ -383,34 +383,32 @@ const ChatbotScreen = ({ navigation }) => {
       return;
     }
 
-    // 3.6. FERTILITY & IVF REPRODUCTIVE MEDICINE
+    // 3.6. SURGERY & HOSPITAL CARE
     if (
-      q.includes('fertility') ||
-      q.includes('ivf') ||
-      q.includes('iui') ||
-      q.includes('icsi') ||
-      q.includes('conceive') ||
-      q.includes('pregnancy problem') ||
-      q.includes('egg freezing') ||
-      q.includes('semen analysis') ||
-      q.includes('sperm') ||
-      q.includes('infertility') ||
-      q.includes('baby planning')
+      q.includes('surgery') ||
+      q.includes('hospital') ||
+      q.includes('operation') ||
+      q.includes('cataract') ||
+      q.includes('knee replacement') ||
+      q.includes('kidney stone') ||
+      q.includes('gallbladder') ||
+      q.includes('hernia') ||
+      q.includes('laparoscopic')
     ) {
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: ' **Fertility & Advanced IVF Care Desk**\n\nWe provide compassionate, 100% confidential reproductive medicine with accredited centers in Mysore & Bangalore:\n\n• **Advanced IVF with ICSI** & Blastocyst Day-5 culture (up to 73% clinical pregnancy rate).\n• **Couple Fertility Workup**: AMH ovarian reserve, CASA semen analysis & pelvic 3D ultrasound.\n• **Social & Medical Egg Freezing** with vitrification cryogenic preservation.\n• **0% Interest EMI Financing**: Split treatment costs into 6, 12, 18, or 24 equal monthly installments with zero deposit.',
+        text: '🏥 **Hospital & Surgery Care Desk**\n\nWe provide seamless surgical assistance with top NABH accredited partner hospitals:\n\n• **10,000+ Verified Surgeons** & modular operation theatres.\n• **Zero Out-of-Pocket Stress**: 100% Cashless TPA insurance approval assistance.\n• **Dedicated Care Buddy**: Handholding from admission to discharge and post-op care.\n• **Free Second Opinion & Price Quotes**.',
         actionButtons: [
           {
-            title: ' Open Fertility & IVF Hub',
-            icon: 'heart',
-            action: () => navigation.navigate('FertilityIvf'),
+            title: '🏥 Explore Surgeries',
+            icon: 'business',
+            action: () => navigation.navigate('HospitalCare'),
           },
           {
-            title: 'Book Private Consult',
-            icon: 'lock-closed',
-            action: () => navigation.navigate('FertilityIvf'),
+            title: '📞 Request Care Callback',
+            icon: 'call',
+            action: () => navigation.navigate('HospitalCare'),
           },
         ],
       };

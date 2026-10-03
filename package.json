@@ -1,6 +1,7 @@
 {
   "name": "mediunify-patient",
   "version": "1.0.0",
+  "main": "index.js",
   "homepage": "https://navabharth-technologies.github.io/Mediunify-patient-side-application-",
   "scripts": {
     "start": "expo start",
@@ -19,11 +20,13 @@
     "expo": "^57.0.0",
     "expo-asset": "~57.0.4",
     "expo-camera": "~57.0.4",
+    "expo-constants": "~57.0.20",
     "expo-document-picker": "~57.0.2",
     "expo-font": "~57.0.3",
     "expo-image-picker": "~57.0.16",
-    "expo-location": "~57.0.16",
+    "expo-location": "~57.0.20",
     "expo-media-library": "~57.0.4",
+    "expo-modules-core": "~57.0.20",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",

@@ -994,6 +994,9 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                     try {
                       await AsyncStorage.setItem('@mediunify_selected_city', loc.name);
                       await AsyncStorage.setItem('@unnathi_user_location', loc.name);
+                      if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new Event('storage'));
+                      }
                     } catch (e) {}
                     setIsCityModalOpen(false);
                     setCitySearchQuery('');

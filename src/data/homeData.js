@@ -203,16 +203,6 @@ export const moreServices = [
   },
 
   {
-    id: '8',
-    title: 'Fertility & IVF Care',
-    subtitle: 'Advanced IVF, IUI, 0% EMI & Confidential Specialist Guidance',
-    icon: 'heart-outline',
-    route: 'FertilityIvf',
-    color: '#FFF2ED',
-    iconColor: '#FF7F50',
-  },
-
-  {
     id: '9',
     title: 'Medical Equipment Rental',
     subtitle: 'Hospital Beds, Oxygen Concentrators & Wheelchairs at Home',

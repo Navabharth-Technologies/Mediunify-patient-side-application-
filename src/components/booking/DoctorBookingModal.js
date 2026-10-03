@@ -340,7 +340,7 @@ const DoctorBookingModal = ({
         // 2. Sync to background data store
         pushAppointment(newBooking);
 
-        if (typeof window !== 'undefined' && window.dispatchEvent) {
+        if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
           window.dispatchEvent(new CustomEvent('mediunify_consultations_updated', { detail: { consultation: newBooking } }));
         }
 
@@ -419,7 +419,7 @@ const DoctorBookingModal = ({
         // 2. Sync to background data store
         pushAppointment(newBooking);
 
-        if (typeof window !== 'undefined' && window.dispatchEvent) {
+        if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
           window.dispatchEvent(new CustomEvent('mediunify_appointments_updated', { detail: { appointment: newBooking } }));
         }
 

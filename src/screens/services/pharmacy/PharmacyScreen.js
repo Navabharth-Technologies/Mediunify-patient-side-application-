@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,36 +8,40 @@ import {
   TextInput,
   Image,
   Modal,
-  ActivityIndicator,
-  Linking,
-  StatusBar,
   Platform,
   useWindowDimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
-import colors from '../../../theme/colors';
-import { useCart } from '../../../context/CartContext';
-import pharmacyProducts, { POPULAR_LOCALITIES, calculateDistanceKm } from '../../../data/pharmacyProducts';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import colors from '../../../theme/colors';
+import { useCart } from '../../../context/CartContext';
+import pharmacyProducts from '../../../data/pharmacyProducts';
+import {
+  getPharmacyStoreForCity,
+  getPharmacyCityConfig,
+  normalizePharmacyCity,
+} from '../../../data/pharmacyStores';
 import { showAlert } from '../../../utils/alert';
 
 // ==================================================
 // 1. HERO ADS SLIDES (Exact Web Standard)
 // ==================================================
-const PHARMACY_HERO_SLIDES = [
+export const PHARMACY_HERO_SLIDES = [
   {
     id: 'pharma-slide-1',
     pillText: '60-MIN EXPRESS',
-    pillBg: '#E6F8F5',
-    pillColor: '#00B894',
+    pillBg: '#FFF5F0',
+    pillColor: '#FF7F50',
     certText: 'Flat 20% OFF',
     certIcon: 'flash',
     title: 'Doorstep Medicines & Jan Aushadhi Store',
     priceText: 'Flat 20% OFF',
     priceSub: 'Use Code: MEDI20',
-    priceColor: '#00B894',
+    priceColor: '#FF7F50',
     subTitle: '100% Genuine branded drugs & affordable Jan Aushadhi generic medicines delivered in 60 mins.',
     bullets: [
       'Superfast 60-min delivery to your doorstep across Mysuru',
@@ -46,8 +50,8 @@ const PHARMACY_HERO_SLIDES = [
     ],
     ctaText: 'Order Medicines Now',
     ctaBg: '#00B894',
-    bgColor: '#E6F8F5',
-    borderColor: '#B2EBF2',
+    bgColor: '#FFF5F0',
+    borderColor: '#FED7AA',
     image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=900',
     trustBadge: '100% Genuine Branded Drugs',
     actionType: 'scroll-to-products',
@@ -55,14 +59,14 @@ const PHARMACY_HERO_SLIDES = [
   {
     id: 'pharma-slide-2',
     pillText: 'RX VERIFICATION',
-    pillBg: '#CCFBF1',
-    pillColor: '#FF5252',
+    pillBg: '#ECFDF5',
+    pillColor: '#00B894',
     certText: 'Verified Pharmacists',
     certIcon: 'shield-checkmark',
     title: 'Upload Doctor Prescription for Instant Order',
     priceText: 'Zero Extra Fee',
     priceSub: 'Free Dosage Review',
-    priceColor: '#00A389',
+    priceColor: '#00B894',
     subTitle: 'Just upload your prescription. Our licensed registered pharmacist will verify and confirm your order within minutes.',
     bullets: [
       'Automatic prescription reading & digital medicine mapping',
@@ -70,9 +74,9 @@ const PHARMACY_HERO_SLIDES = [
       'Easy refills for monthly chronic diabetes & BP medications',
     ],
     ctaText: 'Upload Prescription Now',
-    ctaBg: '#00A389',
-    bgColor: '#FFF5F5',
-    borderColor: '#CCFBF1',
+    ctaBg: '#1E3A8A',
+    bgColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
     image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=900',
     trustBadge: 'Licensed & Registered Pharmacists',
     actionType: 'upload',
@@ -80,14 +84,14 @@ const PHARMACY_HERO_SLIDES = [
   {
     id: 'pharma-slide-3',
     pillText: 'CHRONIC CARE',
-    pillBg: '#DBEAFE',
-    pillColor: '#1D4ED8',
+    pillBg: '#EFF6FF',
+    pillColor: '#1E3A8A',
     certText: 'Up to 35% OFF',
     certIcon: 'pulse',
     title: 'Diabetes, BP & Vital Healthcare Devices',
     priceText: 'Save up to 35%',
     priceSub: 'Certified Devices',
-    priceColor: '#2563EB',
+    priceColor: '#00C2CB',
     subTitle: 'Accu-Chek glucometers, Omron blood pressure monitors, digital thermometers & test strips with full warranty.',
     bullets: [
       'Clinical-grade precision certified by ISO & CE standards',
@@ -95,9 +99,9 @@ const PHARMACY_HERO_SLIDES = [
       'Discounted combo strips & lancet refill packs',
     ],
     ctaText: 'Explore Health Devices',
-    ctaBg: '#2563EB',
-    bgColor: '#EFF6FF',
-    borderColor: '#BFDBFE',
+    ctaBg: '#00B894',
+    bgColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
     image: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=900',
     trustBadge: 'Certified Clinical Accuracy',
     actionType: 'filter-devices',
@@ -105,9 +109,7 @@ const PHARMACY_HERO_SLIDES = [
 ];
 
 // ==================================================
-// 2. HEALTHCARE CATEGORIES
-// ==================================================
-// 2. BROWSE HEALTH CONDITIONS (Creative Rich Mockup)
+// 2. BROWSE HEALTH CONDITIONS (Exact Web Standard)
 // ==================================================
 export const BROWSE_HEALTH_CONDITIONS = [
   {
@@ -209,7 +211,7 @@ export const BROWSE_HEALTH_CONDITIONS = [
 ];
 
 // ==================================================
-// 3. BROWSE CATEGORIES (8 Curated Everyday Care Categories)
+// 3. BROWSE CATEGORIES (Exact Web Standard)
 // ==================================================
 export const BROWSE_CATEGORIES = [
   {
@@ -302,33 +304,32 @@ export const BROWSE_CATEGORIES = [
   },
 ];
 
-
 // ==================================================
-// 3. 4 FEATURED ACTION CARDS
+// 4. FEATURED ACTION CARDS (Exact Web Standard)
 // ==================================================
-const ACTION_CARDS = [
+export const ACTION_CARDS = [
   {
     id: 'discount-upload',
-    title: 'Get 20%* off on\nMedicines',
-    ctaText: 'UPLOAD PRESCRIPTION',
+    title: 'Order with\nPrescription',
+    ctaText: 'Flat 20% OFF',
     iconName: 'document-text-outline',
     iconType: 'ionicons',
-    bgColor: '#E6F8F5',
-    borderColor: '#CCFBF1',
-    iconBg: '#E6F8F5',
-    iconColor: '#00B894',
-    ctaColor: '#00B894',
+    bgColor: '#FFF5F0',
+    borderColor: '#FED7AA',
+    iconBg: '#FFEBE5',
+    iconColor: '#FF7F50',
+    ctaColor: '#FF7F50',
     actionType: 'upload',
   },
   {
     id: 'doctor-appointment',
     title: 'Consult Doctor\nOnline',
-    ctaText: 'BOOK VIDEO SLOT',
+    ctaText: 'Book Video Slot',
     iconName: 'videocam-outline',
     iconType: 'ionicons',
-    bgColor: '#E0F7FA',
-    borderColor: '#B2EBF2',
-    iconBg: '#E0F7FA',
+    bgColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+    iconBg: '#DBEAFE',
     iconColor: '#1E3A8A',
     ctaColor: '#1E3A8A',
     actionType: 'navigate',
@@ -336,29 +337,29 @@ const ACTION_CARDS = [
   },
   {
     id: 'lab-tests',
-    title: 'Diagnostic Lab Tests\nat Home',
-    ctaText: 'BOOK CHECKUP',
+    title: 'Diagnostic\nLab Tests',
+    ctaText: 'Book Checkup',
     iconName: 'flask-outline',
     iconType: 'ionicons',
-    bgColor: '#E0F7FA',
-    borderColor: '#B2EBF2',
-    iconBg: '#E0F7FA',
-    iconColor: '#00C2CB',
-    ctaColor: '#00C2CB',
+    bgColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+    iconBg: '#D1FAE5',
+    iconColor: '#00B894',
+    ctaColor: '#00B894',
     actionType: 'navigate',
     route: 'LabTests',
   },
   {
     id: 'health-insurance',
     title: 'Health Insurance\n& Mediclaim',
-    ctaText: '100% CASHLESS',
+    ctaText: '100% Cashless',
     iconName: 'shield-checkmark-outline',
     iconType: 'ionicons',
-    bgColor: '#E6F8F5',
-    borderColor: '#CCFBF1',
-    iconBg: '#CCFBF1',
-    iconColor: '#00B894',
-    ctaColor: '#00B894',
+    bgColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+    iconBg: '#DCFCE7',
+    iconColor: '#059669',
+    ctaColor: '#059669',
     badge: 'New',
     actionType: 'navigate',
     route: 'HealthInsurance',
@@ -366,71 +367,49 @@ const ACTION_CARDS = [
 ];
 
 // ==================================================
-// 4. BROWSE BY HEALTH CONDITIONS
+// 5. HIGH-RESOLUTION PRODUCT IMAGES DICTIONARY
 // ==================================================
-const HEALTH_CONDITIONS = [
-  {
-    id: 'diabetes',
-    name: 'Diabetes Care',
-    iconName: 'water-outline',
-    color: '#1E3A8A',
-    bg: '#E0F7FA',
-    filterKeywords: ['glucose', 'sugar', 'diabet', 'accu-chek', 'metformin', 'strip'],
-  },
-  {
-    id: 'cardiac',
-    name: 'Cardiac Care',
-    iconName: 'heart-pulse',
-    color: '#FF7F50',
-    bg: '#FFF2ED',
-    filterKeywords: ['bp', 'blood pressure', 'omron', 'cardiac', 'heart', 'cholesterol'],
-  },
-  {
-    id: 'stomach',
-    name: 'Stomach Care',
-    iconName: 'medkit-outline',
-    color: '#00C2CB',
-    bg: '#E0F7FA',
-    filterKeywords: ['antacid', 'digestion', 'stomach', 'pantocid', 'gelusil', 'gas', 'acid'],
-  },
-  {
-    id: 'pain-relief',
-    name: 'Pain Relief',
-    iconName: 'flash-outline',
-    color: '#00B894',
-    bg: '#E6F8F5',
-    filterKeywords: ['pain', 'volini', 'spray', 'dolo', 'paracetamol', 'sprain', 'ache', 'joint', 'moov'],
-  },
-  {
-    id: 'liver',
-    name: 'Liver Care',
-    iconName: 'leaf-outline',
-    color: '#7BC96F',
-    bg: '#F2FAF0',
-    filterKeywords: ['liv.52', 'liver', 'himalaya', 'detox', 'herbal', 'appetite'],
-  },
-  {
-    id: 'oral',
-    name: 'Oral Care',
-    iconName: 'sparkles-outline',
-    color: '#00C2CB',
-    bg: '#E0F7FA',
-    filterKeywords: ['tooth', 'oral', 'cleanser', 'mouth', 'dental', 'paste', 'gum', 'sensodyne'],
-  },
-  {
-    id: 'cold-immunity',
-    name: 'Cold & Immunity',
-    iconName: 'shield-checkmark-outline',
-    color: '#FF5252',
-    bg: '#E6FAF5',
-    filterKeywords: ['vitamin c', 'zinc', 'immunity', 'antiseptic', 'dettol', 'sanitizer', 'fever'],
-  },
-];
+export const PRODUCT_IMAGES = {
+  '1': 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400',
+  '2': 'https://images.unsplash.com/photo-1577401239170-897942555fb3?w=400',
+  '3': 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=400',
+  '4': 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=400',
+  '5': 'https://images.unsplash.com/photo-1584362917165-526a968579e8?w=400',
+  '6': 'https://images.unsplash.com/photo-1584744982491-665216d95f8b?w=400',
+  '7': 'https://images.unsplash.com/photo-1603398938378-e54eab446dde?w=400',
+  '8': 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=400',
+  '9': 'https://images.unsplash.com/photo-1550572017-ed24058d844c?w=400',
+  '10': 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=400',
+  '11': 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400',
+  '12': 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=400',
+  '13': 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=400',
+  '14': 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400',
+  '15': 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=400',
+  '16': 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=400',
+  'ext-1': 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=400',
+  'ext-2': 'https://images.unsplash.com/photo-1559599101-f09722fb4948?w=400',
+  'ext-3': 'https://images.unsplash.com/photo-1550572017-ed24058d844c?w=400',
+  'ext-4': 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=400',
+  'ext-5': 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400',
+};
+
+export const getProductImage = (prod) => {
+  if (!prod) return 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400';
+  if (prod.image) return prod.image;
+  if (PRODUCT_IMAGES[prod.id]) return PRODUCT_IMAGES[prod.id];
+  if (prod.category === 'Healthcare Devices') return 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=400';
+  if (prod.category === 'Baby Care') return 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=400';
+  if (prod.category === 'Skin Care') return 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400';
+  if (prod.category === 'Ayurvedic') return 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=400';
+  if (prod.category === 'First Aid') return 'https://images.unsplash.com/photo-1584362917165-526a968579e8?w=400';
+  if (prod.category === 'Pain Relief') return 'https://images.unsplash.com/photo-1550572017-ed24058d844c?w=400';
+  return 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400';
+};
 
 // ==================================================
-// 5. EXTENDED PRODUCTS LIST
+// 6. EXTENDED PRODUCTS LIST (Exact Web Standard)
 // ==================================================
-const EXTENDED_PRODUCTS = [
+export const EXTENDED_PRODUCTS = [
   ...pharmacyProducts,
   {
     id: 'ext-1',
@@ -439,13 +418,17 @@ const EXTENDED_PRODUCTS = [
     category: 'Stomach Care',
     price: 110,
     mrp: 140,
+    oldPrice: 140,
     discount: '21% OFF',
     rating: 4.8,
     reviewsCount: 1650,
     requiresPrescription: false,
     inStock: true,
     packSize: 'Bottle of 200ml',
-    image: 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=400',
+    activeIngredients: 'Aluminium Hydroxide, Magnesium Hydroxide, Dimethicone',
+    uses: 'Acidity, heartburn, gas and stomach discomfort',
+    dosage: '1-2 teaspoons after meals and at bedtime.',
+    description: 'Fast and soothing relief from acidity, heartburn, and gas discomfort with sugar-free mint flavour.',
   },
   {
     id: 'ext-2',
@@ -454,13 +437,17 @@ const EXTENDED_PRODUCTS = [
     category: 'Oral Care',
     price: 195,
     mrp: 230,
+    oldPrice: 230,
     discount: '15% OFF',
     rating: 4.9,
     reviewsCount: 3200,
     requiresPrescription: false,
     inStock: true,
     packSize: '80g Tube',
-    image: 'https://images.unsplash.com/photo-1559599101-f09722fb4948?w=400',
+    activeIngredients: 'Stannous Fluoride 0.454% w/w',
+    uses: 'Fast relief from tooth sensitivity within 60 seconds',
+    dosage: 'Brush twice daily, not more than three times.',
+    description: 'Clinically proven fast relief and long-lasting protection against tooth sensitivity.',
   },
   {
     id: 'ext-3',
@@ -469,13 +456,17 @@ const EXTENDED_PRODUCTS = [
     category: 'Pain Relief',
     price: 145,
     mrp: 175,
+    oldPrice: 175,
     discount: '17% OFF',
     rating: 4.7,
     reviewsCount: 2100,
     requiresPrescription: false,
     inStock: true,
     packSize: '50g Tube',
-    image: 'https://images.unsplash.com/photo-1550572017-ed24058d844c?w=400',
+    activeIngredients: 'Oil of Wintergreen, Pudinah Ka Phool, Nilgiri Tel, Tarpin Ka Tel',
+    uses: 'Back pain, joint aches, muscle spasms and stiff neck',
+    dosage: 'Apply gently on affected areas 3-4 times a day.',
+    description: '100% Ayurvedic fast pain relief formula with 4 active herbal ingredients that penetrate deep to relieve pain quickly.',
   },
   {
     id: 'ext-4',
@@ -484,13 +475,17 @@ const EXTENDED_PRODUCTS = [
     category: 'Healthcare Devices',
     price: 849,
     mrp: 1050,
+    oldPrice: 1050,
     discount: '19% OFF',
     rating: 4.8,
     reviewsCount: 4500,
     requiresPrescription: false,
     inStock: true,
     packSize: 'Pack of 50 Test Strips',
-    image: 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=400',
+    activeIngredients: 'Glucose dehydrogenase (mut. Q-GDH 2)',
+    uses: 'Quantitative blood glucose measurement with Accu-Chek meter',
+    dosage: 'Use with Accu-Chek Active meter as per manual.',
+    description: 'Accurate and simple blood glucose testing strips for diabetes management.',
   },
   {
     id: 'ext-5',
@@ -499,29 +494,24 @@ const EXTENDED_PRODUCTS = [
     category: 'Medicines',
     price: 135,
     mrp: 160,
+    oldPrice: 160,
     discount: '16% OFF',
     rating: 4.9,
     reviewsCount: 5200,
     requiresPrescription: false,
     inStock: true,
     packSize: '50ml Jar',
-    image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400',
+    activeIngredients: 'Menthol, Camphor, Eucalyptus Oil',
+    uses: 'Cough, cold, blocked nose, breathing difficulty and body aches',
+    dosage: 'Rub gently on chest, neck, and back or use in steam inhalation.',
+    description: 'Provides quick relief from 6 cough and cold symptoms to help you and your family sleep peacefully.',
   },
 ];
 
-const getProductImage = (prod) => {
-  if (prod.image) return prod.image;
-  if (prod.category === 'Healthcare Devices') return 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=400';
-  if (prod.category === 'Baby Care') return 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=400';
-  if (prod.category === 'Skin Care') return 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400';
-  if (prod.category === 'Ayurvedic') return 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=400';
-  return 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400';
-};
-
 const PharmacyScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 1024;
-  const isTablet = width >= 768 && width < 1024;
+  const isTablet = width >= 768;
+  const isLargeTablet = width >= 960;
 
   const {
     pharmacyCart,
@@ -532,7 +522,6 @@ const PharmacyScreen = ({ navigation, route }) => {
     decreaseQuantity,
     selectedAddress,
     updateAddress,
-    setSelectedPharmacyStore,
   } = useCart();
 
   // Active Hero Slide Index
@@ -550,76 +539,137 @@ const PharmacyScreen = ({ navigation, route }) => {
   const [searchQuery, setSearchQuery] = useState(route?.params?.query || route?.params?.search || '');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedCondition, setSelectedCondition] = useState(null);
-  const [activeCatalogTab, setActiveCatalogTab] = useState('all'); // 'all', 'generic', 'devices', 'ayurveda'
-  const [showLocationModal, setShowLocationModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Delivery Locality
-  const [selectedLocality, setSelectedLocality] = useState(POPULAR_LOCALITIES[0]);
+  // Home Screen Location (Single Source of Truth)
+  const [currentCity, setCurrentCity] = useState('Mysuru');
 
-  // Scroll ref & auto-scroll to catalog
+  const loadHomeLocation = useCallback(async () => {
+    try {
+      const saved =
+        (await AsyncStorage.getItem('@mediunify_selected_city')) ||
+        (await AsyncStorage.getItem('@unnathi_user_location'));
+      if (saved) {
+        setCurrentCity(normalizePharmacyCity(saved));
+      }
+    } catch (e) {}
+  }, []);
+
+  useEffect(() => {
+    loadHomeLocation();
+    const unsub = navigation?.addListener ? navigation.addListener('focus', loadHomeLocation) : null;
+    return () => {
+      if (unsub) unsub();
+    };
+  }, [navigation, loadHomeLocation]);
+
+  const cityConfig = useMemo(() => getPharmacyCityConfig(currentCity), [currentCity]);
+
+  // Handle Route Params
+  useEffect(() => {
+    if (route?.params?.query !== undefined) {
+      setSearchQuery(route.params.query);
+    } else if (route?.params?.search !== undefined) {
+      setSearchQuery(route.params.search);
+    }
+  }, [route?.params?.query, route?.params?.search]);
+
+  // Scroll ref & auto-scroll to products
   const mainScrollRef = useRef(null);
+  const conditionScrollRef = useRef(null);
+  const categoryScrollRef = useRef(null);
+  const [conditionScrollX, setConditionScrollX] = useState(0);
+  const [categoryScrollX, setCategoryScrollX] = useState(0);
   const [catalogY, setCatalogY] = useState(0);
 
-  const scrollToCatalog = () => {
+  const scrollToProducts = () => {
     setTimeout(() => {
-      if (Platform.OS === 'web' && typeof document !== 'undefined') {
-        const el = document.getElementById('pharmacy-catalog-section');
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          return;
-        }
-      }
       if (mainScrollRef.current) {
         mainScrollRef.current.scrollTo({
-          y: Math.max(0, catalogY - 10),
+          y: Math.max(0, catalogY - 20),
           animated: true,
         });
       }
     }, 80);
   };
 
-  // Filtered Products based on search, category, catalog tab, condition
+  const handleScrollCondition = (direction) => {
+    const delta = direction === 'next' ? 280 : -280;
+    const target = Math.max(0, conditionScrollX + delta);
+    setConditionScrollX(target);
+    conditionScrollRef.current?.scrollTo({ x: target, animated: true });
+  };
+
+  const handleScrollCategory = (direction) => {
+    const delta = direction === 'next' ? 280 : -280;
+    const target = Math.max(0, categoryScrollX + delta);
+    setCategoryScrollX(target);
+    categoryScrollRef.current?.scrollTo({ x: target, animated: true });
+  };
+
+  // Filtered Products
   const filteredProducts = useMemo(() => {
     let list = EXTENDED_PRODUCTS;
 
+    // Filter by condition if selected
     if (selectedCondition) {
-      const cond =
-        BROWSE_HEALTH_CONDITIONS.find((c) => c.id === selectedCondition) ||
-        HEALTH_CONDITIONS.find((c) => c.id === selectedCondition);
-      if (cond && cond.filterKeywords) {
+      const condObj = BROWSE_HEALTH_CONDITIONS.find((c) => c.id === selectedCondition);
+      if (condObj) {
         list = list.filter((p) => {
-          const text = `${p.name} ${p.brand} ${p.category} ${p.uses || ''}`.toLowerCase();
-          return cond.filterKeywords.some((kw) => text.includes(kw.toLowerCase()));
+          const text = `${p.name} ${p.brand} ${p.category} ${p.uses || ''} ${p.description || ''}`.toLowerCase();
+          return condObj.filterKeywords.some((k) => text.includes(k));
         });
       }
-    } else if (selectedCategory !== 'all') {
-      list = list.filter((p) => p.category === selectedCategory);
     }
 
-    if (activeCatalogTab === 'generic') {
-      list = list.filter((p) => p.isGeneric || p.brand?.toLowerCase().includes('jan aushadhi') || p.category?.toLowerCase().includes('generic'));
-    } else if (activeCatalogTab === 'devices') {
-      list = list.filter((p) => p.category === 'Healthcare Devices');
-    } else if (activeCatalogTab === 'ayurveda') {
-      list = list.filter((p) => p.category === 'Ayurvedic');
+    // Filter by Category
+    if (selectedCategory !== 'all') {
+      list = list.filter((p) => {
+        if (p.category && p.category.toLowerCase().includes(selectedCategory.toLowerCase())) {
+          return true;
+        }
+        if (selectedCategory === 'Pain Relief' && (p.category === 'Pain Relief' || (p.uses && p.uses.toLowerCase().includes('pain')))) {
+          return true;
+        }
+        return false;
+      });
     }
 
+    // Filter by Search Query
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.toLowerCase().trim();
       list = list.filter((p) =>
         p.name.toLowerCase().includes(q) ||
         p.brand.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q)
+        (p.category && p.category.toLowerCase().includes(q)) ||
+        (p.uses && p.uses.toLowerCase().includes(q))
       );
     }
 
     return list;
-  }, [searchQuery, selectedCategory, selectedCondition, activeCatalogTab]);
+  }, [searchQuery, selectedCategory, selectedCondition]);
 
-  // Handle PDF or Image Upload
+  // ==========================================
+  // PAGINATION: 15 ITEMS PER PAGE (Exact Web Standard)
+  // ==========================================
+  const ITEMS_PER_PAGE = 15;
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Reset to page 1 whenever filters or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory, selectedCondition]);
+
+  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE) || 1;
+
+  const paginatedProducts = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredProducts.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredProducts, currentPage]);
+
+  // Handle Document & Image Picker for Prescription
   const handlePickDocument = async (type = 'any') => {
     try {
       if (type === 'camera') {
@@ -660,43 +710,26 @@ const PharmacyScreen = ({ navigation, route }) => {
       }
 
       // Document / PDF
-      if (Platform.OS === 'web') {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.pdf,image/*,application/pdf';
-        input.onchange = (e) => {
-          const file = e.target.files?.[0];
-          if (file) {
-            setSelectedFile({
-              name: file.name,
-              uri: URL.createObjectURL(file),
-              type: file.type.includes('pdf') ? 'pdf' : 'image',
-            });
-          }
-        };
-        input.click();
-      } else {
-        const res = await DocumentPicker.getDocumentAsync({
-          type: ['application/pdf', 'image/*'],
-          copyToCacheDirectory: true,
+      const res = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+      });
+      if (!res.canceled && res.assets?.[0]) {
+        const f = res.assets[0];
+        setSelectedFile({
+          name: f.name,
+          uri: f.uri,
+          type: f.mimeType?.includes('pdf') || f.name?.endsWith('.pdf') ? 'pdf' : 'image',
         });
-        if (!res.canceled && res.assets?.[0]) {
-          const f = res.assets[0];
-          setSelectedFile({
-            name: f.name,
-            uri: f.uri,
-            type: f.mimeType?.includes('pdf') || f.name?.endsWith('.pdf') ? 'pdf' : 'image',
-          });
-        }
       }
     } catch (err) {
       console.log('Error picking upload:', err);
     }
   };
 
-  const handleConfirmPrescription = () => {
+  const handleConfirmUpload = () => {
     if (!selectedFile) {
-      showAlert('Attach Prescription', 'Please select a PDF or photo of your prescription.');
+      showAlert('Prescription Required', 'Please attach an image or PDF of your prescription.');
       return;
     }
     setIsUploading(true);
@@ -705,48 +738,80 @@ const PharmacyScreen = ({ navigation, route }) => {
       setShowUploadModal(false);
       showAlert(
         'Prescription Received',
-        `Your prescription "${selectedFile.name}" has been uploaded. A verified pharmacist will confirm your medicine order shortly.`
+        `Your prescription "${selectedFile.name}" has been uploaded successfully. A verified pharmacist will confirm your medicine order shortly.`
       );
       setSelectedFile(null);
     }, 1000);
   };
 
-  const activeSlide = PHARMACY_HERO_SLIDES[activeSlideIndex];
+  const handleHeroCta = (slide) => {
+    if (slide.actionType === 'upload') {
+      setShowUploadModal(true);
+    } else if (slide.actionType === 'filter-devices') {
+      setSelectedCategory('Healthcare Devices');
+      setSelectedCondition(null);
+      scrollToProducts();
+    } else {
+      setSelectedCategory('all');
+      setSelectedCondition(null);
+      scrollToProducts();
+    }
+  };
+
+  const heroSlides = useMemo(() => {
+    return PHARMACY_HERO_SLIDES.map((slide) => {
+      if (slide.id === 'pharma-slide-1') {
+        return {
+          ...slide,
+          bullets: [
+            cityConfig.bulletDelivery || `Superfast express delivery to your doorstep across ${currentCity}`,
+            slide.bullets[1],
+            slide.bullets[2],
+          ],
+        };
+      }
+      return slide;
+    });
+  }, [currentCity, cityConfig]);
+
+  const activeSlide = heroSlides[activeSlideIndex] || PHARMACY_HERO_SLIDES[0];
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-
-      {/* TOP HEADER (MOBILE & TABLET VIEW) */}
-      <View style={styles.mobileHeader}>
+      {/* MOBILE / TABLET HEADER */}
+      <View style={styles.header}>
         <TouchableOpacity
           style={styles.headerBackBtn}
-          onPress={() => navigation.goBack()}
+          onPress={() => navigation?.goBack()}
           activeOpacity={0.8}
         >
           <Ionicons name="arrow-back" size={22} color="#1E3A8A" />
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.headerLocalityBtn}
-          onPress={() => setShowLocationModal(true)}
-          activeOpacity={0.8}
-        >
+        <View style={styles.headerLocalityBtn}>
           <View style={styles.headerLocalityIconWrap}>
-            <Ionicons name="location" size={14} color="#FF5252" />
+            <Ionicons name="location" size={14} color="#00B894" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerDeliverTo}>Deliver to</Text>
             <Text style={styles.headerLocalityName} numberOfLines={1}>
-              {selectedLocality.name}, Mysuru
+              {currentCity}
             </Text>
           </View>
-          <Ionicons name="chevron-down" size={14} color="#64748B" />
+        </View>
+
+        <TouchableOpacity
+          style={styles.headerOrdersBtn}
+          onPress={() => navigation?.navigate('MyMedicineOrders')}
+          activeOpacity={0.8}
+          accessibilityLabel="My Pharmacy Orders"
+        >
+          <Ionicons name="receipt-outline" size={20} color="#1E3A8A" />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.headerCartBtn}
-          onPress={() => navigation.navigate('Cart', { initialTab: 'pharmacy' })}
+          onPress={() => navigation?.navigate('Cart', { initialTab: 'pharmacy' })}
           activeOpacity={0.8}
         >
           <Ionicons name="cart-outline" size={22} color="#1E3A8A" />
@@ -764,101 +829,126 @@ const PharmacyScreen = ({ navigation, route }) => {
         ref={mainScrollRef}
         contentContainerStyle={[
           styles.scrollContent,
-          pharmacyCartCount > 0 && { paddingBottom: Platform.OS === 'ios' ? 140 : 130 },
+          isTablet && styles.tabletContainerWidth,
+          pharmacyCartCount > 0 && { paddingBottom: 110 },
         ]}
         showsVerticalScrollIndicator={false}
       >
         {/* ============================================================
-            1. HERO SHOWCASE CAROUSEL BANNER
+            1. HERO SHOWCASE CAROUSEL BANNER (Exact Web Standard)
         ============================================================ */}
         <View style={styles.heroWrap}>
           <View
             style={[
               styles.heroBannerCard,
-              { backgroundColor: activeSlide.bgColor, borderColor: activeSlide.borderColor },
-              !isDesktop && styles.heroBannerCardMobile,
+              {
+                backgroundColor: activeSlide.bgColor,
+                borderColor: activeSlide.borderColor || '#FED7AA',
+              },
             ]}
           >
+            {/* Left Chevron */}
+            <TouchableOpacity
+              style={styles.carouselNavArrowLeft}
+              onPress={() =>
+                setActiveSlideIndex(
+                  (prev) => (prev - 1 + PHARMACY_HERO_SLIDES.length) % PHARMACY_HERO_SLIDES.length
+                )
+              }
+              activeOpacity={0.85}
+            >
+              <Ionicons name="chevron-back" size={18} color="#1E3A8A" />
+            </TouchableOpacity>
+
             {/* Left Content */}
-            <View style={[styles.heroLeftCol, !isDesktop && styles.heroLeftColMobile]}>
-              <View style={styles.heroBadgeRow}>
-                <View style={[styles.pillBadge, { backgroundColor: activeSlide.pillBg }]}>
-                  <Text style={[styles.pillBadgeText, { color: activeSlide.pillColor }]}>
+            <View style={styles.heroLeftCol}>
+              <View style={styles.bannerBadgeRow}>
+                <View style={[styles.brandPillYellow, { backgroundColor: activeSlide.pillBg }]}>
+                  <Text style={[styles.brandPillYellowText, { color: activeSlide.pillColor }]}>
                     {activeSlide.pillText}
                   </Text>
                 </View>
-                <View style={styles.discountTag}>
-                  <Ionicons name={activeSlide.certIcon} size={12} color="#FF5252" />
-                  <Text style={styles.discountTagText}>{activeSlide.certText}</Text>
+                <View style={styles.brandTagFlipkart}>
+                  <Ionicons
+                    name={activeSlide.certIcon || 'shield-checkmark'}
+                    size={11}
+                    color={activeSlide.priceColor || '#00B894'}
+                  />
+                  <Text style={[styles.brandTagFlipkartText, { color: activeSlide.priceColor || '#00B894' }]}>
+                    {activeSlide.certText}
+                  </Text>
                 </View>
               </View>
 
-              <Text style={[styles.heroTitle, !isDesktop && styles.heroTitleMobile]}>
-                {activeSlide.title}
-              </Text>
+              <Text style={styles.heroTitle}>{activeSlide.title}</Text>
 
-              <Text style={styles.heroPriceHighlight} numberOfLines={1}>
-                {activeSlide.priceText} <Text style={{ color: '#64748B', fontSize: 12 }}>• {activeSlide.priceSub}</Text>
-              </Text>
+              <View style={styles.heroPriceRow}>
+                <Text style={[styles.heroPriceText, { color: activeSlide.priceColor }]}>
+                  {activeSlide.priceText}
+                </Text>
+                {Boolean(activeSlide.priceSub) ? (
+                  <Text style={styles.heroPriceSubText}>• {activeSlide.priceSub}</Text>
+                ) : null}
+              </View>
 
               <Text style={styles.heroSubTitle} numberOfLines={2}>
                 {activeSlide.subTitle}
               </Text>
 
-              {/* Bullets (Shown on tablet and desktop) */}
-              {isTablet || isDesktop ? (
+              {/* Feature Bullets (Shown on tablet) */}
+              {isTablet && (
                 <View style={styles.heroBulletsBox}>
                   {activeSlide.bullets.map((b, bIdx) => (
-                    <View key={bIdx} style={styles.heroBulletRow}>
-                      <Ionicons name="checkmark-circle" size={14} color="#FF5252" />
+                    <View key={bIdx} style={styles.heroBulletItem}>
+                      <Ionicons name="checkmark-circle" size={13} color={activeSlide.priceColor || '#00B894'} />
                       <Text style={styles.heroBulletText} numberOfLines={1}>
                         {b}
                       </Text>
                     </View>
                   ))}
                 </View>
-              ) : null}
+              )}
 
-              {/* Action Buttons */}
+              {/* CTA Button */}
               <View style={styles.heroCtaRow}>
                 <TouchableOpacity
-                  style={[styles.heroPrimaryBtn, { backgroundColor: activeSlide.ctaBg }]}
-                  onPress={() => {
-                    if (activeSlide.actionType === 'upload') {
-                      setShowUploadModal(true);
-                    } else if (activeSlide.actionType === 'filter-devices') {
-                      setActiveCatalogTab('devices');
-                    } else {
-                      setActiveCatalogTab('all');
-                    }
-                  }}
+                  style={[styles.heroCtaBtn, { backgroundColor: activeSlide.ctaBg }]}
+                  onPress={() => handleHeroCta(activeSlide)}
                   activeOpacity={0.88}
                 >
-                  <Text style={styles.heroPrimaryBtnText}>{activeSlide.ctaText}</Text>
+                  <Text style={styles.heroCtaText}>{activeSlide.ctaText}</Text>
                   <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.heroSecondaryBtn}
-                  onPress={() => setShowUploadModal(true)}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="document-text-outline" size={14} color="#FF5252" />
-                  <Text style={styles.heroSecondaryBtnText}>Upload Rx</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* Right Graphic/Image (Desktop / Tablet) */}
-            {isDesktop || isTablet ? (
+            {/* Right Photo Column (Shown on tablet) */}
+            {isTablet && (
               <View style={styles.heroRightCol}>
-                <Image source={{ uri: activeSlide.image }} style={styles.heroImage} resizeMode="cover" />
-                <View style={styles.heroTrustPill}>
-                  <Ionicons name="shield-checkmark" size={12} color="#FF5252" />
-                  <Text style={styles.heroTrustPillText}>{activeSlide.trustBadge}</Text>
-                </View>
+                <Image
+                  source={{ uri: activeSlide.image }}
+                  style={styles.heroImage}
+                  resizeMode="cover"
+                />
+                {Boolean(activeSlide.trustBadge) && (
+                  <View style={styles.floatingTrustBadge}>
+                    <Ionicons name="shield-checkmark" size={11} color="#00B894" />
+                    <Text style={styles.floatingTrustBadgeText}>{activeSlide.trustBadge}</Text>
+                  </View>
+                )}
               </View>
-            ) : null}
+            )}
+
+            {/* Right Chevron */}
+            <TouchableOpacity
+              style={styles.carouselNavArrowRight}
+              onPress={() =>
+                setActiveSlideIndex((prev) => (prev + 1) % PHARMACY_HERO_SLIDES.length)
+              }
+              activeOpacity={0.85}
+            >
+              <Ionicons name="chevron-forward" size={18} color="#1E3A8A" />
+            </TouchableOpacity>
           </View>
 
           {/* Dots Indicator */}
@@ -868,64 +958,93 @@ const PharmacyScreen = ({ navigation, route }) => {
                 key={idx}
                 onPress={() => setActiveSlideIndex(idx)}
                 style={[styles.dot, activeSlideIndex === idx && styles.dotActive]}
+                activeOpacity={0.7}
               />
             ))}
           </View>
         </View>
 
         {/* ============================================================
-            2. SEARCH BAR WITH FAST PRESCRIPTION SCANNER
+            2. PROMINENT SEARCH BAR (Clean, Full-Width Design)
         ============================================================ */}
-        <View style={styles.searchWrap}>
-          <View style={styles.searchBox}>
-            <Ionicons name="search" size={18} color="#64748B" />
+        <View style={styles.searchSectionWrap}>
+          <View style={styles.searchBarBox}>
+            <View style={styles.searchIconBox}>
+              <Ionicons name="search" size={18} color="#00B894" />
+            </View>
             <TextInput
               style={styles.searchInput}
-              placeholder="Search 50,000+ medicines, vitamins, brands..."
-              placeholderTextColor="#94A3B8"
+              placeholder="Search medicines, vitamins & wellness..."
+              placeholderTextColor="#64748B"
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
-            {searchQuery ? (
-              <TouchableOpacity onPress={() => setSearchQuery('')} style={{ marginRight: 6 }}>
-                <Ionicons name="close-circle" size={18} color="#94A3B8" />
+            {searchQuery.length > 0 ? (
+              <TouchableOpacity
+                onPress={() => setSearchQuery('')}
+                style={styles.searchClearBtn}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close-circle" size={18} color="#64748B" />
               </TouchableOpacity>
             ) : null}
-            <TouchableOpacity
-              style={styles.searchCameraBtn}
-              onPress={() => setShowUploadModal(true)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="camera" size={18} color="#FF5252" />
-              <Text style={styles.searchCameraText}>Scan Rx</Text>
-            </TouchableOpacity>
           </View>
         </View>
 
         {/* ============================================================
-            3. 4 FEATURED ACTION TILES
+            2.5 QUICK ACCESS: MY PHARMACY ORDERS
+        ============================================================ */}
+        <View style={styles.myOrdersBannerWrap}>
+          <TouchableOpacity
+            style={styles.myOrdersBanner}
+            onPress={() => navigation?.navigate('MyMedicineOrders')}
+            activeOpacity={0.85}
+          >
+            <View style={styles.myOrdersBannerLeft}>
+              <View style={styles.myOrdersIconBox}>
+                <Ionicons name="receipt-outline" size={18} color="#008B94" />
+              </View>
+              <View>
+                <Text style={styles.myOrdersBannerTitle}>My Pharmacy Orders</Text>
+                <Text style={styles.myOrdersBannerSub}>Track delivery & return items</Text>
+              </View>
+            </View>
+            <View style={styles.myOrdersBannerRight}>
+              <Text style={styles.myOrdersBannerCta}>View Orders →</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* ============================================================
+            3. 4 FEATURED ACTION CARDS (Below Hero)
         ============================================================ */}
         <View style={styles.actionCardsWrap}>
           <View style={styles.actionCardsGrid}>
             {ACTION_CARDS.map((item) => (
               <TouchableOpacity
                 key={item.id}
-                style={[styles.actionCard, { backgroundColor: item.bgColor, borderColor: item.borderColor }]}
+                style={[
+                  styles.actionCard,
+                  { backgroundColor: item.bgColor, borderColor: item.borderColor },
+                  isTablet ? { width: '23.8%' } : { width: '48.2%' },
+                ]}
                 onPress={() => {
                   if (item.actionType === 'upload') {
                     setShowUploadModal(true);
                   } else if (item.route) {
-                    navigation.navigate(item.route);
+                    navigation?.navigate(item.route);
                   }
                 }}
                 activeOpacity={0.88}
               >
                 <View style={[styles.actionCardIconWrap, { backgroundColor: item.iconBg }]}>
-                  <Ionicons name={item.iconName} size={20} color={item.iconColor} />
+                  <Ionicons name={item.iconName} size={18} color={item.iconColor} />
                 </View>
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={styles.actionCardTitle}>{item.title}</Text>
-                  <Text style={[styles.actionCardCta, { color: item.ctaColor }]}>
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={styles.actionCardTitle} numberOfLines={2}>
+                    {item.title}
+                  </Text>
+                  <Text style={[styles.actionCardCta, { color: item.ctaColor }]} numberOfLines={1}>
                     {item.ctaText} →
                   </Text>
                 </View>
@@ -935,139 +1054,292 @@ const PharmacyScreen = ({ navigation, route }) => {
         </View>
 
         {/* ============================================================
-            BROWSE MEDICINES & HEALTH PRODUCTS (Creative Mockup Layout)
+            4. BROWSE MEDICINES & HEALTH PRODUCTS
         ============================================================ */}
-        <View style={styles.mobileBrowseSection}>
-          <View style={styles.mobileBrowseHeaderRow}>
-            <Text style={styles.mobileBrowseMainHeading}>Browse medicines & health products</Text>
-            <View style={styles.mobileBrowseHeaderBadge}>
-              <Ionicons name="sparkles" size={11} color="#00B894" />
-              <Text style={styles.mobileBrowseHeaderBadgeText}>100% Genuine</Text>
+        <View style={styles.browseSectionWrap}>
+          <View style={styles.browseHeaderBadgeRow}>
+            <Text style={styles.browseMainHeading}>Browse medicines & health products</Text>
+            <View style={styles.browseHeaderPill}>
+              <Ionicons name="sparkles" size={12} color="#00B894" />
+              <Text style={styles.browseHeaderPillText}>100% Genuine</Text>
             </View>
           </View>
 
           {/* SUBSECTION 1: HEALTH CONDITION */}
-          <View style={styles.mobileBrowseSubSection}>
+          <View style={styles.browseSubSection}>
             <View style={styles.subSectionHeaderRow}>
-              <Text style={styles.mobileBrowseSubHeading}>Health condition</Text>
-              {selectedCondition && (
-                <TouchableOpacity onPress={() => setSelectedCondition(null)}>
-                  <Text style={styles.clearFilterLink}>Clear Filter</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.browseSubHeading}>Health condition</Text>
+                <Text style={styles.subSectionCountText}>
+                  ({BROWSE_HEALTH_CONDITIONS.length} therapies)
+                </Text>
+              </View>
+              {Boolean(selectedCondition) && (
+                <TouchableOpacity
+                  onPress={() => setSelectedCondition(null)}
+                  style={styles.activeFilterChip}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.activeFilterChipText}>Clear Filter</Text>
+                  <Ionicons name="close-circle" size={13} color="#FF7F50" />
                 </TouchableOpacity>
               )}
             </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.mobileBrowseScroll}
-            >
-              {BROWSE_HEALTH_CONDITIONS.map((item) => {
-                const isSelected = selectedCondition === item.id;
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[
-                      styles.mobileBrowseCard,
-                      { backgroundColor: item.bg },
-                      isSelected && styles.mobileBrowseCardActive,
-                    ]}
-                    onPress={() => {
-                      if (isSelected) {
-                        setSelectedCondition(null);
-                      } else {
-                        setSelectedCategory('all');
-                        setSelectedCondition(item.id);
-                        scrollToCatalog();
-                      }
-                    }}
-                    activeOpacity={0.88}
-                  >
-                    <View style={styles.mobileMicroPill}>
-                      <Text style={styles.mobileMicroPillText}>{item.badge}</Text>
-                    </View>
-                    <View style={styles.mobileBannerTextCol}>
-                      <Text style={styles.mobileBannerTitlePrimary}>{item.titlePrimary}</Text>
-                      <Text style={styles.mobileBannerTitleSecondary}>{item.titleSecondary}</Text>
-                      <Text style={styles.mobileBannerTagline} numberOfLines={1}>{item.tagline}</Text>
-                    </View>
-                    <View style={styles.mobileBannerImageContainer}>
-                      <View style={styles.mobileImageBackdrop}>
-                        <Image
-                          source={{ uri: item.image }}
-                          style={styles.mobileBannerImage}
-                          resizeMode="cover"
-                        />
+
+            <View style={styles.browseCardsRow}>
+              {isTablet && conditionScrollX > 0 && (
+                <TouchableOpacity
+                  style={styles.carouselPrevBtn}
+                  onPress={() => handleScrollCondition('prev')}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="chevron-back" size={16} color="#1E293B" />
+                </TouchableOpacity>
+              )}
+
+              <ScrollView
+                ref={conditionScrollRef}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.browseCardsScroll}
+                onScroll={(e) => setConditionScrollX(e.nativeEvent.contentOffset.x)}
+                scrollEventThrottle={16}
+              >
+                {BROWSE_HEALTH_CONDITIONS.map((item) => {
+                  const isSelected = selectedCondition === item.id;
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[
+                        styles.browseBannerCard,
+                        { backgroundColor: item.bg },
+                        isSelected && styles.browseBannerCardActive,
+                      ]}
+                      onPress={() => {
+                        if (isSelected) {
+                          setSelectedCondition(null);
+                        } else {
+                          setSelectedCategory('all');
+                          setSelectedCondition(item.id);
+                          setCurrentPage(1);
+                          scrollToProducts();
+                        }
+                      }}
+                      activeOpacity={0.88}
+                    >
+                      <View style={styles.cardBackdropGlow} />
+
+                      {/* Top Micro Pill */}
+                      <View style={styles.bannerMicroPill}>
+                        <Text style={styles.bannerMicroPillText}>{item.badge}</Text>
                       </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+
+                      {/* Text Column */}
+                      <View style={styles.bannerTextCol}>
+                        <Text style={styles.bannerTitlePrimary}>{item.titlePrimary}</Text>
+                        <Text style={styles.bannerTitleSecondary}>{item.titleSecondary}</Text>
+                        <Text style={styles.bannerTagline} numberOfLines={1}>
+                          {item.tagline}
+                        </Text>
+
+                        <View style={[styles.bannerExploreChip, isSelected && styles.bannerExploreChipActive]}>
+                          <Text style={styles.bannerExploreText}>
+                            {isSelected ? 'Selected' : 'Explore'}
+                          </Text>
+                          <Ionicons
+                            name={isSelected ? 'checkmark-circle' : 'arrow-forward'}
+                            size={11}
+                            color="#FFFFFF"
+                          />
+                        </View>
+                      </View>
+
+                      {/* Right Circular Photo Showcase */}
+                      <View style={styles.bannerImageContainer}>
+                        <View style={styles.imageBackdropDisc}>
+                          <Image
+                            source={{ uri: item.image }}
+                            style={styles.bannerCutoutImage}
+                            resizeMode="cover"
+                          />
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {isTablet && (
+                <TouchableOpacity
+                  style={styles.carouselNextBtn}
+                  onPress={() => handleScrollCondition('next')}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="chevron-forward" size={16} color="#1E293B" />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           {/* SUBSECTION 2: CATEGORIES */}
-          <View style={styles.mobileBrowseSubSection}>
+          <View style={styles.browseSubSection}>
             <View style={styles.subSectionHeaderRow}>
-              <Text style={styles.mobileBrowseSubHeading}>Categories</Text>
-              {selectedCategory !== 'all' && !selectedCondition && (
-                <TouchableOpacity onPress={() => setSelectedCategory('all')}>
-                  <Text style={styles.clearFilterLink}>View All</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.browseSubHeading}>Categories</Text>
+                <Text style={styles.subSectionCountText}>
+                  ({BROWSE_CATEGORIES.length} everyday)
+                </Text>
+              </View>
+              {Boolean(selectedCategory !== 'all' && !selectedCondition) && (
+                <TouchableOpacity
+                  onPress={() => setSelectedCategory('all')}
+                  style={styles.activeFilterChip}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.activeFilterChipText}>View All</Text>
+                  <Ionicons name="close-circle" size={13} color="#FF7F50" />
                 </TouchableOpacity>
               )}
             </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.mobileBrowseScroll}
-            >
-              {BROWSE_CATEGORIES.map((item) => {
-                const isSelected = selectedCategory === item.categoryFilter && !selectedCondition;
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[
-                      styles.mobileBrowseCard,
-                      { backgroundColor: item.bg },
-                      isSelected && styles.mobileBrowseCardActive,
-                    ]}
-                    onPress={() => {
-                      setSelectedCondition(null);
-                      setSelectedCategory(item.categoryFilter);
-                      scrollToCatalog();
-                    }}
-                    activeOpacity={0.88}
-                  >
-                    <View style={styles.mobileMicroPill}>
-                      <Text style={styles.mobileMicroPillText}>{item.badge}</Text>
-                    </View>
-                    <View style={styles.mobileBannerTextCol}>
-                      <Text style={styles.mobileBannerTitlePrimary}>{item.titlePrimary}</Text>
-                      <Text style={styles.mobileBannerTitleSecondary}>{item.titleSecondary}</Text>
-                      <Text style={styles.mobileBannerTagline} numberOfLines={1}>{item.tagline}</Text>
-                    </View>
-                    <View style={styles.mobileBannerImageContainer}>
-                      <View style={styles.mobileImageBackdrop}>
-                        <Image
-                          source={{ uri: item.image }}
-                          style={styles.mobileBannerImage}
-                          resizeMode="cover"
-                        />
+
+            <View style={styles.browseCardsRow}>
+              {isTablet && categoryScrollX > 0 && (
+                <TouchableOpacity
+                  style={styles.carouselPrevBtn}
+                  onPress={() => handleScrollCategory('prev')}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="chevron-back" size={16} color="#1E293B" />
+                </TouchableOpacity>
+              )}
+
+              <ScrollView
+                ref={categoryScrollRef}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.browseCardsScroll}
+                onScroll={(e) => setCategoryScrollX(e.nativeEvent.contentOffset.x)}
+                scrollEventThrottle={16}
+              >
+                {BROWSE_CATEGORIES.map((item) => {
+                  const isSelected = selectedCategory === item.categoryFilter && !selectedCondition;
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[
+                        styles.browseBannerCard,
+                        { backgroundColor: item.bg },
+                        isSelected && styles.browseBannerCardActive,
+                      ]}
+                      onPress={() => {
+                        setSelectedCondition(null);
+                        setSelectedCategory(item.categoryFilter);
+                        setCurrentPage(1);
+                        scrollToProducts();
+                      }}
+                      activeOpacity={0.88}
+                    >
+                      <View style={styles.cardBackdropGlow} />
+
+                      {/* Top Micro Pill */}
+                      <View style={styles.bannerMicroPill}>
+                        <Text style={styles.bannerMicroPillText}>{item.badge}</Text>
                       </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+
+                      {/* Text Column */}
+                      <View style={styles.bannerTextCol}>
+                        <Text style={styles.bannerTitlePrimary}>{item.titlePrimary}</Text>
+                        <Text style={styles.bannerTitleSecondary}>{item.titleSecondary}</Text>
+                        <Text style={styles.bannerTagline} numberOfLines={1}>
+                          {item.tagline}
+                        </Text>
+
+                        <View style={[styles.bannerExploreChip, isSelected && styles.bannerExploreChipActive]}>
+                          <Text style={styles.bannerExploreText}>
+                            {isSelected ? 'Selected' : 'Explore'}
+                          </Text>
+                          <Ionicons
+                            name={isSelected ? 'checkmark-circle' : 'arrow-forward'}
+                            size={11}
+                            color="#FFFFFF"
+                          />
+                        </View>
+                      </View>
+
+                      {/* Right Circular Photo Showcase */}
+                      <View style={styles.bannerImageContainer}>
+                        <View style={styles.imageBackdropDisc}>
+                          <Image
+                            source={{ uri: item.image }}
+                            style={styles.bannerCutoutImage}
+                            resizeMode="cover"
+                          />
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {isTablet && (
+                <TouchableOpacity
+                  style={styles.carouselNextBtn}
+                  onPress={() => handleScrollCategory('next')}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="chevron-forward" size={16} color="#1E293B" />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         </View>
 
         {/* ============================================================
-            6. PRODUCTS CATALOG WITH FILTER TABS
+            5. GUARANTEE / TRUST STRIP (Exact Web Standard)
+        ============================================================ */}
+        <View style={styles.guaranteeSectionWrap}>
+          <View style={styles.guaranteeCard}>
+            <View style={styles.guaranteeItem}>
+              <View style={[styles.guaranteeIconCircle, { backgroundColor: '#ECFDF5' }]}>
+                <Ionicons name="shield-checkmark" size={18} color="#00B894" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Text style={styles.guaranteeTitle}>100% Genuine Medicines</Text>
+                <Text style={styles.guaranteeSub}>Directly sourced from verified manufacturers</Text>
+              </View>
+            </View>
+
+            <View style={styles.guaranteeDivider} />
+
+            <View style={styles.guaranteeItem}>
+              <View style={[styles.guaranteeIconCircle, { backgroundColor: '#FFF5F0' }]}>
+                <Ionicons name="flash" size={18} color="#FF7F50" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Text style={styles.guaranteeTitle}>60-Min Express Delivery</Text>
+                <Text style={styles.guaranteeSub}>Guaranteed swift delivery in Mysuru</Text>
+              </View>
+            </View>
+
+            <View style={styles.guaranteeDivider} />
+
+            <View style={styles.guaranteeItem}>
+              <View style={[styles.guaranteeIconCircle, { backgroundColor: '#EFF6FF' }]}>
+                <Ionicons name="medkit" size={18} color="#1E3A8A" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Text style={styles.guaranteeTitle}>Pharmacist Review 24/7</Text>
+                <Text style={styles.guaranteeSub}>Free dosage & interaction verification</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* ============================================================
+            6. POPULAR PRODUCTS (Exact Web Standard with Pagination)
         ============================================================ */}
         <View
-          style={styles.catalogSection}
-          nativeID="pharmacy-catalog-section"
-          {...(Platform.OS === 'web' ? { id: 'pharmacy-catalog-section' } : {})}
+          style={styles.pharmacySectionWrap}
           onLayout={(event) => {
             const layout = event.nativeEvent.layout;
             if (layout && layout.y) {
@@ -1075,143 +1347,271 @@ const PharmacyScreen = ({ navigation, route }) => {
             }
           }}
         >
-          <View style={styles.catalogHeaderRow}>
-            <Text style={styles.sectionTitle}>Medicines & Health Products</Text>
-            <Text style={styles.catalogItemCount}>{filteredProducts.length} items</Text>
+          <View style={styles.sectionHeaderLine}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionHeadingTitle}>
+                {selectedCondition
+                  ? `${BROWSE_HEALTH_CONDITIONS.find((c) => c.id === selectedCondition)?.titlePrimary || 'Selected'} Care Products`
+                  : selectedCategory !== 'all'
+                  ? `${selectedCategory} Products`
+                  : searchQuery
+                  ? `Search Results for "${searchQuery}"`
+                  : 'Popular Products'}
+              </Text>
+              <Text style={styles.sectionSubHeading}>
+                Showing {filteredProducts.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} -{' '}
+                {Math.min(currentPage * ITEMS_PER_PAGE, filteredProducts.length)} of {filteredProducts.length} items (15 per page)
+              </Text>
+            </View>
+
+            {Boolean(selectedCategory !== 'all' || selectedCondition || searchQuery.trim()) && (
+              <TouchableOpacity
+                style={styles.viewStoreBtn}
+                onPress={() => {
+                  setSelectedCategory('all');
+                  setSelectedCondition(null);
+                  setSearchQuery('');
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.viewStoreBtnText}>View All</Text>
+                <Ionicons name="arrow-forward" size={13} color="#00B894" />
+              </TouchableOpacity>
+            )}
           </View>
 
-          {/* Catalog Filter Tabs */}
-          <View style={styles.catalogTabsRow}>
-            {[
-              { key: 'all', label: 'All Medicines' },
-              { key: 'generic', label: 'Jan Aushadhi' },
-              { key: 'devices', label: 'Health Devices' },
-              { key: 'ayurveda', label: 'Ayurvedic' },
-            ].map((tab) => {
-              const isActive = activeCatalogTab === tab.key;
-              return (
-                <TouchableOpacity
-                  key={tab.key}
-                  style={[styles.catalogTabBtn, isActive && styles.catalogTabBtnActive]}
-                  onPress={() => {
-                    setSelectedCondition(null);
-                    setActiveCatalogTab(tab.key);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.catalogTabBtnText, isActive && styles.catalogTabBtnTextActive]}>
-                    {tab.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          {filteredProducts.length === 0 ? (
+            <View style={styles.emptyProductsState}>
+              <Ionicons name="search-outline" size={44} color="#94A3B8" />
+              <Text style={styles.emptyTitle}>No matching medicines found</Text>
+              <Text style={styles.emptySub}>
+                Try another search keyword or explore all categories.
+              </Text>
+              <TouchableOpacity
+                style={styles.resetCatalogBtn}
+                onPress={() => {
+                  setSearchQuery('');
+                  setSelectedCategory('all');
+                  setSelectedCondition(null);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.resetCatalogBtnText}>Show All Products</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              {/* Product Cards Grid */}
+              <View style={styles.pharmacyCardsGrid}>
+                {paginatedProducts.map((prod) => {
+                  const cartItem = (pharmacyCart || []).find((ci) => ci.id === prod.id);
+                  const quantity = cartItem?.quantity || 0;
+                  const prodImg = getProductImage(prod);
 
-          {/* Product Cards Grid */}
-          <View style={[styles.productsGrid, width >= 600 && { maxWidth: 1100, width: '100%', alignSelf: 'center' }]}>
-            {filteredProducts.map((prod) => {
-              const inCartItem = pharmacyCart?.find((ci) => ci.id === prod.id);
-              const qty = inCartItem?.quantity || 0;
-
-              return (
-                <View
-                  key={prod.id}
-                  style={[
-                    styles.productCard,
-                    width >= 960 ? { width: '23.5%' } : (width >= 640 ? { width: '31.8%' } : null),
-                  ]}
-                >
-                  {/* Discount Pill */}
-                  {prod.discount && (
-                    <View style={styles.productDiscountBadge}>
-                      <Text style={styles.productDiscountText}>{prod.discount}</Text>
-                    </View>
-                  )}
-
-                  {/* Image */}
-                  <TouchableOpacity
-                    style={styles.productImageWrap}
-                    onPress={() => navigation.navigate('ProductDetails', { product: prod, productId: prod.id })}
-                    activeOpacity={0.85}
-                  >
-                    <Image
-                      source={{ uri: getProductImage(prod) }}
-                      style={styles.productImage}
-                      resizeMode="contain"
-                    />
-                  </TouchableOpacity>
-
-                  {/* Details */}
-                  <View style={styles.productInfo}>
-                    <Text style={styles.productBrand} numberOfLines={1}>
-                      {prod.brand || 'Unnathi Pharmacy'}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => navigation.navigate('ProductDetails', { product: prod, productId: prod.id })}
-                      activeOpacity={0.85}
+                  return (
+                    <View
+                      key={prod.id}
+                      style={[
+                        styles.pharmacyCard,
+                        isLargeTablet
+                          ? { width: '23.8%' }
+                          : isTablet
+                          ? { width: '31.8%' }
+                          : { width: '48.2%' },
+                      ]}
                     >
-                      <Text style={styles.productName} numberOfLines={2}>
-                        {prod.name}
-                      </Text>
-                    </TouchableOpacity>
-
-                    {prod.packSize && (
-                      <Text style={styles.productPack} numberOfLines={1}>
-                        {prod.packSize}
-                      </Text>
-                    )}
-
-                    {/* Rating */}
-                    <View style={styles.productRatingRow}>
-                      <Ionicons name="star" size={11} color="#F59E0B" />
-                      <Text style={styles.productRatingText}>{prod.rating || 4.8}</Text>
-                      <Text style={styles.productReviewsText}>({prod.reviewsCount || 420}+)</Text>
-                    </View>
-
-                    {/* Price & Add to Cart */}
-                    <View style={styles.productBottomRow}>
-                      <View>
-                        <Text style={styles.productPrice}>₹{prod.price}</Text>
-                        {Boolean(prod.mrp) && <Text style={styles.productMrp}>MRP ₹{prod.mrp}</Text>}
+                      {/* Discount Badge */}
+                      <View style={styles.pharmacyBadge}>
+                        <Text style={styles.pharmacyBadgeText}>
+                          {prod.discount ? prod.discount.toUpperCase() : 'FLAT 20% OFF'}
+                        </Text>
                       </View>
 
-                      {qty > 0 ? (
-                        <View style={styles.stepperWrap}>
-                          <TouchableOpacity
-                            style={styles.stepperBtn}
-                            onPress={() => decreaseQuantity(prod.id, 'pharmacy')}
-                          >
-                            <Ionicons name="remove" size={13} color="#FF5252" />
-                          </TouchableOpacity>
-                          <Text style={styles.stepperQty}>{qty}</Text>
-                          <TouchableOpacity
-                            style={styles.stepperBtn}
-                            onPress={() => increaseQuantity(prod.id, 'pharmacy')}
-                          >
-                            <Ionicons name="add" size={13} color="#FF5252" />
-                          </TouchableOpacity>
+                      {/* Rx Badge */}
+                      {Boolean(prod.requiresPrescription) && (
+                        <View style={styles.pharmacyRxBadge}>
+                          <Text style={styles.pharmacyRxBadgeText}>Rx</Text>
                         </View>
-                      ) : (
-                        <TouchableOpacity
-                          style={styles.addToCartBtn}
-                          onPress={() => addToCart(prod, 1, 'pharmacy')}
-                          activeOpacity={0.85}
-                        >
-                          <Ionicons name="add" size={14} color="#FFFFFF" />
-                          <Text style={styles.addToCartBtnText}>Add</Text>
-                        </TouchableOpacity>
                       )}
+
+                      {/* Image */}
+                      <TouchableOpacity
+                        onPress={() =>
+                          navigation?.navigate('ProductDetails', { product: prod, productId: prod.id })
+                        }
+                        activeOpacity={0.9}
+                        style={styles.pharmacyCardImgWrap}
+                      >
+                        <Image source={{ uri: prodImg }} style={styles.pharmacyCardImg} resizeMode="contain" />
+                      </TouchableOpacity>
+
+                      {/* Card Content */}
+                      <View style={styles.pharmacyCardBody}>
+                        <Text style={styles.pharmacyCat} numberOfLines={1}>
+                          {prod.category || 'MEDICINES'}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() =>
+                            navigation?.navigate('ProductDetails', { product: prod, productId: prod.id })
+                          }
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.pharmacyName} numberOfLines={2}>
+                            {prod.name}
+                          </Text>
+                        </TouchableOpacity>
+                        <Text style={styles.pharmacyBrand} numberOfLines={1}>
+                          {prod.brand} • {prod.packSize || '1 Unit'}
+                        </Text>
+
+                        {/* Rating */}
+                        <View style={styles.pharmacyRatingRow}>
+                          <View style={styles.ratingTag}>
+                            <Ionicons name="star" size={10} color="#FF7F50" />
+                            <Text style={styles.ratingTagText}>{prod.rating || 4.8}</Text>
+                          </View>
+                          <Text style={styles.reviewsCountText}>({prod.reviewsCount || 850}+)</Text>
+                        </View>
+
+                        {/* Price Row */}
+                        <View style={styles.pharmacyPriceRow}>
+                          <Text style={styles.pharmacyPrice}>₹{prod.price}</Text>
+                          {Boolean(prod.mrp || prod.oldPrice) && (
+                            <Text style={styles.pharmacyMrp}>MRP ₹{prod.mrp || prod.oldPrice}</Text>
+                          )}
+                        </View>
+
+                        {/* Add to Cart or Stepper */}
+                        {quantity > 0 ? (
+                          <View style={styles.quantityStepper}>
+                            <TouchableOpacity
+                              style={styles.stepperBtn}
+                              onPress={() => decreaseQuantity(prod.id, 'pharmacy')}
+                              activeOpacity={0.7}
+                            >
+                              <Ionicons name="remove" size={13} color="#00B894" />
+                            </TouchableOpacity>
+                            <Text style={styles.stepperQuantity}>{quantity}</Text>
+                            <TouchableOpacity
+                              style={styles.stepperBtn}
+                              onPress={() => increaseQuantity(prod.id, 'pharmacy')}
+                              activeOpacity={0.7}
+                            >
+                              <Ionicons name="add" size={13} color="#00B894" />
+                            </TouchableOpacity>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={styles.addToCartButton}
+                            onPress={() => addToCart(prod, 1, 'pharmacy')}
+                            activeOpacity={0.85}
+                          >
+                            <Ionicons name="cart-outline" size={14} color="#FFFFFF" />
+                            <Text style={styles.addToCartButtonText}>Add to Cart</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     </View>
-                  </View>
+                  );
+                })}
+              </View>
+
+              {/* Pagination Controls Bar */}
+              {totalPages > 1 && (
+                <View style={styles.paginationRow}>
+                  <TouchableOpacity
+                    style={[styles.pageNavBtn, currentPage === 1 && styles.pageNavBtnDisabled]}
+                    onPress={() => {
+                      if (currentPage > 1) {
+                        setCurrentPage((prev) => prev - 1);
+                        scrollToProducts();
+                      }
+                    }}
+                    disabled={currentPage === 1}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name="chevron-back"
+                      size={15}
+                      color={currentPage === 1 ? '#94A3B8' : '#1E3A8A'}
+                    />
+                    <Text
+                      style={[
+                        styles.pageNavBtnText,
+                        currentPage === 1 && styles.pageNavBtnTextDisabled,
+                      ]}
+                    >
+                      Previous
+                    </Text>
+                  </TouchableOpacity>
+
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.pageNumbersTrack}
+                  >
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+                      const isActive = pageNum === currentPage;
+                      return (
+                        <TouchableOpacity
+                          key={pageNum}
+                          style={[styles.pageNumberChip, isActive && styles.pageNumberChipActive]}
+                          onPress={() => {
+                            setCurrentPage(pageNum);
+                            scrollToProducts();
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Text
+                            style={[
+                              styles.pageNumberText,
+                              isActive && styles.pageNumberTextActive,
+                            ]}
+                          >
+                            {pageNum}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.pageNavBtn,
+                      currentPage === totalPages && styles.pageNavBtnDisabled,
+                    ]}
+                    onPress={() => {
+                      if (currentPage < totalPages) {
+                        setCurrentPage((prev) => prev + 1);
+                        scrollToProducts();
+                      }
+                    }}
+                    disabled={currentPage === totalPages}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.pageNavBtnText,
+                        currentPage === totalPages && styles.pageNavBtnTextDisabled,
+                      ]}
+                    >
+                      Next
+                    </Text>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={15}
+                      color={currentPage === totalPages ? '#94A3B8' : '#1E3A8A'}
+                    />
+                  </TouchableOpacity>
                 </View>
-              );
-            })}
-          </View>
+              )}
+            </>
+          )}
         </View>
       </ScrollView>
 
       {/* ============================================================
-          8. FLOATING BOTTOM CART BAR (MOBILE ONLY)
+          7. FLOATING BOTTOM CART BAR (MOBILE / TABLET)
       ============================================================ */}
       {pharmacyCartCount > 0 && (
         <View style={styles.floatingCartBar}>
@@ -1229,7 +1629,7 @@ const PharmacyScreen = ({ navigation, route }) => {
 
           <TouchableOpacity
             style={styles.cartBarButton}
-            onPress={() => navigation.navigate('Cart', { initialTab: 'pharmacy' })}
+            onPress={() => navigation?.navigate('Cart', { initialTab: 'pharmacy' })}
             activeOpacity={0.88}
           >
             <Text style={styles.cartBarButtonText}>View Cart</Text>
@@ -1239,7 +1639,7 @@ const PharmacyScreen = ({ navigation, route }) => {
       )}
 
       {/* ============================================================
-          9. PRESCRIPTION UPLOAD MODAL (PDF / IMAGE / CAMERA)
+          8. PRESCRIPTION UPLOAD MODAL (Exact Web Standard adapted for Native)
       ============================================================ */}
       <Modal
         visible={showUploadModal}
@@ -1248,23 +1648,21 @@ const PharmacyScreen = ({ navigation, route }) => {
         onRequestClose={() => setShowUploadModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, isDesktop && { maxWidth: 480 }]}>
-            {/* Modal Header */}
+          <View style={[styles.modalCard, isTablet && { maxWidth: 480 }]}>
             <View style={styles.modalHeader}>
               <View>
                 <View style={styles.modalTrustBadge}>
-                  <Ionicons name="shield-checkmark" size={11} color="#FF5252" />
+                  <Ionicons name="shield-checkmark" size={11} color="#00B894" />
                   <Text style={styles.modalTrustBadgeText}>LICENSED PHARMACISTS</Text>
                 </View>
-                <Text style={styles.modalTitle}>Upload Prescription</Text>
-                <Text style={styles.modalSub}>Order verified medicines in 3 easy steps</Text>
+                <Text style={styles.modalTitle}>Upload Doctor's Prescription</Text>
+                <Text style={styles.modalSub}>Verified medicines in 3 easy steps</Text>
               </View>
               <TouchableOpacity onPress={() => setShowUploadModal(false)} style={styles.modalCloseBtn}>
                 <Ionicons name="close" size={22} color="#64748B" />
               </TouchableOpacity>
             </View>
 
-            {/* Modal Body */}
             <View style={styles.modalBody}>
               {!selectedFile ? (
                 <View style={styles.uploadOptionsBox}>
@@ -1274,9 +1672,9 @@ const PharmacyScreen = ({ navigation, route }) => {
                       onPress={() => handlePickDocument('pdf')}
                       activeOpacity={0.85}
                     >
-                      <Ionicons name="document-text" size={24} color="#DC2626" />
+                      <Ionicons name="document-text" size={26} color="#DC2626" />
                       <Text style={styles.uploadOptionTitle}>Upload PDF</Text>
-                      <Text style={styles.uploadOptionSub}>E-Prescription / Report</Text>
+                      <Text style={styles.uploadOptionSub}>E-Prescription</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -1284,9 +1682,9 @@ const PharmacyScreen = ({ navigation, route }) => {
                       onPress={() => handlePickDocument('image')}
                       activeOpacity={0.85}
                     >
-                      <Ionicons name="image" size={24} color="#FF5252" />
+                      <Ionicons name="image" size={26} color="#00B894" />
                       <Text style={styles.uploadOptionTitle}>Gallery Image</Text>
-                      <Text style={styles.uploadOptionSub}>From Photo Library</Text>
+                      <Text style={styles.uploadOptionSub}>From Photos</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -1294,13 +1692,13 @@ const PharmacyScreen = ({ navigation, route }) => {
                       onPress={() => handlePickDocument('camera')}
                       activeOpacity={0.85}
                     >
-                      <Ionicons name="camera" size={24} color="#2563EB" />
+                      <Ionicons name="camera" size={26} color="#1E3A8A" />
                       <Text style={styles.uploadOptionTitle}>Camera</Text>
                       <Text style={styles.uploadOptionSub}>Snap Rx Paper</Text>
                     </TouchableOpacity>
                   </View>
                   <Text style={styles.uploadNotice}>
-                    Supports PDF, JPG, PNG up to 15MB. Your prescription is encrypted and reviewed only by licensed pharmacists.
+                    Supports PDF, JPG, PNG up to 15MB. Encrypted and reviewed only by licensed pharmacists.
                   </Text>
                 </View>
               ) : (
@@ -1316,7 +1714,7 @@ const PharmacyScreen = ({ navigation, route }) => {
                     <Text style={styles.attachedFileName} numberOfLines={1}>
                       {selectedFile.name}
                     </Text>
-                    <Text style={styles.attachedFileStatus}>Ready for Pharmacist Verification</Text>
+                    <Text style={styles.attachedFileStatus}>Ready for Pharmacist Review</Text>
                   </View>
                   <TouchableOpacity onPress={() => setSelectedFile(null)} style={{ padding: 6 }}>
                     <Ionicons name="trash-outline" size={18} color="#EF4444" />
@@ -1324,35 +1722,33 @@ const PharmacyScreen = ({ navigation, route }) => {
                 </View>
               )}
 
-              {/* Verified Points */}
-              <View style={styles.verifiedPointsBox}>
-                <View style={styles.verifiedPointItem}>
-                  <Ionicons name="checkmark-circle" size={14} color="#FF5252" />
-                  <Text style={styles.verifiedPointText}>Free dosage & drug interaction check</Text>
-                </View>
-                <View style={styles.verifiedPointItem}>
-                  <Ionicons name="checkmark-circle" size={14} color="#FF5252" />
-                  <Text style={styles.verifiedPointText}>Up to 20% discount on branded medicines</Text>
-                </View>
-                <View style={styles.verifiedPointItem}>
-                  <Ionicons name="checkmark-circle" size={14} color="#FF5252" />
-                  <Text style={styles.verifiedPointText}>Pharmacist calls to confirm exact brand</Text>
-                </View>
+              {/* Guidelines Box */}
+              <View style={styles.rxGuidelinesBox}>
+                <Text style={styles.guidelinesTitle}>Prescription Guidelines:</Text>
+                <Text style={styles.guidelineItem}>• Patient name & doctor's stamp/signature clearly visible</Text>
+                <Text style={styles.guidelineItem}>• Valid date within last 6 months</Text>
+                <Text style={styles.guidelineItem}>• Do not crop or blur medication details</Text>
               </View>
             </View>
 
-            {/* Modal Footer */}
             <View style={styles.modalFooter}>
               <TouchableOpacity
-                style={[styles.confirmUploadBtn, isUploading && { opacity: 0.6 }]}
-                onPress={handleConfirmPrescription}
+                style={styles.modalCancelBtn}
+                onPress={() => setShowUploadModal(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirmBtn, isUploading && { opacity: 0.6 }]}
+                onPress={handleConfirmUpload}
                 activeOpacity={0.88}
                 disabled={isUploading}
               >
                 {isUploading ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.confirmUploadBtnText}>Submit Prescription</Text>
+                  <Text style={styles.modalConfirmText}>Confirm & Submit</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -1360,57 +1756,6 @@ const PharmacyScreen = ({ navigation, route }) => {
         </View>
       </Modal>
 
-      {/* ============================================================
-          10. LOCATION SELECTOR MODAL
-      ============================================================ */}
-      <Modal
-        visible={showLocationModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowLocationModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, isDesktop && { maxWidth: 450 }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Choose Delivery Location</Text>
-              <TouchableOpacity onPress={() => setShowLocationModal(false)} style={styles.modalCloseBtn}>
-                <Ionicons name="close" size={22} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={{ padding: 16, maxHeight: 380 }}>
-              <Text style={styles.locationSectionTitle}>Popular Mysuru Localities</Text>
-              {POPULAR_LOCALITIES.map((loc) => {
-                const isSelected = selectedLocality.name === loc.name;
-                return (
-                  <TouchableOpacity
-                    key={loc.name}
-                    style={[styles.localityRow, isSelected && styles.localityRowSelected]}
-                    onPress={() => {
-                      setSelectedLocality(loc);
-                      setShowLocationModal(false);
-                      showAlert('Location Selected', `Delivering medicines to ${loc.name}, Mysuru.`);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name="location"
-                      size={18}
-                      color={isSelected ? '#FF5252' : '#94A3B8'}
-                    />
-                    <Text
-                      style={[styles.localityRowText, isSelected && styles.localityRowTextSelected]}
-                    >
-                      {loc.name}, Mysuru
-                    </Text>
-                    {isSelected && <Ionicons name="checkmark-circle" size={18} color="#FF5252" />}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };
@@ -1420,26 +1765,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: Platform.OS === 'ios' ? 95 : 85,
-  },
-
-  // MOBILE HEADER
-  mobileHeader: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
-    gap: 8,
   },
   headerBackBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1451,33 +1789,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    borderRadius: 10,
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    gap: 8,
+    paddingVertical: 6,
+    marginHorizontal: 10,
   },
   headerLocalityIconWrap: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#FFF0F0',
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    backgroundColor: '#E6F8F5',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 6,
   },
   headerDeliverTo: {
-    fontSize: 9,
+    fontSize: 10,
     color: '#64748B',
-    fontWeight: '600',
+    fontWeight: '500',
   },
   headerLocalityName: {
-    fontSize: 11,
+    fontSize: 12,
+    color: '#1E3A8A',
     fontWeight: '700',
-    color: '#0F172A',
   },
   headerCartBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1485,152 +1824,141 @@ const styles = StyleSheet.create({
   },
   headerCartBadge: {
     position: 'absolute',
-    top: -3,
-    right: -3,
-    backgroundColor: '#EF4444',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
+    top: -4,
+    right: -4,
+    backgroundColor: '#FF7F50',
     borderRadius: 10,
     minWidth: 18,
+    height: 18,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
   },
   headerCartBadgeText: {
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '800',
   },
+  scrollContent: {
+    paddingBottom: 40,
+  },
+  tabletContainerWidth: {
+    maxWidth: 1040,
+    width: '100%',
+    alignSelf: 'center',
+  },
 
-  // HERO SHOWCASE
+  // HERO CAROUSEL
   heroWrap: {
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 4,
+    paddingTop: 14,
   },
   heroBannerCard: {
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1.5,
-    overflow: 'hidden',
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    ...Platform.select({
-
-      web: { boxShadow: '0px 3px 16px rgba(0,0,0,0.05)' },
-
-      default: {
-
-        shadowColor: '#000',
-
-        shadowOffset: { width: 0, height: 3 },
-
-        shadowOpacity: 0.05,
-
-        shadowRadius: 8,
-
-        elevation: 2,
-
-      },
-
-    }),
+    position: 'relative',
+    overflow: 'hidden',
   },
-  heroBannerCardMobile: {
-    flexDirection: 'column',
-    alignItems: 'stretch',
+  carouselNavArrowLeft: {
+    position: 'absolute',
+    left: 6,
+    top: '50%',
+    marginTop: -16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+    elevation: 3,
+  },
+  carouselNavArrowRight: {
+    position: 'absolute',
+    right: 6,
+    top: '50%',
+    marginTop: -16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+    elevation: 3,
   },
   heroLeftCol: {
-    flex: 1.2,
-    padding: 20,
-    justifyContent: 'center',
+    flex: 1,
+    paddingHorizontal: 18,
   },
-  heroLeftColMobile: {
-    padding: 12,
+  bannerBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
   },
-  heroRightCol: {
-    flex: 0.8,
-    height: 150,
-    position: 'relative',
+  brandPillYellow: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
-  heroImage: {
-    width: '100%',
-    height: '100%',
+  brandPillYellowText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
-  heroTrustPill: {
-    position: 'absolute',
-    bottom: 12,
-    right: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+  brandTagFlipkart: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  heroTrustPillText: {
-    fontSize: 10.5,
+  brandTagFlipkartText: {
+    fontSize: 10,
     fontWeight: '700',
-    color: '#0F172A',
-  },
-  heroBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  pillBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  pillBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-  discountTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFF0F0',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#FFBDBD',
-  },
-  discountTagText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#FF5252',
   },
   heroTitle: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#0F172A',
+    color: '#1E3A8A',
     lineHeight: 24,
+    marginBottom: 4,
   },
-  heroTitleMobile: {
-    fontSize: 16,
-    lineHeight: 22,
+  heroPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
   },
-  heroPriceHighlight: {
-    fontSize: 13,
+  heroPriceText: {
+    fontSize: 14,
     fontWeight: '800',
-    color: '#00B894',
-    marginTop: 4,
+  },
+  heroPriceSubText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
   },
   heroSubTitle: {
-    fontSize: 11.5,
+    fontSize: 12,
     color: '#475569',
-    marginTop: 4,
-    lineHeight: 16,
+    lineHeight: 18,
+    marginBottom: 12,
   },
   heroBulletsBox: {
-    marginTop: 8,
+    marginBottom: 12,
     gap: 4,
   },
-  heroBulletRow: {
+  heroBulletItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -1638,45 +1966,77 @@ const styles = StyleSheet.create({
   heroBulletText: {
     fontSize: 11,
     color: '#334155',
+    fontWeight: '500',
   },
   heroCtaRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 8,
-    marginTop: 12,
   },
-  heroPrimaryBtn: {
+  heroCtaBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 8,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
-  heroPrimaryBtnText: {
+  heroCtaText: {
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '800',
-    color: '#FFFFFF',
   },
-  heroSecondaryBtn: {
+  heroSecondaryUploadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#1E3A8A',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  heroSecondaryUploadText: {
+    color: '#1E3A8A',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  heroRightCol: {
+    width: 180,
+    height: 160,
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+    marginLeft: 10,
+  },
+  heroImage: {
+    width: '100%',
+    height: '100%',
+  },
+  floatingTrustBadge: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    right: 8,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 8,
   },
-  heroSecondaryBtnText: {
-    fontSize: 12,
+  floatingTrustBadgeText: {
+    fontSize: 9,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   dotsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
+    alignItems: 'center',
     gap: 6,
     marginTop: 8,
   },
@@ -1687,585 +2047,632 @@ const styles = StyleSheet.create({
     backgroundColor: '#CBD5E1',
   },
   dotActive: {
-    width: 18,
-    backgroundColor: '#FF5252',
+    width: 20,
+    backgroundColor: '#00B894',
   },
 
   // SEARCH SECTION
-  searchWrap: {
+  searchSectionWrap: {
     paddingHorizontal: 16,
-    marginTop: 4,
+    marginTop: 14,
   },
-  searchBox: {
+  searchBarBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
+    borderRadius: 12,
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
-    borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    ...Platform.select({
-
-      web: { boxShadow: '0px 2px 8px rgba(0,0,0,0.04)' },
-
-      default: {
-
-        shadowColor: '#000',
-
-        shadowOffset: { width: 0, height: 2 },
-
-        shadowOpacity: 0.04,
-
-        shadowRadius: 4,
-
-        elevation: 1,
-
-      },
-
-    }),
+    height: 48,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  searchIconBox: {
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 12.5,
-    color: '#0F172A',
-    marginLeft: 8,
-    paddingVertical: 0,
+    fontSize: 13,
+    color: '#1E293B',
+    height: '100%',
   },
-  searchCameraBtn: {
+  searchClearBtn: {
+    padding: 4,
+    marginRight: 6,
+  },
+  searchScanBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FFF0F0',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#FFBDBD',
+    backgroundColor: '#E6F8F5',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
-  searchCameraText: {
+  searchScanBtnText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: '#FF5252',
+    fontWeight: '800',
+    color: '#00B894',
   },
 
-  // 4 ACTION CARDS
+  // ACTION TILES
   actionCardsWrap: {
     paddingHorizontal: 16,
-    marginTop: 8,
+    marginTop: 14,
   },
   actionCardsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 10,
   },
   actionCard: {
-    width: '48.5%',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 10,
+    minHeight: 64,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 8,
-    borderRadius: 11,
-    borderWidth: 1,
   },
   actionCardIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 9,
+    width: 36,
+    height: 36,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   actionCardTitle: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '800',
-    color: '#0F172A',
-    lineHeight: 14,
+    color: '#1E293B',
+    lineHeight: 16,
   },
   actionCardCta: {
-    fontSize: 9,
+    fontSize: 10.5,
     fontWeight: '800',
     marginTop: 2,
   },
 
-  // SECTION HEADERS
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 6,
-  },
-  sectionTitle: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  sectionSeeAll: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#FF5252',
-  },
-
-  // CATEGORIES SCROLL
-  categoriesScroll: {
-    paddingHorizontal: 16,
-    gap: 10,
-  },
-  // BROWSE MEDICINES MOBILE
-  mobileBrowseSection: {
-    marginTop: 12,
+  // BROWSE SECTION
+  browseSectionWrap: {
+    marginTop: 18,
     paddingHorizontal: 16,
   },
-  mobileBrowseHeaderRow: {
+  browseHeaderBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 12,
   },
-  mobileBrowseMainHeading: {
-    fontSize: 17,
+  browseMainHeading: {
+    fontSize: 15,
     fontWeight: '900',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
-  mobileBrowseHeaderBadge: {
+  browseHeaderPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
+    backgroundColor: '#E6F8F5',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
   },
-  mobileBrowseHeaderBadgeText: {
+  browseHeaderPillText: {
     fontSize: 10,
     fontWeight: '800',
     color: '#00B894',
   },
-  mobileBrowseSubSection: {
-    marginBottom: 16,
+  browseSubSection: {
+    marginBottom: 14,
   },
   subSectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  mobileBrowseSubHeading: {
-    fontSize: 13.5,
+  browseSubHeading: {
+    fontSize: 13,
     fontWeight: '800',
-    color: '#1E293B',
+    color: '#334155',
   },
-  clearFilterLink: {
-    fontSize: 11.5,
+  subSectionCountText: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  activeFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFF5F0',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  activeFilterChipText: {
+    fontSize: 11,
     fontWeight: '700',
     color: '#FF7F50',
   },
-  mobileBrowseScroll: {
-    gap: 12,
-    paddingRight: 16,
-  },
-  mobileBrowseCard: {
-    width: 230,
-    height: 116,
-    borderRadius: 12,
-    overflow: 'hidden',
+  browseCardsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingLeft: 14,
-    paddingRight: 8,
     position: 'relative',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-    ...Platform.select({
-
-      web: { boxShadow: '0px 2px 12px rgba(30,58,138,0.08)' },
-
-      default: {
-
-        shadowColor: '#1E3A8A',
-
-        shadowOffset: { width: 0, height: 2 },
-
-        shadowOpacity: 0.08,
-
-        shadowRadius: 6,
-
-        elevation: 2,
-
-      },
-
-    }),
   },
-  mobileBrowseCardActive: {
+  carouselPrevBtn: {
+    position: 'absolute',
+    left: -8,
+    zIndex: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3,
+  },
+  carouselNextBtn: {
+    position: 'absolute',
+    right: -8,
+    zIndex: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3,
+  },
+  browseCardsScroll: {
+    gap: 10,
+    paddingVertical: 2,
+  },
+  browseBannerCard: {
+    width: 240,
+    height: 125,
+    borderRadius: 14,
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  browseBannerCardActive: {
     borderWidth: 2.5,
-    borderColor: '#0F172A',
+    borderColor: '#FFFFFF',
   },
-  mobileMicroPill: {
+  cardBackdropGlow: {
+    position: 'absolute',
+    top: -20,
+    right: -20,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  bannerMicroPill: {
     position: 'absolute',
     top: 8,
-    left: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.28)',
+    left: 8,
+    backgroundColor: 'rgba(255,255,255,0.28)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
-    zIndex: 4,
   },
-  mobileMicroPillText: {
+  bannerMicroPillText: {
     fontSize: 8,
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
-  mobileBannerTextCol: {
-    zIndex: 2,
+  bannerTextCol: {
+    flex: 1,
     justifyContent: 'center',
-    maxWidth: '54%',
     paddingTop: 14,
   },
-  mobileBannerTitlePrimary: {
-    fontSize: 16,
+  bannerTitlePrimary: {
+    fontSize: 13,
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: 0.3,
-    lineHeight: 18,
+    lineHeight: 16,
   },
-  mobileBannerTitleSecondary: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: 'rgba(255, 255, 255, 0.95)',
-    letterSpacing: 1.2,
-    marginTop: 1,
+  bannerTitleSecondary: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    lineHeight: 16,
   },
-  mobileBannerTagline: {
+  bannerTagline: {
     fontSize: 9,
-    color: 'rgba(255, 255, 255, 0.85)',
-    marginTop: 3,
-    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
+    marginVertical: 4,
   },
-  mobileBannerImageContainer: {
-    position: 'absolute',
-    right: 8,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
+  bannerExploreChip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    zIndex: 2,
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.22)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
   },
-  mobileImageBackdrop: {
-    width: 82,
-    height: 82,
-    borderRadius: 41,
+  bannerExploreChipActive: {
+    backgroundColor: '#1E3A8A',
+  },
+  bannerExploreText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  bannerImageContainer: {
+    width: 80,
+    height: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageBackdropDisc: {
+    width: 74,
+    height: 74,
+    borderRadius: 37,
     backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
-    borderWidth: 2.5,
-    borderColor: 'rgba(255, 255, 255, 0.75)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Platform.select({
-      web: { boxShadow: '0px 2px 8px rgba(0,0,0,0.12)' },
-      default: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.12,
-        shadowRadius: 4,
-        elevation: 3,
-      },
-    }),
+    padding: 3,
+    elevation: 3,
   },
-  mobileBannerImage: {
+  bannerCutoutImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 41,
+    borderRadius: 34,
   },
 
-  // CATALOG SECTION
-  catalogSection: {
-    marginTop: 16,
+  // GUARANTEE STRIP
+  guaranteeSectionWrap: {
+    paddingHorizontal: 16,
+    marginTop: 10,
+  },
+  guaranteeCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    gap: 8,
+  },
+  guaranteeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  guaranteeIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  guaranteeTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1E3A8A',
+  },
+  guaranteeSub: {
+    fontSize: 10,
+    color: '#64748B',
+  },
+  guaranteeDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+  },
+
+  // POPULAR PRODUCTS SECTION
+  pharmacySectionWrap: {
+    marginTop: 18,
     paddingHorizontal: 16,
   },
-  catalogHeaderRow: {
+  sectionHeaderLine: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  catalogItemCount: {
-    fontSize: 11.5,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  catalogTabsRow: {
-    flexDirection: 'row',
-    gap: 6,
     marginBottom: 12,
   },
-  catalogTabBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+  sectionHeadingTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#1E3A8A',
   },
-  catalogTabBtnActive: {
-    backgroundColor: '#FF5252',
-    borderColor: '#FF5252',
-  },
-  catalogTabBtnText: {
+  sectionSubHeading: {
     fontSize: 11,
-    fontWeight: '600',
-    color: '#475569',
+    color: '#64748B',
+    marginTop: 2,
   },
-  catalogTabBtnTextActive: {
-    color: '#FFFFFF',
+  viewStoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#E6F8F5',
+  },
+  viewStoreBtnText: {
+    fontSize: 11,
     fontWeight: '800',
+    color: '#00B894',
   },
-  productsGrid: {
+
+  // PRODUCTS GRID
+  pharmacyCardsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
   },
-  productCard: {
-    width: '48.5%',
+  pharmacyCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     padding: 10,
     position: 'relative',
-    ...Platform.select({
-
-      web: { boxShadow: '0px 1px 8px rgba(0,0,0,0.03)' },
-
-      default: {
-
-        shadowColor: '#000',
-
-        shadowOffset: { width: 0, height: 1 },
-
-        shadowOpacity: 0.03,
-
-        shadowRadius: 4,
-
-        elevation: 1,
-
-      },
-
-    }),
+    overflow: 'hidden',
   },
-  productDiscountBadge: {
+  pharmacyBadge: {
     position: 'absolute',
     top: 8,
     left: 8,
+    backgroundColor: '#FF7F50',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    zIndex: 5,
+  },
+  pharmacyBadgeText: {
+    fontSize: 8,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  pharmacyRxBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
     backgroundColor: '#DC2626',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
-    zIndex: 2,
+    zIndex: 5,
   },
-  productDiscountText: {
+  pharmacyRxBadgeText: {
     fontSize: 9,
-    fontWeight: '800',
+    fontWeight: '900',
     color: '#FFFFFF',
   },
-  productImageWrap: {
+  pharmacyCardImgWrap: {
     width: '100%',
-    height: 100,
+    height: 110,
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 4,
+    marginVertical: 6,
   },
-  productImage: {
-    width: '85%',
-    height: '85%',
+  pharmacyCardImg: {
+    width: '90%',
+    height: '90%',
   },
-  productInfo: {
+  pharmacyCardBody: {
     marginTop: 4,
   },
-  productBrand: {
-    fontSize: 9.5,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  productName: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#0F172A',
-    height: 32,
-    lineHeight: 16,
-    marginTop: 2,
-  },
-  productPack: {
-    fontSize: 10,
-    color: '#94A3B8',
-    marginTop: 1,
-  },
-  productRatingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    marginTop: 4,
-  },
-  productRatingText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  productReviewsText: {
-    fontSize: 9.5,
-    color: '#94A3B8',
-  },
-  productBottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  productPrice: {
-    fontSize: 13.5,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  productMrp: {
-    fontSize: 9.5,
-    color: '#94A3B8',
-    textDecorationLine: 'line-through',
-  },
-  addToCartBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: '#FF5252',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-  },
-  addToCartBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  stepperWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF0F0',
-    borderWidth: 1,
-    borderColor: '#FFBDBD',
-    borderRadius: 6,
-  },
-  stepperBtn: {
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-  },
-  stepperQty: {
-    fontSize: 11,
+  pharmacyCat: {
+    fontSize: 9,
     fontWeight: '800',
     color: '#00B894',
-    paddingHorizontal: 4,
+    textTransform: 'uppercase',
   },
-
-  // STORES SCROLL
-  storesScroll: {
-    paddingHorizontal: 16,
-    gap: 10,
+  pharmacyName: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1E293B',
+    lineHeight: 16,
+    minHeight: 32,
+    marginTop: 2,
   },
-  storeCard: {
-    width: 200,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    overflow: 'hidden',
+  pharmacyBrand: {
+    fontSize: 10,
+    color: '#64748B',
+    marginVertical: 2,
   },
-  storeImage: {
-    width: '100%',
-    height: 90,
-  },
-  storeInfo: {
-    padding: 10,
-  },
-  storeBadgeRow: {
+  pharmacyRatingRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
-    marginBottom: 4,
+    marginVertical: 3,
   },
-  storeVerifiedTag: {
+  ratingTag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
-    backgroundColor: '#FFF0F0',
+    backgroundColor: '#FFF5F0',
     paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 4,
   },
-  storeVerifiedText: {
-    fontSize: 8.5,
+  ratingTagText: {
+    fontSize: 9,
     fontWeight: '800',
-    color: '#FF5252',
+    color: '#FF7F50',
   },
-  store24x7Tag: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 4,
+  reviewsCountText: {
+    fontSize: 9,
+    color: '#94A3B8',
   },
-  store24x7Text: {
-    fontSize: 8.5,
+  pharmacyPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+    marginVertical: 4,
+  },
+  pharmacyPrice: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#1E3A8A',
+  },
+  pharmacyMrp: {
+    fontSize: 10,
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  addToCartButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: '#00B894',
+    borderRadius: 8,
+    paddingVertical: 7,
+    marginTop: 4,
+  },
+  addToCartButtonText: {
+    color: '#FFFFFF',
+    fontSize: 11,
     fontWeight: '800',
-    color: '#D97706',
   },
-  storeName: {
+  quantityStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#E6F8F5',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    marginTop: 4,
+  },
+  stepperBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperQuantity: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#00B894',
+  },
+
+  // PAGINATION CONTROLS
+  paginationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 20,
+    paddingVertical: 10,
+  },
+  pageNavBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  pageNavBtnDisabled: {
+    opacity: 0.4,
+  },
+  pageNavBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1E3A8A',
+  },
+  pageNavBtnTextDisabled: {
+    color: '#94A3B8',
+  },
+  pageNumbersTrack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 4,
+  },
+  pageNumberChip: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pageNumberChipActive: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
+  },
+  pageNumberText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#334155',
   },
-  storeLocality: {
-    fontSize: 10.5,
+  pageNumberTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
+
+  // EMPTY STATE
+  emptyProductsState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginTop: 10,
+  },
+  emptySub: {
+    fontSize: 12,
     color: '#64748B',
-    marginTop: 2,
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 16,
   },
-  storeDelivery: {
-    fontSize: 10,
-    color: '#FF5252',
-    fontWeight: '600',
-    marginTop: 2,
+  resetCatalogBtn: {
+    backgroundColor: '#00B894',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 10,
+  },
+  resetCatalogBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
 
   // FLOATING CART BAR
   floatingCartBar: {
     position: 'absolute',
-    bottom: 16,
+    bottom: Platform.OS === 'ios' ? 24 : 16,
     left: 16,
     right: 16,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#1E3A8A',
     borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    ...Platform.select({
-
-      web: { boxShadow: '0px 4px 20px rgba(0,0,0,0.25)' },
-
-      default: {
-
-        shadowColor: '#000',
-
-        shadowOffset: { width: 0, height: 4 },
-
-        shadowOpacity: 0.25,
-
-        shadowRadius: 10,
-
-        elevation: 8,
-
-      },
-
-    }),
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
   },
   cartBarInfo: {
     flexDirection: 'row',
@@ -2273,33 +2680,32 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   cartBarBadge: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#FF5252',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#00B894',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cartBarBadgeText: {
     color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '900',
-    fontSize: 12,
   },
   cartBarItems: {
-    color: '#94A3B8',
-    fontSize: 10.5,
-    fontWeight: '600',
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.8)',
   },
   cartBarTotal: {
-    color: '#FFFFFF',
-    fontSize: 13.5,
+    fontSize: 14,
     fontWeight: '900',
+    color: '#FFFFFF',
   },
   cartBarButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#FF5252',
+    backgroundColor: '#00B894',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
@@ -2310,10 +2716,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 
-  // MODAL OVERLAY & CARD
+  // MODAL STYLES
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
@@ -2322,61 +2728,40 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     width: '100%',
-    maxWidth: 480,
-    overflow: 'hidden',
-    ...Platform.select({
-
-      web: { boxShadow: '0px 6px 32px rgba(0,0,0,0.2)' },
-
-      default: {
-
-        shadowColor: '#000',
-
-        shadowOffset: { width: 0, height: 6 },
-
-        shadowOpacity: 0.2,
-
-        shadowRadius: 16,
-
-        elevation: 8,
-
-      },
-
-    }),
+    padding: 18,
+    elevation: 5,
   },
   modalHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    paddingHorizontal: 18,
-    paddingTop: 16,
-    paddingBottom: 12,
+    alignItems: 'flex-start',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
+    paddingBottom: 10,
   },
   modalTrustBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FFF0F0',
+    backgroundColor: '#E6F8F5',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: 4,
     alignSelf: 'flex-start',
     marginBottom: 4,
   },
   modalTrustBadgeText: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#FF5252',
+    color: '#00B894',
   },
   modalTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#1E3A8A',
   },
   modalSub: {
-    fontSize: 11.5,
+    fontSize: 11,
     color: '#64748B',
     marginTop: 2,
   },
@@ -2384,143 +2769,226 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   modalBody: {
-    padding: 16,
+    paddingVertical: 12,
   },
   uploadOptionsBox: {
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    borderStyle: 'dashed',
-    borderRadius: 12,
-    padding: 12,
-    backgroundColor: '#F8FAFC',
+    marginBottom: 8,
   },
   uploadOptionsRow: {
     flexDirection: 'row',
     gap: 8,
+    marginBottom: 8,
   },
   uploadOptionCard: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
     borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
+    paddingVertical: 12,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   uploadOptionTitle: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E293B',
     marginTop: 6,
   },
   uploadOptionSub: {
     fontSize: 9,
     color: '#64748B',
-    marginTop: 1,
-    textAlign: 'center',
+    marginTop: 2,
   },
   uploadNotice: {
-    fontSize: 9.5,
+    fontSize: 10,
     color: '#64748B',
     textAlign: 'center',
-    marginTop: 10,
     lineHeight: 14,
   },
   attachedFileCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF5F5',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#FFBDBD',
+    borderColor: '#E2E8F0',
     borderRadius: 10,
     padding: 10,
+    marginBottom: 10,
   },
   attachedFileIconWrap: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: 8,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   attachedThumb: {
-    width: 38,
-    height: 38,
-    borderRadius: 6,
+    width: '100%',
+    height: '100%',
   },
   attachedFileName: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#0F172A',
+    fontWeight: '800',
+    color: '#1E293B',
   },
   attachedFileStatus: {
-    fontSize: 10.5,
-    color: '#FF5252',
-    fontWeight: '700',
+    fontSize: 10,
+    color: '#00B894',
     marginTop: 2,
   },
-  verifiedPointsBox: {
-    marginTop: 14,
-    backgroundColor: '#F8FAFC',
+  rxGuidelinesBox: {
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
     borderRadius: 10,
     padding: 10,
-    gap: 6,
+    marginTop: 8,
   },
-  verifiedPointItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  verifiedPointText: {
+  guidelinesTitle: {
     fontSize: 11,
-    color: '#334155',
+    fontWeight: '800',
+    color: '#0369A1',
+    marginBottom: 4,
+  },
+  guidelineItem: {
+    fontSize: 10,
+    color: '#0C4A6E',
+    lineHeight: 14,
   },
   modalFooter: {
-    padding: 14,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
+    paddingTop: 12,
   },
-  confirmUploadBtn: {
-    backgroundColor: '#FF5252',
-    paddingVertical: 11,
-    borderRadius: 10,
+  modalCancelBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  modalCancelText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  modalConfirmBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#00B894',
+    minWidth: 120,
     alignItems: 'center',
   },
-  confirmUploadBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-
-  // LOCATION SELECTOR
-  locationSectionTitle: {
+  modalConfirmText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#64748B',
-    marginBottom: 8,
-    textTransform: 'uppercase',
+    color: '#FFFFFF',
   },
-  localityRow: {
+
+  // LOCALITY MODAL
+  localitySelectItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 10,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     borderRadius: 8,
-    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
   },
-  localityRowSelected: {
-    backgroundColor: '#FFF0F0',
+  localitySelectItemActive: {
+    backgroundColor: '#E6F8F5',
   },
-  localityRowText: {
-    flex: 1,
-    fontSize: 13,
+  localitySelectIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  localitySelectIconWrapActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  localitySelectName: {
+    fontSize: 12,
+    fontWeight: '700',
     color: '#334155',
-    fontWeight: '600',
   },
-  localityRowTextSelected: {
-    color: '#FF5252',
-    fontWeight: '800',
+  localitySelectNameActive: {
+    color: '#00B894',
+    fontWeight: '900',
+  },
+  localitySelectCity: {
+    fontSize: 10,
+    color: '#94A3B8',
+  },
+  headerOrdersBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  myOrdersBannerWrap: {
+    paddingHorizontal: 16,
+    marginBottom: 14,
+  },
+  myOrdersBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  myOrdersBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  myOrdersIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#CCFBF1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  myOrdersBannerTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  myOrdersBannerSub: {
+    fontSize: 11.5,
+    color: '#64748B',
+  },
+  myOrdersBannerRight: {
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  myOrdersBannerCta: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0D9488',
   },
 });
 

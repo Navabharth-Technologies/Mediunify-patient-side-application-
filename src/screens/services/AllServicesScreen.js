@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,362 +7,337 @@ import {
   TouchableOpacity,
   TextInput,
   StatusBar,
+  useWindowDimensions,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import colors from '../../theme/colors';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const CATEGORIES = [
-  { id: 'all', label: 'All Services' },
-  { id: 'consultation', label: 'Consultations' },
-  { id: 'medicines', label: 'Meds & Labs' },
-  { id: 'care', label: 'Home Care & Scans' },
-  { id: 'wellness', label: 'Wellness' },
-];
-
+// All currently active & available MediUnify Mobile services
+// Strictly excludes any deleted, placeholder, or disabled flows
 const ALL_SERVICES = [
   {
-    id: 'doctors',
-    category: 'consultation',
-    title: 'Doctors & Clinics',
-    subtitle: 'Book in-clinic appointments with 50+ verified specialists across Mysuru',
-    icon: 'person',
-    iconColor: '#00B894',
-    iconBg: '#E6F8F4',
-    badge: 'Instant Slots',
-    badgeBg: '#CCFBF1',
-    badgeColor: '#00B894',
-    route: 'DoctorList',
+    id: 'chatbot',
+    title: 'AI Chat Bot',
+    icon: 'chatbubbles',
+    iconColor: '#0D9488',
+    iconBg: '#F0FDFA',
+    route: 'Chatbot',
+    keywords: 'ai chatbot bot assistant symptom health advice 24/7',
   },
   {
     id: 'videocall',
-    category: 'consultation',
-    title: 'Online Video Consultation',
-    subtitle: 'Connect with top doctors via instant HD video call with digital prescription',
+    title: 'Video Consultation',
     icon: 'videocam',
-    iconColor: '#1E3A8A',
-    iconBg: '#E0F7FA',
-    badge: '10-Min Connect',
-    badgeBg: '#E0F7FA',
-    badgeColor: '#1E3A8A',
+    iconColor: '#2563EB',
+    iconBg: '#EFF6FF',
     route: 'VideoConsultation',
+    keywords: 'video call consultation teleconsult online doctor hd call',
   },
   {
     id: 'pharmacy',
-    category: 'medicines',
-    title: 'Pharmacy & Medicines',
-    subtitle: '100% genuine branded & affordable Jan Aushadhi generic medicines',
+    title: 'Pharmacy',
     icon: 'medkit',
     iconColor: '#00B894',
     iconBg: '#E6F8F5',
-    badge: 'Flat 20% OFF',
-    badgeBg: '#CCFBF1',
-    badgeColor: '#00B894',
     route: 'Pharmacy',
+    keywords: 'order medicine pharmacy prescription pills generic drugs medicines',
   },
   {
     id: 'lab',
-    category: 'medicines',
-    title: 'Lab Tests & Health Checkups',
-    subtitle: 'Diagnostic blood tests & comprehensive packages with doorstep sample collection',
+    title: 'Lab Tests',
     icon: 'flask',
     iconColor: '#00C2CB',
     iconBg: '#E0F7FA',
-    badge: 'Home Collection',
-    badgeBg: '#E0F7FA',
-    badgeColor: '#00C2CB',
     route: 'LabTests',
+    keywords: 'lab tests blood test diagnostics health checkup urine sample collection',
   },
   {
     id: 'radiology',
-    category: 'care',
-    title: 'Radiology & Cardiology Scans',
-    subtitle: '2D Echo, 12-Lead ECG, MRI, CT Scan, Ultrasound & X-Ray at accredited labs',
+    title: 'Scan & X-Ray',
     icon: 'scan',
-    iconColor: '#00C2CB',
-    iconBg: '#E0F7FA',
-    badge: 'Fast Reports',
-    badgeBg: '#E0F7FA',
-    badgeColor: '#1E3A8A',
+    iconColor: '#0284C7',
+    iconBg: '#E0F2FE',
     route: 'RadiologyLabs',
+    keywords: 'scan x-ray radiology mri ct scan ultrasound 2d echo ecg cardiology',
   },
   {
-    id: 'hospitals',
-    category: 'consultation',
-    title: 'Hospitals & Surgery Care',
-    subtitle: 'Top NABH partner hospitals, cashless surgeries & admission assistance',
-    icon: 'business',
-    iconColor: '#1E3A8A',
-    iconBg: '#E0F7FA',
-    badge: 'Cashless Help',
-    badgeBg: '#E0F7FA',
-    badgeColor: '#1E3A8A',
-    route: 'HospitalCare',
+    id: 'doctors',
+    title: 'Doctor Visit',
+    icon: 'person',
+    iconColor: '#0D9488',
+    iconBg: '#CCFBF1',
+    route: 'DoctorList',
+    keywords: 'doctor visit in-clinic appointment clinic specialist consultation',
   },
   {
     id: 'nurse',
-    category: 'care',
-    title: 'Home Nursing Care',
-    subtitle: 'Certified nursing attendants, post-op recovery, injections & elderly care at home',
+    title: 'Home Nursing',
     icon: 'home',
-    iconColor: '#7BC96F',
-    iconBg: '#F2FAF0',
-    badge: 'Verified Staff',
-    badgeBg: '#F2FAF0',
-    badgeColor: '#1E3A8A',
+    iconColor: '#10B981',
+    iconBg: '#ECFDF5',
     route: 'NurseBooking',
+    keywords: 'home nursing caregiver attendant elderly care injections post-op',
+  },
+  {
+    id: 'surgery',
+    title: 'Surgery Care',
+    icon: 'business',
+    iconColor: '#1E3A8A',
+    iconBg: '#EFF6FF',
+    route: 'HospitalCare',
+    keywords: 'surgery care hospital admission nabh cashless operation procedure',
   },
   {
     id: 'equipment',
-    category: 'care',
-    title: 'Medical Equipment Rental',
-    subtitle: 'Hospital beds, oxygen concentrators, wheelchairs & BiPAP on rent or purchase',
+    title: 'Equipment Rental',
     icon: 'fitness',
-    iconColor: '#00B894',
-    iconBg: '#E6F8F5',
-    badge: 'Sanitized & Tested',
-    badgeBg: '#CCFBF1',
-    badgeColor: '#00B894',
+    iconColor: '#0D9488',
+    iconBg: '#F0FDFA',
     route: 'EquipmentRental',
-  },
-  {
-    id: 'fertility',
-    category: 'care',
-    title: 'Fertility & IVF Care',
-    subtitle: 'Confidential IVF, IUI, fertility screening & advanced reproductive guidance',
-    icon: 'heart',
-    iconColor: '#FF7F50',
-    iconBg: '#FFF2ED',
-    badge: '100% Confidential',
-    badgeBg: '#FFF2ED',
-    badgeColor: '#FF7F50',
-    route: 'FertilityIvf',
+    keywords: 'medical equipment rental hospital bed oxygen concentrator wheelchair bipap',
   },
   {
     id: 'ayurveda',
-    category: 'wellness',
     title: 'Ayurveda & Wellness',
-    subtitle: 'Certified Ayurvedic doctors, Panchakarma therapies & herbal health solutions',
     icon: 'leaf',
-    iconColor: '#7BC96F',
-    iconBg: '#F2FAF0',
-    badge: '100% Natural',
-    badgeBg: '#F2FAF0',
-    badgeColor: '#1E3A8A',
+    iconColor: '#16A34A',
+    iconBg: '#DCFCE7',
     route: 'AyurvedaWellness',
-  },
-  {
-    id: 'emergency',
-    category: 'care',
-    title: '24x7 Emergency & Ambulance',
-    subtitle: 'Immediate GPS-tracked ambulance dispatch & critical helpline support',
-    icon: 'warning',
-    iconColor: '#FF7F50',
-    iconBg: '#FFF2ED',
-    badge: '24/7 Available',
-    badgeBg: '#FFF2ED',
-    badgeColor: '#FF7F50',
-    route: 'Emergency',
+    keywords: 'ayurveda wellness herbal natural therapy panchakarma holistic',
   },
   {
     id: 'insurance',
-    category: 'wellness',
-    title: 'Health Insurance & Claims',
-    subtitle: 'Compare health insurance policies & cashless hospitalization claim assistance',
+    title: 'Health Insurance',
     icon: 'shield-checkmark',
-    iconColor: '#1E3A8A',
-    iconBg: '#E0F7FA',
-    badge: 'Cashless Support',
-    badgeBg: '#E0F7FA',
-    badgeColor: '#1E3A8A',
+    iconColor: '#3B82F6',
+    iconBg: '#EFF6FF',
     route: 'HealthInsurance',
+    keywords: 'health insurance policy claim cashless hospitalization medical cover',
   },
   {
     id: 'healthmonitor',
-    category: 'wellness',
-    title: 'Health Vitals Monitor',
-    subtitle: 'Track Blood Pressure, Blood Sugar, Heart Rate & BMI with personalized trends',
+    title: 'Health Monitor',
     icon: 'pulse',
-    iconColor: '#00C2CB',
-    iconBg: '#E0F7FA',
-    badge: 'Free Vitals Tool',
-    badgeBg: '#E0F7FA',
-    badgeColor: '#00C2CB',
+    iconColor: '#D97706',
+    iconBg: '#FEF3C7',
     route: 'HealthMonitor',
+    keywords: 'health monitor vitals blood pressure sugar heart rate bmi tracker',
+  },
+  {
+    id: 'emergency',
+    title: 'Emergency SOS',
+    icon: 'warning',
+    iconColor: '#EF4444',
+    iconBg: '#FEE2E2',
+    route: 'Emergency',
+    keywords: 'emergency ambulance sos 24x7 urgent helpline critical dispatch',
+  },
+  {
+    id: 'healthrecords',
+    title: 'Health Records',
+    icon: 'folder-open',
+    iconColor: '#6366F1',
+    iconBg: '#EEF2FF',
+    route: 'HealthRecords',
+    keywords: 'health records prescriptions medical reports history documents',
   },
 ];
 
-const AllServicesScreen = ({ navigation }) => {
+const AllServicesScreen = ({ navigation, route }) => {
+  const { width } = useWindowDimensions();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [storedCity, setStoredCity] = useState('');
 
+  // Location synchronization from Home Screen (Source of Truth)
+  useEffect(() => {
+    let isMounted = true;
+    const fetchCity = async () => {
+      try {
+        const saved =
+          (await AsyncStorage.getItem('@mediunify_selected_city')) ||
+          (await AsyncStorage.getItem('@unnathi_user_location'));
+        if (isMounted && saved) {
+          setStoredCity(saved);
+        }
+      } catch (e) {
+        // Fallback default
+      }
+    };
+    fetchCity();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Home Screen is the source of truth for location
+  const activeCity =
+    route?.params?.city ||
+    route?.params?.location ||
+    storedCity ||
+    'Mysuru';
+
+  // Responsive grid calculation for Mobile & Tablet (iOS, Android, iPad, Android Tablet)
+  const isTablet = width >= 768;
+  const numColumns = width >= 900 ? 4 : isTablet ? 3 : 2;
+  const horizontalPadding = isTablet ? 24 : 16;
+  const gap = isTablet ? 14 : 12;
+  const cardWidth = Math.floor(
+    (width - horizontalPadding * 2 - gap * (numColumns - 1)) / numColumns
+  );
+
+  // Filter services by search keywords
   const filteredServices = useMemo(() => {
-    return ALL_SERVICES.filter((service) => {
-      const matchesCategory =
-        selectedCategory === 'all' || service.category === selectedCategory;
-      const q = searchQuery.toLowerCase().trim();
-      const matchesSearch =
-        !q ||
-        service.title.toLowerCase().includes(q) ||
-        service.subtitle.toLowerCase().includes(q) ||
-        service.badge.toLowerCase().includes(q);
-      return matchesCategory && matchesSearch;
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return ALL_SERVICES;
+    return ALL_SERVICES.filter(
+      (s) =>
+        s.title.toLowerCase().includes(q) ||
+        s.keywords.toLowerCase().includes(q)
+    );
+  }, [searchQuery]);
+
+  // Navigate to existing service workflow
+  const handleServicePress = (service) => {
+    navigation.navigate(service.route, {
+      city: activeCity,
+      location: activeCity,
     });
-  }, [searchQuery, selectedCategory]);
+  };
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* HEADER */}
+      {/* HEADER: ← All Services with Home Screen Location badge */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
+          accessibilityLabel="Back to Home"
         >
           <Ionicons name="arrow-back" size={22} color="#0F172A" />
         </TouchableOpacity>
-        <View style={styles.headerTextCol}>
-          <Text style={styles.headerTitle}>All Healthcare Services</Text>
-          <Text style={styles.headerSub}>Complete directory of healthcare solutions</Text>
+
+        <View style={styles.headerTitleWrap}>
+          <Text style={styles.headerTitle}>All Services</Text>
+          <View style={styles.locationBadge}>
+            <Ionicons name="location" size={13} color="#007D69" />
+            <Text style={styles.locationBadgeText} numberOfLines={1}>
+              {activeCity}
+            </Text>
+          </View>
         </View>
-        <TouchableOpacity
-          style={styles.emergencyQuickBtn}
-          onPress={() => navigation.navigate('Emergency')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="call" size={16} color="#DC2626" />
-          <Text style={styles.emergencyQuickText}>24x7</Text>
-        </TouchableOpacity>
       </View>
 
-      {/* SEARCH BAR */}
+      {/* SEARCH BAR (reusing existing lightweight search) */}
       <View style={styles.searchBarWrap}>
         <View style={styles.searchInputBox}>
           <Ionicons name="search" size={18} color="#64748B" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search services (e.g., Doctor, Pharmacy, Scans...)"
+            placeholder="Search all services..."
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
             clearButtonMode="while-editing"
+            autoCapitalize="none"
+            autoCorrect={false}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
               <Ionicons name="close-circle" size={18} color="#94A3B8" />
             </TouchableOpacity>
           )}
         </View>
       </View>
 
-      {/* CATEGORY FILTER CHIPS */}
-      <View style={styles.categoryScrollWrap}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryScrollContent}
-        >
-          {CATEGORIES.map((cat) => {
-            const isSelected = selectedCategory === cat.id;
-            return (
-              <TouchableOpacity
-                key={cat.id}
-                style={[styles.categoryChip, isSelected && styles.categoryChipActive]}
-                onPress={() => setSelectedCategory(cat.id)}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.categoryChipText,
-                    isSelected && styles.categoryChipTextActive,
-                  ]}
-                >
-                  {cat.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* SERVICES LIST */}
+      {/* SERVICES GRID */}
       <ScrollView
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingHorizontal: horizontalPadding },
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.resultsInfoRow}>
-          <Text style={styles.resultsCountText}>
-            Showing {filteredServices.length} {filteredServices.length === 1 ? 'service' : 'services'}
+        {/* Count summary */}
+        <View style={styles.countRow}>
+          <Text style={styles.countText}>
+            {filteredServices.length}{' '}
+            {filteredServices.length === 1 ? 'service available' : 'services available'}
           </Text>
-          {selectedCategory !== 'all' && (
-            <TouchableOpacity
-              onPress={() => setSelectedCategory('all')}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.resetFilterText}>Show All</Text>
+          {searchQuery.trim().length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
+              <Text style={styles.clearSearchLink}>Clear search</Text>
             </TouchableOpacity>
           )}
         </View>
 
         {filteredServices.length === 0 ? (
-          <View style={styles.emptyState}>
+          <View style={styles.emptyContainer}>
             <Ionicons name="search-outline" size={44} color="#94A3B8" />
-            <Text style={styles.emptyTitle}>No services found</Text>
+            <Text style={styles.emptyTitle}>No matching service found</Text>
             <Text style={styles.emptySub}>
-              Try searching with different keywords like Doctor, Lab, or Pharmacy
+              Try searching for Doctor, Medicine, Lab Tests, Scan, or Nursing
             </Text>
             <TouchableOpacity
               style={styles.emptyResetBtn}
-              onPress={() => {
-                setSearchQuery('');
-                setSelectedCategory('all');
-              }}
+              onPress={() => setSearchQuery('')}
               activeOpacity={0.8}
             >
-              <Text style={styles.emptyResetBtnText}>Reset Filters</Text>
+              <Text style={styles.emptyResetBtnText}>View All Services</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          filteredServices.map((service) => (
-            <TouchableOpacity
-              key={service.id}
-              style={styles.serviceCard}
-              onPress={() => navigation.navigate(service.route)}
-              activeOpacity={0.85}
-            >
-              {/* Left Icon Container */}
-              <View style={[styles.serviceIconWrap, { backgroundColor: service.iconBg }]}>
-                <Ionicons name={service.icon} size={24} color={service.iconColor} />
-              </View>
-
-              {/* Center Content */}
-              <View style={styles.serviceTextCol}>
-                <View style={styles.serviceTitleRow}>
-                  <Text style={styles.serviceTitle} numberOfLines={1}>
-                    {service.title}
-                  </Text>
-                  <View style={[styles.serviceBadge, { backgroundColor: service.badgeBg }]}>
-                    <Text style={[styles.serviceBadgeText, { color: service.badgeColor }]}>
-                      {service.badge}
-                    </Text>
-                  </View>
+          <View style={[styles.gridContainer, { gap }]}>
+            {filteredServices.map((service) => (
+              <TouchableOpacity
+                key={service.id}
+                style={[
+                  styles.serviceCard,
+                  { width: cardWidth },
+                  isTablet && styles.serviceCardTablet,
+                ]}
+                onPress={() => handleServicePress(service)}
+                activeOpacity={0.72}
+              >
+                {/* Clean Icon Container */}
+                <View
+                  style={[
+                    styles.iconBox,
+                    { backgroundColor: service.iconBg },
+                    isTablet && styles.iconBoxTablet,
+                  ]}
+                >
+                  <Ionicons
+                    name={service.icon}
+                    size={isTablet ? 30 : 26}
+                    color={service.iconColor}
+                  />
                 </View>
-                <Text style={styles.serviceSubtitle} numberOfLines={2}>
-                  {service.subtitle}
-                </Text>
-              </View>
 
-              {/* Right Chevron */}
-              <View style={styles.chevronWrap}>
-                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-              </View>
-            </TouchableOpacity>
-          ))
+                {/* Short Service Name */}
+                <Text
+                  style={[
+                    styles.serviceName,
+                    isTablet && styles.serviceNameTablet,
+                  ]}
+                  numberOfLines={2}
+                >
+                  {service.title}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         )}
 
-        <View style={{ height: Platform.OS === 'ios' ? 95 : 85 }} />
+        <View style={{ height: Platform.OS === 'ios' ? 40 : 30 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -377,47 +352,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 14,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
   backBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    marginRight: 12,
   },
-  headerTextCol: {
+  headerTitleWrap: {
     flex: 1,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  headerSub: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  emergencyQuickBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEE2E2',
+    justifyContent: 'space-between',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.2,
+  },
+  locationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E6F8F5',
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 14,
     gap: 4,
+    maxWidth: 140,
   },
-  emergencyQuickText: {
+  locationBadgeText: {
     fontSize: 12,
-    fontWeight: '800',
-    color: '#DC2626',
+    fontWeight: '700',
+    color: '#007D69',
   },
   searchBarWrap: {
     backgroundColor: '#FFFFFF',
@@ -432,128 +407,94 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
     borderRadius: 12,
     paddingHorizontal: 12,
-    height: 42,
+    height: 44,
     gap: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 13.5,
+    fontSize: 14,
     color: '#0F172A',
     paddingVertical: 0,
   },
-  categoryScrollWrap: {
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+  scrollContent: {
+    paddingTop: 14,
+    paddingBottom: 20,
   },
-  categoryScrollContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
-  },
-  categoryChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: '#F1F5F9',
-  },
-  categoryChipActive: {
-    backgroundColor: '#00B894',
-  },
-  categoryChipText: {
-    fontSize: 12.5,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  categoryChipTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  listContent: {
-    padding: 16,
-  },
-  resultsInfoRow: {
+  countRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
     paddingHorizontal: 2,
   },
-  resultsCountText: {
-    fontSize: 12.5,
+  countText: {
+    fontSize: 13,
     fontWeight: '700',
     color: '#64748B',
   },
-  resetFilterText: {
-    fontSize: 12.5,
+  clearSearchLink: {
+    fontSize: 13,
     fontWeight: '700',
-    color: '#00B894',
+    color: '#007D69',
+  },
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
   serviceCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 14,
-    marginBottom: 10,
+    paddingVertical: 18,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    shadowRadius: 4,
+    elevation: 1.5,
+    minHeight: 116,
   },
-  serviceIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+  serviceCardTablet: {
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    minHeight: 136,
+  },
+  iconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginBottom: 10,
   },
-  serviceTextCol: {
-    flex: 1,
-    paddingRight: 6,
+  iconBoxTablet: {
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+    marginBottom: 12,
   },
-  serviceTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 3,
-    gap: 6,
-  },
-  serviceTitle: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: '#0F172A',
-    flex: 1,
-  },
-  serviceBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  serviceBadgeText: {
-    fontSize: 10,
+  serviceName: {
+    fontSize: 13.5,
     fontWeight: '700',
+    color: '#0F172A',
+    textAlign: 'center',
+    lineHeight: 18,
   },
-  serviceSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    lineHeight: 16,
+  serviceNameTablet: {
+    fontSize: 15,
+    lineHeight: 20,
   },
-  chevronWrap: {
-    paddingLeft: 4,
-  },
-  emptyState: {
+  emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
+    paddingVertical: 48,
+    paddingHorizontal: 24,
   },
   emptyTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
     color: '#1E293B',
     marginTop: 12,
@@ -564,17 +505,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 6,
     lineHeight: 18,
-    maxWidth: 260,
+    maxWidth: 280,
   },
   emptyResetBtn: {
-    marginTop: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#00B894',
+    marginTop: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    backgroundColor: '#007D69',
     borderRadius: 20,
   },
   emptyResetBtnText: {
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: '700',
     color: '#FFFFFF',
   },

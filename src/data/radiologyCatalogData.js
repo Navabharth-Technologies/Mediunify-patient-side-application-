@@ -688,6 +688,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Mysuru',
     area: 'Kuvempunagar',
     address: 'Plot 14, 5th Cross, Near Vishwamanava Double Road, Kuvempunagar, Mysuru - 570023',
+    latitude: 12.2872,
+    longitude: 76.6285,
     distance: '1.2 km',
     distanceKm: 1.2,
     rating: 4.9,
@@ -725,6 +727,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Mysuru',
     area: 'Adichunchanagiri Road',
     address: 'Adichunchanagiri Road, Kuvempunagar, Mysuru - 570023',
+    latitude: 12.2891,
+    longitude: 76.6263,
     distance: '2.4 km',
     distanceKm: 2.4,
     rating: 4.8,
@@ -762,6 +766,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Mysuru',
     area: 'Saraswathipuram',
     address: '12th Main Road, Near Fire Brigade, Saraswathipuram, Mysuru - 570009',
+    latitude: 12.3045,
+    longitude: 76.6342,
     distance: '3.1 km',
     distanceKm: 3.1,
     rating: 4.7,
@@ -799,6 +805,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Mysuru',
     area: 'Vontikoppal',
     address: 'Temple Road, Near Vani Vilas Water Works, Vontikoppal, Mysuru - 570002',
+    latitude: 12.3298,
+    longitude: 76.6375,
     distance: '4.2 km',
     distanceKm: 4.2,
     rating: 4.6,
@@ -836,6 +844,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Mysuru',
     area: 'Yadavagiri',
     address: 'KRS Road, Yadavagiri, Mysuru - 570020',
+    latitude: 12.3265,
+    longitude: 76.6391,
     distance: '3.8 km',
     distanceKm: 3.8,
     rating: 4.8,
@@ -873,6 +883,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Mysuru',
     area: 'Devanur',
     address: 'CAH/1, 3rd Phase, Devanur 2nd Stage, RS Naidu Nagar, Mysuru - 570019',
+    latitude: 12.3481,
+    longitude: 76.6782,
     distance: '5.6 km',
     distanceKm: 5.6,
     rating: 4.7,
@@ -910,6 +922,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Mysuru',
     area: 'Agrahara',
     address: 'MG Road, Agrahara, Fort Mohalla, Mysuru - 570004',
+    latitude: 12.2985,
+    longitude: 76.6541,
     distance: '3.4 km',
     distanceKm: 3.4,
     rating: 4.8,
@@ -947,6 +961,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Mysuru',
     area: 'Vijayanagar',
     address: 'Plot 10/A, Vijayanagar 3rd Stage, Ring Road, Mysuru - 570017',
+    latitude: 12.3385,
+    longitude: 76.6025,
     distance: '4.8 km',
     distanceKm: 4.8,
     rating: 4.7,
@@ -984,6 +1000,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Mysuru',
     area: 'Vidyaranyapuram',
     address: 'Kannegowda Road, Near Chamundeshwari Temple, Vidyaranyapuram, Mysuru - 570008',
+    latitude: 12.2815,
+    longitude: 76.6492,
     distance: '3.6 km',
     distanceKm: 3.6,
     rating: 4.7,
@@ -1021,6 +1039,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Mysuru',
     area: 'Saraswathipuram',
     address: 'Near Swimming Pool, Saraswathipuram 1st Main, Mysuru - 570009',
+    latitude: 12.3021,
+    longitude: 76.6328,
     distance: '2.8 km',
     distanceKm: 2.8,
     rating: 4.6,
@@ -1062,6 +1082,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Bengaluru',
     area: 'Indiranagar',
     address: '100ft Road, HAL 2nd Stage, Indiranagar, Bengaluru - 560038',
+    latitude: 12.9784,
+    longitude: 77.6408,
     distance: '2.1 km',
     distanceKm: 2.1,
     rating: 4.9,
@@ -1099,6 +1121,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Bengaluru',
     area: 'Bommasandra',
     address: '258/A, Bommasandra Industrial Area, Anekal Taluk, Bengaluru - 560099',
+    latitude: 12.8125,
+    longitude: 77.6925,
     distance: '5.5 km',
     distanceKm: 5.5,
     rating: 4.8,
@@ -1136,6 +1160,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Bengaluru',
     area: 'Old Airport Road',
     address: '98, HAL Old Airport Road, Kodihalli, Bengaluru - 560017',
+    latitude: 12.9582,
+    longitude: 77.6534,
     distance: '3.2 km',
     distanceKm: 3.2,
     rating: 4.8,
@@ -1173,6 +1199,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Bengaluru',
     area: 'Hebbal',
     address: 'No. 43/42, NH 44, Sahakar Nagar, Hebbal, Bengaluru - 560092',
+    latitude: 13.0358,
+    longitude: 77.597,
     distance: '4.6 km',
     distanceKm: 4.6,
     rating: 4.8,
@@ -1210,6 +1238,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Bengaluru',
     area: 'Jayanagar',
     address: 'Old No 33, New No 306, 9th Main Road, 4th Block, Jayanagar, Bengaluru - 560011',
+    latitude: 12.9298,
+    longitude: 77.5842,
     distance: '2.7 km',
     distanceKm: 2.7,
     rating: 4.8,
@@ -1247,6 +1277,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Bengaluru',
     area: 'Shivajinagar',
     address: 'Anand Tower, #54, Bowring Hospital Road, Tasker Town, Shivajinagar, Bengaluru - 560051',
+    latitude: 12.9825,
+    longitude: 77.6012,
     distance: '3.0 km',
     distanceKm: 3.0,
     rating: 4.9,
@@ -1288,6 +1320,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Hassan',
     area: 'BM Road',
     address: 'Near Old Bus Stand, B.M. Road, Hassan - 573201',
+    latitude: 13.0033,
+    longitude: 76.1004,
     distance: '1.5 km',
     distanceKm: 1.5,
     rating: 4.7,
@@ -1325,6 +1359,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Hassan',
     area: 'Salagame Road',
     address: 'Salagame Road, Kuvempu Nagar, Hassan - 573201',
+    latitude: 13.0112,
+    longitude: 76.0987,
     distance: '2.1 km',
     distanceKm: 2.1,
     rating: 4.7,
@@ -1362,6 +1398,8 @@ export const RADIOLOGY_PROVIDERS = [
     city: 'Hassan',
     area: 'BM Road',
     address: 'Near Dairy Circle, B.M. Road, Hassan - 573202',
+    latitude: 13.0078,
+    longitude: 76.1045,
     distance: '3.0 km',
     distanceKm: 3.0,
     rating: 4.6,
@@ -1489,11 +1527,34 @@ export const getTestById = (testId) => {
   return RADIOLOGY_TESTS.find((t) => t.id === testId) || RADIOLOGY_TESTS[0];
 };
 
+// Universal Google Maps Directions URL Generator
+export const getGoogleMapsDirectionsUrl = (centre) => {
+  if (!centre) return 'https://www.google.com/maps';
+  let destination = '';
+  if (centre.latitude && centre.longitude) {
+    destination = `${centre.latitude},${centre.longitude}`;
+  } else if (centre.address) {
+    destination = encodeURIComponent(`${centre.name ? centre.name + ', ' : ''}${centre.address}`);
+  } else {
+    const full = [centre.name, centre.area, centre.city, centre.location].filter(Boolean).join(', ');
+    destination = encodeURIComponent(full || centre.name || 'Diagnostic Centre');
+  }
+  return `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
+};
+
 export const RADIOLOGY_CENTRES_FILTERED = (city = 'Mysuru') => {
   if (!city || city === 'All Cities') return RADIOLOGY_PROVIDERS;
-  const c = city.toLowerCase();
-  const matched = RADIOLOGY_PROVIDERS.filter((p) => p.city.toLowerCase() === c);
-  return matched.length > 0 ? matched : RADIOLOGY_PROVIDERS;
+  const lower = city.toLowerCase().trim();
+  const matched = RADIOLOGY_PROVIDERS.filter((p) => {
+    const pCity = (p.city || '').toLowerCase();
+    if (lower.includes('mys') && pCity.includes('mys')) return true;
+    if ((lower.includes('bengal') || lower.includes('bangal')) && (pCity.includes('bengal') || pCity.includes('bangal'))) return true;
+    if (lower.includes('hassan') && pCity.includes('hassan')) return true;
+    if (lower.includes('mandya') && pCity.includes('mandya')) return true;
+    if (lower.includes('mangal') && pCity.includes('mangal')) return true;
+    return pCity === lower;
+  });
+  return matched.length > 0 ? matched : RADIOLOGY_PROVIDERS.filter((p) => (p.city || '').toLowerCase().includes('mys'));
 };
 
 export const getProvidersForTest = (test, city = 'Mysuru') => {

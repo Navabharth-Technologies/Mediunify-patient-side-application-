@@ -90,3 +90,6 @@ web-build/
 
 # Watchman
 .watchmanconfig
+
+# Scratch directory
+scratch/

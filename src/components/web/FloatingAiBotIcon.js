@@ -109,16 +109,25 @@ const FloatingAiBotIcon = () => {
     }
   }, []);
 
-  // Hide on Chatbot, Login, and Auth screens
+  // Hide on Chatbot, Login, Auth, Imaging and Radiology/Scan screens
   const isExcludedScreen =
     currentPath.toLowerCase().includes('chatbot') ||
     currentPath.toLowerCase().includes('login') ||
     currentPath.toLowerCase().includes('auth') ||
+    currentPath.toLowerCase().includes('imaging') ||
+    currentPath.toLowerCase().includes('radiology') ||
+    currentPath.toLowerCase().includes('scan') ||
     (typeof window !== 'undefined' &&
       (window.location.pathname.toLowerCase().includes('chatbot') ||
        window.location.pathname.toLowerCase().includes('login') ||
        window.location.hash.toLowerCase().includes('login') ||
-       window.location.pathname.toLowerCase().includes('auth')));
+       window.location.pathname.toLowerCase().includes('auth') ||
+       window.location.pathname.toLowerCase().includes('imaging') ||
+       window.location.pathname.toLowerCase().includes('radiology') ||
+       window.location.pathname.toLowerCase().includes('scan') ||
+       window.location.hash.toLowerCase().includes('imaging') ||
+       window.location.hash.toLowerCase().includes('radiology') ||
+       window.location.hash.toLowerCase().includes('scan')));
 
   if (isExcludedScreen) return null;
 

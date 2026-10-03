@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -14,6 +13,7 @@ import {
   Platform,
   Linking,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import WebFooter from '../../../components/web/WebFooter';
 import PaginationBar from '../../../components/web/PaginationBar';
@@ -30,6 +30,10 @@ import {
   formatSafeText,
   sortAppointmentList,
 } from '../../../data/patientDashboardData';
+import {
+  DIAGNOSTIC_CENTRES,
+  getGoogleMapsDirectionsUrl,
+} from '../../../data/labTestData';
 
 const VIEW_MODES = [
   { id: 'all_appts', label: 'All Tests & Scans', icon: 'apps' },
@@ -385,13 +389,31 @@ const MyTestsScreenWeb = ({ navigation, route }) => {
 
   // Handle Open Directions in Maps
   const handleOpenDirections = (test) => {
-    const rawDest = test.address || test.centerName || test.location || '';
+    if (!test) return;
+    const cName = typeof test?.centerName === 'object' ? test.centerName?.name : test?.centerName;
+    const matchedCentre = DIAGNOSTIC_CENTRES?.find(
+      (c) =>
+        c.name?.toLowerCase() === cName?.toLowerCase() ||
+        c.id === test?.centerId ||
+        c.name?.toLowerCase() === test?.diagnosticCentre?.name?.toLowerCase()
+    );
+    if (matchedCentre) {
+      const mapsUrl = getGoogleMapsDirectionsUrl(matchedCentre);
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.open(mapsUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        Linking.openURL(mapsUrl);
+      }
+      return;
+    }
+
+    const rawDest = test.address || test.centerName || test.location || test.providerAddress || '';
     const destination = (typeof rawDest === 'object' ? formatAddressString(rawDest) : String(rawDest || '')).trim();
     if (destination) {
       const query = encodeURIComponent(destination);
       const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${query}`;
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.open(mapsUrl, '_blank');
+        window.open(mapsUrl, '_blank', 'noopener,noreferrer');
       } else {
         Linking.openURL(mapsUrl);
       }
@@ -905,6 +927,18 @@ const MyTestsScreenWeb = ({ navigation, route }) => {
                                   style={{ marginRight: 4 }}
                                 />
                                 <Text style={styles.locationText}>{formatAddressString(test.address || test.location)}</Text>
+                                {!isHome && (
+                                  <TouchableOpacity
+                                    style={styles.inlineGetDirectionsBtn}
+                                    onPress={() => handleOpenDirections(test)}
+                                    activeOpacity={0.8}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Get Directions"
+                                  >
+                                    <Ionicons name="navigate" size={12} color="#0D9488" style={{ marginRight: 4 }} />
+                                    <Text style={styles.inlineGetDirectionsBtnText}>Get Directions</Text>
+                                  </TouchableOpacity>
+                                )}
                               </View>
 
                               {/* Instructions Notice */}
@@ -992,12 +1026,27 @@ const MyTestsScreenWeb = ({ navigation, route }) => {
 
                               {/* Directions */}
                               <TouchableOpacity
-                                style={styles.viewSlipBtn}
+                                style={[
+                                  styles.viewSlipBtn,
+                                  !isHome && { backgroundColor: '#F0FDFA', borderColor: '#99F6E4' },
+                                ]}
                                 onPress={() => handleOpenDirections(test)}
                                 activeOpacity={0.8}
                               >
-                                <Ionicons name="navigate-outline" size={14} color="#1E3A8A" style={{ marginRight: 4 }} />
-                                <Text style={styles.viewSlipBtnText}>Direction</Text>
+                                <Ionicons
+                                  name="navigate"
+                                  size={14}
+                                  color={!isHome ? '#0D9488' : '#1E3A8A'}
+                                  style={{ marginRight: 4 }}
+                                />
+                                <Text
+                                  style={[
+                                    styles.viewSlipBtnText,
+                                    !isHome && { color: '#0D9488', fontWeight: '700' },
+                                  ]}
+                                >
+                                  Get Directions
+                                </Text>
                               </TouchableOpacity>
 
                               {/* Reschedule */}
@@ -1570,6 +1619,16 @@ const MyTestsScreenWeb = ({ navigation, route }) => {
                     <Text style={styles.detailsCellVal}>
                       {formatAddressString(viewingDetails?.address || viewingDetails?.location || viewingDetails?.providerAddress)}
                     </Text>
+                    {viewingDetails?.testType !== 'Home Sample Collection' && (
+                      <TouchableOpacity
+                        style={styles.detailsDirectionsBtn}
+                        onPress={() => handleOpenDirections(viewingDetails)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="navigate" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                        <Text style={styles.detailsDirectionsBtnText}>Get Directions in Google Maps</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               </View>
@@ -1762,6 +1821,17 @@ const MyTestsScreenWeb = ({ navigation, route }) => {
                   Please arrive 15 minutes before your slot. Present this QR pass at the MediUnify reception desk.
                 </Text>
               </View>
+
+              {viewingSlip?.testType !== 'Home Sample Collection' && (
+                <TouchableOpacity
+                  style={styles.detailsDirectionsBtn}
+                  onPress={() => handleOpenDirections(viewingSlip)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="navigate" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.detailsDirectionsBtnText}>Get Location Directions to Lab</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             <View style={styles.modalFooter}>
@@ -2451,10 +2521,43 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
+    flexWrap: 'wrap',
+    gap: 6,
   },
   locationText: {
     fontSize: 12,
     color: '#64748B',
+  },
+  inlineGetDirectionsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    marginLeft: 6,
+  },
+  inlineGetDirectionsBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0D9488',
+  },
+  detailsDirectionsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0D9488',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  detailsDirectionsBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   prepNoticeBox: {
     flexDirection: 'row',

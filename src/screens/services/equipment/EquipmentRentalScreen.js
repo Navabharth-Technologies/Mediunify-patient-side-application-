@@ -10,10 +10,12 @@ import {
   Modal,
   Platform,
   useWindowDimensions,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { validateAddressMatchesCity } from '../../../utils/addressLocationValidator';
 import { showAlert } from '../../../utils/alert';
 import WebFooter from '../../../components/web/WebFooter';
 import {
@@ -26,6 +28,21 @@ import {
 
 const ASYNC_KEY_EQUIPMENT_REQUESTS = '@unnathi_equipment_rental_requests';
 const ASYNC_KEY_ACTIVE_RENTALS = '@unnathi_equipment_active_rentals';
+const EQUIPMENT_CARE_NEEDS = [
+  'Oxygen Concentrator (5L / 10L)',
+  'Motorized ICU Hospital Bed (3-Function / 5-Function)',
+  'BiPAP / CPAP Respiration Machine',
+  'Wheelchair (Manual / Electric Recliner)',
+  'Suction Machine (Electric / Portable)',
+  'DVT Prevention Pump & Sleeves',
+  'Patient Transfer Hoist / Lifter',
+  'Multipara Patient Cardiac Monitor',
+  'Air Mattress with Pressure Relief Pump',
+  'Nebulizer & Respiratory Therapy Kit',
+  'Infusion & Syringe Pump',
+  'Other Medical / Biomedical Equipment',
+];
+
 
 const EquipmentRentalScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
@@ -77,6 +94,26 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
   // Detail View Selected Objects
   const [selectedRequestDetail, setSelectedRequestDetail] = useState(null);
   const [selectedRentalDetail, setSelectedRentalDetail] = useState(null);
+  // Location single source of truth from Home Screen
+  const [selectedCity, setSelectedCity] = useState('Mysuru');
+  const [addressValidationModalVisible, setAddressValidationModalVisible] = useState(false);
+  const [citySelectionModalVisible, setCitySelectionModalVisible] = useState(false);
+  const [addressValidationMsg, setAddressValidationMsg] = useState('');
+  const deliveryAddressInputRef = useRef(null);
+
+  // Quick Consultation Hero Form State (matching Web HospitalCare & EquipmentRental references)
+  const [selectedEquipmentNeed, setSelectedEquipmentNeed] = useState('');
+  const [quickName, setQuickName] = useState('');
+  const [quickMobile, setQuickMobile] = useState('');
+  const [quickBookingLoading, setQuickBookingLoading] = useState(false);
+  const [equipmentNeedModalVisible, setEquipmentNeedModalVisible] = useState(false);
+  const [quickDate, setQuickDate] = useState('Today (Immediate)');
+  const [dateModalVisible, setDateModalVisible] = useState(false);
+
+  // Family Members & Active Patient selection
+  const [familyMembers, setFamilyMembers] = useState([]);
+  const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState('self');
+
 
   // Modals
   const [offerModalVisible, setOfferModalVisible] = useState(false);
@@ -148,6 +185,169 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
     } catch (e) {
       console.log('Error saving active rentals:', e);
     }
+  };
+
+  
+  useEffect(() => {
+    loadEquipmentContext();
+    const unsub = navigation.addListener('focus', () => {
+      loadEquipmentContext();
+    });
+    return unsub;
+  }, [navigation]);
+
+  const loadEquipmentContext = async () => {
+    try {
+      const storedCity = await AsyncStorage.getItem('@mediunify_selected_city');
+      const storedLoc = await AsyncStorage.getItem('@unnathi_user_location');
+      const activeCity = storedCity || (storedLoc ? storedLoc.split(',')[0].trim() : 'Mysuru');
+      if (activeCity) {
+        setSelectedCity(activeCity);
+        setDeliveryCity(activeCity);
+      }
+
+      const storedName = await AsyncStorage.getItem('userName');
+      const storedPhone = await AsyncStorage.getItem('userPhone');
+      if (storedName) {
+        setQuickName(storedName);
+        setDeliveryName(storedName);
+      }
+      if (storedPhone) {
+        setQuickMobile(storedPhone);
+        setDeliveryPhone(storedPhone);
+      }
+
+      const savedFam = await AsyncStorage.getItem('@unnathi_family_members');
+      if (savedFam) {
+        try {
+          const parsed = JSON.parse(savedFam);
+          if (Array.isArray(parsed)) setFamilyMembers(parsed);
+        } catch (e) {}
+      }
+
+      const activePtStr = await AsyncStorage.getItem('@unnathi_active_patient');
+      if (activePtStr) {
+        try {
+          const activePt = JSON.parse(activePtStr);
+          if (activePt && (activePt.name || activePt.displayName)) {
+            const pName = (activePt.displayName || activePt.name || '').replace(/\s*\([Ss]elf\)/g, '').trim();
+            if (pName) setDeliveryName(pName);
+            if (activePt.phone) setDeliveryPhone(activePt.phone);
+          }
+        } catch (e) {}
+      }
+    } catch (e) {
+      console.log('Error loading equipment context:', e);
+    }
+  };
+
+  const handleSelectFamilyMember = (member) => {
+    if (member === 'self') {
+      setSelectedFamilyMemberId('self');
+      setDeliveryName(quickName || 'Self');
+      if (quickMobile) setDeliveryPhone(quickMobile);
+      return;
+    }
+    setSelectedFamilyMemberId(member.id || member._id || member.name);
+    setDeliveryName(member.name || member.displayName || '');
+    if (member.phone) setDeliveryPhone(member.phone);
+  };
+
+  const handleQuickBookEquipment = () => {
+    requireLogin(() => _doQuickBookEquipment());
+  };
+
+  const _doQuickBookEquipment = async () => {
+    if (!quickName.trim()) {
+      showAlert('Name Required', 'Please enter your full name.');
+      return;
+    }
+    if (!quickMobile.trim() || quickMobile.trim().replace(/\D/g, '').length < 10) {
+      showAlert('Valid Mobile Required', 'Please enter a valid 10-digit mobile number to receive your callback.');
+      return;
+    }
+
+    setQuickBookingLoading(true);
+    try {
+      const equipNeed = selectedEquipmentNeed || 'General Medical Equipment Consultation';
+      const cleanPhone = quickMobile.trim();
+      const chosenDate = quickDate || 'Today (Immediate)';
+      const newId = `ER-${Date.now().toString().slice(-6)}`;
+
+      const newRequest = {
+        id: newId,
+        bookingId: newId,
+        type: 'Medical Equipment Rental',
+        serviceType: 'equipment',
+        equipmentName: equipNeed,
+        category: 'Consultation & Rental',
+        categoryLabel: equipNeed,
+        durationLabel: 'Monthly / Custom Duration',
+        rentalDurationType: 'Monthly',
+        quantity: 1,
+        rentalPrice: 2499,
+        deposit: 0,
+        deliveryCharge: 0,
+        estimatedTotal: 2499,
+        fee: 2499,
+        paidAmount: 2499,
+        status: 'Consultation Requested',
+        statusStageIndex: 1,
+        createdAt: 'Just now',
+        deliveryDate: chosenDate,
+        requiredDate: chosenDate,
+        date: new Date().toISOString().split('T')[0],
+        time: 'Within 2-4 Hours',
+        deliveryName: quickName.trim(),
+        deliveryPhone: cleanPhone,
+        deliveryAddress: {
+          name: quickName.trim(),
+          contactNumber: cleanPhone,
+          address: `${selectedCity} (Doorstep Delivery)`,
+          city: selectedCity,
+          pincode: '',
+          instructions: `Requested delivery: ${chosenDate}. Callback from biomedical equipment specialist`,
+        },
+        verifiedPartner: {
+          name: 'MediUnify Verified Biomedical Partner Network',
+          rating: 4.9,
+          serviceArea: selectedCity,
+        },
+        timeline: [
+          { stage: 'Request Placed', completed: true, timestamp: 'Just now' },
+          { stage: 'Biomedical Specialist Calling', completed: false, timestamp: 'Within 15 mins' },
+          { stage: 'Equipment Reserved & Sterilized', completed: false, timestamp: 'Pending confirmation' },
+          { stage: 'Doorstep Delivery & Demo', completed: false, timestamp: chosenDate },
+        ],
+      };
+
+      const updated = [newRequest, ...rentalRequests];
+      setRentalRequests(updated);
+      await saveRequests(updated);
+
+      setQuickBookingLoading(false);
+      showAlert(
+        'Consultation Booked Successfully',
+        `Thank you ${quickName.trim()}! Your request for ${equipNeed} on ${chosenDate} in ${selectedCity} has been received. Our Biomedical Equipment Specialist will call ${cleanPhone} within 15 minutes.`,
+        [{ text: 'OK', style: 'default' }]
+      );
+    } catch (e) {
+      setQuickBookingLoading(false);
+      showAlert('Request Received', 'Thank you! Our equipment coordinator will call you shortly.');
+    }
+  };
+
+  const handleCallHelpline = () => {
+    Linking.openURL('tel:+918045685554').catch(() => {
+      showAlert('Helpline', 'Please dial +91-8045685554 to reach our Equipment Care Desk.');
+    });
+  };
+
+  const handleWhatsAppCare = () => {
+    const text = encodeURIComponent('Hi, I would like to rent medical equipment on MediUnify.');
+    Linking.openURL(`https://wa.me/917353101441?text=${text}`).catch(() => {
+      showAlert('WhatsApp', 'Please message +91-7353101441 on WhatsApp.');
+    });
   };
 
   // Filtered equipment list
@@ -269,7 +469,30 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
     setFlowStep(2);
   };
 
-  // Validate and proceed from Step 2 to Step 3
+  const handleSelectNewCity = async (newCity) => {
+    setSelectedCity(newCity);
+    setDeliveryCity(newCity);
+    setCitySelectionModalVisible(false);
+    try {
+      await AsyncStorage.setItem('@mediunify_selected_city', newCity);
+      await AsyncStorage.setItem('@unnathi_user_location', newCity);
+    } catch (e) {}
+
+    // Re-validate address if user has typed something
+    if (deliveryAddress && deliveryAddress.trim()) {
+      const fullDeliveryAddr = `${deliveryAddress}, ${newCity}`;
+      const val = validateAddressMatchesCity(fullDeliveryAddr, newCity, deliveryPincode);
+      if (val.isValid) {
+        setAddressErrors((prev) => ({ ...prev, address: null, city: null }));
+        setAddressValidationModalVisible(false);
+      } else {
+        setAddressErrors((prev) => ({ ...prev, address: val.errorMessage }));
+        setAddressValidationMsg(val.errorMessage);
+      }
+    }
+  };
+
+  // Validate and proceed from Step 2 to Step 3 with strict location-based address verification
   const handleProceedToReview = () => {
     const errors = {};
     if (!deliveryName.trim()) errors.name = 'Patient or contact name is required';
@@ -284,6 +507,16 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
       return;
     }
 
+    // Validate that entered address matches selected Home Screen city
+    const fullDeliveryAddr = `${deliveryAddress}, ${deliveryCity}`;
+    const validation = validateAddressMatchesCity(fullDeliveryAddr, selectedCity, deliveryPincode);
+    if (!validation.isValid) {
+      setAddressErrors({ ...errors, address: validation.errorMessage });
+      setAddressValidationMsg(validation.errorMessage);
+      setAddressValidationModalVisible(true);
+      return;
+    }
+
     setAddressErrors({});
     setFlowStep(3);
   };
@@ -291,6 +524,17 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
   // Submit Rental Request (Step 3 -> Step 4)
   const handleSubmitRentalRequest = () => {
     if (!selectedEquipment) return;
+
+    // Validate address against selected Home Screen city before final booking
+    const fullDeliveryAddr = `${deliveryAddress}, ${deliveryCity}`;
+    const validation = validateAddressMatchesCity(fullDeliveryAddr, selectedCity, deliveryPincode);
+    if (!validation.isValid) {
+      setFlowStep(2);
+      setAddressErrors({ address: validation.errorMessage });
+      setAddressValidationMsg(validation.errorMessage);
+      setAddressValidationModalVisible(true);
+      return;
+    }
 
     const pricing = calculateEstimatedPricing(selectedEquipment, rentalDurationType, quantity, customDays);
     const newId = `ER-2026-${Math.floor(10000 + Math.random() * 90000).toString().slice(0, 5)}`;
@@ -512,394 +756,241 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
             style={styles.headerBackBtn}
             onPress={() => {
               if (navigation?.canGoBack()) navigation.goBack();
+              else navigation?.navigate('Home');
             }}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="arrow-back" size={22} color="#0F172A" />
+            <Ionicons name="arrow-back" size={20} color="#0F172A" />
           </TouchableOpacity>
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.mainScreenTitle}>Equipment Rental</Text>
-            <Text style={styles.mainScreenSubtitle}>
-              Rent healthcare equipment from verified partners
+            <Text style={{ fontSize: 17, fontWeight: '800', color: '#0F172A' }} numberOfLines={1}>
+              Medical Equipment Rental
             </Text>
-          </View>
-        </View>
-
-        {/* Quick Navigation Segmented Tabs */}
-        <View style={styles.segmentNavContainer}>
-          <TouchableOpacity
-            style={[styles.segmentBtn, currentView === 'HOME' && styles.segmentBtnActive]}
-            onPress={() => setCurrentView('HOME')}
-          >
-            <Ionicons
-              name="grid"
-              size={14}
-              color={currentView === 'HOME' ? '#00B894' : '#64748B'}
-            />
-            <Text
-              style={[
-                styles.segmentBtnText,
-                currentView === 'HOME' && styles.segmentBtnTextActive,
-              ]}
-              numberOfLines={1}
-            >
-              {isDesktopWeb ? 'Browse Equipment' : 'Browse'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.segmentBtn, currentView === 'MY_RENTALS' && styles.segmentBtnActive]}
-            onPress={() => setCurrentView('MY_RENTALS')}
-          >
-            <Ionicons
-              name="cube"
-              size={14}
-              color={currentView === 'MY_RENTALS' ? '#00B894' : '#64748B'}
-            />
-            <Text
-              style={[
-                styles.segmentBtnText,
-                currentView === 'MY_RENTALS' && styles.segmentBtnTextActive,
-              ]}
-              numberOfLines={1}
-            >
-              {isDesktopWeb ? `My Rentals (${activeRentals.length})` : `Rentals (${activeRentals.length})`}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.segmentBtn,
-              currentView === 'RENTAL_REQUESTS' && styles.segmentBtnActive,
-            ]}
-            onPress={() => setCurrentView('RENTAL_REQUESTS')}
-          >
-            <Ionicons
-              name="clipboard"
-              size={14}
-              color={currentView === 'RENTAL_REQUESTS' ? '#00B894' : '#64748B'}
-            />
-            <Text
-              style={[
-                styles.segmentBtnText,
-                currentView === 'RENTAL_REQUESTS' && styles.segmentBtnTextActive,
-              ]}
-              numberOfLines={1}
-            >
-              {isDesktopWeb ? `Requests (${rentalRequests.length})` : `Requests (${rentalRequests.length})`}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Marketplace & Care Coordination Banner */}
-        <View style={styles.marketplaceBanner}>
-          <View style={styles.marketplaceIconWrap}>
-            <Ionicons name="shield-checkmark" size={22} color="#00B894" />
-          </View>
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={styles.marketplaceTitle}>
-              Verified Partner Fulfilment Model
-            </Text>
-            <Text style={styles.marketplaceDesc}>
-              MediUnify coordinates your rental request with verified biomedical partners. Equipment is thoroughly sterilized, delivered, and installed at your doorstep.
-            </Text>
-          </View>
-        </View>
-
-        {/* Search Bar & Filter Button */}
-        <View style={styles.searchFilterRow}>
-          <View style={styles.searchInputContainer}>
-            <Ionicons name="search" size={19} color="#64748B" style={{ marginLeft: 12 }} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search healthcare equipment (bed, oxygen, wheelchair...)"
-              placeholderTextColor="#94A3B8"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 8 }}>
-                <Ionicons name="close-circle" size={18} color="#94A3B8" />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <TouchableOpacity
-            style={[
-              styles.filterTriggerBtn,
-              (selectedCategory !== 'all' || filterDuration !== 'all' || filterInstallationOnly) && styles.filterTriggerBtnActive,
-            ]}
-            onPress={() => setFilterModalVisible(true)}
-          >
-            <Ionicons
-              name="options-outline"
-              size={19}
-              color={
-                selectedCategory !== 'all' || filterDuration !== 'all' || filterInstallationOnly
-                  ? '#FFFFFF'
-                  : '#0F172A'
-              }
-            />
-            <Text
-              style={[
-                styles.filterTriggerText,
-                (selectedCategory !== 'all' || filterDuration !== 'all' || filterInstallationOnly) && styles.filterTriggerTextActive,
-              ]}
-            >
-              Filters
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Equipment Categories (Section 2) */}
-        <View style={styles.sectionHeaderRow}>
-          <View>
-            <Text style={styles.sectionTitle}>Equipment Categories</Text>
-            <Text style={styles.sectionSub}>All categories are available from verified MediUnify partners</Text>
-          </View>
-          {selectedCategory !== 'all' && (
-            <TouchableOpacity onPress={() => handleSelectCategory('all')}>
-              <Text style={styles.clearFilterLink}>Show All ({equipmentCatalog.length})</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Category Cards Grid (All 10 Categories 100% Visible - No Cutoff!) */}
-        <View style={styles.categoryCardsGrid}>
-          {equipmentCategories.map((cat) => {
-            const isSelected = selectedCategory === cat.id;
-            const count = cat.id === 'all' ? equipmentCatalog.length : equipmentCatalog.filter(e => e.category === cat.id).length;
-            return (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.categoryCardTile,
-                  isDesktopWeb ? styles.categoryCardTileDesktop : isTablet ? styles.categoryCardTileTablet : styles.categoryCardTileMobile,
-                  isSelected && styles.categoryCardTileActive,
-                ]}
-                onPress={() => handleSelectCategory(cat.id)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.categoryCardIconBox, isSelected && styles.categoryCardIconBoxActive]}>
-                  <Text style={styles.categoryCardEmoji}>{cat.emoji}</Text>
-                </View>
-                <View style={styles.categoryCardTextBox}>
-                  <Text
-                    style={[styles.categoryCardTitle, isSelected && styles.categoryCardTitleActive]}
-                    numberOfLines={2}
-                  >
-                    {cat.label}
-                  </Text>
-                  <Text style={[styles.categoryCardCount, isSelected && styles.categoryCardCountActive]}>
-                    {count} Item{count !== 1 ? 's' : ''}
-                  </Text>
-                </View>
-                {isSelected && (
-                  <View style={styles.categoryActiveCheck}>
-                    <Ionicons name="checkmark-circle" size={14} color="#00B894" />
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Active Category Filter Tag Banner */}
-        {selectedCategory !== 'all' && (
-          <View style={styles.activeCategoryBanner}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ fontSize: 16, marginRight: 6 }}>
-                {equipmentCategories.find((c) => c.id === selectedCategory)?.emoji}
-              </Text>
-              <Text style={styles.activeCategoryBannerText}>
-                Filtering by: <Text style={{ fontWeight: '800', color: '#0F172A' }}>{equipmentCategories.find((c) => c.id === selectedCategory)?.label}</Text> ({filteredEquipment.length} items)
-              </Text>
-            </View>
-            <TouchableOpacity onPress={() => handleSelectCategory('all')} style={styles.clearCategoryPillBtn}>
-              <Text style={styles.clearCategoryPillBtnText}>Show All</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Popular Equipment (when no active search/category filter) */}
-        {selectedCategory === 'all' && !searchQuery.trim() && (
-          <View style={styles.popularSectionWrap}>
-            <View style={styles.sectionHeaderRow}>
-              <View>
-                <Text style={styles.sectionTitle}>Popular Equipment</Text>
-                <Text style={styles.sectionSub}>Most requested home healthcare equipment</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              <View style={styles.cityLocationPill}>
+                <Ionicons name="location-sharp" size={11} color="#007D69" />
+                <Text style={styles.cityLocationText}>{selectedCity || 'Mysuru'}</Text>
+              </View>
+              <View style={styles.liveVerifiedPill}>
+                <View style={styles.livePulseDot} />
+                <Text style={styles.liveVerifiedPillText}>24/7 Verified Care</Text>
               </View>
             </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingVertical: 8, paddingHorizontal: 2, gap: 12 }}
-            >
-              {popularList.map((item) => (
-                <View key={`pop-${item.id}`} style={styles.popularCardItem}>
-                  <Image source={{ uri: item.image }} style={styles.popularCardImg} />
-                  <View style={styles.popularCardBadge}>
-                    <Ionicons name="flame" size={11} color="#FF7F50" />
-                    <Text style={styles.popularCardBadgeText}>Popular</Text>
-                  </View>
-                  <View style={{ padding: 12, flex: 1, justifyContent: 'space-between' }}>
-                    <View>
-                      <Text style={styles.popularCardCategory}>{item.categoryLabel}</Text>
-                      <Text style={styles.popularCardName} numberOfLines={2}>{item.name}</Text>
-                    </View>
-                    <View style={styles.popularCardPriceRow}>
-                      <View>
-                        <Text style={styles.popularPriceVal}>₹{item.rentalPrices.monthly.toLocaleString()}</Text>
-                        <Text style={styles.popularPriceUnit}>/ month</Text>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.popularViewBtn}
-                        onPress={() => handleOpenEquipmentDetails(item)}
-                      >
-                        <Text style={styles.popularViewBtnText}>View</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
           </View>
-        )}
 
-        {/* Equipment Listing (Section 4) with onLayout & nativeID for smooth scroll target on web & mobile */}
-        <View
-          nativeID="equipment-listing-section"
-          id="equipment-listing-section"
-          style={styles.sectionHeaderRow}
-          onLayout={(e) => {
-            equipmentListingY.current = e.nativeEvent.layout.y;
-          }}
-        >
-          <View>
-            <Text style={styles.sectionTitle}>
-              {selectedCategory === 'all' ? 'All Equipment' : `${equipmentCategories.find((c) => c.id === selectedCategory)?.label || 'Equipment'}`}
-            </Text>
-            <Text style={styles.sectionSub}>
-              Showing {filteredEquipment.length} verified healthcare items
-            </Text>
-          </View>
+          <TouchableOpacity
+            style={styles.helplineBtn}
+            onPress={() => showAlert('Care Helpline', 'Connecting to 24/7 Equipment Support: 1800-425-0099')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="call" size={12} color="#0D9488" />
+            <Text style={styles.helplineBtnText}>1800-425-0099</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Empty State when no results */}
-        {filteredEquipment.length === 0 ? (
-          <View style={styles.emptyStateBox}>
-            <Ionicons name="search-outline" size={54} color="#94A3B8" />
-            <Text style={styles.emptyStateTitle}>No equipment found</Text>
-            <Text style={styles.emptyStateDesc}>
-              No healthcare equipment matched "{searchQuery}" in the selected filters.
-            </Text>
-            <TouchableOpacity style={styles.emptyStateBtn} onPress={handleResetFilters}>
-              <Text style={styles.emptyStateBtnText}>Clear Search & Filters</Text>
-            </TouchableOpacity>
+        {/* Hero Banner Card */}
+        <View style={styles.heroBannerCard}>
+          <View style={styles.heroBadgePill}>
+            <Ionicons name="shield-checkmark" size={13} color="#5EEAD4" />
+            <Text style={styles.heroBadgePillText}>NABH & Biomedical Certified</Text>
           </View>
-        ) : (
-          <View style={isDesktopWeb ? styles.equipmentGridWeb : styles.equipmentListMobile}>
-            {filteredEquipment.map((item) => (
-              <View key={item.id} style={isDesktopWeb ? styles.equipmentCardWeb : styles.equipmentCardMobile}>
-                {/* Equipment Image & Partner Badge */}
-                <View style={styles.cardImageWrap}>
-                  <Image source={{ uri: item.image }} style={styles.cardImg} resizeMode="cover" />
-                  <View style={styles.verifiedPartnerBadge}>
-                    <Ionicons name="checkmark-circle" size={13} color="#059669" />
-                    <Text style={styles.verifiedPartnerBadgeText}>Verified Partner</Text>
-                  </View>
-                  <View style={styles.availabilityTag}>
-                    <View style={styles.availDot} />
-                    <Text style={styles.availabilityTagText}>{item.availability}</Text>
-                  </View>
-                </View>
 
-                {/* Content */}
-                <View style={styles.cardBody}>
-                  <View style={styles.cardCategoryRow}>
-                    <Text style={styles.cardCategoryText}>{item.categoryEmoji} {item.categoryLabel}</Text>
-                    <Text style={styles.cardDeliverySpeed}>{item.deliverySpeed}</Text>
-                  </View>
+          <Text style={styles.heroHeadline}>
+            Hospital-Grade Equipment, <Text style={styles.heroHeadlineAccent}>In Your Home</Text>
+          </Text>
 
-                  <Text style={styles.cardTitle} numberOfLines={2}>{item.name}</Text>
-                  <Text style={styles.cardDesc} numberOfLines={2}>{item.shortDescription}</Text>
+          <Text style={styles.heroSubheadline}>
+            Oxygen concentrators, motorized ICU beds, wheelchairs, BiPAP/CPAP, and suction machines delivered with doorstep demo & sanitization.
+          </Text>
 
-                  {/* Pricing and Deposit Summary */}
-                  <View style={styles.cardPricingBox}>
-                    <View style={styles.priceRowItem}>
-                      <Text style={styles.rentalPriceLabel}>Rental</Text>
-                      <Text style={styles.rentalPriceVal}>
-                        ₹{item.rentalPrices.monthly.toLocaleString()}
-                        <Text style={styles.rentalPriceUnit}> / month</Text>
-                      </Text>
-                    </View>
-
-                    <View style={styles.priceRowItem}>
-                      <Text style={styles.depositLabel}>Deposit: </Text>
-                      <Text style={styles.depositVal}>₹{item.deposit.toLocaleString()}</Text>
-                    </View>
-
-                    <View style={styles.deliveryMetaRow}>
-                      <Text style={styles.deliveryMetaText}>
-                        Delivery: ₹{item.deliveryCharge} • Installation: {item.installationIncluded ? 'Included' : 'On Request'}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Partner snippet */}
-                  <View style={styles.partnerSnippetRow}>
-                    <Ionicons name="business-outline" size={13} color="#64748B" />
-                    <Text style={styles.partnerSnippetText} numberOfLines={1}>
-                      Supplied by: <Text style={{ fontWeight: '600', color: '#1E3A8A' }}>{item.verifiedPartner?.name}</Text>
-                    </Text>
-                  </View>
-
-                  {/* Action Buttons */}
-                  <View style={styles.cardActionRow}>
-                    <TouchableOpacity
-                      style={styles.cardViewDetailsBtn}
-                      onPress={() => handleOpenEquipmentDetails(item)}
-                    >
-                      <Text style={styles.cardViewDetailsText}>View Details</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.cardRequestBtn}
-                      onPress={() => handleStartRentalRequest(item)}
-                    >
-                      <Text style={styles.cardRequestBtnText}>Request Rental →</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Customer Support & Care Notice Card */}
-        <View style={styles.supportContactCard}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Ionicons name="headset-outline" size={24} color="#00B894" style={{ marginRight: 10 }} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.supportTitle}>Need assistance choosing equipment?</Text>
-              <Text style={styles.supportDesc}>
-                MediUnify care coordinators guide you to choose the right clinical bed, respiratory, or mobility aid.
-              </Text>
+          {/* Guarantees */}
+          <View style={styles.heroValuePropsRow}>
+            <View style={styles.heroValueItem}>
+              <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+              <Text style={styles.heroValueText}>100% Sanitized & Tested</Text>
+            </View>
+            <View style={styles.heroValueItem}>
+              <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+              <Text style={styles.heroValueText}>Doorstep Setup & Demo</Text>
+            </View>
+            <View style={styles.heroValueItem}>
+              <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+              <Text style={styles.heroValueText}>24/7 Coordinator Support</Text>
             </View>
           </View>
-          <View style={styles.supportActionRow}>
+
+          {/* Quick Consultation Form */}
+          <View style={styles.quickFormCard}>
+            <Text style={styles.quickFormTitle}>Book Equipment / Home Visit</Text>
+            <Text style={styles.quickFormSubtitle}>
+              Our biomedical coordinator calls within 15 minutes to verify specs and timing
+            </Text>
+
+            {/* Equipment Dropdown */}
             <TouchableOpacity
-              style={styles.supportCallBtn}
-              onPress={() => showAlert('Care Coordinator', 'Calling MediUnify Home Equipment Support at 1800-425-0099...')}
+              style={styles.dropdownField}
+              onPress={() => setEquipmentNeedModalVisible(true)}
+              activeOpacity={0.8}
             >
-              <Ionicons name="call" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
-              <Text style={styles.supportCallText}>Call 1800-425-0099</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                <Ionicons name="fitness-outline" size={17} color="#00B894" />
+                <Text
+                  style={[
+                    styles.dropdownFieldText,
+                    !selectedEquipmentNeed && styles.placeholderText,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {selectedEquipmentNeed || 'Select Equipment / Requirement'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-down" size={18} color="#64748B" />
             </TouchableOpacity>
+
+            {/* Date Selector */}
+            <TouchableOpacity
+              style={styles.dropdownField}
+              onPress={() => setDateModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                <Ionicons name="calendar-outline" size={17} color="#00B894" />
+                <Text style={styles.dropdownFieldText} numberOfLines={1}>
+                  {quickDate ? `Delivery Date: ${quickDate}` : 'Select Preferred Delivery Date'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-down" size={18} color="#64748B" />
+            </TouchableOpacity>
+
+            {/* Full Name */}
+            <View style={styles.quickInputField}>
+              <TextInput
+                style={styles.quickTextInput}
+                placeholder="Patient Full Name"
+                placeholderTextColor="#94A3B8"
+                value={quickName}
+                onChangeText={setQuickName}
+              />
+            </View>
+
+            {/* Mobile Number */}
+            <View style={styles.quickInputField}>
+              <TextInput
+                style={styles.quickTextInput}
+                placeholder="Contact Mobile Number (10 digits)"
+                placeholderTextColor="#94A3B8"
+                value={quickMobile}
+                onChangeText={setQuickMobile}
+                keyboardType="phone-pad"
+                maxLength={15}
+              />
+            </View>
+
+            {/* Submit Quick Request */}
+            <TouchableOpacity
+              style={styles.quickSubmitBtn}
+              onPress={handleQuickBookEquipment}
+              activeOpacity={0.9}
+              disabled={quickBookingLoading}
+            >
+              <Text style={styles.quickSubmitBtnText}>
+                {quickBookingLoading ? 'Submitting Request...' : 'Book Free Equipment Callback'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Direct Assistance Desk */}
+            <View style={styles.quickContactRow}>
+              <TouchableOpacity style={styles.quickContactBtn} onPress={handleCallHelpline} activeOpacity={0.8}>
+                <Ionicons name="call" size={13} color="#0D9488" />
+                <Text style={styles.quickContactBtnText}>Call Helpline</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.quickContactBtn} onPress={handleWhatsAppCare} activeOpacity={0.8}>
+                <Ionicons name="logo-whatsapp" size={13} color="#16A34A" />
+                <Text style={[styles.quickContactBtnText, { color: '#16A34A' }]}>WhatsApp Desk</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Hero Actions (Stacked for clear mobile readability and touch targets) */}
+          <View style={styles.heroActionsRow}>
+            <TouchableOpacity
+              style={styles.heroPrimaryBtn}
+              onPress={() => {
+                const defaultItem = equipmentCatalog.find((e) => e.popular) || equipmentCatalog[0];
+                handleStartRentalRequest(defaultItem);
+              }}
+              activeOpacity={0.88}
+            >
+              <Ionicons name="calendar" size={17} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.heroPrimaryBtnText}>Request Equipment Rental</Text>
+              <Ionicons name="arrow-forward" size={15} color="#FFFFFF" style={{ marginLeft: 'auto' }} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.heroSecondaryBtn}
+              onPress={() => setCurrentView('RENTAL_REQUESTS')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="time-outline" size={16} color="#CBD5E1" style={{ marginRight: 8 }} />
+              <Text style={styles.heroSecondaryBtnText}>Track Existing Requests ({rentalRequests.length})</Text>
+              <Ionicons name="chevron-forward" size={14} color="#94A3B8" style={{ marginLeft: 'auto' }} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Quick Match Floating Chips Box */}
+          <View style={styles.quickMatchCard}>
+            <View style={styles.quickMatchHeader}>
+              <Ionicons name="flash" size={15} color="#F59E0B" />
+              <Text style={styles.quickMatchTitle}>Need Quick Equipment?</Text>
+              <Text style={styles.quickMatchSub}>• Coordinator calls in 15 mins</Text>
+            </View>
+
+            <View style={styles.quickMatchChipsRow}>
+              {[
+                { name: 'Oxygen Concentrator', term: 'oxygen' },
+                { name: 'ICU Hospital Bed', term: 'bed' },
+                { name: 'Wheelchair', term: 'wheelchair' },
+                { name: 'BiPAP / CPAP', term: 'bipap' },
+              ].map((item) => (
+                <TouchableOpacity
+                  key={item.name}
+                  style={styles.quickChip}
+                  onPress={() => {
+                    const match = equipmentCatalog.find((e) =>
+                      e.name.toLowerCase().includes(item.term) ||
+                      e.category.toLowerCase().includes(item.term)
+                    ) || equipmentCatalog[0];
+                    handleStartRentalRequest(match);
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.quickChipText}>{item.name}</Text>
+                  <Ionicons name="arrow-forward" size={11} color="#0D9488" />
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         </View>
 
-        {isDesktopWeb && <WebFooter />}
+        {/* Trust & Stats Grid */}
+        <View style={styles.statsGrid}>
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>10,000+</Text>
+            <Text style={styles.statLabel}>Rentals Completed</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>4.9/5</Text>
+            <Text style={styles.statLabel}>Family Rating</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>100%</Text>
+            <Text style={styles.statLabel}>Sanitized Units</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>&lt; 15m</Text>
+            <Text style={styles.statLabel}>Coordinator Callback</Text>
+          </View>
+        </View>
       </ScrollView>
     );
   };
@@ -1331,7 +1422,65 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
 
               {/* Name */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Patient / Contact Full Name *</Text>
+                {/* Select Patient / Family Member */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Select Patient / Recipient *</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.familyPillsRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.familyMemberPill,
+                      selectedFamilyMemberId === 'self' && styles.familyMemberPillActive,
+                    ]}
+                    onPress={() => handleSelectFamilyMember('self')}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name="person"
+                      size={14}
+                      color={selectedFamilyMemberId === 'self' ? '#FFFFFF' : '#007D69'}
+                    />
+                    <Text
+                      style={[
+                        styles.familyMemberPillText,
+                        selectedFamilyMemberId === 'self' && styles.familyMemberPillTextActive,
+                      ]}
+                    >
+                      Self {quickName ? `(${quickName.split(' ')[0]})` : ''}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {familyMembers.map((member, idx) => {
+                    const mId = member.id || member._id || `fam-${idx}`;
+                    const isSelected = selectedFamilyMemberId === mId;
+                    const label = member.name || member.displayName || `Member ${idx + 1}`;
+                    const rel = member.relation || member.relationship || 'Family';
+                    return (
+                      <TouchableOpacity
+                        key={mId}
+                        style={[styles.familyMemberPill, isSelected && styles.familyMemberPillActive]}
+                        onPress={() => handleSelectFamilyMember(member)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons
+                          name="people"
+                          size={14}
+                          color={isSelected ? '#FFFFFF' : '#64748B'}
+                        />
+                        <Text
+                          style={[
+                            styles.familyMemberPillText,
+                            isSelected && styles.familyMemberPillTextActive,
+                          ]}
+                        >
+                          {label} ({rel})
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              <Text style={styles.inputLabel}>Patient / Contact Full Name *</Text>
                 <TextInput
                   style={[styles.formInput, addressErrors.name && styles.formInputError]}
                   value={deliveryName}
@@ -1358,14 +1507,43 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Door / Flat No., Street, Landmark *</Text>
                 <TextInput
+                  ref={deliveryAddressInputRef}
                   style={[styles.formInput, addressErrors.address && styles.formInputError]}
                   value={deliveryAddress}
-                  onChangeText={setDeliveryAddress}
+                  onChangeText={(t) => {
+                    setDeliveryAddress(t);
+                    if (addressErrors.address) setAddressErrors({ ...addressErrors, address: null });
+                  }}
                   multiline
                   numberOfLines={2}
-                  placeholder="e.g. No. 44, 2nd Cross, Saraswathipuram"
+                  placeholder={`Enter address in ${selectedCity} (Door/Flat No, Street, Area, Landmark)`}
                 />
-                {addressErrors.address && <Text style={styles.errorText}>{addressErrors.address}</Text>}
+                {addressErrors.address && (
+                  <View style={styles.addressErrorCard}>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                      <Ionicons name="alert-circle" size={16} color="#DC2626" style={{ marginTop: 2 }} />
+                      <Text style={styles.addressErrorCardText}>{addressErrors.address}</Text>
+                    </View>
+                    <View style={styles.addressErrorActionsRow}>
+                      <TouchableOpacity
+                        style={styles.changeLocBtnSmall}
+                        onPress={() => setCitySelectionModalVisible(true)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="swap-horizontal" size={13} color="#FFFFFF" />
+                        <Text style={styles.changeLocBtnSmallText}>Change Location</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.editAddrBtnSmall}
+                        onPress={() => deliveryAddressInputRef.current?.focus()}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="create-outline" size={13} color="#00B894" />
+                        <Text style={styles.editAddrBtnSmallText}>Edit Address</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
               </View>
 
               {/* City & Pincode Row */}
@@ -2227,6 +2405,115 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
       {renderOfferModal()}
       {renderExtendModal()}
       {renderPickupModal()}
+
+      {/* ============================================================
+          EQUIPMENT NEED MODAL
+      ============================================================ */}
+      <Modal
+        visible={equipmentNeedModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setEquipmentNeedModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setEquipmentNeedModalVisible(false)}
+        >
+          <View style={styles.modalContentCard} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Equipment</Text>
+              <TouchableOpacity onPress={() => setEquipmentNeedModalVisible(false)}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={true}>
+              {EQUIPMENT_CARE_NEEDS.map((item, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    styles.modalListItem,
+                    selectedEquipmentNeed === item && styles.modalListItemSelected,
+                  ]}
+                  onPress={() => {
+                    setSelectedEquipmentNeed(item);
+                    setEquipmentNeedModalVisible(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.modalListItemText,
+                      selectedEquipmentNeed === item && styles.modalListItemTextSelected,
+                    ]}
+                  >
+                    {item}
+                  </Text>
+                  {selectedEquipmentNeed === item && (
+                    <Ionicons name="checkmark-circle" size={18} color="#007D69" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ============================================================
+          DATE SELECTION MODAL
+      ============================================================ */}
+      <Modal
+        visible={dateModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setDateModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setDateModalVisible(false)}
+        >
+          <View style={styles.modalContentCard} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Delivery Date</Text>
+              <TouchableOpacity onPress={() => setDateModalVisible(false)}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <View style={{ paddingVertical: 8 }}>
+              {[
+                'Today (Immediate)',
+                'Tomorrow',
+                'In 2 Days',
+                'Next Week',
+              ].map((dStr, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    styles.modalListItem,
+                    quickDate === dStr && styles.modalListItemSelected,
+                  ]}
+                  onPress={() => {
+                    setQuickDate(dStr);
+                    setDateModalVisible(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.modalListItemText,
+                      quickDate === dStr && styles.modalListItemTextSelected,
+                    ]}
+                  >
+                    {dStr}
+                  </Text>
+                  {quickDate === dStr && (
+                    <Ionicons name="checkmark-circle" size={18} color="#007D69" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -2235,6 +2522,561 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
 // STYLES
 // ==========================================================
 const styles = StyleSheet.create({
+  // CITY LOCATION PILL
+  cityLocationPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E0F7F4',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    gap: 4,
+  },
+  cityLocationText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#007D69',
+  },
+  liveVerifiedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  livePulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#059669',
+  },
+  liveVerifiedPillText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  helplineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    gap: 4,
+  },
+  helplineBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0D9488',
+  },
+
+  // HERO BANNER CARD
+  heroBannerCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 6,
+  },
+  heroBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(94, 234, 212, 0.12)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(94, 234, 212, 0.25)',
+    gap: 5,
+    marginBottom: 12,
+  },
+  heroBadgePillText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#5EEAD4',
+  },
+  heroHeadline: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    lineHeight: 28,
+    letterSpacing: -0.4,
+    marginBottom: 8,
+  },
+  heroHeadlineAccent: {
+    color: '#2DD4BF',
+  },
+  heroSubheadline: {
+    fontSize: 13,
+    color: '#CBD5E1',
+    lineHeight: 19,
+    marginBottom: 16,
+  },
+  heroValuePropsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 18,
+  },
+  heroValueItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  heroValueText: {
+    fontSize: 11,
+    color: '#E2E8F0',
+    fontWeight: '600',
+  },
+  heroActionsRow: {
+    flexDirection: 'column',
+    gap: 10,
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  heroPrimaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00B894',
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  heroPrimaryBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  heroSecondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+  },
+  heroSecondaryBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#E2E8F0',
+  },
+
+  // Quick Match Box inside Hero
+  quickMatchCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  quickMatchHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  quickMatchTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  quickMatchSub: {
+    fontSize: 11,
+    color: '#94A3B8',
+  },
+  quickMatchChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+  },
+  quickChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(13, 148, 136, 0.22)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(45, 212, 191, 0.35)',
+    gap: 5,
+  },
+  quickChipText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#5EEAD4',
+  },
+
+  // Stats Grid (2x2 on Mobile with clean card items)
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 24,
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  statBox: {
+    width: '48%',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#00B894',
+    letterSpacing: -0.5,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+    marginTop: 3,
+    textAlign: 'center',
+  },
+
+  // QUICK FORM CARD
+  quickFormCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginVertical: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  quickFormTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  quickFormSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 14,
+    lineHeight: 16,
+  },
+  dropdownField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  dropdownFieldText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  placeholderText: {
+    color: '#94A3B8',
+    fontWeight: '400',
+  },
+  quickInputField: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginBottom: 10,
+  },
+  quickTextInput: {
+    fontSize: 13,
+    color: '#0F172A',
+    padding: 0,
+  },
+  quickSubmitBtn: {
+    backgroundColor: '#007D69',
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+    shadowColor: '#007D69',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  quickSubmitBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  quickContactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  quickContactBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+  },
+  quickContactBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#007D69',
+  },
+
+  // FAMILY MEMBERS PILLS
+  familyPillsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginVertical: 6,
+  },
+  familyMemberPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  familyMemberPillActive: {
+    backgroundColor: '#007D69',
+    borderColor: '#007D69',
+  },
+  familyMemberPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  familyMemberPillTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+
+  // MODAL STYLES
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalContentCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    width: '100%',
+    maxWidth: 420,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    marginBottom: 8,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  modalListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+  },
+  modalListItemSelected: {
+    backgroundColor: '#E0F7F4',
+  },
+  modalListItemText: {
+    fontSize: 14,
+    color: '#334155',
+  },
+  cityBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  cityBadgePillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  addressErrorCard: {
+    marginTop: 8,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: 10,
+    padding: 10,
+  },
+  addressErrorCardText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#B91C1C',
+    lineHeight: 17,
+  },
+  addressErrorActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+    justifyContent: 'flex-end',
+  },
+  changeLocBtnSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#DC2626',
+    borderRadius: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  changeLocBtnSmallText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  editAddrBtnSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  editAddrBtnSmallText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  alertIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  alertModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+  alertModalMessage: {
+    fontSize: 14,
+    color: '#475569',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  alertModalActionsRow: {
+    flexDirection: 'column',
+    gap: 10,
+  },
+  alertChangeLocBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#DC2626',
+    borderRadius: 10,
+    paddingVertical: 12,
+  },
+  alertChangeLocBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  alertEditAddrBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    paddingVertical: 12,
+  },
+  alertEditAddrBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  modalListItemTextSelected: {
+    fontWeight: '700',
+    color: '#007D69',
+  },
+
   safeContainer: {
     flex: 1,
     backgroundColor: '#F8FAFC',

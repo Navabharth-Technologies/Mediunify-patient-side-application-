@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../theme/colors';
+import { saveTransaction } from '../../services/transactionService';
 
 const INITIAL_TRANSACTIONS = [
   {
@@ -107,6 +108,24 @@ const WalletScreen = ({ navigation }) => {
     const updatedTxList = [newTx, ...transactions];
     setTransactions(updatedTxList);
     await AsyncStorage.setItem('@unnathi_wallet_transactions', JSON.stringify(updatedTxList));
+
+    try {
+      await saveTransaction({
+        id:          `TXN-WLT-${Date.now()}`,
+        refId:       `WLT-${Date.now()}`,
+        service:     'Wallet Top-Up',
+        serviceType: 'other',
+        title:       'Care Wallet Recharge',
+        facility:    'MediUnify Wallet',
+        date:        'Today, Just now',
+        rawDate:     new Date().toISOString(),
+        amount:      num,
+        mrp:         num,
+        status:      'Paid',
+        paymentMode: 'Instant UPI',
+        items:       [{ name: 'Wallet Balance Top-Up', qty: 1, price: num }],
+      });
+    } catch (_txErr) {}
 
     setTopUpModalVisible(false);
     showAlert('Top-Up Successful', `₹${num.toLocaleString('en-IN')} has been added to your MediUnify Wallet.`);

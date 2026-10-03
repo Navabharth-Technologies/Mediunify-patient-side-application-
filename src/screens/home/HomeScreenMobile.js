@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import {
   StatusBar,
   useWindowDimensions,
   FlatList,
+  Keyboard,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -30,22 +32,33 @@ import {
 
 import colors from '../../theme/colors';
 import { useCart } from '../../context/CartContext';
+import { saveTransaction } from '../../services/transactionService';
 
-const CITIES = ['Mysuru', 'Bengaluru', 'Mangaluru', 'Hubballi', 'Belagavi'];
+// Real Data Sources for Search
+import { doctors } from '../../data/doctors';
+import videoDoctors from '../../data/videoDoctors';
+import { LAB_TESTS_MASTER, LAB_PACKAGES, ALL_CITY_DIAGNOSTIC_CENTRES } from '../../data/labTestData';
+import pharmacyProducts from '../../data/pharmacyProducts';
+import { RADIOLOGY_TESTS } from '../../data/radiologyCatalogData';
+import { surgeryHospitals } from '../../data/surgeryHospitalsData';
+import { availableNursingServices } from '../../data/homeNursingData';
+import { medicalEquipments } from '../../data/equipmentData';
+
+const CITIES = ['Mysuru', 'Bengaluru', 'Hassan', 'Mangaluru', 'Hubballi', 'Belagavi'];
 
 const SPECIALIZED_PROGRAMS = [
   {
-    id: 'prog-ivf',
-    pillText: '0% EMI PLANS',
-    pillBg: '#FFF2ED',
-    pillColor: '#EA580C',
-    title: 'Fertility & IVF Specialists',
-    subtitle: '73% Success Rate • Confidential Counseling Program',
-    priceText: 'From ₹1,200',
-    badgeText: 'Explore IVF',
-    bgColor: '#FFF8F5',
-    borderColor: '#FFDBC8',
-    route: 'FertilityIvf',
+    id: 'prog-surgery',
+    pillText: 'ZERO HIDDEN COSTS',
+    pillBg: '#EFF6FF',
+    pillColor: '#1E3A8A',
+    title: 'Surgical Care & Hospitalization',
+    subtitle: 'NABH Accredited Hospitals • Free Second Opinion & Quotes',
+    priceText: 'Cashless TPA',
+    badgeText: 'Explore Surgeries',
+    bgColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
+    route: 'HospitalCare',
   },
   {
     id: 'prog-checkup',
@@ -88,7 +101,7 @@ const SPECIALIZED_PROGRAMS = [
   },
 ];
 
-const HomeScreen = ({ navigation }) => {
+const HomeScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
   const isTablet = width >= 600;
   const isLargeTablet = width >= 900;
@@ -130,6 +143,449 @@ const HomeScreen = ({ navigation }) => {
   const [walletModalVisible, setWalletModalVisible] = useState(false);
   const [quickTopUpAmount, setQuickTopUpAmount] = useState('500');
   const [emergencyModalVisible, setEmergencyModalVisible] = useState(false);
+  const [activeMembership, setActiveMembership] = useState(null);
+
+  // ============================================================
+  // SEARCH STATE & SEARCH ENGINE (MOBILE HOME SEARCH BAR)
+  // ============================================================
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(route?.params?.searchQuery || '');
+  const [selectedSearchCategory, setSelectedSearchCategory] = useState('All');
+  const [searchDebounceQuery, setSearchDebounceQuery] = useState(route?.params?.searchQuery || '');
+  const [isSearching, setIsSearching] = useState(false);
+  const searchInputRef = useRef(null);
+
+  const POPULAR_SEARCHES = [
+    'CBC Test',
+    'Paracetamol',
+    'General Physician',
+    'Cardiologist',
+    'CT Scan',
+    'Home Nursing',
+    'Ultrasound',
+    'Full Body Checkup',
+  ];
+
+  const handleExitSearch = useCallback(() => {
+    Keyboard.dismiss();
+    setSearchQuery('');
+    setSearchDebounceQuery('');
+    setSelectedSearchCategory('All');
+    setIsSearchActive(false);
+  }, []);
+
+  // Android Hardware Back button closes search
+  useEffect(() => {
+    if (!isSearchActive) return;
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleExitSearch();
+      return true;
+    });
+    return () => backHandler.remove();
+  }, [isSearchActive, handleExitSearch]);
+
+  // Activate search if routed with autoFocusSearch param
+  useEffect(() => {
+    if (route?.params?.autoFocusSearch) {
+      setIsSearchActive(true);
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 150);
+    }
+  }, [route?.params?.autoFocusSearch]);
+
+  // Debounce input to prevent UI lag while typing
+  useEffect(() => {
+    if (!isSearchActive) return;
+    setIsSearching(true);
+    const handler = setTimeout(() => {
+      setSearchDebounceQuery(searchQuery);
+      setIsSearching(false);
+    }, 120);
+    return () => clearTimeout(handler);
+  }, [searchQuery, isSearchActive]);
+
+  const handleVoiceSearch = () => {
+    const voiceSuggestions = ['Doctor', 'CBC Test', 'Paracetamol', 'CT Scan'];
+    const chosen = voiceSuggestions[Math.floor(Math.random() * voiceSuggestions.length)];
+    setSearchQuery(chosen);
+    showToast(`Voice input: "${chosen}"`);
+  };
+
+  // Real Search Algorithm matching user query across all existing data sources
+  const allSearchResults = useMemo(() => {
+    const rawQuery = searchDebounceQuery.trim().toLowerCase();
+    if (!rawQuery) return [];
+
+    const cityLower = (selectedCity || 'Mysuru').toLowerCase();
+    const isMysore = cityLower === 'mysuru' || cityLower === 'mysore';
+    const isBangalore = cityLower === 'bengaluru' || cityLower === 'bangalore';
+
+    const results = [];
+
+    const match = (str) => {
+      if (!str || typeof str !== 'string') return false;
+      return str.toLowerCase().includes(rawQuery);
+    };
+
+    const matchesCity = (locationStr) => {
+      if (!locationStr || typeof locationStr !== 'string') return true;
+      const l = locationStr.toLowerCase();
+      if (l.includes(cityLower)) return true;
+      if (isMysore && (l.includes('mysuru') || l.includes('mysore'))) return true;
+      if (isBangalore && (l.includes('bengaluru') || l.includes('bangalore'))) return true;
+      return false;
+    };
+
+    // 1. DOCTORS (In-Clinic)
+    if (Array.isArray(doctors)) {
+      const isDocWord = ['doctor', 'doc', 'physician', 'specialist', 'dr', 'clinic'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+      doctors.forEach((doc) => {
+        if (!matchesCity(doc.clinicArea) && !matchesCity(doc.clinicAddress)) return;
+
+        if (
+          match(doc.name) ||
+          match(doc.specialty) ||
+          match(doc.specialtyKey) ||
+          match(doc.clinicName) ||
+          (isDocWord && rawQuery.length >= 3)
+        ) {
+          results.push({
+            id: `doc-${doc.id}`,
+            name: doc.name,
+            category: 'Doctors',
+            subtitle: `${doc.specialty}${doc.clinicArea ? ` • ${doc.clinicArea.split(',')[0]}` : ''}`,
+            badge: doc.fee ? `₹${doc.fee}` : '',
+            icon: 'person',
+            iconType: 'ionicons',
+            iconBg: '#E0F2FE',
+            iconColor: '#0284C7',
+            priority: match(doc.name) ? 1 : 2,
+            onPress: () => {
+              handleExitSearch();
+              navigation.navigate('DoctorBooking', { doctor: doc });
+            },
+          });
+        }
+      });
+    }
+
+    // 2. VIDEO CONSULTATION DOCTORS
+    if (Array.isArray(videoDoctors)) {
+      const isVideoWord = ['video', 'online', 'teleconsultation', 'call'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+      videoDoctors.forEach((doc) => {
+        if (
+          match(doc.name) ||
+          match(doc.specialty) ||
+          (isVideoWord && rawQuery.length >= 3)
+        ) {
+          results.push({
+            id: `vdoc-${doc.id}`,
+            name: doc.name,
+            category: 'Video Consultation',
+            subtitle: `${doc.specialty} • Video Call`,
+            badge: doc.fee ? `₹${doc.fee}` : '',
+            icon: 'videocam',
+            iconType: 'ionicons',
+            iconBg: '#E0F7FA',
+            iconColor: '#00C2CB',
+            priority: match(doc.name) ? 1 : 3,
+            onPress: () => {
+              handleExitSearch();
+              navigation.navigate('VideoBooking', { doctor: doc });
+            },
+          });
+        }
+      });
+    }
+
+    // 3. LAB TESTS & PACKAGES
+    if (Array.isArray(LAB_TESTS_MASTER)) {
+      const isLabWord = ['lab', 'test', 'blood', 'pathology', 'diagnostics', 'cbc', 'sugar', 'lipid', 'thyroid'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+      LAB_TESTS_MASTER.forEach((test) => {
+        if (
+          match(test.name) ||
+          match(test.category) ||
+          match(test.department) ||
+          (isLabWord && rawQuery.length >= 3)
+        ) {
+          results.push({
+            id: `lab-${test.id}`,
+            name: test.name,
+            category: 'Lab Tests',
+            subtitle: `Lab Test${test.department ? ` • ${test.department}` : ''}`,
+            badge: test.price ? `₹${test.price}` : (test.mrp ? `₹${test.mrp}` : 'Home Pickup'),
+            icon: 'flask',
+            iconType: 'ionicons',
+            iconBg: '#F0FDFA',
+            iconColor: '#0D9488',
+            priority: match(test.name) ? 1 : 2,
+            onPress: () => {
+              handleExitSearch();
+              navigation.navigate('LabTests', { searchTest: test.name });
+            },
+          });
+        }
+      });
+    }
+
+    if (Array.isArray(LAB_PACKAGES)) {
+      LAB_PACKAGES.forEach((pkg) => {
+        if (match(pkg.name) || match(pkg.description) || rawQuery.includes('package') || rawQuery.includes('checkup')) {
+          results.push({
+            id: `pkg-${pkg.id}`,
+            name: pkg.name,
+            category: 'Lab Test Packages',
+            subtitle: `Health Package • ${pkg.testsCount || 'Comprehensive'}`,
+            badge: pkg.price ? `₹${pkg.price}` : '',
+            icon: 'fitness',
+            iconType: 'ionicons',
+            iconBg: '#FEF3C7',
+            iconColor: '#D97706',
+            priority: match(pkg.name) ? 1 : 2,
+            onPress: () => {
+              handleExitSearch();
+              navigation.navigate('LabTests', { category: 'packages' });
+            },
+          });
+        }
+      });
+    }
+
+    // 4. SCAN & X-RAY (RADIOLOGY)
+    if (Array.isArray(RADIOLOGY_TESTS)) {
+      const isScanWord = ['scan', 'xray', 'x-ray', 'mri', 'ct', 'ultrasound', 'echo', 'ecg', 'radiology'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+      RADIOLOGY_TESTS.forEach((scan) => {
+        if (
+          match(scan.name) ||
+          match(scan.categoryName) ||
+          match(scan.shortName) ||
+          match(scan.modality) ||
+          (isScanWord && rawQuery.length >= 3)
+        ) {
+          results.push({
+            id: `rad-${scan.id}`,
+            name: scan.name,
+            category: 'Scan & X-Ray',
+            subtitle: `Scan & X-Ray • ${scan.modality || scan.categoryName || 'Radiology'}`,
+            badge: scan.price ? `₹${scan.price}` : (scan.mrp ? `₹${scan.mrp}` : ''),
+            icon: 'scan-outline',
+            iconType: 'ionicons',
+            iconBg: '#EEF2FF',
+            iconColor: '#4F46E5',
+            priority: match(scan.name) ? 1 : 2,
+            onPress: () => {
+              handleExitSearch();
+              navigation.navigate('RadiologyLabs', { searchTest: scan.name, testId: scan.id });
+            },
+          });
+        }
+      });
+    }
+
+    // 5. MEDICINES & PHARMACY
+    if (Array.isArray(pharmacyProducts)) {
+      const isMedWord = ['medicine', 'pharmacy', 'tablet', 'syrup', 'capsule', 'drug', 'med', 'paracetamol', 'dolo'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+      pharmacyProducts.forEach((med) => {
+        if (
+          match(med.name) ||
+          match(med.brand) ||
+          match(med.activeIngredients) ||
+          match(med.uses) ||
+          (isMedWord && rawQuery.length >= 3)
+        ) {
+          results.push({
+            id: `med-${med.id}`,
+            name: med.name,
+            category: 'Medicines',
+            subtitle: `Medicine • ${med.brand || 'Pharmacy'}`,
+            badge: med.price ? `₹${med.price}` : '',
+            icon: 'pill',
+            iconType: 'material',
+            iconBg: '#ECFDF5',
+            iconColor: '#059669',
+            priority: match(med.name) ? 1 : 2,
+            onPress: () => {
+              handleExitSearch();
+              navigation.navigate('ProductDetails', { product: med });
+            },
+          });
+        }
+      });
+    }
+
+    // 6. CLINICS & DIAGNOSTIC CENTRES
+    if (Array.isArray(ALL_CITY_DIAGNOSTIC_CENTRES)) {
+      const isClinicWord = ['clinic', 'centre', 'center', 'lab', 'hospital'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+      ALL_CITY_DIAGNOSTIC_CENTRES.forEach((centre) => {
+        if (!matchesCity(centre.city) && !matchesCity(centre.address)) return;
+        if (
+          match(centre.name) ||
+          match(centre.area) ||
+          (isClinicWord && rawQuery.length >= 3)
+        ) {
+          results.push({
+            id: `clinic-${centre.id}`,
+            name: centre.name,
+            category: 'Clinics',
+            subtitle: `Clinic & Lab • ${centre.area || selectedCity}`,
+            badge: centre.rating ? `★ ${centre.rating}` : 'Verified',
+            icon: 'business',
+            iconType: 'ionicons',
+            iconBg: '#F8FAFC',
+            iconColor: '#475569',
+            priority: match(centre.name) ? 1 : 2,
+            onPress: () => {
+              handleExitSearch();
+              navigation.navigate('LabTests');
+            },
+          });
+        }
+      });
+    }
+
+    // 7. HOSPITALS & SURGERY
+    if (Array.isArray(surgeryHospitals)) {
+      const isHospWord = ['hospital', 'surgery', 'icu', 'emergency', 'care'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+      surgeryHospitals.forEach((hosp) => {
+        if (!matchesCity(hosp.city) && !matchesCity(hosp.location)) return;
+        if (
+          match(hosp.name) ||
+          match(hosp.location) ||
+          match(hosp.overview) ||
+          (isHospWord && rawQuery.length >= 3)
+        ) {
+          results.push({
+            id: `hosp-${hosp.id}`,
+            name: hosp.name,
+            category: 'Hospitals',
+            subtitle: `Hospital & Surgery • ${hosp.location || selectedCity}`,
+            badge: hosp.rating ? `★ ${hosp.rating}` : 'NABH',
+            icon: 'hospital-building',
+            iconType: 'material',
+            iconBg: '#EFF6FF',
+            iconColor: '#1D4ED8',
+            priority: match(hosp.name) ? 1 : 2,
+            onPress: () => {
+              handleExitSearch();
+              navigation.navigate('HospitalCare');
+            },
+          });
+        }
+      });
+    }
+
+    // 8. HOME NURSING
+    if (Array.isArray(availableNursingServices)) {
+      const isNurseWord = ['nurse', 'nursing', 'attendant', 'elder', 'caregiver', 'injection', 'dressing'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+      availableNursingServices.forEach((serv) => {
+        const title = serv.title || serv.name;
+        if (
+          match(title) ||
+          match(serv.desc) ||
+          match(serv.serviceType) ||
+          (isNurseWord && rawQuery.length >= 3)
+        ) {
+          results.push({
+            id: `nurse-${serv.id}`,
+            name: title,
+            category: 'Home Nursing',
+            subtitle: `Home Nursing • ${serv.duration || 'Certified Staff'}`,
+            badge: serv.price ? `₹${serv.price}` : '',
+            icon: 'home-heart',
+            iconType: 'material',
+            iconBg: '#F0FDFA',
+            iconColor: '#0D9488',
+            priority: match(title) ? 1 : 2,
+            onPress: () => {
+              handleExitSearch();
+              navigation.navigate('NurseBooking');
+            },
+          });
+        }
+      });
+    }
+
+    // 9. MEDICAL EQUIPMENT RENTAL
+    if (Array.isArray(medicalEquipments)) {
+      const isEquipWord = ['equipment', 'rental', 'rent', 'oxygen', 'bed', 'wheelchair', 'bipap'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+      medicalEquipments.forEach((eq) => {
+        if (
+          match(eq.name) ||
+          match(eq.category) ||
+          (isEquipWord && rawQuery.length >= 3)
+        ) {
+          results.push({
+            id: `eq-${eq.id}`,
+            name: eq.name,
+            category: 'Equipment Rental',
+            subtitle: `Equipment Rental • ${eq.category || 'Home Delivery'}`,
+            badge: eq.rentPerMonth ? `₹${eq.rentPerMonth}/mo` : '',
+            icon: 'fitness',
+            iconType: 'ionicons',
+            iconBg: '#F3E8FF',
+            iconColor: '#7E22CE',
+            priority: match(eq.name) ? 1 : 2,
+            onPress: () => {
+              handleExitSearch();
+              navigation.navigate('EquipmentRental');
+            },
+          });
+        }
+      });
+    }
+
+    // 10. AYURVEDA & WELLNESS
+    const isAyurWord = ['ayurveda', 'wellness', 'panchakarma', 'herbal', 'nadi', 'dosha'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
+    if (isAyurWord) {
+      results.push({
+        id: 'ayurveda-wellness',
+        name: 'Ayurveda & Panchakarma Therapies',
+        category: 'Ayurveda & Wellness',
+        subtitle: 'Authentic Herbal Therapies & Nadi Pariksha',
+        badge: 'AYUSH',
+        icon: 'leaf',
+        iconType: 'ionicons',
+        iconBg: '#ECFDF5',
+        iconColor: '#059669',
+        priority: 1,
+        onPress: () => {
+          handleExitSearch();
+          navigation.navigate('AyurvedaWellness');
+        },
+      });
+    }
+
+    // Sort: priority 1 (direct title/name match) first, then alphabetical
+    results.sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      return a.name.localeCompare(b.name);
+    });
+
+    return results;
+  }, [searchDebounceQuery, selectedCity, handleExitSearch, navigation]);
+
+  // Compute available matching categories for filter chips (only show categories that actually have matching results)
+  const matchingCategories = useMemo(() => {
+    if (allSearchResults.length === 0) return [];
+    const catCounts = {};
+    allSearchResults.forEach((r) => {
+      catCounts[r.category] = (catCounts[r.category] || 0) + 1;
+    });
+    const categories = Object.keys(catCounts).map((cat) => ({
+      name: cat,
+      count: catCounts[cat],
+    }));
+    return [{ name: 'All', count: allSearchResults.length }, ...categories];
+  }, [allSearchResults]);
+
+  // Filtered by selected category chip if user tapped a chip
+  const displayedSearchResults = useMemo(() => {
+    if (selectedSearchCategory === 'All') return allSearchResults.slice(0, 30);
+    return allSearchResults
+      .filter((r) => r.category === selectedSearchCategory)
+      .slice(0, 30);
+  }, [allSearchResults, selectedSearchCategory]);
 
   // Load User Info & Sync on Screen Focus
   useEffect(() => {
@@ -192,6 +648,20 @@ const HomeScreen = ({ navigation }) => {
       if (savedWallet) {
         setWalletBalance(parseInt(savedWallet, 10) || 744);
       }
+
+      try {
+        const memStr = await AsyncStorage.getItem('@mediunify_membership');
+        if (memStr) {
+          const parsedMem = JSON.parse(memStr);
+          if (parsedMem && parsedMem.status === 'active') {
+            setActiveMembership(parsedMem);
+          } else {
+            setActiveMembership(null);
+          }
+        } else {
+          setActiveMembership(null);
+        }
+      } catch (e) {}
     } catch (e) {
       console.log('Error loading home user data:', e);
     }
@@ -210,6 +680,23 @@ const HomeScreen = ({ navigation }) => {
     const newBal = walletBalance + num;
     setWalletBalance(newBal);
     await AsyncStorage.setItem('@unnathi_wallet_balance', newBal.toString());
+    try {
+      await saveTransaction({
+        id:          `TXN-WLT-${Date.now()}`,
+        refId:       `WLT-${Date.now()}`,
+        service:     'Wallet Top-Up',
+        serviceType: 'other',
+        title:       'Care Wallet Recharge',
+        facility:    'MediUnify Wallet',
+        date:        'Today, Just now',
+        rawDate:     new Date().toISOString(),
+        amount:      num,
+        mrp:         num,
+        status:      'Paid',
+        paymentMode: 'Instant UPI',
+        items:       [{ name: 'Wallet Balance Top-Up', qty: 1, price: num }],
+      });
+    } catch (_txErr) {}
     setWalletModalVisible(false);
     showToast(`₹${num.toLocaleString('en-IN')} added to Care Wallet!`);
   };
@@ -303,67 +790,267 @@ const HomeScreen = ({ navigation }) => {
       <ScrollView
         style={[styles.scrollView, isTablet && styles.tabletScrollView]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={[
           styles.scrollContent,
           isTablet && styles.scrollContentTablet,
         ]}
       >
         {/* ============================================================
-            1. ASK MEDIUNIFY AI BANNER (TOP HERO)
+            1. ASK MEDIUNIFY AI BANNER (TOP HERO) - Shown when not searching
         ============================================================ */}
-        <View style={styles.aiBannerCard}>
-          <View style={styles.aiBannerLeft}>
-            <View style={styles.aiPillBadge}>
-              <Ionicons name="sparkles" size={11} color="#007D69" />
-              <Text style={styles.aiPillText}>AI ASSISTANT</Text>
+        {!isSearchActive && (
+          <View style={styles.aiBannerCard}>
+            <View style={styles.aiBannerLeft}>
+              <View style={styles.aiPillBadge}>
+                <Ionicons name="sparkles" size={11} color="#007D69" />
+                <Text style={styles.aiPillText}>AI ASSISTANT</Text>
+              </View>
+              <Text style={styles.aiBannerTitle}>Ask MediUnify AI</Text>
+              <Text style={styles.aiBannerSubtitle}>
+                Get instant answers to your symptoms, medications & medical reports.
+              </Text>
+              <TouchableOpacity
+                style={styles.aiChatButton}
+                activeOpacity={0.85}
+                onPress={() => navigation.navigate('Chatbot')}
+              >
+                <Text style={styles.aiChatButtonText}>Chat with AI →</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.aiBannerTitle}>Ask MediUnify AI</Text>
-            <Text style={styles.aiBannerSubtitle}>
-              Get instant answers to your symptoms, medications & medical reports.
-            </Text>
-            <TouchableOpacity
-              style={styles.aiChatButton}
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate('Chatbot')}
-            >
-              <Text style={styles.aiChatButtonText}>Chat with AI →</Text>
-            </TouchableOpacity>
-          </View>
 
-          <View style={styles.aiBannerRight}>
-            <Image
-              source={require('../../../assets/ai-bot-avatar.png')}
-              style={styles.aiBannerAvatar}
-              resizeMode="contain"
-            />
-            <View style={styles.aiSpeechBubble}>
-              <Text style={styles.aiSpeechText}>Hi!</Text>
-            </View>
-            <View style={styles.aiMiniDotsRow}>
-              <View style={[styles.aiMiniDot, styles.aiMiniDotActive]} />
-              <View style={styles.aiMiniDot} />
-              <View style={styles.aiMiniDot} />
-              <View style={styles.aiMiniDot} />
+            <View style={styles.aiBannerRight}>
+              <Image
+                source={require('../../../assets/ai-bot-avatar.png')}
+                style={styles.aiBannerAvatar}
+                resizeMode="contain"
+              />
+              <View style={styles.aiSpeechBubble}>
+                <Text style={styles.aiSpeechText}>Hi!</Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
 
         {/* ============================================================
-            2. SEARCH BAR
+            2. FULLY FUNCTIONAL HEALTHCARE SEARCH BAR
         ============================================================ */}
         <View style={styles.searchBarWrapper}>
-          <TouchableOpacity
-            style={styles.searchBarBox}
-            activeOpacity={0.88}
-            onPress={() => navigation.navigate('GlobalSearch')}
-          >
-            <Ionicons name="search-outline" size={19} color="#64748B" />
-            <Text style={styles.searchPlaceholder} numberOfLines={1}>
-              Search doctors, tests, medicines, clinics...
-            </Text>
-            <Ionicons name="mic-outline" size={19} color="#64748B" />
-          </TouchableOpacity>
+          <View style={[styles.searchBarBox, isSearchActive && styles.searchBarBoxActive]}>
+            {isSearchActive ? (
+              <TouchableOpacity
+                onPress={handleExitSearch}
+                style={styles.searchBackIconBtn}
+                activeOpacity={0.7}
+                accessibilityLabel="Back to Home"
+              >
+                <Ionicons name="arrow-back" size={20} color="#0F172A" />
+              </TouchableOpacity>
+            ) : (
+              <Ionicons name="search-outline" size={19} color="#64748B" />
+            )}
+
+            <TextInput
+              ref={searchInputRef}
+              style={styles.searchInput}
+              placeholder="Search doctors, tests, medicines, clinics..."
+              placeholderTextColor="#64748B"
+              value={searchQuery}
+              onChangeText={(text) => {
+                setSearchQuery(text);
+                if (selectedSearchCategory !== 'All') {
+                  setSelectedSearchCategory('All');
+                }
+              }}
+              onFocus={() => setIsSearchActive(true)}
+              returnKeyType="search"
+              autoCorrect={false}
+              autoCapitalize="none"
+              clearButtonMode="never"
+            />
+
+            {searchQuery.length > 0 ? (
+              <TouchableOpacity
+                onPress={() => {
+                  setSearchQuery('');
+                  searchInputRef.current?.focus();
+                }}
+                style={styles.searchClearBtn}
+                activeOpacity={0.7}
+                accessibilityLabel="Clear Search"
+              >
+                <Ionicons name="close-circle" size={19} color="#94A3B8" />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={handleVoiceSearch}
+                style={styles.searchMicBtn}
+                activeOpacity={0.7}
+                accessibilityLabel="Voice Search"
+              >
+                <Ionicons name="mic-outline" size={19} color="#64748B" />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
+
+        {isSearchActive ? (
+          /* ============================================================
+              CLEAN SEARCH RESULTS VIEW
+          ============================================================ */
+          <View style={styles.searchResultsContainer}>
+            {isSearching && (
+              <View style={styles.searchLoadingRow}>
+                <ActivityIndicator size="small" color="#007D69" />
+                <Text style={styles.searchLoadingText}>Searching services in {selectedCity}...</Text>
+              </View>
+            )}
+
+            {/* 1. SMART EMPTY SEARCH STATE */}
+            {!searchQuery.trim() && (
+              <View style={styles.emptySearchWrapper}>
+                <View style={styles.emptySearchPromptCard}>
+                  <View style={styles.emptySearchIconCircle}>
+                    <Ionicons name="search-outline" size={26} color="#007D69" />
+                  </View>
+                  <Text style={styles.emptySearchPromptTitle}>
+                    Search for doctors, tests, medicines or services
+                  </Text>
+                  <Text style={styles.emptySearchPromptSubtitle}>
+                    Showing providers and items available in {selectedCity}
+                  </Text>
+                </View>
+
+                {/* POPULAR SEARCHES */}
+                <View style={styles.popularSearchesBlock}>
+                  <Text style={styles.popularSearchesHeading}>POPULAR SEARCHES</Text>
+                  <View style={styles.popularChipsWrap}>
+                    {POPULAR_SEARCHES.map((chip, idx) => (
+                      <TouchableOpacity
+                        key={idx}
+                        style={styles.popularChip}
+                        activeOpacity={0.75}
+                        onPress={() => {
+                          setSearchQuery(chip);
+                          searchInputRef.current?.focus();
+                        }}
+                      >
+                        <Ionicons name="trending-up-outline" size={13} color="#007D69" />
+                        <Text style={styles.popularChipText}>{chip}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* 2. NO RESULTS FOUND */}
+            {searchQuery.trim() && !isSearching && allSearchResults.length === 0 && (
+              <View style={styles.noResultsCard}>
+                <View style={styles.noResultsIconCircle}>
+                  <Ionicons name="search-outline" size={30} color="#94A3B8" />
+                </View>
+                <Text style={styles.noResultsTitle}>No results found</Text>
+                <Text style={styles.noResultsSubtitle}>
+                  Try searching for a doctor, test, medicine or service.
+                </Text>
+                <TouchableOpacity
+                  style={styles.clearSearchPromptBtn}
+                  onPress={() => {
+                    setSearchQuery('');
+                    searchInputRef.current?.focus();
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.clearSearchPromptText}>Clear Search</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* 3. MATCHING SEARCH RESULTS */}
+            {searchQuery.trim() && allSearchResults.length > 0 && (
+              <View style={styles.resultsListBlock}>
+                {/* Category Filter Chips (Only show categories that actually have matching results) */}
+                {matchingCategories.length > 2 && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.categoryChipsScroll}
+                  >
+                    {matchingCategories.map((catItem) => {
+                      const isSelected = selectedSearchCategory === catItem.name;
+                      return (
+                        <TouchableOpacity
+                          key={catItem.name}
+                          style={[
+                            styles.categoryFilterChip,
+                            isSelected && styles.categoryFilterChipActive,
+                          ]}
+                          activeOpacity={0.75}
+                          onPress={() => setSelectedSearchCategory(catItem.name)}
+                        >
+                          <Text
+                            style={[
+                              styles.categoryFilterChipText,
+                              isSelected && styles.categoryFilterChipTextActive,
+                            ]}
+                          >
+                            {catItem.name} ({catItem.count})
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                )}
+
+                {/* Result Items */}
+                <View style={styles.resultCardsWrapper}>
+                  {displayedSearchResults.map((item) => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.searchResultRow}
+                      activeOpacity={0.7}
+                      onPress={item.onPress}
+                    >
+                      <View style={[styles.resultIconBox, { backgroundColor: item.iconBg }]}>
+                        {item.iconType === 'material' ? (
+                          <MaterialCommunityIcons name={item.icon} size={20} color={item.iconColor} />
+                        ) : (
+                          <Ionicons name={item.icon} size={20} color={item.iconColor} />
+                        )}
+                      </View>
+
+                      <View style={styles.resultInfoCol}>
+                        <Text style={styles.resultItemName} numberOfLines={1}>
+                          {item.name}
+                        </Text>
+                        <Text style={styles.resultItemSubtitle} numberOfLines={1}>
+                          {item.subtitle}
+                        </Text>
+                      </View>
+
+                      <View style={styles.resultRightCol}>
+                        {item.badge ? (
+                          <View style={styles.resultPriceBadge}>
+                            <Text style={styles.resultPriceBadgeText}>{item.badge}</Text>
+                          </View>
+                        ) : (
+                          <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            <View style={{ height: 120 }} />
+          </View>
+        ) : (
+          /* ============================================================
+              REGULAR HOME CONTENT (CARE HUB, SERVICES, PROGRAMS)
+          ============================================================ */
+          <>
 
         {/* ============================================================
             3. CARE HUB
@@ -465,20 +1152,32 @@ const HomeScreen = ({ navigation }) => {
               <Ionicons name="chevron-forward" size={15} color="#007D69" />
             </TouchableOpacity>
 
-            {/* Card 2: Partner Benefits */}
+            {/* Card 2: Membership / Partner Benefits */}
             <TouchableOpacity
               style={styles.highlightCard}
               activeOpacity={0.85}
-              onPress={() => navigation.navigate('HealthInsurance')}
+              onPress={() => navigation.navigate('Membership')}
             >
-              <View style={[styles.highlightIconSquare, { backgroundColor: '#EEF2FF' }]}>
-                <Ionicons name="card" size={17} color="#1E3A8A" />
+              <View style={[styles.highlightIconSquare, { backgroundColor: activeMembership ? '#FEF3C7' : '#EEF2FF' }]}>
+                <Ionicons
+                  name={activeMembership ? 'ribbon' : 'card'}
+                  size={17}
+                  color={activeMembership ? '#D97706' : '#1E3A8A'}
+                />
               </View>
               <View style={{ flex: 1, marginLeft: 8 }}>
-                <Text style={styles.highlightTitle} numberOfLines={1}>Partner Benefits</Text>
-                <Text style={styles.highlightSub} numberOfLines={1}>100% Cashless Claims</Text>
+                <Text style={styles.highlightTitle} numberOfLines={1}>Membership</Text>
+                <Text style={styles.highlightSub} numberOfLines={1}>
+                  {activeMembership
+                    ? `${activeMembership.tierName} Member • View Benefits →`
+                    : 'Explore Memberships →'}
+                </Text>
               </View>
-              <Ionicons name="chevron-forward" size={15} color="#1E3A8A" />
+              <Ionicons
+                name="chevron-forward"
+                size={15}
+                color={activeMembership ? '#D97706' : '#1E3A8A'}
+              />
             </TouchableOpacity>
           </View>
         </View>
@@ -489,23 +1188,22 @@ const HomeScreen = ({ navigation }) => {
             - Home Nursing & Caregiver
             - Scans & X-Ray
             - Order Medicine
-            - Sub-Row: Order with Doctor's Prescription + More →
         ============================================================ */}
         <View style={styles.billsSection}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.billsSectionTitle}>Healthcare & Services</Text>
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => navigation.navigate('AllServices')}
+              onPress={() => navigation.navigate('AllServices', { city: selectedCity, location: locationName })}
             >
               <Text style={styles.viewAllLink}>View All →</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.billsGrid}>
+          <View style={[styles.billsGrid, isTablet && styles.billsGridTablet]}>
             {/* Tile 1: In-Clinic Visit */}
             <TouchableOpacity
-              style={styles.billTile}
+              style={[styles.billTile, isTablet && styles.billTileTablet]}
               activeOpacity={0.82}
               onPress={() => navigation.navigate('DoctorList')}
             >
@@ -517,7 +1215,7 @@ const HomeScreen = ({ navigation }) => {
 
             {/* Tile 2: Home Nursing & Caregiver */}
             <TouchableOpacity
-              style={styles.billTile}
+              style={[styles.billTile, isTablet && styles.billTileTablet]}
               activeOpacity={0.82}
               onPress={() => navigation.navigate('NurseBooking')}
             >
@@ -529,7 +1227,7 @@ const HomeScreen = ({ navigation }) => {
 
             {/* Tile 3: Scans & X-Ray */}
             <TouchableOpacity
-              style={styles.billTile}
+              style={[styles.billTile, isTablet && styles.billTileTablet]}
               activeOpacity={0.82}
               onPress={() => navigation.navigate('RadiologyLabs')}
             >
@@ -541,7 +1239,7 @@ const HomeScreen = ({ navigation }) => {
 
             {/* Tile 4: Order Medicine */}
             <TouchableOpacity
-              style={styles.billTile}
+              style={[styles.billTile, isTablet && styles.billTileTablet]}
               activeOpacity={0.82}
               onPress={() => navigation.navigate('Pharmacy')}
             >
@@ -550,28 +1248,59 @@ const HomeScreen = ({ navigation }) => {
               </View>
               <Text style={styles.billTileText}>Order{'\n'}Medicine</Text>
             </TouchableOpacity>
-          </View>
 
-          {/* Sub-Banner Row: Order with Doctor's Prescription + More -> button */}
-          <View style={styles.billsSubRow}>
-            <TouchableOpacity
-              style={styles.billsWidePill}
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate('Pharmacy')}
-            >
-              <View style={styles.billsCardMiniIconBox}>
-                <MaterialCommunityIcons name="card-bulleted-outline" size={20} color="#007D69" />
-              </View>
-              <Text style={styles.billsWidePillText}>Order with Doctor's Prescription</Text>
-            </TouchableOpacity>
+            {/* Tablet-Only Services: 4 More Services */}
+            {isTablet && (
+              <>
+                {/* Tile 5: Hospital & Surgery */}
+                <TouchableOpacity
+                  style={[styles.billTile, styles.billTileTablet]}
+                  activeOpacity={0.82}
+                  onPress={() => navigation.navigate('HospitalCare')}
+                >
+                  <View style={styles.billTileIconBox}>
+                    <MaterialCommunityIcons name="domain" size={26} color="#007D69" />
+                  </View>
+                  <Text style={styles.billTileText}>Hospital &{'\n'}Surgery</Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.billsMoreBtn}
-              activeOpacity={0.82}
-              onPress={() => navigation.navigate('AllServices')}
-            >
-              <Text style={styles.billsMoreBtnText}>More →</Text>
-            </TouchableOpacity>
+                {/* Tile 6: Equipment Rental */}
+                <TouchableOpacity
+                  style={[styles.billTile, styles.billTileTablet]}
+                  activeOpacity={0.82}
+                  onPress={() => navigation.navigate('EquipmentRental')}
+                >
+                  <View style={styles.billTileIconBox}>
+                    <MaterialCommunityIcons name="wheelchair-accessibility" size={26} color="#007D69" />
+                  </View>
+                  <Text style={styles.billTileText}>Equipment{'\n'}Rental</Text>
+                </TouchableOpacity>
+
+                {/* Tile 7: Ayurveda & Wellness */}
+                <TouchableOpacity
+                  style={[styles.billTile, styles.billTileTablet]}
+                  activeOpacity={0.82}
+                  onPress={() => navigation.navigate('AyurvedaWellness')}
+                >
+                  <View style={styles.billTileIconBox}>
+                    <Ionicons name="leaf-outline" size={25} color="#007D69" />
+                  </View>
+                  <Text style={styles.billTileText}>Ayurveda &{'\n'}Wellness</Text>
+                </TouchableOpacity>
+
+                {/* Tile 8: Health Insurance */}
+                <TouchableOpacity
+                  style={[styles.billTile, styles.billTileTablet]}
+                  activeOpacity={0.82}
+                  onPress={() => navigation.navigate('HealthInsurance')}
+                >
+                  <View style={styles.billTileIconBox}>
+                    <Ionicons name="shield-checkmark-outline" size={25} color="#007D69" />
+                  </View>
+                  <Text style={styles.billTileText}>Health{'\n'}Insurance</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
 
@@ -586,12 +1315,6 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.programsSection}>
           <View style={styles.programsHeaderRow}>
             <Text style={styles.programsTitle}>Specialized Care & Programs</Text>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => navigation.navigate('AllServices')}
-            >
-              <Text style={styles.viewAllLink}>View All →</Text>
-            </TouchableOpacity>
           </View>
 
           <FlatList
@@ -676,6 +1399,8 @@ const HomeScreen = ({ navigation }) => {
             ))}
           </View>
         </View>
+        </>
+        )}
 
         {/* Extra Bottom Spacing for Bottom Navigation Bar */}
         <View style={{ height: isTablet ? 0 : 85 }} />
@@ -1078,7 +1803,7 @@ const styles = StyleSheet.create({
   },
 
   // ============================================================
-  // 2. SEARCH BAR
+  // 2. SEARCH BAR & RESULTS
   // ============================================================
   searchBarWrapper: {
     paddingHorizontal: 16,
@@ -1088,11 +1813,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    height: 48,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
@@ -1100,11 +1825,269 @@ const styles = StyleSheet.create({
     elevation: 1,
     gap: 8,
   },
+  searchBarBoxActive: {
+    borderColor: '#007D69',
+    borderWidth: 1.5,
+    shadowColor: '#007D69',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13.5,
+    color: '#0F172A',
+    fontWeight: '600',
+    paddingVertical: 0,
+    height: '100%',
+  },
+  searchBackIconBtn: {
+    padding: 4,
+    marginRight: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchClearBtn: {
+    padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchMicBtn: {
+    padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   searchPlaceholder: {
     flex: 1,
     fontSize: 13,
     color: '#64748B',
     fontWeight: '500',
+  },
+
+  // Search Results Container
+  searchResultsContainer: {
+    paddingHorizontal: 16,
+    marginTop: 14,
+  },
+  searchLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  searchLoadingText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+
+  // Smart Empty State
+  emptySearchWrapper: {
+    marginTop: 8,
+  },
+  emptySearchPromptCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  emptySearchIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#E6F8F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emptySearchPromptTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+  emptySearchPromptSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  popularSearchesBlock: {
+    marginTop: 22,
+  },
+  popularSearchesHeading: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 0.8,
+    marginBottom: 10,
+    marginLeft: 2,
+  },
+  popularChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  popularChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  popularChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+  },
+
+  // No Results Card
+  noResultsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 26,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginTop: 10,
+  },
+  noResultsIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  noResultsTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  noResultsSubtitle: {
+    fontSize: 12.5,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 5,
+    lineHeight: 18,
+    maxWidth: 240,
+  },
+  clearSearchPromptBtn: {
+    marginTop: 14,
+    backgroundColor: '#E6F8F5',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  clearSearchPromptText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#007D69',
+  },
+
+  // Results List
+  resultsListBlock: {
+    marginTop: 6,
+  },
+  categoryChipsScroll: {
+    paddingVertical: 8,
+    gap: 8,
+    marginBottom: 8,
+  },
+  categoryFilterChip: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  categoryFilterChipActive: {
+    backgroundColor: '#007D69',
+    borderColor: '#007D69',
+  },
+  categoryFilterChipText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  categoryFilterChipTextActive: {
+    color: '#FFFFFF',
+  },
+  resultCardsWrapper: {
+    gap: 8,
+  },
+  searchResultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  resultIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resultInfoCol: {
+    flex: 1,
+  },
+  resultItemName: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  resultItemSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  resultRightCol: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  resultPriceBadge: {
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+  },
+  resultPriceBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#007D69',
   },
 
   // ============================================================
@@ -1258,6 +2241,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
+  billsGridTablet: {
+    flexWrap: 'wrap',
+    rowGap: 12,
+  },
   billTile: {
     width: '23%',
     backgroundColor: '#F8FAFC',
@@ -1268,6 +2255,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  billTileTablet: {
+    width: '23.5%',
+    paddingVertical: 18,
   },
   billTileIconBox: {
     width: 44,
@@ -1286,55 +2277,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     lineHeight: 14,
-  },
-
-  // SUB-ROW (PRESCRIPTION + MORE)
-  billsSubRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    gap: 10,
-  },
-  billsWidePill: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
-  },
-  billsWidePillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0F172A',
-    flex: 1,
-  },
-  billsCardMiniIconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    backgroundColor: '#E0F7F4',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  billsMoreBtn: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#007D69',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  billsMoreBtnText: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#007D69',
   },
 
   // ============================================================

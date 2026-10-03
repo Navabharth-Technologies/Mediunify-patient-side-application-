@@ -23,7 +23,7 @@ import DoctorListScreen from '../screens/services/doctors/DoctorListScreen';
 import DoctorDetailsScreen from '../screens/services/doctors/DoctorDetailsScreen';
 import DoctorBookingScreen from '../screens/services/doctors/DoctorBookingScreen';
 
-import HospitalListScreen from '../screens/services/hospitals/HospitalListScreen';
+import HospitalListScreen from '../screens/services/surgery/HospitalListScreen';
 
 import VideoBookingScreen from '../screens/services/videocall/VideoBookingScreen';
 import VideoConsultationScreen from '../screens/services/videocall/VideoConsultationScreen';
@@ -38,36 +38,13 @@ import PharmacyLocationScreen from '../screens/services/pharmacy/PharmacyLocatio
 
 import ImagingScreen from '../screens/services/radiology/ImagingScreen';
 
-import HospitalCareScreen from '../screens/services/hospitals/HospitalCareScreen';
-import HospitalSurgeryDetailsScreen from '../screens/services/hospitals/HospitalSurgeryDetailsScreen';
-import SurgeryQuoteRequestScreen from '../screens/services/hospitals/SurgeryQuoteRequestScreen';
+import SurgeryScreen from '../screens/services/surgery/SurgeryScreen';
+import HospitalSurgeryDetailsScreen from '../screens/services/surgery/HospitalSurgeryDetailsScreen';
+import SurgeryQuoteRequestScreen from '../screens/services/surgery/SurgeryQuoteRequestScreen';
 import HealthInsuranceScreen from '../screens/services/insurance/HealthInsuranceScreen';
 import NurseBookingScreen from '../screens/services/nurse/NurseBookingScreen';
 import EmergencyScreen from '../screens/services/emergency/EmergencyScreen';
 import AyurvedaWellnessScreen from '../screens/services/ayurveda/AyurvedaWellnessScreen';
-import {
-  FertilityIvfScreen,
-  FertilitySpecialistsScreen,
-  FertilityDoctorProfileScreen,
-  FertilityClinicsScreen,
-  FertilityClinicProfileScreen,
-  CompareClinicsScreen,
-  FertilityCareRequestScreen,
-  FertilityConsentScreen,
-  FertilityTestsScreen,
-  FertilityTestDetailsScreen,
-  IUIJourneyScreen,
-  IVFJourneyScreen,
-  TreatmentDetailsScreen,
-  IVFPackageScreen,
-  SecondOpinionScreen,
-  MyFertilityJourneyScreen,
-  FertilityRecordsScreen,
-  FertilityInsuranceScreen,
-  FertilityCoordinatorScreen,
-  FertilityNotificationsScreen,
-  FertilityAIScreen,
-} from '../screens/services/fertility';
 import EquipmentRentalScreen from '../screens/services/equipment/EquipmentRentalScreen';
 
 import RadiologyLabsScreen from '../screens/services/radiology/RadiologyLabsScreen';
@@ -85,7 +62,7 @@ import ChatbotScreen from '../screens/chatbot/ChatbotScreen';
 import HealthMonitorScreen from '../screens/health/HealthMonitorScreen';
 import HealthRecordsScreen from '../screens/health/HealthRecordsScreen';
 
-import MyTestsScreen from '../screens/services/lab/MyTestsScreen.web';
+import MyTestsScreen from '../screens/services/lab/MyTestsScreen';
 import BookingDetailsScreen from '../screens/services/booking/BookingDetailsScreen';
 
 import GlobalSearchScreen from '../screens/search/GlobalSearchScreen';
@@ -405,7 +382,7 @@ const MainStackScreen = () => {
 
         <Stack.Screen
           name="HospitalCare"
-          component={HospitalCareScreen}
+          component={SurgeryScreen}
         />
 
         <Stack.Screen
@@ -433,90 +410,6 @@ const MainStackScreen = () => {
           component={AyurvedaWellnessScreen}
         />
 
-        <Stack.Screen
-          name="FertilityIvf"
-          component={FertilityIvfScreen}
-        />
-        <Stack.Screen
-          name="FertilitySpecialists"
-          component={FertilitySpecialistsScreen}
-        />
-        <Stack.Screen
-          name="FertilityDoctorProfile"
-          component={FertilityDoctorProfileScreen}
-        />
-        <Stack.Screen
-          name="FertilityClinics"
-          component={FertilityClinicsScreen}
-        />
-        <Stack.Screen
-          name="FertilityClinicProfile"
-          component={FertilityClinicProfileScreen}
-        />
-        <Stack.Screen
-          name="CompareClinics"
-          component={CompareClinicsScreen}
-        />
-        <Stack.Screen
-          name="FertilityCareRequest"
-          component={FertilityCareRequestScreen}
-        />
-        <Stack.Screen
-          name="FertilityConsent"
-          component={FertilityConsentScreen}
-        />
-        <Stack.Screen
-          name="FertilityTests"
-          component={FertilityTestsScreen}
-        />
-        <Stack.Screen
-          name="FertilityTestDetails"
-          component={FertilityTestDetailsScreen}
-        />
-        <Stack.Screen
-          name="IUIJourney"
-          component={IUIJourneyScreen}
-        />
-        <Stack.Screen
-          name="IVFJourney"
-          component={IVFJourneyScreen}
-        />
-        <Stack.Screen
-          name="TreatmentDetails"
-          component={TreatmentDetailsScreen}
-        />
-        <Stack.Screen
-          name="IVFPackage"
-          component={IVFPackageScreen}
-        />
-        <Stack.Screen
-          name="SecondOpinion"
-          component={SecondOpinionScreen}
-        />
-        <Stack.Screen
-          name="MyFertilityJourney"
-          component={MyFertilityJourneyScreen}
-        />
-        <Stack.Screen
-          name="FertilityRecords"
-          component={FertilityRecordsScreen}
-        />
-        <Stack.Screen
-          name="FertilityInsurance"
-          component={FertilityInsuranceScreen}
-        />
-        <Stack.Screen
-          name="FertilityCoordinator"
-          component={FertilityCoordinatorScreen}
-        />
-        <Stack.Screen
-          name="FertilityNotifications"
-          component={FertilityNotificationsScreen}
-        />
-        <Stack.Screen
-          name="FertilityAI"
-          component={FertilityAIScreen}
-        />
 
         <Stack.Screen
           name="EquipmentRental"

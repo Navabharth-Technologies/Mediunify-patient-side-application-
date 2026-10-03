@@ -20,6 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { pushAppointment } from '../../../services/dataSyncService';
+import { saveTransaction } from '../../../services/transactionService';
 import WebFooter from '../../../components/web/WebFooter';
 import { getAvailableDates, getSlotsForDate } from '../../../utils/appointmentSlotHelper';
 import { validateAndBookSlot, subscribeToSlotChanges } from '../../../services/slotBookingService';
@@ -370,6 +371,26 @@ const VideoBookingScreen = ({ route, navigation }) => {
       await AsyncStorage.setItem('@videoBookings', JSON.stringify(updatedVid));
       await AsyncStorage.setItem('@mediunify_patient_online_consultations', JSON.stringify(updatedVid));
 
+      // ── Save to Payment History ──────────────────────────────────
+      try {
+        await saveTransaction({
+          id:          `TXN-${bookingId}`,
+          refId:       bookingId,
+          service:     'Video Consultation',
+          serviceType: 'consultation',
+          title:       doctor.name || 'Video Consultation',
+          facility:    doctor.clinicName || 'MediUnify TeleHealth',
+          rawDate:     new Date().toISOString(),
+          amount:      Number(fee || 0),
+          mrp:         Number(fee || 0),
+          status:      'Paid',
+          paymentMode: paymentMethod === 'WALLET' ? 'MediUnify Wallet' : 'Online UPI',
+          gstin:       '29AABCU9603R1ZX',
+          items:       [{ name: `Video Consultation – ${doctor.specialty || ''}`, qty: 1, price: Number(fee || 0) }],
+        });
+      } catch (_txErr) {}
+      // ────────────────────────────────────────────────────────────
+
       // 2. Remove from physical appointments if present (to avoid mixing)
       const existingApptJson = await AsyncStorage.getItem('@unnathi_appointments');
       if (existingApptJson) {
@@ -385,7 +406,7 @@ const VideoBookingScreen = ({ route, navigation }) => {
         console.warn('Could not push video appointment to server:', pushErr);
       }
 
-      if (typeof window !== 'undefined' && window.dispatchEvent) {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
         window.dispatchEvent(new CustomEvent('mediunify_consultations_updated', { detail: { consultation: newVideoBooking } }));
       }
 

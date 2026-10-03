@@ -11,1018 +11,668 @@ import {
   TextInput,
   Share,
   ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import colors from '../../theme/colors';
+import { INITIAL_MEDICAL_RECORDS, INITIAL_TEST_REPORTS } from '../../data/patientDashboardData';
+
+const CATEGORY_TABS = [
+  { id: 'all',        label: 'All',          icon: 'documents-outline' },
+  { id: 'rx',         label: 'Prescriptions', icon: 'medkit-outline' },
+  { id: 'labs',       label: 'Lab Reports',   icon: 'flask-outline' },
+  { id: 'suggestion', label: 'Suggestions',   icon: 'bulb-outline' },
+  { id: 'diagnostic', label: 'Diagnostic',    icon: 'scan-outline' },
+  { id: 'other',      label: 'Other',         icon: 'folder-open-outline' },
+];
+
+const DATE_FILTERS = [
+  { id: 'all',   label: 'All Time' },
+  { id: 'month', label: 'This Month' },
+  { id: '3m',    label: 'Last 3 Months' },
+  { id: '6m',    label: 'Last 6 Months' },
+];
+
+function buildCategory(rec) {
+  const t = (rec.recordType || '').toLowerCase();
+  if (t.includes('prescription')) return 'rx';
+  if (t.includes('lab'))         return 'labs';
+  if (t.includes('diagnostic'))  return 'diagnostic';
+  if (t.includes('suggestion'))  return 'suggestion';
+  return 'other';
+}
+
+function iconForCategory(cat) {
+  switch (cat) {
+    case 'rx':         return { icon: 'medkit',        iconColor: '#0D9488', iconBg: '#CCFBF1' };
+    case 'labs':       return { icon: 'flask',          iconColor: '#0284C7', iconBg: '#E0F2FE' };
+    case 'suggestion': return { icon: 'bulb',           iconColor: '#D97706', iconBg: '#FEF3C7' };
+    case 'diagnostic': return { icon: 'scan',           iconColor: '#7C3AED', iconBg: '#EDE9FE' };
+    default:           return { icon: 'document-text',  iconColor: '#64748B', iconBg: '#F1F5F9' };
+  }
+}
+
+function statusForRecord(rec) {
+  if (rec.recordType === 'Prescription')      return { text: 'Active Rx',   color: '#0D9488', bg: '#F0FDFA' };
+  if (rec.recordType === 'Lab Report')        return { text: 'Completed',   color: '#059669', bg: '#ECFDF5' };
+  if (rec.recordType === 'Diagnostic Report') return { text: 'Reviewed',    color: '#7C3AED', bg: '#EDE9FE' };
+  return { text: 'Filed', color: '#64748B', bg: '#F1F5F9' };
+}
+
+function fmtDate(d) {
+  if (!d) return '';
+  try {
+    const dt = new Date(d);
+    if (isNaN(dt)) return d;
+    return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch { return d; }
+}
+
+function withinDays(d, days) {
+  try {
+    const diff = Date.now() - new Date(d).getTime();
+    return diff >= 0 && diff <= days * 86400000;
+  } catch { return true; }
+}
+
+function matchDate(d, filter) {
+  if (filter === 'all')   return true;
+  if (filter === 'month') return withinDays(d, 30);
+  if (filter === '3m')    return withinDays(d, 90);
+  if (filter === '6m')    return withinDays(d, 180);
+  return true;
+}
 
 const HealthRecordsScreen = ({ navigation }) => {
-  // State
-  const [selectedPatient, setSelectedPatient] = useState('all');
-  const [selectedTab, setSelectedTab] = useState('all'); // all, labs, rx, scans, bills
-  const [searchQuery, setSearchQuery] = useState('');
-  const [uploadModalVisible, setUploadModalVisible] = useState(false);
-  const [viewDocModalVisible, setViewDocModalVisible] = useState(false);
-  const [activeDoc, setActiveDoc] = useState(null);
-  const [toastMessage, setToastMessage] = useState(null);
-  const [isSyncingAbha, setIsSyncingAbha] = useState(false);
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
 
-  // Dynamic Family Profiles & User Data
-  const [familyMembers, setFamilyMembers] = useState([]);
-  const [primaryUserName, setPrimaryUserName] = useState('Account Holder');
-  const [primaryUserDisplayName, setPrimaryUserDisplayName] = useState('Self');
-  const [userRecords, setUserRecords] = useState([]);
-  const [selectedUploadPatientId, setSelectedUploadPatientId] = useState('self');
+  const [selectedPatientId, setSelectedPatientId] = useState('self');
+  const [selectedCategory,   setSelectedCategory]  = useState('all');
+  const [searchQuery,         setSearchQuery]        = useState('');
+  const [dateFilter,          setDateFilter]         = useState('all');
+  const [familyMembers,       setFamilyMembers]      = useState([]);
+  const [primaryUserName,     setPrimaryUserName]    = useState('');
+  const [primaryDisplayName,  setPrimaryDisplayName] = useState('You');
+  const [userUploaded,        setUserUploaded]       = useState([]);
+  const [toastMsg,            setToastMsg]           = useState(null);
+  const [isSyncing,           setIsSyncing]          = useState(false);
+  const [uploadModalVisible,  setUploadModalVisible] = useState(false);
+  const [uploadPatientId,     setUploadPatientId]    = useState('self');
+  const [detailVisible,       setDetailVisible]      = useState(false);
+  const [activeRecord,        setActiveRecord]       = useState(null);
+  const [dateModalVisible,    setDateModalVisible]   = useState(false);
 
-  // Load Family Members & User on mount and focus
   useEffect(() => {
-    loadFamilyAndRecords();
-    const unsubscribe = navigation.addListener('focus', () => {
-      loadFamilyAndRecords();
-    });
-    return unsubscribe;
+    loadData();
+    const unsub = navigation.addListener('focus', loadData);
+    return unsub;
   }, [navigation]);
 
-  const loadFamilyAndRecords = async () => {
+  const loadData = async () => {
     try {
-      // 1. Get primary account user name
       const storedPrimary = await AsyncStorage.getItem('@unnathi_primary_user');
-      const storedUser = await AsyncStorage.getItem('user');
-      const storedName = await AsyncStorage.getItem('userName');
+      const storedUser    = await AsyncStorage.getItem('user');
+      const storedName    = await AsyncStorage.getItem('userName');
+      let name = '';
+      if (storedPrimary) { try { const p = JSON.parse(storedPrimary); if (p?.name) name = p.name.trim(); } catch {} }
+      if (!name && storedUser) { try { const u = JSON.parse(storedUser); if (u?.name) name = u.name.trim(); } catch {} }
+      if (!name && storedName) name = storedName.trim();
+      if (!name) name = 'Account Holder';
+      setPrimaryUserName(name);
+      setPrimaryDisplayName(name.split(' ')[0] || 'You');
 
-      let currentPrimaryName = '';
-      if (storedPrimary) {
-        try {
-          const p = JSON.parse(storedPrimary);
-          if (p?.name && p.name.trim()) currentPrimaryName = p.name.trim();
-        } catch (e) {}
-      }
-      if (!currentPrimaryName && storedUser) {
-        try {
-          const u = JSON.parse(storedUser);
-          if (u?.name && u.name.trim()) currentPrimaryName = u.name.trim();
-        } catch (e) {}
-      }
-      if (!currentPrimaryName && storedName && storedName.trim()) {
-        currentPrimaryName = storedName.trim();
-      }
-
-      const effectivePrimary = currentPrimaryName || 'Ramesh Kumar';
-      setPrimaryUserName(effectivePrimary);
-      const cleanFirst = effectivePrimary.split(' ')[0];
-      setPrimaryUserDisplayName(cleanFirst);
-
-      // 2. Load linked family members
       const savedFam = await AsyncStorage.getItem('@unnathi_family_members');
-      let loadedMembers = [];
-      if (savedFam) {
-        try {
-          const parsed = JSON.parse(savedFam);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            loadedMembers = parsed;
-          }
-        } catch (e) {}
-      }
-
-      if (!loadedMembers || loadedMembers.length === 0) {
-        loadedMembers = [
-          {
-            id: 'self',
-            name: `${effectivePrimary} (Self)`,
-            displayName: `${cleanFirst} (Self)`,
-            relation: 'Self',
-            isPrimary: true,
-          },
-        ];
+      let members = [];
+      if (savedFam) { try { const p = JSON.parse(savedFam); if (Array.isArray(p) && p.length > 0) members = p; } catch {} }
+      if (members.length === 0) {
+        members = [{ id: 'self', name, relation: 'Self', isPrimary: true }];
       } else {
-        loadedMembers = loadedMembers.map((m) => {
-          if (m.id === 'self' || m.isPrimary || m.relation === 'Self') {
-            return {
-              ...m,
-              name: `${effectivePrimary} (Self)`,
-              displayName: `${cleanFirst} (Self)`,
-            };
-          }
-          return m;
-        });
+        members = members.map((m) =>
+          (m.id === 'self' || m.isPrimary || m.relation === 'Self')
+            ? { ...m, name, displayName: name.split(' ')[0] }
+            : m
+        );
       }
+      setFamilyMembers(members);
 
-      setFamilyMembers(loadedMembers);
-
-      // 3. Load user-added custom health records
-      const savedRecordsJson = await AsyncStorage.getItem('@unnathi_health_records');
-      if (savedRecordsJson) {
-        try {
-          const parsedRecs = JSON.parse(savedRecordsJson);
-          if (Array.isArray(parsedRecs)) {
-            setUserRecords(parsedRecs);
-          }
-        } catch (e) {}
-      }
-    } catch (err) {
-      console.log('Error loading family & health records:', err);
-    }
+      const saved = await AsyncStorage.getItem('@unnathi_health_records');
+      if (saved) { try { const p = JSON.parse(saved); if (Array.isArray(p)) setUserUploaded(p); } catch {} }
+    } catch {}
   };
 
-  // Dynamically map base medical records to synced family members
+  const dashboardRecords = useMemo(() =>
+    INITIAL_MEDICAL_RECORDS.map((rec) => {
+      const cat = buildCategory(rec);
+      const st  = statusForRecord(rec);
+      return {
+        id: rec.id, title: rec.name, category: cat,
+        patientId: rec.patientId || 'self', patientName: rec.patientName || 'Self',
+        doctor: rec.doctorName || '', facility: rec.facilityName || '',
+        date: rec.date || '', fileSize: rec.fileSize || '',
+        status: st.text, statusColor: st.color, statusBg: st.bg,
+        summary: rec.description || '',
+        ...iconForCategory(cat),
+        hasMedicines: rec.hasMedicines || false,
+        medicines: rec.medicines || [],
+        parameters: rec.parameters || [],
+        hasReferredTest: rec.hasReferredTest || false,
+        referredTest: rec.referredTest || null,
+        pharmacyOptions: rec.pharmacyOptions || [],
+        recordType: rec.recordType, _source: 'dashboard',
+      };
+    }), []);
+
+  const labReportRecords = useMemo(() =>
+    INITIAL_TEST_REPORTS.filter((r) => r.reportAvailable).map((rep) => ({
+      id: rep.id + '-rpt', title: rep.testName, category: 'labs',
+      patientId: rep.patientId || 'self', patientName: rep.patientName || 'Self',
+      doctor: '', facility: rep.labName || '',
+      date: rep.testDate || rep.reportDate || '', fileSize: rep.fileSize || '',
+      status: rep.normalStatus || 'Completed',
+      statusColor: rep.normalStatus === 'Normal' ? '#059669' : rep.normalStatus === 'Borderline' ? '#D97706' : '#0284C7',
+      statusBg:    rep.normalStatus === 'Normal' ? '#ECFDF5' : rep.normalStatus === 'Borderline' ? '#FEF3C7' : '#E0F2FE',
+      summary: rep.doctorNotes || `${rep.modalityType || ''} • ${rep.sampleType || ''}`,
+      ...iconForCategory('labs'),
+      hasMedicines: false, medicines: [], parameters: rep.parameters || [],
+      hasReferredTest: false, referredTest: null,
+      recordType: 'Lab Report', _source: 'testReports',
+    })), []);
+
+  const doctorSuggestions = useMemo(() =>
+    INITIAL_MEDICAL_RECORDS.filter((r) => r.hasReferredTest && r.referredTest).map((rec) => ({
+      id: rec.id + '-sug', title: `Suggested: ${rec.referredTest.testName}`, category: 'suggestion',
+      patientId: rec.patientId || 'self', patientName: rec.patientName || 'Self',
+      doctor: rec.doctorName || '', facility: rec.facilityName || '',
+      date: rec.date || '', fileSize: '',
+      status: 'Recommended', statusColor: '#D97706', statusBg: '#FEF3C7',
+      summary: `Reason: ${rec.referredTest.reason || 'Doctor recommended lab test'}`,
+      ...iconForCategory('suggestion'),
+      hasMedicines: false, medicines: [], parameters: [],
+      hasReferredTest: true, referredTest: rec.referredTest,
+      recordType: 'Suggestion', _source: 'suggestion',
+    })), []);
+
+  const uploadedRecords = useMemo(() =>
+    userUploaded.map((r) => ({ ...r, ...iconForCategory(r.category || 'other'), _source: 'uploaded' })), [userUploaded]);
+
   const allRecords = useMemo(() => {
-    const selfMember = familyMembers.find((m) => m.id === 'self' || m.isPrimary) || {
-      id: 'self',
-      name: `${primaryUserName} (Self)`,
-      displayName: primaryUserDisplayName,
-    };
-    const spouseMember = familyMembers.find(
-      (m) => m.relation === 'Spouse' || m.id === 'fam-1' || m.id === 'sneha'
-    );
-    const fatherMember = familyMembers.find(
-      (m) => m.relation === 'Father' || m.id === 'fam-2' || m.id === 'suresh'
-    );
-    const sonMember = familyMembers.find(
-      (m) => m.relation === 'Son' || m.relation === 'Daughter' || m.id === 'fam-3' || m.id === 'aarav'
-    );
+    const dashLabIds = new Set(dashboardRecords.filter((r) => r.recordType === 'Lab Report').map((r) => r.id));
+    const extraLabs  = labReportRecords.filter((r) => !dashLabIds.has(r.id.replace('-rpt', '')));
+    return [...uploadedRecords, ...dashboardRecords, ...doctorSuggestions, ...extraLabs];
+  }, [uploadedRecords, dashboardRecords, doctorSuggestions, labReportRecords]);
 
-    const defaultRecords = [
-      {
-        id: 'rec-1',
-        title: 'Complete Blood Count (CBC) & ESR',
-        category: 'labs',
-        patient: 'self',
-        patientId: selfMember.id,
-        patientName: selfMember.name || `${primaryUserName} (Self)`,
-        facility: 'Suburban Diagnostic Center, Mysore',
-        doctor: 'Dr. Rajesh Sharma (MD Pathologist)',
-        date: '28 Aug 2026',
-        fileSize: '1.8 MB PDF',
-        status: 'Normal',
-        statusColor: '#059669',
-        statusBg: '#ECFDF5',
-        icon: 'flask',
-        iconColor: '#0284C7',
-        iconBg: '#E0F2FE',
-        summary: 'Hemoglobin: 14.5 g/dL (Normal) • Platelets: 240,000 /mcL • WBC: 6,800 /mcL.',
-      },
-      {
-        id: 'rec-2',
-        title: 'Brain 3T MRI & Diffusion Scan',
-        category: 'scans',
-        patient: fatherMember ? fatherMember.id : 'fam-2',
-        patientId: fatherMember ? fatherMember.id : 'fam-2',
-        patientName: fatherMember ? `${fatherMember.name} (${fatherMember.relation})` : 'Father',
-        facility: 'Unnathi Advanced 3T MRI & Scan Center',
-        doctor: 'Dr. Anand Verma (Radiologist)',
-        date: '25 Aug 2026',
-        fileSize: '14.2 MB DICOM/PDF',
-        status: 'Doctor Reviewed',
-        statusColor: '#00C2CB',
-        statusBg: '#E0F7FA',
-        icon: 'scan',
-        iconColor: '#00C2CB',
-        iconBg: '#E0F7FA',
-        summary: 'No acute intracranial hemorrhage or infarct. Age-related normal cerebral findings.',
-      },
-      {
-        id: 'rec-3',
-        title: 'Cardiology Rx - Telmisartan & Atorvastatin',
-        category: 'rx',
-        patient: 'self',
-        patientId: selfMember.id,
-        patientName: selfMember.name || `${primaryUserName} (Self)`,
-        facility: 'Apollo Cardiology Clinic',
-        doctor: 'Dr. Rajesh Sharma, MD DM (Cardio)',
-        date: '20 Aug 2026',
-        fileSize: '840 KB PDF',
-        status: 'Active Refill',
-        statusColor: '#0D9488',
-        statusBg: '#F0FDFA',
-        icon: 'medkit',
-        iconColor: '#0D9488',
-        iconBg: '#CCFBF1',
-        summary: 'Telmisartan 40mg (1-0-0) After Breakfast • Atorvastatin 10mg (0-0-1) After Dinner.',
-      },
-      {
-        id: 'rec-4',
-        title: 'HbA1c & Fasting Plasma Glucose',
-        category: 'labs',
-        patient: 'self',
-        patientId: selfMember.id,
-        patientName: selfMember.name || `${primaryUserName} (Self)`,
-        facility: 'Thyrocare Home Sample Lab',
-        doctor: 'Dr. Anita Desai (Endocrinologist)',
-        date: '15 Aug 2026',
-        fileSize: '1.2 MB PDF',
-        status: 'Optimal 5.6%',
-        statusColor: '#059669',
-        statusBg: '#ECFDF5',
-        icon: 'water',
-        iconColor: '#059669',
-        iconBg: '#D1FAE5',
-        summary: 'HbA1c: 5.6% (Non-Diabetic Range) • Fasting Blood Sugar: 98 mg/dL.',
-      },
-      {
-        id: 'rec-5',
-        title: 'Pediatric Vaccine Chart & Record',
-        category: 'rx',
-        patient: sonMember ? sonMember.id : 'fam-3',
-        patientId: sonMember ? sonMember.id : 'fam-3',
-        patientName: sonMember ? `${sonMember.name} (${sonMember.relation})` : 'Child Record',
-        facility: 'Rainbow Children Hospital',
-        doctor: 'Dr. Ananya Rao (Pediatrician)',
-        date: '10 Aug 2026',
-        fileSize: '2.4 MB PDF',
-        status: 'Up to Date',
-        statusColor: '#2563EB',
-        statusBg: '#EFF6FF',
-        icon: 'shield-checkmark',
-        iconColor: '#2563EB',
-        iconBg: '#DBEAFE',
-        summary: 'MMR Dose 2 administered. Next scheduled vaccine: Typhoid Booster at 2 Years.',
-      },
-      {
-        id: 'rec-6',
-        title: 'Pharmacy Order Bill & GST Receipt',
-        category: 'bills',
-        patient: 'self',
-        patientId: selfMember.id,
-        patientName: selfMember.name || `${primaryUserName} (Self)`,
-        facility: 'MediUnify Online Pharmacy',
-        doctor: 'Prescription Verified Order #UNC10245',
-        date: '05 Aug 2026',
-        fileSize: '450 KB PDF',
-        status: 'Paid ₹1,240',
-        statusColor: '#00B894',
-        statusBg: '#E6F8F5',
-        icon: 'receipt',
-        iconColor: '#00B894',
-        iconBg: '#E6F8F5',
-        summary: 'GST Invoice #INV-883492 • Delivered to Kuvempunagar, Mysore • 20% Discount Applied.',
-      },
-    ];
+  const selfMemberId = useMemo(() =>
+    familyMembers.find((m) => m.isPrimary || m.id === 'self')?.id || 'self', [familyMembers]);
 
-    return [...userRecords, ...defaultRecords];
-  }, [familyMembers, primaryUserName, primaryUserDisplayName, userRecords]);
-
-  // Counts for tabs
-  const categoryCounts = useMemo(() => {
-    return {
-      all: allRecords.length,
-      labs: allRecords.filter((r) => r.category === 'labs').length,
-      rx: allRecords.filter((r) => r.category === 'rx').length,
-      scans: allRecords.filter((r) => r.category === 'scans').length,
-      bills: allRecords.filter((r) => r.category === 'bills').length,
-    };
-  }, [allRecords]);
-
-  const filterTabs = [
-    { id: 'all', label: 'All Files', icon: 'documents', count: categoryCounts.all },
-    { id: 'labs', label: 'Lab Tests', icon: 'flask', count: categoryCounts.labs },
-    { id: 'rx', label: 'Prescriptions', icon: 'medkit', count: categoryCounts.rx },
-    { id: 'scans', label: '3T Scans', icon: 'scan', count: categoryCounts.scans },
-    { id: 'bills', label: 'Invoices', icon: 'receipt', count: categoryCounts.bills },
-  ];
-
-  // Dynamic patient switcher chips
-  const dynamicFilterChips = useMemo(() => {
-    const chips = [
-      {
-        id: 'all',
-        name: 'All Vaults',
-        relation: 'All Members',
-        initials: 'ALL',
-        count: allRecords.length,
-      },
-    ];
-
-    familyMembers.forEach((member) => {
-      const isSelf = member.id === 'self' || member.isPrimary || member.relation === 'Self';
-      const memberCount = allRecords.filter(
-        (r) =>
-          r.patient === member.id ||
-          r.patientId === member.id ||
-          (isSelf && (r.patient === 'self' || r.patientId === 'self'))
+  const familyChips = useMemo(() => {
+    return familyMembers.map((m) => {
+      const isSelf = m.id === 'self' || m.isPrimary || m.relation === 'Self';
+      const count  = allRecords.filter((r) =>
+        isSelf ? (r.patientId === 'self' || r.patientId === m.id) : r.patientId === m.id
       ).length;
-
-      const rawName = isSelf ? (primaryUserDisplayName || 'You') : member.name.split(' ')[0];
-      const initials = rawName.slice(0, 2).toUpperCase();
-
-      chips.push({
-        id: member.id,
-        name: rawName,
-        relation: isSelf ? 'Self' : (member.relation || 'Family'),
-        initials,
-        count: memberCount,
-        member,
-      });
+      const rawName = isSelf ? (primaryDisplayName || 'You') : (m.name || '').split(' ')[0];
+      return {
+        id: m.id, name: rawName, relation: isSelf ? 'My Records' : (m.relation || 'Family'),
+        initials: rawName.slice(0, 2).toUpperCase(), count, isSelf,
+      };
     });
+  }, [familyMembers, allRecords, primaryDisplayName]);
 
-    return chips;
-  }, [familyMembers, allRecords, primaryUserDisplayName]);
+  const categoryCounts = useMemo(() => {
+    const base = allRecords.filter((r) => {
+      const isSelf = selectedPatientId === 'self' || selectedPatientId === selfMemberId;
+      return isSelf
+        ? r.patientId === 'self' || r.patientId === selfMemberId
+        : r.patientId === selectedPatientId;
+    });
+    const counts = { all: base.length };
+    CATEGORY_TABS.forEach((t) => { if (t.id !== 'all') counts[t.id] = base.filter((r) => r.category === t.id).length; });
+    return counts;
+  }, [allRecords, selectedPatientId, selfMemberId]);
 
-  // Filtered records
   const filteredRecords = useMemo(() => {
     return allRecords.filter((rec) => {
-      const isSelfSelected = selectedPatient === 'self';
-      const matchesPatient =
-        selectedPatient === 'all' ||
-        rec.patient === selectedPatient ||
-        rec.patientId === selectedPatient ||
-        (isSelfSelected && (rec.patient === 'self' || rec.patientId === 'self'));
-
-      const matchesTab = selectedTab === 'all' || rec.category === selectedTab;
-      const matchesSearch =
-        searchQuery.trim() === '' ||
-        rec.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        rec.doctor.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        rec.facility.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (rec.patientName && rec.patientName.toLowerCase().includes(searchQuery.toLowerCase()));
-
-      return matchesPatient && matchesTab && matchesSearch;
+      const isSelf = selectedPatientId === 'self' || selectedPatientId === selfMemberId;
+      const matchesPt = isSelf
+        ? rec.patientId === 'self' || rec.patientId === selfMemberId
+        : rec.patientId === selectedPatientId;
+      if (!matchesPt) return false;
+      if (selectedCategory !== 'all' && rec.category !== selectedCategory) return false;
+      if (!matchDate(rec.date, dateFilter)) return false;
+      const q = searchQuery.trim().toLowerCase();
+      if (q) {
+        const hay = [rec.title, rec.doctor, rec.facility, rec.patientName, rec.summary].join(' ').toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
     });
-  }, [allRecords, selectedPatient, selectedTab, searchQuery]);
+  }, [allRecords, selectedPatientId, selfMemberId, selectedCategory, searchQuery, dateFilter]);
 
   const showToast = (msg) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2800);
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 2800);
   };
 
-  const handleSyncAbha = async () => {
-    setIsSyncingAbha(true);
-    await new Promise((res) => setTimeout(res, 800));
-    setIsSyncingAbha(false);
-    showToast('ABHA Digital Locker Synced • All Verified Records Loaded');
+  const handleSync = async () => {
+    setIsSyncing(true);
+    await new Promise((r) => setTimeout(r, 900));
+    setIsSyncing(false);
+    showToast('Health records synced successfully.');
   };
 
-  const handleShareDoc = async (doc) => {
+  const handleShare = async (rec) => {
     try {
       await Share.share({
-        title: doc.title,
-        message: `MediUnify Verified Health Record:\n${doc.title}\nPatient: ${doc.patientName}\nDate: ${doc.date}\nDoctor: ${doc.doctor}\nView PDF: https://hemanthgowdatn2003.github.io/mediunify-patient/`,
+        title: rec.title,
+        message: `MediUnify Health Record\n${rec.title}\nPatient: ${rec.patientName}\nDate: ${rec.date}\nDoctor: ${rec.doctor}\nFacility: ${rec.facility}`,
       });
-    } catch (e) {
-      console.log('Share error:', e);
-    }
+    } catch {}
   };
 
-  const openDocViewer = (doc) => {
-    setActiveDoc(doc);
-    setViewDocModalVisible(true);
-  };
+  const openDetail = (rec) => { setActiveRecord(rec); setDetailVisible(true); };
 
+  // ── RECORD CARD ──
+  const renderCard = (rec) => (
+    <TouchableOpacity
+      key={rec.id}
+      style={[styles.recordCard, isTablet && styles.recordCardTablet]}
+      onPress={() => openDetail(rec)}
+      activeOpacity={0.9}
+    >
+      <View style={styles.cardTopRow}>
+        <View style={[styles.cardIconBox, { backgroundColor: rec.iconBg }]}>
+          <Ionicons name={rec.icon} size={20} color={rec.iconColor} />
+        </View>
+        <View style={styles.cardTitleCol}>
+          <View style={styles.patientPill}>
+            <Ionicons name="person" size={10} color="#0F766E" />
+            <Text style={styles.patientPillText} numberOfLines={1}>{rec.patientName}</Text>
+          </View>
+          <Text style={styles.cardTitle} numberOfLines={2}>{rec.title}</Text>
+        </View>
+        <View style={[styles.statusBadge, { backgroundColor: rec.statusBg }]}>
+          <Text style={[styles.statusText, { color: rec.statusColor }]}>{rec.status}</Text>
+        </View>
+      </View>
+
+      {(rec.doctor || rec.facility) ? (
+        <View style={styles.cardMeta}>
+          {!!rec.doctor   && <View style={styles.metaRow}><Ionicons name="person-circle-outline" size={13} color="#64748B" /><Text style={styles.metaText}  numberOfLines={1}>{rec.doctor}</Text></View>}
+          {!!rec.facility && <View style={styles.metaRow}><Ionicons name="business-outline"      size={13} color="#64748B" /><Text style={styles.metaFacil} numberOfLines={1}>{rec.facility}</Text></View>}
+        </View>
+      ) : null}
+
+      {!!rec.summary && (
+        <View style={styles.summaryBox}>
+          <Ionicons name="analytics-outline" size={12} color="#0F766E" />
+          <Text style={styles.summaryText} numberOfLines={2}>{rec.summary}</Text>
+        </View>
+      )}
+
+      <View style={styles.cardFooter}>
+        <View style={styles.footerLeft}>
+          <Ionicons name="calendar-outline" size={12} color="#94A3B8" />
+          <Text style={styles.footerDate}>{fmtDate(rec.date) || rec.date}</Text>
+          {!!rec.fileSize && <><Text style={styles.footerDot}>•</Text><Text style={styles.footerDate}>{rec.fileSize}</Text></>}
+        </View>
+        <View style={styles.cardActions}>
+          <TouchableOpacity style={styles.shareBtn} onPress={() => handleShare(rec)} activeOpacity={0.7}>
+            <Ionicons name="share-social-outline" size={15} color="#0F766E" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.viewBtn} onPress={() => openDetail(rec)} activeOpacity={0.85}>
+            <Ionicons name="eye" size={13} color="#FFF" />
+            <Text style={styles.viewBtnText}>View</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {rec.category === 'suggestion' && rec.referredTest && (
+        <TouchableOpacity
+          style={styles.bookTestBtn}
+          onPress={() => { navigation.navigate('LabTests'); }}
+          activeOpacity={0.88}
+        >
+          <Ionicons name="flask-outline" size={14} color="#FFF" />
+          <Text style={styles.bookTestBtnText}>Book Recommended Test</Text>
+          <Ionicons name="arrow-forward" size={13} color="#FFF" />
+        </TouchableOpacity>
+      )}
+    </TouchableOpacity>
+  );
+
+  // ── MAIN RENDER ──
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* 1. TOP APP BAR */}
+      {toastMsg && (
+        <View style={styles.toast}>
+          <Ionicons name="checkmark-circle" size={16} color="#34D399" />
+          <Text style={styles.toastText}>{toastMsg}</Text>
+        </View>
+      )}
+
+      {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerBackBtn}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <Ionicons name="arrow-back" size={20} color="#0F172A" />
         </TouchableOpacity>
-
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>My Health</Text>
-          <View style={styles.headerSubtitleRow}>
-            <View style={styles.headerLiveDot} />
-            <Text style={styles.headerSubtitleText}>ABHA Verified • Digital Locker</Text>
+          <Text style={styles.headerTitle}>Health Records</Text>
+          <View style={styles.headerSubRow}>
+            <View style={styles.liveDot} />
+            <Text style={styles.headerSubText}>ABHA Verified • Private & Secure</Text>
           </View>
         </View>
-
-        <TouchableOpacity
-          style={styles.uploadHeaderBtn}
-          onPress={() => setUploadModalVisible(true)}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="cloud-upload" size={15} color="#FFFFFF" />
+        <TouchableOpacity style={styles.uploadHeaderBtn} onPress={() => setUploadModalVisible(true)} activeOpacity={0.85}>
+          <Ionicons name="cloud-upload" size={14} color="#FFF" />
           <Text style={styles.uploadHeaderBtnText}>Upload</Text>
         </TouchableOpacity>
       </View>
 
-      {/* TOAST NOTIFICATION */}
-      {toastMessage && (
-        <View style={styles.toastCard}>
-          <Ionicons name="shield-checkmark" size={17} color="#34D399" />
-          <Text style={styles.toastText}>{toastMessage}</Text>
-        </View>
-      )}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* 2. ABHA DIGITAL HEALTH VAULT HERO CARD */}
-        <View style={styles.abhaCard}>
-          <View style={styles.abhaCardBgGlow} />
-
-          <View style={styles.abhaTopRow}>
-            <View style={styles.abhaBadge}>
-              <Ionicons name="shield-checkmark" size={13} color="#A7F3D0" />
-              <Text style={styles.abhaBadgeText}>ABDM COMPLIANT</Text>
+        {/* FAMILY SWITCHER */}
+        <View style={{ marginTop: 16 }}>
+          <View style={styles.sectionRow}>
+            <View style={styles.sectionLabelRow}>
+              <Ionicons name="people" size={15} color="#0F766E" />
+              <Text style={styles.sectionLabel}>Select Patient</Text>
             </View>
-
-            <View style={styles.abhaEncryptedTag}>
-              <Ionicons name="lock-closed" size={11} color="#CCFBF1" />
-              <Text style={styles.abhaEncryptedText}>256-Bit Encrypted</Text>
-            </View>
-          </View>
-
-          <View style={styles.abhaTitleBlock}>
-            <Text style={styles.abhaTitle}>Govt. Health Locker (ABHA)</Text>
-            <View style={styles.abhaIdRow}>
-              <Text style={styles.abhaIdText}>abha.id: </Text>
-              <Text style={styles.abhaIdValue}>hemanth@abdm</Text>
-              <Ionicons name="checkmark-circle" size={14} color="#34D399" style={{ marginLeft: 4 }} />
-            </View>
-          </View>
-
-          {/* METRIC STRIP */}
-          <View style={styles.abhaMetricsRow}>
-            <View style={styles.abhaMetricItem}>
-              <Text style={styles.abhaMetricNum}>{allRecords.length}</Text>
-              <Text style={styles.abhaMetricLabel}>Documents</Text>
-            </View>
-            <View style={styles.abhaMetricDivider} />
-            <View style={styles.abhaMetricItem}>
-              <Text style={styles.abhaMetricNum}>{familyMembers.length}</Text>
-              <Text style={styles.abhaMetricLabel}>Vault Profiles</Text>
-            </View>
-            <View style={styles.abhaMetricDivider} />
-            <View style={styles.abhaMetricItem}>
-              <Text style={styles.abhaMetricNum}>100%</Text>
-              <Text style={styles.abhaMetricLabel}>Private & Safe</Text>
-            </View>
-          </View>
-
-          {/* SYNC ABHA BUTTON */}
-          <TouchableOpacity
-            style={styles.syncAbhaBtn}
-            onPress={handleSyncAbha}
-            activeOpacity={0.85}
-            disabled={isSyncingAbha}
-          >
-            {isSyncingAbha ? (
-              <ActivityIndicator size="small" color="#047857" />
-            ) : (
-              <>
-                <Ionicons name="sync" size={15} color="#047857" />
-                <Text style={styles.syncAbhaBtnText}>Sync ABDM Health Stack</Text>
-                <Ionicons name="chevron-forward" size={14} color="#047857" />
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* 3. QUICK HEALTH HUB (4 VIBRANT TILES) */}
-        <View style={styles.quickHubSection}>
-          <Text style={styles.sectionHeaderTitle}>Health Services & Hub</Text>
-          <View style={styles.quickHubGrid}>
-            {/* Tile 1: Vitals */}
-            <TouchableOpacity
-              style={[styles.quickTile, { backgroundColor: '#FFF2ED', borderColor: '#FFD7C7' }]}
-              onPress={() => navigation.navigate('HealthMonitor')}
-              activeOpacity={0.82}
-            >
-              <View style={[styles.quickTileIconCircle, { backgroundColor: '#FFE6DC' }]}>
-                <Ionicons name="heart" size={18} color="#FF7F50" />
-              </View>
-              <View style={styles.quickTileContent}>
-                <View style={styles.quickTileHeader}>
-                  <Text style={styles.quickTileTitle}>Daily Vitals</Text>
-                  <View style={[styles.quickTileMiniBadge, { backgroundColor: '#FFE6DC' }]}>
-                    <Text style={[styles.quickTileMiniBadgeText, { color: '#FF7F50' }]}>Live</Text>
-                  </View>
-                </View>
-                <Text style={styles.quickTileSubtitle}>BP 120/80 • Sugar 95</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Tile 2: Prescriptions */}
-            <TouchableOpacity
-              style={[styles.quickTile, { backgroundColor: '#F0FDFA', borderColor: '#CCFBF1' }]}
-              onPress={() => navigation.navigate('Prescriptions')}
-              activeOpacity={0.82}
-            >
-              <View style={[styles.quickTileIconCircle, { backgroundColor: '#CCFBF1' }]}>
-                <Ionicons name="medkit" size={18} color="#0D9488" />
-              </View>
-              <View style={styles.quickTileContent}>
-                <View style={styles.quickTileHeader}>
-                  <Text style={styles.quickTileTitle}>Prescriptions</Text>
-                  <View style={[styles.quickTileMiniBadge, { backgroundColor: '#CCFBF1' }]}>
-                    <Text style={[styles.quickTileMiniBadgeText, { color: '#0F766E' }]}>{categoryCounts.rx} Rx</Text>
-                  </View>
-                </View>
-                <Text style={styles.quickTileSubtitle}>Dosages & Refills</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Tile 3: Diagnostic Lab Reports */}
-            <TouchableOpacity
-              style={[styles.quickTile, { backgroundColor: '#F0F9FF', borderColor: '#E0F2FE' }]}
-              onPress={() => navigation.navigate('Reports')}
-              activeOpacity={0.82}
-            >
-              <View style={[styles.quickTileIconCircle, { backgroundColor: '#E0F2FE' }]}>
-                <Ionicons name="flask" size={18} color="#0284C7" />
-              </View>
-              <View style={styles.quickTileContent}>
-                <View style={styles.quickTileHeader}>
-                  <Text style={styles.quickTileTitle}>Lab Reports</Text>
-                  <View style={[styles.quickTileMiniBadge, { backgroundColor: '#E0F2FE' }]}>
-                    <Text style={[styles.quickTileMiniBadgeText, { color: '#0369A1' }]}>{categoryCounts.labs} Files</Text>
-                  </View>
-                </View>
-                <Text style={styles.quickTileSubtitle}>Blood, CBC & Sugar</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Tile 4: Scans & X-Ray */}
-            <TouchableOpacity
-              style={[styles.quickTile, { backgroundColor: '#E0F7FA', borderColor: '#B2EBF2' }]}
-              onPress={() => setSelectedTab('scans')}
-              activeOpacity={0.82}
-            >
-              <View style={[styles.quickTileIconCircle, { backgroundColor: '#B2EBF2' }]}>
-                <Ionicons name="scan" size={18} color="#00C2CB" />
-              </View>
-              <View style={styles.quickTileContent}>
-                <View style={styles.quickTileHeader}>
-                  <Text style={styles.quickTileTitle}>3T Scans</Text>
-                  <View style={[styles.quickTileMiniBadge, { backgroundColor: '#B2EBF2' }]}>
-                    <Text style={[styles.quickTileMiniBadgeText, { color: '#00C2CB' }]}>{categoryCounts.scans} Scans</Text>
-                  </View>
-                </View>
-                <Text style={styles.quickTileSubtitle}>MRI, CT & X-Ray</Text>
-              </View>
+            <TouchableOpacity style={styles.manageFamilyBtn} onPress={() => navigation.navigate('FamilyProfiles')} activeOpacity={0.8}>
+              <Ionicons name="add" size={12} color="#0F766E" />
+              <Text style={styles.manageFamilyText}>Manage Family</Text>
             </TouchableOpacity>
           </View>
-        </View>
-
-        {/* 4. FAMILY VAULT AVATARS SWITCHER */}
-        <View style={styles.familySection}>
-          <View style={styles.sectionHeaderRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="people" size={17} color="#0F766E" />
-              <Text style={styles.sectionHeaderTitle}>Family Health Vaults</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.manageFamilyBtn}
-              onPress={() => navigation.navigate('FamilyProfiles')}
-              activeOpacity={0.75}
-            >
-              <Ionicons name="add" size={14} color="#0F766E" />
-              <Text style={styles.manageFamilyBtnText}>Manage ({familyMembers.length})</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.familyAvatarsScroll}
-          >
-            {dynamicFilterChips.map((chip) => {
-              const isSelected = selectedPatient === chip.id;
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.familyScroll}>
+            {familyChips.map((chip) => {
+              const isSel = selectedPatientId === chip.id || (chip.isSelf && selectedPatientId === 'self');
               return (
-                <TouchableOpacity
-                  key={chip.id}
-                  style={[styles.familyCard, isSelected && styles.familyCardActive]}
-                  onPress={() => setSelectedPatient(chip.id)}
-                  activeOpacity={0.8}
-                >
-                  <View style={[styles.familyAvatarCircle, isSelected && styles.familyAvatarCircleActive]}>
-                    {chip.id === 'all' ? (
-                      <Ionicons name="file-tray-full" size={18} color={isSelected ? '#FFFFFF' : '#0F766E'} />
-                    ) : (
-                      <Text style={[styles.familyAvatarText, isSelected && styles.familyAvatarTextActive]}>
-                        {chip.initials}
-                      </Text>
-                    )}
-                    <View style={[styles.familyCountBadge, isSelected && styles.familyCountBadgeActive]}>
-                      <Text style={[styles.familyCountBadgeText, isSelected && styles.familyCountBadgeTextActive]}>
-                        {chip.count}
-                      </Text>
+                <TouchableOpacity key={chip.id} style={[styles.familyChip, isSel && styles.familyChipActive]} onPress={() => setSelectedPatientId(chip.id)} activeOpacity={0.8}>
+                  <View style={[styles.chipAvatar, isSel && styles.chipAvatarActive]}>
+                    <Text style={[styles.chipInitials, isSel && styles.chipInitialsActive]}>{chip.initials}</Text>
+                    <View style={[styles.chipCount, isSel && styles.chipCountActive]}>
+                      <Text style={styles.chipCountText}>{chip.count}</Text>
                     </View>
                   </View>
-
-                  <Text style={[styles.familyName, isSelected && styles.familyNameActive]} numberOfLines={1}>
-                    {chip.name}
-                  </Text>
-                  <Text style={[styles.familyRelation, isSelected && styles.familyRelationActive]} numberOfLines={1}>
-                    {chip.relation}
-                  </Text>
+                  <Text style={[styles.chipName, isSel && styles.chipNameActive]} numberOfLines={1}>{chip.name}</Text>
+                  <Text style={[styles.chipRelation, isSel && styles.chipRelationActive]} numberOfLines={1}>{chip.relation}</Text>
                 </TouchableOpacity>
               );
             })}
-
-            {/* Add Member Card */}
-            <TouchableOpacity
-              style={styles.familyAddCard}
-              onPress={() => navigation.navigate('FamilyProfiles')}
-              activeOpacity={0.75}
-            >
-              <View style={styles.familyAddCircle}>
-                <Ionicons name="person-add" size={16} color="#0F766E" />
-              </View>
-              <Text style={styles.familyAddText}>+ Add</Text>
-              <Text style={styles.familyAddSub}>Member</Text>
+            <TouchableOpacity style={styles.addFamilyChip} onPress={() => navigation.navigate('FamilyProfiles')} activeOpacity={0.8}>
+              <View style={styles.addFamilyCircle}><Ionicons name="person-add" size={15} color="#0F766E" /></View>
+              <Text style={styles.addFamilyText}>+ Add</Text>
+              <Text style={styles.addFamilySub}>Member</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
 
-        {/* 5. SEARCH BAR */}
+        {/* SEARCH + DATE FILTER */}
         <View style={styles.searchWrap}>
-          <View style={styles.searchInputBox}>
-            <Ionicons name="search" size={17} color="#64748B" />
+          <View style={styles.searchBox}>
+            <Ionicons name="search" size={16} color="#94A3B8" />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search record by test, doctor or lab..."
+              placeholder="Search doctor, lab, test, prescription..."
               placeholderTextColor="#94A3B8"
               value={searchQuery}
               onChangeText={setSearchQuery}
+              returnKeyType="search"
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
-                <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                <Ionicons name="close-circle" size={17} color="#94A3B8" />
               </TouchableOpacity>
             )}
           </View>
+          <TouchableOpacity style={styles.dateFilterPill} onPress={() => setDateModalVisible(true)} activeOpacity={0.8}>
+            <Ionicons name="calendar-outline" size={13} color="#0F766E" />
+            <Text style={styles.dateFilterText}>{DATE_FILTERS.find((d) => d.id === dateFilter)?.label || 'All Time'}</Text>
+            <Ionicons name="chevron-down" size={12} color="#0F766E" />
+          </TouchableOpacity>
         </View>
 
-        {/* 6. CATEGORY FILTER PILLS */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryPillsScroll}
-        >
-          {filterTabs.map((tab) => {
-            const isActive = selectedTab === tab.id;
+        {/* CATEGORY TABS */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
+          {CATEGORY_TABS.map((tab) => {
+            const isActive = selectedCategory === tab.id;
             return (
-              <TouchableOpacity
-                key={tab.id}
-                style={[styles.categoryPill, isActive && styles.categoryPillActive]}
-                onPress={() => setSelectedTab(tab.id)}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name={tab.icon}
-                  size={14}
-                  color={isActive ? '#FFFFFF' : '#475569'}
-                />
-                <Text style={[styles.categoryPillText, isActive && styles.categoryPillTextActive]}>
-                  {tab.label}
-                </Text>
-                <View style={[styles.categoryPillCount, isActive && styles.categoryPillCountActive]}>
-                  <Text style={[styles.categoryPillCountText, isActive && styles.categoryPillCountTextActive]}>
-                    {tab.count}
-                  </Text>
+              <TouchableOpacity key={tab.id} style={[styles.categoryPill, isActive && styles.categoryPillActive]} onPress={() => setSelectedCategory(tab.id)} activeOpacity={0.8}>
+                <Ionicons name={tab.icon} size={13} color={isActive ? '#FFF' : '#64748B'} />
+                <Text style={[styles.categoryPillText, isActive && styles.categoryPillTextActive]}>{tab.label}</Text>
+                <View style={[styles.categoryCount, isActive && styles.categoryCountActive]}>
+                  <Text style={[styles.categoryCountText, isActive && styles.categoryCountTextActive]}>{categoryCounts[tab.id] || 0}</Text>
                 </View>
               </TouchableOpacity>
             );
           })}
         </ScrollView>
 
-        {/* 7. SAVED DOCUMENTS LIST */}
-        <View style={styles.recordsSection}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionHeaderTitle}>
-              Medical Records ({filteredRecords.length})
-            </Text>
-            <TouchableOpacity onPress={() => setUploadModalVisible(true)} activeOpacity={0.7}>
-              <Text style={styles.addRecordLinkText}>+ Add New</Text>
+        {/* RECORDS */}
+        <View style={[styles.recordsWrap, isTablet && styles.recordsWrapTablet]}>
+          <View style={styles.recordsHeader}>
+            <Text style={styles.recordsHeaderText}>{filteredRecords.length} {filteredRecords.length === 1 ? 'Record' : 'Records'}</Text>
+            <TouchableOpacity style={styles.syncBtn} onPress={handleSync} disabled={isSyncing} activeOpacity={0.8}>
+              {isSyncing ? <ActivityIndicator size="small" color="#0F766E" /> : <Ionicons name="sync" size={14} color="#0F766E" />}
+              <Text style={styles.syncBtnText}>{isSyncing ? 'Syncing...' : 'Sync'}</Text>
             </TouchableOpacity>
           </View>
 
           {filteredRecords.length === 0 ? (
             <View style={styles.emptyCard}>
-              <View style={styles.emptyIconCircle}>
-                <Ionicons name="folder-open-outline" size={42} color="#0D9488" />
-              </View>
-              <Text style={styles.emptyTitle}>No medical records found</Text>
-              <Text style={styles.emptySub}>
-                {searchQuery.trim() !== ''
-                  ? `No documents matching "${searchQuery}".`
-                  : selectedPatient !== 'all'
-                  ? 'No records linked to this member yet.'
-                  : 'Start building your vault by uploading a medical slip or test report.'}
+              <View style={styles.emptyIconCircle}><Ionicons name="folder-open-outline" size={40} color="#0D9488" /></View>
+              <Text style={styles.emptyTitle}>
+                {searchQuery
+                  ? `No records matching "${searchQuery}"`
+                  : selectedCategory !== 'all'
+                  ? `No ${CATEGORY_TABS.find((t) => t.id === selectedCategory)?.label} found`
+                  : 'No health records found'}
               </Text>
-              <TouchableOpacity
-                style={styles.emptyUploadBtn}
-                onPress={() => setUploadModalVisible(true)}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="cloud-upload" size={16} color="#FFFFFF" />
-                <Text style={styles.emptyUploadBtnText}>Upload Medical Document</Text>
+              <Text style={styles.emptySub}>
+                {selectedPatientId !== 'self' && selectedPatientId !== selfMemberId
+                  ? 'No records linked to this family member yet.'
+                  : 'Upload a prescription or lab report to get started.'}
+              </Text>
+              <TouchableOpacity style={styles.emptyUploadBtn} onPress={() => setUploadModalVisible(true)} activeOpacity={0.85}>
+                <Ionicons name="cloud-upload" size={14} color="#FFF" />
+                <Text style={styles.emptyUploadBtnText}>Upload Document</Text>
               </TouchableOpacity>
             </View>
+          ) : isTablet ? (
+            <View style={styles.tabletGrid}>{filteredRecords.map(renderCard)}</View>
           ) : (
-            filteredRecords.map((doc) => (
-              <TouchableOpacity
-                key={doc.id}
-                style={styles.recordCard}
-                onPress={() => openDocViewer(doc)}
-                activeOpacity={0.92}
-              >
-                {/* TOP ROW: ICON + TITLE + STATUS */}
-                <View style={styles.cardTopRow}>
-                  <View style={[styles.cardIconBox, { backgroundColor: doc.iconBg }]}>
-                    <Ionicons name={doc.icon} size={20} color={doc.iconColor} />
-                  </View>
-
-                  <View style={styles.cardTitleCol}>
-                    <View style={styles.cardPatientPill}>
-                      <Ionicons name="person" size={10} color="#0F766E" />
-                      <Text style={styles.cardPatientPillText} numberOfLines={1}>
-                        {doc.patientName}
-                      </Text>
-                    </View>
-                    <Text style={styles.cardTitle} numberOfLines={2}>
-                      {doc.title}
-                    </Text>
-                  </View>
-
-                  <View style={[styles.cardStatusBadge, { backgroundColor: doc.statusBg }]}>
-                    <Text style={[styles.cardStatusBadgeText, { color: doc.statusColor }]}>
-                      {doc.status}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* DOCTOR & FACILITY ROW */}
-                <View style={styles.cardDoctorRow}>
-                  <View style={styles.cardDoctorLine}>
-                    <Ionicons name="medkit-outline" size={13} color="#64748B" />
-                    <Text style={styles.cardDoctorText} numberOfLines={1}>
-                      {doc.doctor}
-                    </Text>
-                  </View>
-                  <View style={styles.cardDoctorLine}>
-                    <Ionicons name="business-outline" size={13} color="#64748B" />
-                    <Text style={styles.cardFacilityText} numberOfLines={1}>
-                      {doc.facility}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* SUMMARY SNIPPET BOX */}
-                <View style={styles.cardSummaryBox}>
-                  <Ionicons name="analytics" size={13} color="#0F766E" />
-                  <Text style={styles.cardSummaryText} numberOfLines={2}>
-                    {doc.summary}
-                  </Text>
-                </View>
-
-                {/* FOOTER ROW: DATE & ACTIONS */}
-                <View style={styles.cardFooter}>
-                  <View style={styles.cardMetaRow}>
-                    <Ionicons name="calendar-outline" size={13} color="#64748B" />
-                    <Text style={styles.cardMetaText}>{doc.date}</Text>
-                    <Text style={styles.cardMetaDot}>•</Text>
-                    <Ionicons name="document-text-outline" size={13} color="#64748B" />
-                    <Text style={styles.cardMetaText}>{doc.fileSize}</Text>
-                  </View>
-
-                  <View style={styles.cardActionsGroup}>
-                    <TouchableOpacity
-                      style={styles.cardShareBtn}
-                      onPress={() => handleShareDoc(doc)}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="share-social-outline" size={15} color="#0F766E" />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.cardViewPdfBtn}
-                      onPress={() => openDocViewer(doc)}
-                      activeOpacity={0.85}
-                    >
-                      <Ionicons name="eye" size={13} color="#FFFFFF" />
-                      <Text style={styles.cardViewPdfBtnText}>View PDF</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))
+            filteredRecords.map(renderCard)
           )}
         </View>
 
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* ==========================================
-          UPLOAD HEALTH DOCUMENT MODAL
-      ========================================== */}
-      <Modal
-        visible={uploadModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setUploadModalVisible(false)}
-      >
+      {/* ── RECORD DETAIL MODAL ── */}
+      <Modal visible={detailVisible} transparent animationType="slide" onRequestClose={() => setDetailVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalDragHandle} />
+          <View style={[styles.detailModal, isTablet && styles.detailModalTablet]}>
+            <View style={styles.dragHandle} />
+            {activeRecord && (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={styles.detailHeader}>
+                  <View style={[styles.detailIconBox, { backgroundColor: activeRecord.iconBg }]}>
+                    <Ionicons name={activeRecord.icon} size={22} color={activeRecord.iconColor} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.detailRecordType}>{activeRecord.recordType || activeRecord.category.toUpperCase()}</Text>
+                    <Text style={styles.detailTitle} numberOfLines={2}>{activeRecord.title}</Text>
+                  </View>
+                  <TouchableOpacity style={styles.closeBtn} onPress={() => setDetailVisible(false)} activeOpacity={0.7}>
+                    <Ionicons name="close" size={20} color="#64748B" />
+                  </TouchableOpacity>
+                </View>
 
-            <View style={styles.modalHeader}>
+                <View style={styles.detailMetaRow}>
+                  <View style={[styles.statusBadge, { backgroundColor: activeRecord.statusBg }]}>
+                    <Text style={[styles.statusText, { color: activeRecord.statusColor }]}>{activeRecord.status}</Text>
+                  </View>
+                  <View style={styles.patientPill}>
+                    <Ionicons name="person" size={11} color="#0F766E" />
+                    <Text style={styles.patientPillText}>{activeRecord.patientName}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.infoGrid}>
+                  {!!activeRecord.doctor   && <View style={styles.infoItem}><Text style={styles.infoLabel}>Doctor</Text><Text style={styles.infoValue}>{activeRecord.doctor}</Text></View>}
+                  {!!activeRecord.facility && <View style={styles.infoItem}><Text style={styles.infoLabel}>Facility</Text><Text style={styles.infoValue}>{activeRecord.facility}</Text></View>}
+                  {!!activeRecord.date     && <View style={styles.infoItem}><Text style={styles.infoLabel}>Date</Text><Text style={styles.infoValue}>{fmtDate(activeRecord.date) || activeRecord.date}</Text></View>}
+                  {!!activeRecord.fileSize && <View style={styles.infoItem}><Text style={styles.infoLabel}>File</Text><Text style={styles.infoValue}>{activeRecord.fileSize}</Text></View>}
+                </View>
+
+                {!!activeRecord.summary && (
+                  <View style={styles.detailSummaryBox}>
+                    <Text style={styles.detailSectionTitle}>Summary</Text>
+                    <Text style={styles.detailSummaryText}>{activeRecord.summary}</Text>
+                  </View>
+                )}
+
+                {activeRecord.hasMedicines && activeRecord.medicines?.length > 0 && (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Prescribed Medicines</Text>
+                    {activeRecord.medicines.map((med, i) => (
+                      <View key={med.id || i} style={styles.medicineRow}>
+                        <View style={styles.medicineIcon}><Ionicons name="medkit-outline" size={14} color="#0D9488" /></View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.medicineName}>{med.name}{med.strength ? ` (${med.strength})` : ''}</Text>
+                          <Text style={styles.medicineDosage}>{med.dosage}</Text>
+                          {!!med.duration && <Text style={styles.medicineDuration}>Duration: {med.duration}</Text>}
+                        </View>
+                        {!!med.price && <Text style={styles.medicinePrice}>₹{med.price}</Text>}
+                      </View>
+                    ))}
+                    <TouchableOpacity style={styles.orderMedsBtn} onPress={() => { setDetailVisible(false); navigation.navigate('Pharmacy'); }} activeOpacity={0.88}>
+                      <Ionicons name="cart-outline" size={15} color="#FFF" />
+                      <Text style={styles.orderMedsBtnText}>Order from Pharmacy</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {activeRecord.parameters?.length > 0 && (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Test Results</Text>
+                    {activeRecord.parameters.map((p, i) => {
+                      const isNormal = p.status?.toLowerCase() === 'normal';
+                      const isHigh   = p.status?.toLowerCase() === 'high';
+                      return (
+                        <View key={i} style={styles.paramRow}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.paramName}>{p.name}</Text>
+                            {!!p.normalRange && <Text style={styles.paramRange}>Ref: {p.normalRange} {p.unit}</Text>}
+                          </View>
+                          <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={[styles.paramValue, isHigh && { color: '#DC2626' }, isNormal && { color: '#059669' }]}>{p.value} {p.unit}</Text>
+                            <Text style={[styles.paramStatus, { color: isHigh ? '#DC2626' : isNormal ? '#059669' : '#D97706' }]}>{p.status}</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+
+                {activeRecord.hasReferredTest && activeRecord.referredTest && (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Doctor Recommendation</Text>
+                    <View style={styles.suggestionBox}>
+                      <Ionicons name="bulb" size={18} color="#D97706" />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={styles.suggestionTest}>{activeRecord.referredTest.testName}</Text>
+                        {!!activeRecord.referredTest.reason && <Text style={styles.suggestionReason}>{activeRecord.referredTest.reason}</Text>}
+                      </View>
+                    </View>
+                    <TouchableOpacity style={styles.bookTestModalBtn} onPress={() => { setDetailVisible(false); navigation.navigate('LabTests'); }} activeOpacity={0.88}>
+                      <Ionicons name="flask-outline" size={15} color="#FFF" />
+                      <Text style={styles.bookTestModalBtnText}>Book This Test Now</Text>
+                      <Ionicons name="arrow-forward" size={14} color="#FFF" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                <View style={styles.detailActions}>
+                  <TouchableOpacity style={styles.detailDownloadBtn} onPress={() => { setDetailVisible(false); showToast('Document downloaded to device.'); }} activeOpacity={0.88}>
+                    <Ionicons name="download-outline" size={16} color="#0F766E" />
+                    <Text style={styles.detailDownloadBtnText}>Download</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.detailShareBtn} onPress={() => { setDetailVisible(false); handleShare(activeRecord); }} activeOpacity={0.88}>
+                    <Ionicons name="share-social-outline" size={16} color="#FFF" />
+                    <Text style={styles.detailShareBtnText}>Share</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── DATE FILTER MODAL ── */}
+      <Modal visible={dateModalVisible} transparent animationType="fade" onRequestClose={() => setDateModalVisible(false)}>
+        <TouchableOpacity style={styles.backdropOverlay} activeOpacity={1} onPress={() => setDateModalVisible(false)}>
+          <View style={styles.dateFilterModal} onStartShouldSetResponder={() => true}>
+            <Text style={styles.dateFilterModalTitle}>Filter by Date</Text>
+            {DATE_FILTERS.map((df) => (
+              <TouchableOpacity key={df.id} style={styles.dateFilterItem} onPress={() => { setDateFilter(df.id); setDateModalVisible(false); }} activeOpacity={0.8}>
+                <Text style={[styles.dateFilterItemText, dateFilter === df.id && styles.dateFilterItemTextActive]}>{df.label}</Text>
+                {dateFilter === df.id && <Ionicons name="checkmark-circle" size={18} color="#0F766E" />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── UPLOAD MODAL ── */}
+      <Modal visible={uploadModalVisible} transparent animationType="slide" onRequestClose={() => setUploadModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.uploadModal}>
+            <View style={styles.dragHandle} />
+            <View style={styles.uploadModalHeader}>
               <View>
-                <Text style={styles.modalTag}>DIGITAL HEALTH LOCKER</Text>
-                <Text style={styles.modalTitle}>Upload Medical Document</Text>
+                <Text style={styles.uploadModalTag}>DIGITAL HEALTH LOCKER</Text>
+                <Text style={styles.uploadModalTitle}>Upload Health Document</Text>
               </View>
-              <TouchableOpacity
-                style={styles.modalCloseBtn}
-                onPress={() => setUploadModalVisible(false)}
-                activeOpacity={0.7}
-              >
+              <TouchableOpacity style={styles.closeBtn} onPress={() => setUploadModalVisible(false)} activeOpacity={0.7}>
                 <Ionicons name="close" size={20} color="#64748B" />
               </TouchableOpacity>
             </View>
+            <Text style={styles.uploadModalSub}>Select patient and document type to securely store.</Text>
 
-            <Text style={styles.modalSubtitle}>
-              Select document type to securely encrypt and sync with your ABHA ID.
-            </Text>
-
-            {/* FAMILY MEMBER SELECTION IN UPLOAD */}
-            <Text style={styles.uploadModalSectionLabel}>Select Patient Profile:</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.uploadPatientChips}
-            >
+            <Text style={styles.uploadSectionLabel}>Select Patient:</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
               {familyMembers.map((m) => {
-                const isSelected = selectedUploadPatientId === m.id;
                 const isSelf = m.id === 'self' || m.isPrimary || m.relation === 'Self';
+                const isSel  = uploadPatientId === m.id;
                 return (
-                  <TouchableOpacity
-                    key={m.id}
-                    style={[
-                      styles.uploadPatientChip,
-                      isSelected && styles.uploadPatientChipActive,
-                    ]}
-                    onPress={() => setSelectedUploadPatientId(m.id)}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name="person"
-                      size={12}
-                      color={isSelected ? '#FFFFFF' : '#0F766E'}
-                    />
-                    <Text
-                      style={[
-                        styles.uploadPatientChipText,
-                        isSelected && styles.uploadPatientChipTextActive,
-                      ]}
-                    >
-                      {isSelf
-                        ? `Self (${primaryUserDisplayName})`
-                        : m.relation
-                        ? `${m.name.split(' ')[0]} (${m.relation})`
-                        : m.name}
+                  <TouchableOpacity key={m.id} style={[styles.uploadPatientChip, isSel && styles.uploadPatientChipActive]} onPress={() => setUploadPatientId(m.id)} activeOpacity={0.8}>
+                    <Ionicons name="person" size={12} color={isSel ? '#FFF' : '#0F766E'} />
+                    <Text style={[styles.uploadPatientChipText, isSel && styles.uploadPatientChipTextActive]}>
+                      {isSelf ? `Self (${primaryDisplayName})` : `${(m.name || '').split(' ')[0]} (${m.relation})`}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
 
-            <TouchableOpacity
-              style={styles.uploadOptionCard}
-              onPress={() => {
-                setUploadModalVisible(false);
-                const targetMember = familyMembers.find((m) => m.id === selectedUploadPatientId);
-                const targetName = targetMember ? targetMember.name : primaryUserName;
-                showToast(`Camera Scanner ready for ${targetName}. Capture prescription.`);
-                navigation.navigate('Prescriptions');
-              }}
-              activeOpacity={0.85}
-            >
-              <View style={[styles.uploadOptionIcon, { backgroundColor: '#F0FDFA' }]}>
-                <Ionicons name="camera" size={22} color="#0F766E" />
-              </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.uploadOptionTitle}>Scan with Camera</Text>
-                <Text style={styles.uploadOptionSub}>
-                  Take a photo of physical prescription or doctor slip
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.uploadOptionCard}
-              onPress={() => {
-                setUploadModalVisible(false);
-                const targetMember = familyMembers.find((m) => m.id === selectedUploadPatientId);
-                const targetName = targetMember ? targetMember.name : primaryUserName;
-                showToast(`File picker ready for ${targetName}.`);
-                navigation.navigate('Reports');
-              }}
-              activeOpacity={0.85}
-            >
-              <View style={[styles.uploadOptionIcon, { backgroundColor: '#EFF6FF' }]}>
-                <Ionicons name="document-attach" size={22} color="#2563EB" />
-              </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.uploadOptionTitle}>Upload PDF or Image File</Text>
-                <Text style={styles.uploadOptionSub}>
-                  Choose CBC, MRI, CT scan or lab PDF from your phone
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.uploadOptionCard}
-              onPress={() => {
-                setUploadModalVisible(false);
-                showToast('Auto-syncing diagnostic lab reports via OTP.');
-              }}
-              activeOpacity={0.85}
-            >
-              <View style={[styles.uploadOptionIcon, { backgroundColor: '#E6F8F5' }]}>
-                <Ionicons name="cloud-download" size={22} color="#00B894" />
-              </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.uploadOptionTitle}>Auto-Fetch from Hospital/Lab</Text>
-                <Text style={styles.uploadOptionSub}>
-                  Sync reports automatically using your Registered Mobile No.
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ==========================================
-          VIEW DOCUMENT PREVIEW MODAL
-      ========================================== */}
-      <Modal
-        visible={viewDocModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setViewDocModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.viewDocModalContent}>
-            {activeDoc && (
-              <>
-                <View style={styles.modalHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.modalTag}>VERIFIED REPORT PREVIEW</Text>
-                    <Text style={styles.modalTitle} numberOfLines={1}>
-                      {activeDoc.title}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.modalCloseBtn}
-                    onPress={() => setViewDocModalVisible(false)}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="close" size={20} color="#64748B" />
-                  </TouchableOpacity>
+            {[
+              { icon: 'camera',          bg: '#F0FDFA', color: '#0F766E', title: 'Scan with Camera',            sub: 'Photo of prescription or doctor slip',    onPress: () => { setUploadModalVisible(false); navigation.navigate('Prescriptions'); } },
+              { icon: 'document-attach', bg: '#EFF6FF', color: '#2563EB', title: 'Upload PDF or Image',          sub: 'Upload CBC, MRI, scan or lab PDF report', onPress: () => { setUploadModalVisible(false); navigation.navigate('Reports'); } },
+              { icon: 'cloud-download',  bg: '#E6F8F5', color: '#00B894', title: 'Auto-Fetch from Lab/Hospital', sub: 'Sync using registered mobile number',      onPress: () => { setUploadModalVisible(false); showToast('Auto-syncing lab reports via OTP.'); } },
+            ].map((opt, i) => (
+              <TouchableOpacity key={i} style={styles.uploadOption} onPress={opt.onPress} activeOpacity={0.85}>
+                <View style={[styles.uploadOptionIcon, { backgroundColor: opt.bg }]}><Ionicons name={opt.icon} size={22} color={opt.color} /></View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.uploadOptionTitle}>{opt.title}</Text>
+                  <Text style={styles.uploadOptionSub}>{opt.sub}</Text>
                 </View>
-
-                {/* SIMULATED PDF VIEW */}
-                <View style={styles.pdfPreviewBox}>
-                  <Ionicons name="document-text" size={48} color="#0D9488" />
-                  <Text style={styles.pdfPreviewName}>{activeDoc.title}</Text>
-                  <Text style={styles.pdfPreviewMeta}>
-                    {activeDoc.facility} • {activeDoc.date}
-                  </Text>
-                  <View style={styles.pdfStamp}>
-                    <Ionicons name="shield-checkmark" size={14} color="#059669" />
-                    <Text style={styles.pdfStampText}>ABDM Digitally Signed</Text>
-                  </View>
-                  <Text style={styles.pdfSummaryBoxText}>{activeDoc.summary}</Text>
-                </View>
-
-                {/* MODAL ACTIONS */}
-                <View style={styles.pdfModalActions}>
-                  <TouchableOpacity
-                    style={styles.downloadModalBtn}
-                    onPress={() => {
-                      setViewDocModalVisible(false);
-                      showToast('Document downloaded to device storage.');
-                    }}
-                    activeOpacity={0.88}
-                  >
-                    <Ionicons name="download-outline" size={16} color="#0F766E" />
-                    <Text style={styles.downloadModalBtnText}>Download PDF</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.shareModalBtn}
-                    onPress={() => {
-                      setViewDocModalVisible(false);
-                      handleShareDoc(activeDoc);
-                    }}
-                    activeOpacity={0.88}
-                  >
-                    <Ionicons name="share-social-outline" size={16} color="#FFFFFF" />
-                    <Text style={styles.shareModalBtnText}>Share Record</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
+                <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
       </Modal>
@@ -1033,930 +683,167 @@ const HealthRecordsScreen = ({ navigation }) => {
 export default HealthRecordsScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  toast: {
+    position: 'absolute', top: Platform.OS === 'android' ? 56 : 70, alignSelf: 'center',
+    zIndex: 999, flexDirection: 'row', alignItems: 'center', backgroundColor: '#064E3B',
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24, gap: 8,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 8,
   },
-
-  // 1. TOP APP BAR
+  toastText: { color: '#FFF', fontSize: 12.5, fontWeight: '700' },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'android' ? 14 : 10,
-    paddingBottom: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingTop: Platform.OS === 'android' ? 12 : 8, paddingBottom: 12,
+    backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
   },
-  headerBackBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerCenter: {
-    flex: 1,
-    paddingHorizontal: 12,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#0F172A',
-    letterSpacing: -0.2,
-  },
-  headerSubtitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginTop: 2,
-  },
-  headerLiveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-  },
-  headerSubtitleText: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
-  },
+  backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
+  headerCenter: { flex: 1, paddingHorizontal: 12 },
+  headerTitle: { fontSize: 18, fontWeight: '900', color: '#0F172A' },
+  headerSubRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' },
+  headerSubText: { fontSize: 11, color: '#64748B', fontWeight: '600' },
   uploadHeaderBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0F766E',
-    paddingHorizontal: 13,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 5,
-    shadowColor: '#0F766E',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  uploadHeaderBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-
-  // TOAST
-  toastCard: {
-    position: 'absolute',
-    top: 72,
-    alignSelf: 'center',
-    zIndex: 999,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#064E3B',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 24,
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  toastText: {
-    color: '#FFFFFF',
-    fontSize: 12.5,
-    fontWeight: '700',
-  },
-
-  scrollContent: {
-    paddingBottom: 40,
-  },
-
-  // 2. ABHA DIGITAL HEALTH VAULT HERO CARD
-  abhaCard: {
-    backgroundColor: '#064E3B',
-    borderRadius: 20,
-    marginHorizontal: 16,
-    marginTop: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#059669',
-    position: 'relative',
-    overflow: 'hidden',
-    shadowColor: '#064E3B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  abhaCardBgGlow: {
-    position: 'absolute',
-    top: -50,
-    right: -40,
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: 'rgba(52, 211, 153, 0.12)',
-  },
-  abhaTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  abhaBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.16)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 4,
-  },
-  abhaBadgeText: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#A7F3D0',
-    letterSpacing: 0.5,
-  },
-  abhaEncryptedTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.25)',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 4,
-  },
-  abhaEncryptedText: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: '#E2E8F0',
-  },
-  abhaTitleBlock: {
-    marginBottom: 14,
-  },
-  abhaTitle: {
-    fontSize: 16.5,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  abhaIdRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 3,
-  },
-  abhaIdText: {
-    fontSize: 12,
-    color: '#A7F3D0',
-    fontWeight: '600',
-  },
-  abhaIdValue: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-  abhaMetricsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.25)',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    marginBottom: 12,
-  },
-  abhaMetricItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  abhaMetricNum: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  abhaMetricLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#A7F3D0',
-    marginTop: 2,
-  },
-  abhaMetricDivider: {
-    width: 1,
-    height: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  syncAbhaBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 10,
-    borderRadius: 12,
-    gap: 6,
-  },
-  syncAbhaBtnText: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#047857',
-  },
-
-  // 3. QUICK HEALTH HUB
-  quickHubSection: {
-    marginTop: 18,
-    paddingHorizontal: 16,
-  },
-  quickHubGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginTop: 10,
-  },
-  quickTile: {
-    width: '48.5%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    gap: 8,
-  },
-  quickTileIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quickTileContent: {
-    flex: 1,
-  },
-  quickTileHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 4,
-  },
-  quickTileTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  quickTileMiniBadge: {
-    paddingHorizontal: 5,
-    paddingVertical: 1.5,
-    borderRadius: 6,
-  },
-  quickTileMiniBadgeText: {
-    fontSize: 8.5,
-    fontWeight: '800',
-  },
-  quickTileSubtitle: {
-    fontSize: 10,
-    color: '#64748B',
-    marginTop: 2,
-    fontWeight: '600',
-  },
-
-  // 4. FAMILY VAULTS AVATAR SWITCHER
-  familySection: {
-    marginTop: 20,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 10,
-  },
-  sectionHeaderTitle: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  manageFamilyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDFA',
-    paddingHorizontal: 10,
-    paddingVertical: 4.5,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#CCFBF1',
-    gap: 3,
-  },
-  manageFamilyBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#0F766E',
-  },
-  familyAvatarsScroll: {
-    paddingHorizontal: 16,
-    gap: 10,
-  },
-  familyCard: {
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    width: 82,
-  },
-  familyCardActive: {
-    borderColor: '#0F766E',
-    backgroundColor: '#F0FDFA',
-    shadowColor: '#0F766E',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  familyAvatarCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    marginBottom: 6,
-  },
-  familyAvatarCircleActive: {
-    backgroundColor: '#0F766E',
-  },
-  familyAvatarText: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: '#0F766E',
-  },
-  familyAvatarTextActive: {
-    color: '#FFFFFF',
-  },
-  familyCountBadge: {
-    position: 'absolute',
-    top: -3,
-    right: -3,
-    backgroundColor: '#0F172A',
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-  },
-  familyCountBadgeActive: {
-    backgroundColor: '#059669',
-  },
-  familyCountBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  familyCountBadgeTextActive: {
-    color: '#FFFFFF',
-  },
-  familyName: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: '#334155',
-    textAlign: 'center',
-  },
-  familyNameActive: {
-    color: '#0F766E',
-  },
-  familyRelation: {
-    fontSize: 9.5,
-    fontWeight: '600',
-    color: '#94A3B8',
-    marginTop: 1,
-    textAlign: 'center',
-  },
-  familyRelationActive: {
-    color: '#0D9488',
-  },
-  familyAddCard: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-    borderStyle: 'dashed',
-    width: 76,
-  },
-  familyAddCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F0FDFA',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 6,
-  },
-  familyAddText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#0F766E',
-  },
-  familyAddSub: {
-    fontSize: 9,
-    color: '#94A3B8',
-    marginTop: 1,
-  },
-
-  // 5. SEARCH WRAP
-  searchWrap: {
-    paddingHorizontal: 16,
-    marginTop: 16,
-  },
-  searchInputBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    height: 44,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 13,
-    color: '#0F172A',
-    fontWeight: '500',
-  },
-
-  // 6. CATEGORY PILLS
-  categoryPillsScroll: {
-    paddingHorizontal: 16,
-    gap: 8,
-    marginTop: 12,
-  },
-  categoryPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 6,
-  },
-  categoryPillActive: {
-    backgroundColor: '#0F766E',
-    borderColor: '#0F766E',
-  },
-  categoryPillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  categoryPillTextActive: {
-    color: '#FFFFFF',
-  },
-  categoryPillCount: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 10,
-  },
-  categoryPillCountActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-  },
-  categoryPillCountText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#64748B',
-  },
-  categoryPillCountTextActive: {
-    color: '#FFFFFF',
-  },
-
-  // 7. RECORDS SECTION
-  recordsSection: {
-    marginTop: 20,
-    paddingHorizontal: 16,
-  },
-  addRecordLinkText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0F766E',
-  },
-  recordCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 14,
-    marginBottom: 12,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  cardTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  cardIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardTitleCol: {
-    flex: 1,
-  },
-  cardPatientPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#F0FDFA',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: '#CCFBF1',
-  },
-  cardPatientPillText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#0F766E',
-  },
-  cardTitle: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: '#0F172A',
-    lineHeight: 19,
-  },
-  cardStatusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3.5,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  cardStatusBadgeText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-  },
-  cardDoctorRow: {
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#F8FAFC',
-    gap: 3,
-  },
-  cardDoctorLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  cardDoctorText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: '#334155',
-  },
-  cardFacilityText: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  cardSummaryBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 8,
-    marginTop: 8,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: '#EDF2F7',
-  },
-  cardSummaryText: {
-    fontSize: 11,
-    color: '#0F766E',
-    fontWeight: '600',
-    flex: 1,
-    lineHeight: 15,
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  cardMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  cardMetaText: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  cardMetaDot: {
-    color: '#CBD5E1',
-    marginHorizontal: 2,
-  },
-  cardActionsGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  cardShareBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#F0FDFA',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#CCFBF1',
-  },
-  cardViewPdfBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0F766E',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 8,
-    gap: 4,
-  },
-  cardViewPdfBtnText: {
-    color: '#FFFFFF',
-    fontSize: 11.5,
-    fontWeight: '800',
-  },
-
-  // EMPTY STATE
-  emptyCard: {
-    alignItems: 'center',
-    padding: 28,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginTop: 8,
-  },
-  emptyIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#F0FDFA',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  emptyTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  emptySub: {
-    fontSize: 12,
-    color: '#64748B',
-    textAlign: 'center',
-    marginTop: 4,
-    marginBottom: 16,
-    lineHeight: 17,
-  },
-  emptyUploadBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0F766E',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    gap: 6,
-  },
-  emptyUploadBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12.5,
-    fontWeight: '800',
-  },
-
-  // MODALS
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.7)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-  },
-  modalDragHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#E2E8F0',
-    alignSelf: 'center',
-    marginBottom: 14,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 6,
-  },
-  modalTag: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#0F766E',
-    letterSpacing: 0.5,
-  },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: '#0F172A',
-    marginTop: 2,
-  },
-  modalSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    marginBottom: 14,
-  },
-  modalCloseBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  uploadModalSectionLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#334155',
-    marginBottom: 8,
-    marginTop: 4,
-  },
-  uploadPatientChips: {
-    gap: 8,
-    paddingBottom: 12,
-  },
-  uploadPatientChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 6,
-  },
-  uploadPatientChipActive: {
-    backgroundColor: '#0F766E',
-    borderColor: '#0F766E',
-  },
-  uploadPatientChipText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  uploadPatientChipTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
-  uploadOptionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 13,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 10,
-  },
-  uploadOptionIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  uploadOptionTitle: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  uploadOptionSub: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
-  },
-
-  // VIEW DOC MODAL
-  viewDocModalContent: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    margin: 20,
-    padding: 20,
-  },
-  pdfPreviewBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    padding: 18,
-    alignItems: 'center',
-    marginVertical: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  pdfPreviewName: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#0F172A',
-    marginTop: 10,
-    textAlign: 'center',
-  },
-  pdfPreviewMeta: {
-    fontSize: 11.5,
-    color: '#64748B',
-    marginTop: 3,
-  },
-  pdfStamp: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    marginTop: 8,
-    gap: 4,
-  },
-  pdfStampText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#059669',
-  },
-  pdfSummaryBoxText: {
-    fontSize: 11.5,
-    color: '#334155',
-    backgroundColor: '#FFFFFF',
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    marginTop: 12,
-    lineHeight: 16,
-    width: '100%',
-  },
-  pdfModalActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 6,
-  },
-  downloadModalBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F0FDFA',
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#CCFBF1',
-    gap: 6,
-  },
-  downloadModalBtnText: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#0F766E',
-  },
-  shareModalBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0F766E',
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 6,
-  },
-  shareModalBtnText: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#0F766E',
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, gap: 5,
+    shadowColor: '#0F766E', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 2,
+  },
+  uploadHeaderBtnText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
+  scroll: { paddingBottom: 40 },
+  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 10 },
+  sectionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  sectionLabel: { fontSize: 14, fontWeight: '800', color: '#0F172A' },
+  manageFamilyBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0FDFA', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: '#CCFBF1', gap: 4 },
+  manageFamilyText: { fontSize: 11, fontWeight: '800', color: '#0F766E' },
+  familyScroll: { paddingHorizontal: 16, gap: 10 },
+  familyChip: { alignItems: 'center', backgroundColor: '#FFF', paddingVertical: 10, paddingHorizontal: 10, borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', width: 76 },
+  familyChipActive: { borderColor: '#0F766E', backgroundColor: '#F0FDFA', shadowColor: '#0F766E', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
+  chipAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center', position: 'relative', marginBottom: 5 },
+  chipAvatarActive: { backgroundColor: '#0F766E' },
+  chipInitials: { fontSize: 14, fontWeight: '900', color: '#0F766E' },
+  chipInitialsActive: { color: '#FFF' },
+  chipCount: { position: 'absolute', top: -2, right: -2, backgroundColor: '#0F172A', minWidth: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2, borderWidth: 1.5, borderColor: '#FFF' },
+  chipCountActive: { backgroundColor: '#059669' },
+  chipCountText: { fontSize: 9, fontWeight: '800', color: '#FFF' },
+  chipName:         { fontSize: 11,   fontWeight: '800', color: '#334155', textAlign: 'center' },
+  chipNameActive:   { color: '#0F766E' },
+  chipRelation:     { fontSize: 9.5,  fontWeight: '600', color: '#94A3B8', marginTop: 1, textAlign: 'center' },
+  chipRelationActive: { color: '#0D9488' },
+  addFamilyChip: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF', paddingVertical: 10, paddingHorizontal: 8, borderRadius: 16, borderWidth: 1.5, borderColor: '#CBD5E1', borderStyle: 'dashed', width: 68 },
+  addFamilyCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F0FDFA', alignItems: 'center', justifyContent: 'center', marginBottom: 5 },
+  addFamilyText: { fontSize: 11, fontWeight: '800', color: '#0F766E' },
+  addFamilySub:  { fontSize: 9, color: '#94A3B8', marginTop: 1 },
+  searchWrap: { paddingHorizontal: 16, marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, paddingHorizontal: 12, height: 44, borderWidth: 1, borderColor: '#E2E8F0', gap: 8 },
+  searchInput: { flex: 1, fontSize: 13, color: '#0F172A', fontWeight: '500' },
+  dateFilterPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0FDFA', paddingHorizontal: 10, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#CCFBF1', gap: 4 },
+  dateFilterText: { fontSize: 11.5, fontWeight: '700', color: '#0F766E' },
+  categoryScroll: { paddingHorizontal: 16, gap: 8, marginTop: 14 },
+  categoryPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 11, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0', gap: 5 },
+  categoryPillActive: { backgroundColor: '#0F766E', borderColor: '#0F766E' },
+  categoryPillText: { fontSize: 12, fontWeight: '700', color: '#475569' },
+  categoryPillTextActive: { color: '#FFF' },
+  categoryCount: { backgroundColor: '#F1F5F9', paddingHorizontal: 6, paddingVertical: 1.5, borderRadius: 10 },
+  categoryCountActive: { backgroundColor: 'rgba(255,255,255,0.25)' },
+  categoryCountText: { fontSize: 10, fontWeight: '800', color: '#64748B' },
+  categoryCountTextActive: { color: '#FFF' },
+  recordsWrap: { marginTop: 18, paddingHorizontal: 16 },
+  recordsWrapTablet: { paddingHorizontal: 20 },
+  recordsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  recordsHeaderText: { fontSize: 14, fontWeight: '800', color: '#0F172A' },
+  syncBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F0FDFA', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: '#CCFBF1' },
+  syncBtnText: { fontSize: 11.5, fontWeight: '700', color: '#0F766E' },
+  tabletGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  recordCard: { backgroundColor: '#FFF', borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', padding: 14, marginBottom: 12, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
+  recordCardTablet: { width: '48%' },
+  cardTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  cardIconBox: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  cardTitleCol: { flex: 1 },
+  patientPill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#F0FDFA', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, alignSelf: 'flex-start', marginBottom: 3, borderWidth: 1, borderColor: '#CCFBF1' },
+  patientPillText: { fontSize: 10, fontWeight: '800', color: '#0F766E' },
+  cardTitle: { fontSize: 14, fontWeight: '800', color: '#0F172A', lineHeight: 18 },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 3.5, borderRadius: 8, alignSelf: 'flex-start' },
+  statusText: { fontSize: 10.5, fontWeight: '800' },
+  cardMeta: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#F8FAFC', gap: 3 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  metaText:  { fontSize: 11.5, fontWeight: '600', color: '#334155', flex: 1 },
+  metaFacil: { fontSize: 11, color: '#64748B', flex: 1 },
+  summaryBox: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#F8FAFC', borderRadius: 10, padding: 8, marginTop: 8, gap: 6, borderWidth: 1, borderColor: '#EDF2F7' },
+  summaryText: { fontSize: 11, color: '#0F766E', fontWeight: '600', flex: 1, lineHeight: 15 },
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  footerLeft: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1, flexWrap: 'wrap' },
+  footerDate: { fontSize: 11, color: '#94A3B8', fontWeight: '600' },
+  footerDot:  { color: '#CBD5E1' },
+  cardActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  shareBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#F0FDFA', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#CCFBF1' },
+  viewBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0F766E', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, gap: 4 },
+  viewBtnText: { color: '#FFF', fontSize: 11.5, fontWeight: '800' },
+  bookTestBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#D97706', paddingVertical: 10, borderRadius: 10, marginTop: 10, gap: 6 },
+  bookTestBtnText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
+  emptyCard: { alignItems: 'center', padding: 28, backgroundColor: '#FFF', borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', marginTop: 8 },
+  emptyIconCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#F0FDFA', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  emptyTitle: { fontSize: 15, fontWeight: '800', color: '#0F172A', textAlign: 'center' },
+  emptySub: { fontSize: 12, color: '#64748B', textAlign: 'center', marginTop: 4, marginBottom: 16, lineHeight: 17 },
+  emptyUploadBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0F766E', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, gap: 6 },
+  emptyUploadBtnText: { color: '#FFF', fontSize: 12.5, fontWeight: '800' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.7)', justifyContent: 'flex-end' },
+  backdropOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', alignItems: 'center' },
+  dragHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 16 },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
+  detailModal: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32, maxHeight: '90%' },
+  detailModalTablet: { marginHorizontal: 60, borderRadius: 24, maxHeight: '85%' },
+  detailHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
+  detailIconBox: { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  detailRecordType: { fontSize: 10, fontWeight: '900', color: '#64748B', letterSpacing: 0.5, marginBottom: 2 },
+  detailTitle: { fontSize: 16, fontWeight: '900', color: '#0F172A' },
+  detailMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14, backgroundColor: '#F8FAFC', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#F1F5F9' },
+  infoItem: { width: '47%' },
+  infoLabel: { fontSize: 10, fontWeight: '800', color: '#94A3B8', letterSpacing: 0.3, marginBottom: 2 },
+  infoValue: { fontSize: 12.5, fontWeight: '700', color: '#0F172A' },
+  detailSummaryBox: { backgroundColor: '#F0FDFA', borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: '#CCFBF1' },
+  detailSectionTitle: { fontSize: 13, fontWeight: '900', color: '#0F172A', marginBottom: 10 },
+  detailSummaryText: { fontSize: 13, color: '#334155', lineHeight: 18 },
+  detailSection: { marginBottom: 16 },
+  medicineRow: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#F8FAFC', borderRadius: 12, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: '#F1F5F9', gap: 8 },
+  medicineIcon: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#CCFBF1', alignItems: 'center', justifyContent: 'center' },
+  medicineName:     { fontSize: 13, fontWeight: '800', color: '#0F172A' },
+  medicineDosage:   { fontSize: 11.5, color: '#64748B', marginTop: 1 },
+  medicineDuration: { fontSize: 11, color: '#0D9488', marginTop: 2, fontWeight: '600' },
+  medicinePrice:    { fontSize: 12, fontWeight: '800', color: '#0D9488' },
+  orderMedsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0F766E', paddingVertical: 11, borderRadius: 12, marginTop: 6, gap: 6 },
+  orderMedsBtnText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
+  paramRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F1F5F9', paddingVertical: 9 },
+  paramName:   { fontSize: 12.5, fontWeight: '700', color: '#0F172A' },
+  paramRange:  { fontSize: 10.5, color: '#94A3B8', marginTop: 1 },
+  paramValue:  { fontSize: 13, fontWeight: '800', color: '#0F172A' },
+  paramStatus: { fontSize: 10.5, fontWeight: '700', marginTop: 1 },
+  suggestionBox: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#FFFBEB', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#FDE68A' },
+  suggestionTest:   { fontSize: 13.5, fontWeight: '800', color: '#92400E' },
+  suggestionReason: { fontSize: 12, color: '#78350F', marginTop: 3, lineHeight: 16 },
+  bookTestModalBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#D97706', paddingVertical: 12, borderRadius: 12, gap: 6 },
+  bookTestModalBtnText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
+  detailActions: { flexDirection: 'row', gap: 10, marginTop: 6 },
+  detailDownloadBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F0FDFA', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: '#CCFBF1', gap: 6 },
+  detailDownloadBtnText: { fontSize: 13, fontWeight: '800', color: '#0F766E' },
+  detailShareBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0F766E', paddingVertical: 12, borderRadius: 12, gap: 6 },
+  detailShareBtnText: { fontSize: 13, fontWeight: '800', color: '#FFF' },
+  dateFilterModal: { backgroundColor: '#FFF', borderRadius: 18, padding: 20, width: 280, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 10 },
+  dateFilterModalTitle: { fontSize: 15, fontWeight: '900', color: '#0F172A', marginBottom: 14 },
+  dateFilterItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  dateFilterItemText:       { fontSize: 14, fontWeight: '600', color: '#334155' },
+  dateFilterItemTextActive: { fontSize: 14, fontWeight: '800', color: '#0F766E' },
+  uploadModal: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 32 },
+  uploadModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
+  uploadModalTag:   { fontSize: 9.5, fontWeight: '800', color: '#0F766E', letterSpacing: 0.5 },
+  uploadModalTitle: { fontSize: 17, fontWeight: '900', color: '#0F172A', marginTop: 2 },
+  uploadModalSub: { fontSize: 12, color: '#64748B', marginBottom: 14 },
+  uploadSectionLabel: { fontSize: 12, fontWeight: '800', color: '#334155', marginBottom: 8 },
+  uploadPatientChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, gap: 6 },
+  uploadPatientChipActive: { backgroundColor: '#0F766E', borderColor: '#0F766E' },
+  uploadPatientChipText: { fontSize: 11.5, fontWeight: '700', color: '#475569' },
+  uploadPatientChipTextActive: { color: '#FFF', fontWeight: '800' },
+  uploadOption: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 13, borderRadius: 14, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 10 },
+  uploadOptionIcon: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  uploadOptionTitle: { fontSize: 13.5, fontWeight: '800', color: '#0F172A' },
+  uploadOptionSub: { fontSize: 11, color: '#64748B', marginTop: 2 },
 });

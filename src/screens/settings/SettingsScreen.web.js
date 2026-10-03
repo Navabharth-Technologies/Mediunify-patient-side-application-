@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -11,6 +10,7 @@ import {
   Modal,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import WebHeader from '../../components/web/WebHeader';
@@ -181,9 +181,7 @@ const SettingsScreenWeb = ({ navigation, route }) => {
                 </View>
                 <Text style={styles.categoryBadgeText}>Preferences & Security</Text>
               </View>
-              <h1 style={{ margin: 0, padding: 0 }}>
-                <Text style={styles.pageTitle}>Account Settings</Text>
-              </h1>
+              <Text style={styles.pageTitle}>Account Settings</Text>
               <Text style={styles.pageSubtitle}>
                 Manage SMS/email notification alerts, privacy controls, consultation reminders, and security preferences.
               </Text>

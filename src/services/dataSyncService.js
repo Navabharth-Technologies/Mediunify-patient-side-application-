@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import { saveTransaction } from './transactionService';
 
 const DEFAULT_PORT = 5000;
 const CURRENT_LAN_IP = '192.168.29.61';
@@ -464,7 +465,7 @@ export const pushAppointment = async (appointmentData) => {
         await AsyncStorage.setItem('@mediunify_patient_physical_appointments', JSON.stringify(existing));
       }
 
-      if (typeof window !== 'undefined' && window.dispatchEvent) {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
         window.dispatchEvent(new CustomEvent('mediunify_consultations_updated', { detail: { consultation: appointmentData } }));
       }
     } else {
@@ -475,7 +476,7 @@ export const pushAppointment = async (appointmentData) => {
       await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updated));
       await AsyncStorage.setItem('@mediunify_patient_physical_appointments', JSON.stringify(updated));
 
-      if (typeof window !== 'undefined' && window.dispatchEvent) {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
         window.dispatchEvent(new CustomEvent('mediunify_appointments_updated', { detail: { appointment: appointmentData } }));
       }
     }
@@ -510,6 +511,51 @@ export const pushAppointment = async (appointmentData) => {
       const nList = nStr ? JSON.parse(nStr).filter((a) => a.id !== appointmentData.id) : [];
       await AsyncStorage.setItem('@unnathi_nurse_bookings', JSON.stringify([appointmentData, ...nList]));
     }
+
+    // ── Auto-save to payment history ──────────────────────────────────
+    try {
+      const appt = appointmentData;
+      const isVidAppt = appt.type === 'Video Consultation' || appt.serviceType === 'video' || Boolean(appt.videoRoomLink);
+      const isLabAppt = appt.type === 'Diagnostic Lab Test' || appt.type === 'Lab Test' || appt.serviceType === 'lab';
+      const isRadAppt = appt.type === 'Radiology' || appt.type === 'Radiology Scan' || appt.serviceType === 'radiology';
+      const isNurseAppt = appt.type === 'Home Nurse Care' || appt.serviceType === 'nurse';
+
+      let svcType = 'consultation';
+      let svcName = appt.type || 'Healthcare Service';
+      let title   = appt.doctor?.name || appt.doctorName || appt.type || 'Appointment';
+      let facility = appt.doctor?.clinicName || appt.labCenter?.name || appt.labName || appt.facility || 'MediUnify';
+
+      if (isLabAppt)   { svcType = 'lab';      svcName = 'Lab Test';       title = appt.tests?.map(t => t.name).join(', ') || 'Lab Tests'; }
+      if (isRadAppt)   { svcType = 'radiology'; svcName = 'Radiology Scan'; title = appt.tests?.map(t => t.name).join(', ') || 'Radiology Scan'; facility = appt.labName || facility; }
+      if (isNurseAppt) { svcType = 'nursing';   svcName = 'Home Nursing'; }
+      if (isVidAppt)   { svcType = 'consultation'; svcName = 'Video Consultation'; title = appt.doctor?.name || 'Video Consultation'; }
+
+      const paidAmount = Number(appt.paidAmount || appt.totalAmount || appt.amount || 0);
+
+      if (paidAmount > 0 || appt.paymentStatus === 'Paid' || appt.paymentMode === 'Paid') {
+        await saveTransaction({
+          id:          `TXN-${appt.id}`,
+          refId:       appt.id,
+          service:     svcName,
+          serviceType: svcType,
+          title,
+          facility,
+          date:        appt.date ? `${appt.date}${appt.time ? ', ' + appt.time : ''}` : undefined,
+          rawDate:     appt.date ? new Date(appt.date).toISOString() : new Date().toISOString(),
+          amount:      paidAmount,
+          mrp:         Number(appt.mrpAmount || appt.mrp || paidAmount),
+          status:      'Paid',
+          paymentMode: appt.paymentMethod || appt.paymentMode || appt.paymentStatus || 'Online',
+          gstin:       '29AABCU9603R1ZX',
+          items:       Array.isArray(appt.tests)
+                         ? appt.tests.map(t => ({ name: t.name, qty: 1, price: t.price || 0 }))
+                         : [{ name: svcName, qty: 1, price: paidAmount }],
+        });
+      }
+    } catch (_txErr) {
+      // Never block appointment save because of transaction log failure
+    }
+    // ─────────────────────────────────────────────────────────────────
 
     return { success: true, localOnly: true };
   } catch (e) {

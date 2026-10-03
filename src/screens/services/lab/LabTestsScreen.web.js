@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -11,6 +10,7 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../../theme/colors';
@@ -19,6 +19,9 @@ import {
   LAB_TESTS_MASTER,
   LAB_PACKAGES,
   DIAGNOSTIC_CENTRES,
+  ALL_CITY_DIAGNOSTIC_CENTRES,
+  getCentresByCity,
+  getGoogleMapsDirectionsUrl,
   getAvailableDates,
   TIME_SLOTS,
   INITIAL_SAVED_ADDRESSES,
@@ -42,6 +45,17 @@ const LabTestsScreenWeb = (props) => {
   const isDesktop = width >= 1024;
   const isTablet = width >= 768 && width < 1024;
   const { requireLogin } = useAuthGuard();
+
+  // Open Google Maps Directions for Clinical Lab / Diagnostic Centre
+  const handleOpenDirections = (centre, e) => {
+    if (e && e.stopPropagation) {
+      e.stopPropagation();
+    }
+    const url = getGoogleMapsDirectionsUrl(centre);
+    if (typeof window !== 'undefined' && window.open) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
 
   // Cart integration
   const { labCart = [], addToCart, removeFromCart, labCartCount = 0, labFinalTotal = 0 } = useCart();
@@ -133,11 +147,64 @@ const LabTestsScreenWeb = (props) => {
   const [selectedTest, setSelectedTest] = useState(null);
   const [selectedPackage, setSelectedPackage] = useState(null);
 
+  // Selected City & Location Filtering (Synchronized with Home Screen / Web Header)
+  const [currentCity, setCurrentCity] = useState('Mysuru');
+
+  useEffect(() => {
+    const loadCity = async () => {
+      try {
+        const saved =
+          (await AsyncStorage.getItem('@mediunify_selected_city')) ||
+          (await AsyncStorage.getItem('@unnathi_user_location'));
+        if (saved) {
+          const s = saved.toLowerCase();
+          const norm =
+            s.includes('bengal') || s.includes('bangal')
+              ? 'Bengaluru'
+              : s.includes('hassan')
+              ? 'Hassan'
+              : s.includes('mandya')
+              ? 'Mandya'
+              : s.includes('mangal')
+              ? 'Mangaluru'
+              : s.includes('hubli') || s.includes('hubballi')
+              ? 'Hubballi'
+              : s.includes('belgaum') || s.includes('belagavi')
+              ? 'Belagavi'
+              : 'Mysuru';
+          setCurrentCity(norm);
+        }
+      } catch (e) {}
+    };
+    loadCity();
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const handleStorage = (e) => {
+        if (!e || e.key === '@mediunify_selected_city' || e.key === '@unnathi_user_location') {
+          loadCity();
+        }
+      };
+      window.addEventListener('storage', handleStorage);
+      return () => window.removeEventListener('storage', handleStorage);
+    }
+  }, []);
+
+  const availableCentres = useMemo(() => {
+    return getCentresByCity(currentCity);
+  }, [currentCity]);
+
   // Booking Flow State
   const [bookingFlowStep, setBookingFlowStep] = useState(1);
   const [activeBookingTest, setActiveBookingTest] = useState(null);
   const [collectionMethod, setCollectionMethod] = useState('HOME');
   const [selectedCentreId, setSelectedCentreId] = useState('centre-unnathi-main');
+
+  useEffect(() => {
+    if (availableCentres.length > 0 && !availableCentres.some((c) => c.id === selectedCentreId)) {
+      setSelectedCentreId(availableCentres[0].id);
+    }
+  }, [availableCentres, selectedCentreId]);
+
   const [selectedDate, setSelectedDate] = useState(getAvailableDates()[0].dateStr);
   const [selectedSlotId, setSelectedSlotId] = useState('slot-2');
   const [paymentMethod, setPaymentMethod] = useState('UPI');
@@ -524,7 +591,10 @@ const LabTestsScreenWeb = (props) => {
     const testPrice = activeBookingTest.price;
     const collectionFee = isHome ? 100 : 0;
     const total = testPrice + collectionFee;
-    const selectedCentre = DIAGNOSTIC_CENTRES.find((c) => c.id === selectedCentreId);
+    const selectedCentre =
+      availableCentres.find((c) => c.id === selectedCentreId) ||
+      ALL_CITY_DIAGNOSTIC_CENTRES.find((c) => c.id === selectedCentreId) ||
+      availableCentres[0];
     const selectedSlot = TIME_SLOTS.find((s) => s.id === selectedSlotId);
 
     // Real-Time Atomic Slot Validation (Rules 2, 3, 6)
@@ -1388,6 +1458,95 @@ const LabTestsScreenWeb = (props) => {
             </View>
           </View>
         </View>
+
+        {/* ─── PARTNER CLINICAL LABS & DIAGNOSTIC CENTRES SECTION ─── */}
+        <View style={styles.webCentresSectionWrap}>
+          <View style={styles.webSectionHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="business" size={22} color="#00B894" />
+                <Text style={styles.webSectionTitle}>Partner Clinical Labs & Diagnostic Centres</Text>
+              </View>
+              <Text style={styles.webSectionSubtitle}>
+                Visit our certified partner diagnostic centres in {currentCity} for in-person tests, high-precision scans, and direct sample collection.
+              </Text>
+            </View>
+            <View style={styles.webLocationBadge}>
+              <Ionicons name="location-outline" size={14} color="#059669" />
+              <Text style={styles.webLocationBadgeText}>{currentCity}, Karnataka</Text>
+            </View>
+          </View>
+
+          <View style={styles.webCentresGrid}>
+            {availableCentres.map((centre) => (
+              <View key={centre.id} style={styles.webCentreCard}>
+                <View style={styles.webCentreCardHeader}>
+                  <View style={styles.webCentreIconBox}>
+                    <Ionicons name="business-outline" size={20} color="#00B894" />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.webCentreName}>{centre.name}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                      <Ionicons name="location-sharp" size={13} color="#00B894" />
+                      <Text style={styles.webCentreLocation}>{centre.location}, Karnataka</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.webCentreAddressBox}>
+                  <Text style={styles.webCentreAddressLabel}>Address:</Text>
+                  <Text style={styles.webCentreAddressText}>{centre.address}</Text>
+                </View>
+
+                <View style={styles.webCentreMetaRow}>
+                  <View style={styles.webCentreMetaPill}>
+                    <Ionicons name="star" size={12} color="#FF7F50" />
+                    <Text style={styles.webCentreMetaPillText}>{centre.rating} ({centre.reviewsCount}+ reviews)</Text>
+                  </View>
+                  <View style={styles.webCentreMetaPill}>
+                    <Ionicons name="navigate-outline" size={12} color="#0284C7" />
+                    <Text style={styles.webCentreMetaPillText}>{centre.distanceKm} km away</Text>
+                  </View>
+                  <View style={styles.webCentreMetaPill}>
+                    <Ionicons name="time-outline" size={12} color="#059669" />
+                    <Text style={styles.webCentreMetaPillText}>{centre.timings}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.webCentreServicesRow}>
+                  {centre.services.map((svc, si) => (
+                    <View key={si} style={styles.webCentreServiceTag}>
+                      <Text style={styles.webCentreServiceTagText}>✓ {svc}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                <View style={styles.webCentreActionRow}>
+                  <TouchableOpacity
+                    style={styles.webCentreDirectionsBtn}
+                    onPress={(e) => handleOpenDirections(centre, e)}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="navigate" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                    <Text style={styles.webCentreDirectionsBtnText}>Get Directions</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.webCentreBookBtn}
+                    onPress={() => {
+                      setSelectedCentreId(centre.id);
+                      setCollectionMethod('CENTRE');
+                      startBooking(NOVUS_POPULAR_PACKAGES[0]);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.webCentreBookBtnText}>Book at this Centre</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
       </View>
     );
   };
@@ -1434,13 +1593,51 @@ const LabTestsScreenWeb = (props) => {
                   Method: {b.collectionMethod === 'HOME' ? `Home Collection (${b.collectionAddress})` : `Diagnostic Centre (${b.diagnosticCentre?.name})`}
                 </Text>
               </View>
+              {b.collectionMethod === 'CENTRE' && (() => {
+                const c = DIAGNOSTIC_CENTRES.find(dc => dc.name === b.diagnosticCentre?.name) || b.diagnosticCentre;
+                return (
+                  <View style={{ backgroundColor: '#F0FDFA', borderWidth: 1, borderColor: '#CCFBF1', borderRadius: 8, padding: 10, marginTop: 8, marginBottom: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#0F172A' }}>
+                        🏥 {c?.name || 'Diagnostic Centre'}
+                      </Text>
+                      <TouchableOpacity
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#0D9488', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 6 }}
+                        onPress={() => handleOpenDirections(c)}
+                        accessibilityRole="link"
+                        accessibilityLabel="Get Directions to Centre"
+                      >
+                        <Ionicons name="navigate" size={13} color="#FFFFFF" />
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#FFFFFF' }}>Get Directions</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={{ fontSize: 11.5, color: '#475569', lineHeight: 16 }}>
+                      📍 {c?.address || b.diagnosticCentre?.location || 'Mysuru Centre'}
+                    </Text>
+                  </View>
+                );
+              })()}
               <Text style={styles.bookingPriceVal}>Paid: ₹{b.amountPaid}</Text>
-              <TouchableOpacity
-                style={[styles.modalPrimaryBtn, { marginTop: 10 }]}
-                onPress={() => setSelectedTrackingBooking(b)}
-              >
-                <Text style={styles.modalPrimaryBtnText}>Track Sample Status</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                {b.collectionMethod === 'CENTRE' && (() => {
+                  const c = DIAGNOSTIC_CENTRES.find(dc => dc.name === b.diagnosticCentre?.name) || b.diagnosticCentre;
+                  return (
+                    <TouchableOpacity
+                      style={[styles.modalSecondaryBtn, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderColor: '#0D9488' }]}
+                      onPress={() => handleOpenDirections(c)}
+                    >
+                      <Ionicons name="navigate-outline" size={14} color="#0D9488" />
+                      <Text style={[styles.modalSecondaryBtnText, { color: '#0D9488' }]}>Directions</Text>
+                    </TouchableOpacity>
+                  );
+                })()}
+                <TouchableOpacity
+                  style={[styles.modalPrimaryBtn, { flex: 1, marginTop: 0 }]}
+                  onPress={() => setSelectedTrackingBooking(b)}
+                >
+                  <Text style={styles.modalPrimaryBtnText}>Track Sample Status</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ))}
         </View>
@@ -1791,7 +1988,10 @@ const LabTestsScreenWeb = (props) => {
         const collectionFee = isHome ? 100 : 0;
         const totalPrice = testPrice + collectionFee;
         const availableDates = getAvailableDates();
-        const selectedCentre = DIAGNOSTIC_CENTRES.find((c) => c.id === selectedCentreId);
+        const selectedCentre =
+          availableCentres.find((c) => c.id === selectedCentreId) ||
+          ALL_CITY_DIAGNOSTIC_CENTRES.find((c) => c.id === selectedCentreId) ||
+          availableCentres[0];
         return (
           <Modal visible={!!activeBookingTest} animationType="fade" transparent onRequestClose={() => setActiveBookingTest(null)}>
             <View style={styles.modalOverlay}>
@@ -1967,22 +2167,42 @@ const LabTestsScreenWeb = (props) => {
                       </View>
                     ) : (
                       <View style={styles.stepBlock}>
-                        <Text style={styles.stepBlockTitle}>Select Diagnostic Centre</Text>
-                        {DIAGNOSTIC_CENTRES.map((centre) => {
+                        <Text style={styles.stepBlockTitle}>Select Diagnostic Centre ({currentCity})</Text>
+                        {availableCentres.map((centre) => {
                           const isSel = selectedCentreId === centre.id;
                           return (
-                            <TouchableOpacity key={centre.id} style={[styles.centreSelectCard, isSel && styles.centreSelectCardActive]} onPress={() => setSelectedCentreId(centre.id)}>
-                              <Ionicons name="business-outline" size={20} color={isSel ? '#00B894' : '#64748B'} />
-                              <View style={{ flex: 1, marginLeft: 10 }}>
-                                <Text style={styles.centreSelectName}>{centre.name}</Text>
-                                <Text style={styles.centreSelectAddress}>{centre.address}</Text>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                                  <Ionicons name="star" size={12} color="#FF7F50" />
-                                  <Text style={styles.centreMetaText}>{centre.rating} • {centre.distanceKm} km away</Text>
+                            <View key={centre.id} style={[styles.centreSelectCard, isSel && styles.centreSelectCardActive]}>
+                              <TouchableOpacity
+                                style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-start' }}
+                                onPress={() => setSelectedCentreId(centre.id)}
+                              >
+                                <Ionicons name="business-outline" size={20} color={isSel ? '#00B894' : '#64748B'} style={{ marginTop: 2 }} />
+                                <View style={{ flex: 1, marginLeft: 10, marginRight: 8 }}>
+                                  <Text style={styles.centreSelectName}>{centre.name}</Text>
+                                  <Text style={styles.centreSelectAddress}>{centre.address}</Text>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                                      <Ionicons name="star" size={12} color="#FF7F50" />
+                                      <Text style={styles.centreMetaText}>{centre.rating} • {centre.distanceKm} km away</Text>
+                                    </View>
+                                    <Text style={styles.centreMetaText}>•</Text>
+                                    <Text style={[styles.centreMetaText, { color: '#059669', fontWeight: '600' }]}>{centre.timings}</Text>
+                                  </View>
                                 </View>
+                                {isSel && <Ionicons name="checkmark-circle" size={18} color="#00B894" />}
+                              </TouchableOpacity>
+
+                              <View style={styles.centreCardActionsRow}>
+                                <TouchableOpacity
+                                  style={styles.modalGetDirectionsBtn}
+                                  onPress={(e) => handleOpenDirections(centre, e)}
+                                  activeOpacity={0.8}
+                                >
+                                  <Ionicons name="navigate-outline" size={13} color="#059669" style={{ marginRight: 4 }} />
+                                  <Text style={styles.modalGetDirectionsBtnText}>Get Directions</Text>
+                                </TouchableOpacity>
                               </View>
-                              {isSel && <Ionicons name="checkmark-circle" size={18} color="#00B894" />}
-                            </TouchableOpacity>
+                            </View>
                           );
                         })}
                       </View>
@@ -2078,7 +2298,22 @@ const LabTestsScreenWeb = (props) => {
                           </Text>
                         </View>
                       ) : (
-                        <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Centre:</Text><Text style={styles.summaryVal}>{selectedCentre?.name}</Text></View>
+                        <View style={styles.summaryRow}>
+                          <Text style={styles.summaryLabel}>Centre:</Text>
+                          <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                            <Text style={styles.summaryVal}>{selectedCentre?.name}</Text>
+                            <Text style={[styles.summaryVal, { fontSize: 11.5, color: '#64748B', marginTop: 2, textAlign: 'right' }]}>
+                              {selectedCentre?.address}
+                            </Text>
+                            <TouchableOpacity
+                              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}
+                              onPress={() => handleOpenDirections(selectedCentre)}
+                            >
+                              <Ionicons name="navigate-outline" size={12} color="#00B894" />
+                              <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#00B894' }}>Get Directions</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
                       )}
                       <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Date & Time:</Text><Text style={styles.summaryVal}>{selectedDate} • {TIME_SLOTS.find((s) => s.id === selectedSlotId)?.label}</Text></View>
                       <View style={styles.summaryDivider} />
@@ -2125,6 +2360,25 @@ const LabTestsScreenWeb = (props) => {
                     <Text style={styles.confirmedDesc}>
                       {confirmedBookingData.testName} booked for {confirmedBookingData.bookingDate} ({confirmedBookingData.timeSlot}).
                     </Text>
+
+                    {confirmedBookingData.collectionMethod === 'CENTRE' && selectedCentre && (
+                      <View style={{ backgroundColor: '#F8FAFC', borderRadius: 10, padding: 12, marginVertical: 12, borderWidth: 1, borderColor: '#E2E8F0', width: '100%', alignItems: 'center' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <Ionicons name="business" size={16} color="#00B894" />
+                          <Text style={{ fontSize: 13.5, fontWeight: '800', color: '#0F172A' }}>{selectedCentre.name}</Text>
+                        </View>
+                        <Text style={{ fontSize: 11.5, color: '#64748B', textAlign: 'center', marginBottom: 8 }}>{selectedCentre.address}</Text>
+                        <TouchableOpacity
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#00B894', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 }}
+                          onPress={() => handleOpenDirections(selectedCentre)}
+                          activeOpacity={0.85}
+                        >
+                          <Ionicons name="navigate" size={14} color="#FFFFFF" />
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: '#FFFFFF' }}>Get Directions in Google Maps</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
                     <TouchableOpacity
                       style={styles.viewBookingsConfirmedBtn}
                       onPress={() => {
@@ -2200,6 +2454,28 @@ const LabTestsScreenWeb = (props) => {
                 </View>
                 <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
                   <Text style={styles.trackingTestTitle}>{b.testName}</Text>
+                  {b.collectionMethod === 'CENTRE' && b.diagnosticCentre && (
+                    <View style={{ backgroundColor: '#F8FAFC', borderRadius: 10, padding: 12, marginVertical: 10, borderWidth: 1, borderColor: '#E2E8F0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+                          <Ionicons name="business" size={15} color="#00B894" />
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>{b.diagnosticCentre.name}</Text>
+                        </View>
+                        <Text style={{ fontSize: 11.5, color: '#64748B' }}>{b.diagnosticCentre.location || b.diagnosticCentre.address}</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#00B894', paddingVertical: 7, paddingHorizontal: 12, borderRadius: 8 }}
+                        onPress={() => {
+                          const c = DIAGNOSTIC_CENTRES.find(dc => dc.name === b.diagnosticCentre?.name) || b.diagnosticCentre;
+                          handleOpenDirections(c);
+                        }}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="navigate" size={13} color="#FFFFFF" />
+                        <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#FFFFFF' }}>Get Directions</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                   <View style={styles.timelineContainer}>
                     {stages.map((stage, idx) => {
                       const isDone = b.trackingStage >= stage.id;
@@ -4071,6 +4347,217 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginTop: 2,
+  },
+
+  // ─── PARTNER DIAGNOSTIC CENTRES SECTION ────────────────────────────
+  webCentresSectionWrap: {
+    marginTop: 40,
+    marginBottom: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 28,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    ...(Platform.OS === 'web' ? { boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.05)' } : {}),
+  },
+  webSectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  webSectionSubtitle: {
+    fontSize: 13.5,
+    color: '#64748B',
+    marginTop: 4,
+    maxWidth: 620,
+    lineHeight: 20,
+  },
+  webLocationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#ECFDF5',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  webLocationBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  webCentresGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 20,
+  },
+  webCentreCard: {
+    flex: 1,
+    minWidth: 320,
+    maxWidth: 580,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    ...(Platform.OS === 'web' ? { boxShadow: '0 4px 12px rgba(0,0,0,0.03)' } : {}),
+  },
+  webCentreCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  webCentreIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  webCentreName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    lineHeight: 20,
+  },
+  webCentreLocation: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#00B894',
+  },
+  webCentreAddressBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
+  },
+  webCentreAddressLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  webCentreAddressText: {
+    fontSize: 12.5,
+    color: '#334155',
+    lineHeight: 18,
+  },
+  webCentreMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  webCentreMetaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  webCentreMetaPillText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  webCentreServicesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 16,
+  },
+  webCentreServiceTag: {
+    backgroundColor: '#F0FDF4',
+    paddingVertical: 3,
+    paddingHorizontal: 7,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+  },
+  webCentreServiceTagText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#15803D',
+  },
+  webCentreActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 'auto',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  webCentreDirectionsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00B894',
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    ...(Platform.OS === 'web' ? { boxShadow: '0 2px 6px rgba(0, 184, 148, 0.25)' } : {}),
+  },
+  webCentreDirectionsBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  webCentreBookBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#00B894',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  webCentreBookBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  centreCardActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  modalGetDirectionsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  modalGetDirectionsBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#059669',
   },
 });
 

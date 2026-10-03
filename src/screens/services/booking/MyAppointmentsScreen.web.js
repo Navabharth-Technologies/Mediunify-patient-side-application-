@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -14,6 +13,7 @@ import {
   useWindowDimensions,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import WebFooter from '../../../components/web/WebFooter';
@@ -164,6 +164,26 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
 
   // Toast / notification
   const [toastMessage, setToastMessage] = useState('');
+
+  const handleOpenDirections = (appt) => {
+    if (!appt) return;
+    if (appt.directionsUrl) {
+      Linking.openURL(appt.directionsUrl);
+      return;
+    }
+    let destination = '';
+    if (appt.latitude && appt.longitude) {
+      destination = `${appt.latitude},${appt.longitude}`;
+    } else if (appt.address) {
+      const facility = appt.facilityName || appt.providerName || appt.centerName || '';
+      const addr = renderSafeAddress(appt.address);
+      destination = encodeURIComponent(`${facility ? facility + ', ' : ''}${addr}`);
+    } else {
+      const full = [appt.facilityName || appt.providerName || appt.centerName, appt.city].filter(Boolean).join(', ');
+      destination = encodeURIComponent(full || 'Diagnostic Centre');
+    }
+    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${destination}`);
+  };
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -1110,9 +1130,7 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
               <TouchableOpacity
                 style={styles.modalPrimaryBtn}
                 onPress={() => {
-                  if (selectedAppt?.directionsUrl) {
-                    Linking.openURL(selectedAppt.directionsUrl);
-                  }
+                  handleOpenDirections(selectedAppt);
                 }}
               >
                 <Ionicons name="open-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />

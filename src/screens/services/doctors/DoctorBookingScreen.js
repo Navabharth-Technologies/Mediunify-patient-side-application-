@@ -21,6 +21,7 @@ import { useAuthGuard } from '../../../context/AuthGuardContext';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { pushAppointment } from '../../../services/dataSyncService';
+import { saveTransaction } from '../../../services/transactionService';
 import WebFooter from '../../../components/web/WebFooter';
 import { getAvailableDates, getSlotsForDate } from '../../../utils/appointmentSlotHelper';
 import { validateAndBookSlot, subscribeToSlotChanges } from '../../../services/slotBookingService';
@@ -395,6 +396,26 @@ const DoctorBookingScreen = ({ route, navigation }) => {
       await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updatedAppts));
       await AsyncStorage.setItem('@mediunify_patient_physical_appointments', JSON.stringify(updatedAppts));
 
+      // ── Save to Payment History ──────────────────────────────────
+      try {
+        await saveTransaction({
+          id:          `TXN-${bookingId}`,
+          refId:       bookingId,
+          service:     'Doctor Visit',
+          serviceType: 'consultation',
+          title:       doctor.name || 'Doctor Consultation',
+          facility:    doctor.clinicName || 'Unnathi Multispeciality Clinic',
+          rawDate:     new Date().toISOString(),
+          amount:      Number(feeAmount || 0),
+          mrp:         Number(feeAmount || 0),
+          status:      paymentOption === 'PAY_AT_CLINIC' ? 'Pending' : 'Paid',
+          paymentMode: newAppointment.paymentMethod || 'Online UPI',
+          gstin:       '29AABCU9603R1ZX',
+          items:       [{ name: `In-Person Consultation – ${doctor.specialty || ''}`, qty: 1, price: Number(feeAmount || 0) }],
+        });
+      } catch (_txErr) {}
+      // ────────────────────────────────────────────────────────────
+
       // Server push
       try {
         await pushAppointment(newAppointment);
@@ -402,7 +423,7 @@ const DoctorBookingScreen = ({ route, navigation }) => {
         console.warn('Could not push doctor appointment to server:', pushErr);
       }
 
-      if (typeof window !== 'undefined' && window.dispatchEvent) {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
         window.dispatchEvent(new CustomEvent('mediunify_appointments_updated', { detail: { appointment: newAppointment } }));
       }
 

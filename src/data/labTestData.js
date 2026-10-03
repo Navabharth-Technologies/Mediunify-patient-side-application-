@@ -43,7 +43,7 @@ export const LAB_CATEGORIES = [
   {
     id: 'heart',
     name: 'Heart',
-    icon: 'heart-pulse-outline',
+    icon: 'pulse-outline',
     badge: 'Cardiac Care',
     description: 'Lipid profiles, cholesterol fractions, and cardiac risk biomarkers',
     subCategories: [
@@ -641,7 +641,11 @@ export const DIAGNOSTIC_CENTRES = [
     id: 'centre-unnathi-main',
     name: 'Unnathi Central Pathology & Diagnostic Center',
     location: 'Kuvempunagar, Mysuru',
+    city: 'Mysuru',
+    state: 'Karnataka',
     address: 'No. 24, 5th Cross, Vishwamanava Double Road, Kuvempunagar, Mysuru - 570023',
+    latitude: 12.2898,
+    longitude: 76.6272,
     rating: 4.9,
     reviewsCount: 1420,
     distanceKm: 0.8,
@@ -655,7 +659,11 @@ export const DIAGNOSTIC_CENTRES = [
     id: 'centre-medicare-advance',
     name: 'MediCare Advanced Diagnostics & Hospital Wing',
     location: 'Jayalakshmipuram, Mysuru',
+    city: 'Mysuru',
+    state: 'Karnataka',
     address: 'Plot 112, Kalidasa Road, Near Premier Studio, Jayalakshmipuram, Mysuru - 570012',
+    latitude: 12.3218,
+    longitude: 76.6288,
     rating: 4.8,
     reviewsCount: 980,
     distanceKm: 1.5,
@@ -669,7 +677,11 @@ export const DIAGNOSTIC_CENTRES = [
     id: 'centre-apex-pathlabs',
     name: 'Apex Clinical PathLabs & Specialty Diagnostics',
     location: 'Saraswathipuram, Mysuru',
+    city: 'Mysuru',
+    state: 'Karnataka',
     address: '14/B, 7th Main Road, Opposite Swimming Pool, Saraswathipuram, Mysuru - 570009',
+    latitude: 12.3045,
+    longitude: 76.6341,
     rating: 4.7,
     reviewsCount: 760,
     distanceKm: 2.1,
@@ -683,7 +695,11 @@ export const DIAGNOSTIC_CENTRES = [
     id: 'centre-srl-metropolis',
     name: 'Metropolis Reference Diagnostic Centre',
     location: 'Vontikoppal, Mysuru',
+    city: 'Mysuru',
+    state: 'Karnataka',
     address: '89/1, Temple Road, Next to Post Office, Vontikoppal, Mysuru - 570002',
+    latitude: 12.3298,
+    longitude: 76.6375,
     rating: 4.8,
     reviewsCount: 1150,
     distanceKm: 3.2,
@@ -694,6 +710,241 @@ export const DIAGNOSTIC_CENTRES = [
     phone: '+91 821 258 7722',
   },
 ];
+
+// 4.1 VERIFIED MULTI-CITY DIAGNOSTIC CENTRES ACROSS KARNATAKA (SHARED MASTER)
+export const ALL_CITY_DIAGNOSTIC_CENTRES = [
+  // --- MYSURU / MYSORE CENTRES ---
+  ...DIAGNOSTIC_CENTRES.map((c) => ({ ...c, city: 'Mysuru' })),
+
+  // --- HASSAN CENTRES ---
+  {
+    id: 'centre-hassan-scan',
+    name: 'Hassan Advanced Scan & Clinical Lab',
+    location: 'B.M. Road, Hassan',
+    city: 'Hassan',
+    state: 'Karnataka',
+    address: 'Near Old Bus Stand, B.M. Road, Hassan - 573201',
+    latitude: 13.0033,
+    longitude: 76.1004,
+    rating: 4.8,
+    reviewsCount: 840,
+    distanceKm: 1.2,
+    homeCollection: true,
+    centreCollection: true,
+    services: ['NABL Accredited', 'Automated Pathology', 'Same-Day TAT', 'Home Phlebotomy'],
+    timings: '6:30 AM - 9:00 PM (All Days)',
+    phone: '+91 8172 268 901',
+  },
+  {
+    id: 'centre-mangala-hassan',
+    name: 'Mangala Diagnostic Centre & Specialty Pathology',
+    location: 'Salagame Road, Hassan',
+    city: 'Hassan',
+    state: 'Karnataka',
+    address: 'Salagame Road, Kuvempu Nagar, Hassan - 573201',
+    latitude: 13.0112,
+    longitude: 76.0987,
+    rating: 4.7,
+    reviewsCount: 620,
+    distanceKm: 2.0,
+    homeCollection: true,
+    centreCollection: true,
+    services: ['ISO Certified', 'Cold Chain Transport', 'Digital Reports', 'Senior Friendly'],
+    timings: '7:00 AM - 9:00 PM (All Days)',
+    phone: '+91 8172 254 332',
+  },
+  {
+    id: 'centre-sanjeevini-hassan',
+    name: 'Sanjeevini Clinical PathLabs & Diagnostic Wing',
+    location: 'Dairy Circle, Hassan',
+    city: 'Hassan',
+    state: 'Karnataka',
+    address: 'Near Dairy Circle, B.M. Road, Hassan - 573202',
+    latitude: 13.0078,
+    longitude: 76.1045,
+    rating: 4.9,
+    reviewsCount: 910,
+    distanceKm: 2.8,
+    homeCollection: true,
+    centreCollection: true,
+    services: ['NABL Certified', 'Express 6h TAT', 'Barcoded Samples', 'Pediatric Specialists'],
+    timings: '6:30 AM - 8:30 PM (All Days)',
+    phone: '+91 8172 271 445',
+  },
+
+  // --- BENGALURU / BANGALORE CENTRES ---
+  {
+    id: 'centre-blr-central',
+    name: 'Bangalore Central Diagnostic & Pathology Institute',
+    location: 'Indiranagar, Bengaluru',
+    city: 'Bengaluru',
+    state: 'Karnataka',
+    address: '100ft Road, Near Metro Station, Indiranagar, Bengaluru - 560038',
+    latitude: 12.9784,
+    longitude: 77.6408,
+    rating: 4.9,
+    reviewsCount: 2450,
+    distanceKm: 1.4,
+    homeCollection: true,
+    centreCollection: true,
+    services: ['NABL Accredited', 'CAP Certified', 'Same-Day TAT', 'Advanced Molecular Lab'],
+    timings: '6:00 AM - 10:00 PM (All Days)',
+    phone: '+91 80 4125 7800',
+  },
+  {
+    id: 'centre-blr-manipal',
+    name: 'Manipal Diagnostics & Specialty Reference Lab',
+    location: 'HAL Airport Road, Bengaluru',
+    city: 'Bengaluru',
+    state: 'Karnataka',
+    address: '98, HAL Old Airport Road, Kodihalli, Bengaluru - 560017',
+    latitude: 12.9592,
+    longitude: 77.6499,
+    rating: 4.8,
+    reviewsCount: 1980,
+    distanceKm: 3.1,
+    homeCollection: true,
+    centreCollection: true,
+    services: ['NABL Accredited', 'Robotic Analyzers', 'Home Sample Collection', 'Express 4h TAT'],
+    timings: '24 Hours (All Days)',
+    phone: '+91 80 2502 4444',
+  },
+  {
+    id: 'centre-blr-koramangala',
+    name: 'Metropolis Healthcare Laboratory - Koramangala',
+    location: 'Koramangala 4th Block, Bengaluru',
+    city: 'Bengaluru',
+    state: 'Karnataka',
+    address: '80 Feet Road, 4th Block, Koramangala, Bengaluru - 560034',
+    latitude: 12.9345,
+    longitude: 77.6256,
+    rating: 4.8,
+    reviewsCount: 1670,
+    distanceKm: 2.5,
+    homeCollection: true,
+    centreCollection: true,
+    services: ['ISO 15189', 'Cold Chain Logistics', 'Home Blood Draw', 'Genomics'],
+    timings: '6:30 AM - 9:30 PM (All Days)',
+    phone: '+91 80 4911 3300',
+  },
+
+  // --- MANDYA CENTRES ---
+  {
+    id: 'centre-mandya-lab',
+    name: 'Mandya Clinical Laboratory & Diagnostic Services',
+    location: 'V.V. Road, Mandya',
+    city: 'Mandya',
+    state: 'Karnataka',
+    address: 'V.V. Road, Opposite General Hospital, Mandya - 571401',
+    latitude: 12.5244,
+    longitude: 76.8978,
+    rating: 4.7,
+    reviewsCount: 510,
+    distanceKm: 1.1,
+    homeCollection: true,
+    centreCollection: true,
+    services: ['NABL Certified', 'Same-Day TAT', 'Home Phlebotomy'],
+    timings: '7:00 AM - 8:30 PM (All Days)',
+    phone: '+91 8232 221 440',
+  },
+
+  // --- MANGALURU CENTRES ---
+  {
+    id: 'centre-mangaluru-main',
+    name: 'Mangalore Central Clinical Lab & Diagnostics',
+    location: 'K.S. Rao Road, Mangaluru',
+    city: 'Mangaluru',
+    state: 'Karnataka',
+    address: 'K.S. Rao Road, Hampankatta, Mangaluru - 575001',
+    latitude: 12.8703,
+    longitude: 74.8436,
+    rating: 4.8,
+    reviewsCount: 880,
+    distanceKm: 1.6,
+    homeCollection: true,
+    centreCollection: true,
+    services: ['NABL Accredited', 'Express Blood Analysis', 'Home Sample Collection'],
+    timings: '6:30 AM - 9:00 PM (All Days)',
+    phone: '+91 824 244 5500',
+  },
+
+  // --- HUBBALLI CENTRES ---
+  {
+    id: 'centre-hubballi-main',
+    name: 'Hubli Comprehensive Diagnostic & Clinical Lab',
+    location: 'Vidyanagar, Hubballi',
+    city: 'Hubballi',
+    state: 'Karnataka',
+    address: 'Shirur Park Road, Vidyanagar, Hubballi - 580031',
+    latitude: 15.3647,
+    longitude: 75.1240,
+    rating: 4.8,
+    reviewsCount: 790,
+    distanceKm: 1.8,
+    homeCollection: true,
+    centreCollection: true,
+    services: ['NABL Accredited', 'Automated Pathology', 'Home Sample Collection'],
+    timings: '7:00 AM - 9:00 PM (All Days)',
+    phone: '+91 836 237 8890',
+  },
+
+  // --- BELAGAVI CENTRES ---
+  {
+    id: 'centre-belagavi-main',
+    name: 'Belagavi Institute of Pathology & Diagnostic Care',
+    location: 'Club Road, Belagavi',
+    city: 'Belagavi',
+    state: 'Karnataka',
+    address: 'Club Road, Camp, Belagavi - 590001',
+    latitude: 15.8497,
+    longitude: 74.4977,
+    rating: 4.7,
+    reviewsCount: 710,
+    distanceKm: 2.2,
+    homeCollection: true,
+    centreCollection: true,
+    services: ['NABL Certified', 'Barcoded Sample Logistics', 'Home Phlebotomy'],
+    timings: '6:30 AM - 8:30 PM (All Days)',
+    phone: '+91 831 240 5511',
+  },
+];
+
+// Helper to filter centres by current city (supporting name aliases)
+export const getCentresByCity = (cityName) => {
+  if (!cityName) return DIAGNOSTIC_CENTRES;
+  const lower = cityName.toLowerCase();
+  const matched = ALL_CITY_DIAGNOSTIC_CENTRES.filter((c) => {
+    const cCity = (c.city || '').toLowerCase();
+    if (lower.includes('mys') && cCity.includes('mys')) return true;
+    if ((lower.includes('bengal') || lower.includes('bangal')) && (cCity.includes('bengal') || cCity.includes('bangal'))) return true;
+    if (lower.includes('hassan') && cCity.includes('hassan')) return true;
+    if (lower.includes('mandya') && cCity.includes('mandya')) return true;
+    if (lower.includes('mangal') && cCity.includes('mangal')) return true;
+    if ((lower.includes('hubli') || lower.includes('hubballi')) && (cCity.includes('hubli') || cCity.includes('hubballi'))) return true;
+    if ((lower.includes('belgaum') || lower.includes('belagavi')) && (cCity.includes('belgaum') || cCity.includes('belagavi'))) return true;
+    return cCity === lower;
+  });
+  return matched.length > 0 ? matched : DIAGNOSTIC_CENTRES;
+};
+
+// Helper to construct Google Maps Directions URL
+export const getGoogleMapsDirectionsUrl = (centre) => {
+  if (!centre) return 'https://www.google.com/maps';
+  let destination = '';
+  if (centre.latitude && centre.longitude) {
+    // 1. Latitude + Longitude (Preferred)
+    destination = `${centre.latitude},${centre.longitude}`;
+  } else if (centre.address) {
+    // 2. Full verified address
+    destination = encodeURIComponent(`${centre.name ? centre.name + ', ' : ''}${centre.address}`);
+  } else {
+    // 3. Fallback
+    const full = [centre.name, centre.location, centre.city, centre.state].filter(Boolean).join(', ');
+    destination = encodeURIComponent(full || centre.name || 'Diagnostic Centre');
+  }
+  // Universal Google Maps Directions URL (uses user current GPS location as starting point)
+  return `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
+};
 
 // 5. MOCK AVAILABLE DATES & TIME SLOTS
 export const getAvailableDates = () => {

@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { INITIAL_LAB_BOOKINGS } from './labTestData';
 import { INITIAL_RADIOLOGY_BOOKINGS } from './radiologyCatalogData';
 import {
@@ -1779,7 +1780,7 @@ export const savePhysicalAppointments = async (appointments) => {
     );
     await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify([...list, ...nonPhysical]));
 
-    if (typeof window !== 'undefined' && window.dispatchEvent) {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
       window.dispatchEvent(new CustomEvent('mediunify_appointments_updated', { detail: { appointments: list } }));
     }
   } catch (e) {
@@ -2608,9 +2609,11 @@ export const saveMedicineOrders = async (orders) => {
     await AsyncStorage.setItem('@unnathi_pharmacy_orders', str);
     await AsyncStorage.setItem('@orders', str);
 
-    if (typeof window !== 'undefined') {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
       window.dispatchEvent(new CustomEvent('mediunify_orders_updated', { detail: orders }));
-      window.dispatchEvent(new Event('storage'));
+      if (typeof Event === 'function') {
+        window.dispatchEvent(new Event('storage'));
+      }
     }
   } catch (e) {
     console.warn('Error saving medicine orders:', e);
@@ -2776,7 +2779,7 @@ export const saveOnlineConsultations = async (consultations) => {
     await AsyncStorage.setItem(STORAGE_KEYS.CONSULTATIONS, JSON.stringify(list));
     await AsyncStorage.setItem('@videoBookings', JSON.stringify(list));
 
-    if (typeof window !== 'undefined' && window.dispatchEvent) {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
       window.dispatchEvent(new CustomEvent('mediunify_consultations_updated', { detail: { consultations: list } }));
     }
   } catch (e) {

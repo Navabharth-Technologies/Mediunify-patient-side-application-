@@ -7,11 +7,11 @@ import {
   TouchableOpacity,
   TextInput,
   Image,
-  SafeAreaView,
   useWindowDimensions,
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import HomeScreenMobile from './HomeScreenMobile';
@@ -278,6 +278,9 @@ const HomeScreenWeb = ({ navigation }) => {
     try {
       await AsyncStorage.setItem('@mediunify_selected_city', locName);
       await AsyncStorage.setItem('@unnathi_user_location', locName);
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('storage'));
+      }
     } catch (e) {}
   };
 
@@ -289,6 +292,13 @@ const HomeScreenWeb = ({ navigation }) => {
         setSelectedCity(res.city);
         setShowCityPicker(false);
         setLocationSearchText('');
+        try {
+          await AsyncStorage.setItem('@mediunify_selected_city', res.city);
+          await AsyncStorage.setItem('@unnathi_user_location', res.city);
+          if (Platform.OS === 'web' && typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('storage'));
+          }
+        } catch (e) {}
         showAlert('Location Detected', `Your location has been set to ${res.city} (${res.source === 'gps' ? 'GPS' : 'Network'}).`);
       } else {
         showAlert('Location Notice', 'Could not detect GPS location. Defaulted to Bangalore.');
