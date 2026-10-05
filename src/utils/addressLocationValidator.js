@@ -172,7 +172,7 @@ export const validateAddressMatchesCity = (enteredAddress, homeScreenCity, optio
       isValid: false,
       reason: 'EMPTY',
       expectedCity: expectedCityDisplay,
-      errorMessage: 'Please enter your complete address.',
+      errorMessage: 'Please enter complete service address (House/Flat No, Street, City, State, Pincode).',
     };
   }
 
@@ -197,7 +197,7 @@ export const validateAddressMatchesCity = (enteredAddress, homeScreenCity, optio
             reason: 'PINCODE_MISMATCH',
             detectedCity: otherDef.displayName,
             expectedCity: expectedCityDisplay,
-            errorMessage: `Service is not available for this address. Please enter a ${expectedCityDisplay} address or change your Home Screen location and try again.`,
+            errorMessage: `Home Nursing is currently unavailable for this address. Please change your location or enter an address within ${expectedCityDisplay}.`,
           };
         }
       }
@@ -219,7 +219,7 @@ export const validateAddressMatchesCity = (enteredAddress, homeScreenCity, optio
           reason: 'CITY_MISMATCH',
           detectedCity: otherDef.displayName,
           expectedCity: expectedCityDisplay,
-          errorMessage: `Service is not available for this address. Please enter a ${expectedCityDisplay} address or change your Home Screen location and try again.`,
+          errorMessage: `Home Nursing is currently unavailable for this address. Please change your location or enter an address within ${expectedCityDisplay}.`,
         };
       }
 
@@ -236,7 +236,7 @@ export const validateAddressMatchesCity = (enteredAddress, homeScreenCity, optio
           reason: 'LOCALITY_MISMATCH',
           detectedCity: otherDef.displayName,
           expectedCity: expectedCityDisplay,
-          errorMessage: `Service is not available for this address. Please enter a ${expectedCityDisplay} address or change your Home Screen location and try again.`,
+          errorMessage: `Home Nursing is currently unavailable for this address. Please change your location or enter an address within ${expectedCityDisplay}.`,
         };
       }
     }

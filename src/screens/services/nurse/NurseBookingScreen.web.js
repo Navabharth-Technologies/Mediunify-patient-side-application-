@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
   Modal,
   Linking,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,7 +25,11 @@ import {
   careTimelineStages,
   assignedNursesData,
   initialNursingRequests,
+  NURSING_WORKFLOW_STAGES,
+  getNursingStageIndex,
 } from '../../../data/homeNursingData';
+import { validateAddressMatchesCity } from '../../../utils/addressLocationValidator';
+import { saveTransaction } from '../../../services/transactionService';
 import { useAuthGuard } from '../../../context/AuthGuardContext';
 
 const ASYNC_KEY_NURSING_REQUESTS = '@unnathi_home_nursing_requests';
@@ -41,19 +46,6 @@ const NURSING_CARE_NEEDS = [
   'Elderly Care & Vitals Monitoring',
   'Tracheostomy & Suctioning Care',
   'Mother & Newborn Care',
-];
-
-const NURSING_CITIES = [
-  'Bangalore',
-  'Mysore',
-  'Hyderabad',
-  'Chennai',
-  'Mumbai',
-  'Delhi NCR',
-  'Pune',
-  'Kolkata',
-  'Ahmedabad',
-  'Mangalore',
 ];
 
 // Extended pricing and duration metadata for services
@@ -156,7 +148,7 @@ const FAQS = [
   },
   {
     q: 'Do I need to make an advance payment before booking?',
-    a: 'No advance payment is required! You only pay after your care request is reviewed by our clinical coordinator and the visit is completed.',
+    a: 'No advance payment is required! You only pay after your care request is reviewed by our clinical coordinator and payment link is generated or upon visit completion.',
   },
   {
     q: 'Can we request the same nurse for recurring daily visits?',
@@ -173,14 +165,26 @@ const NurseBookingScreen = ({ navigation, route }) => {
   // Active top-level view: 'LANDING' | 'REQUEST_FLOW' | 'MY_REQUESTS' | 'REQUEST_DETAILS'
   const [currentView, setCurrentView] = useState('LANDING');
 
-  // Quick Consultation Form State (matching HospitalCare reference)
+  // Role Switcher: 'PATIENT' | 'ADMIN'
+  const [activeRoleMode, setActiveRoleMode] = useState('PATIENT');
+  const [adminFilterTab, setAdminFilterTab] = useState('All');
+  const [requestsHistoryTab, setRequestsHistoryTab] = useState('CURRENT'); // 'CURRENT' | 'PAST'
+  const [requestsCurrentPage, setRequestsCurrentPage] = useState(1);
+
+  // Location single source of truth from Home Screen
+  const [selectedCity, setSelectedCity] = useState('Mysuru');
+  const [addressValidationModalVisible, setAddressValidationModalVisible] = useState(false);
+  const [addressValidationMsg, setAddressValidationMsg] = useState('');
+  const addressInputRef = useRef(null);
+
+  // Quick Consultation Hero Form State
   const [selectedCareNeed, setSelectedCareNeed] = useState('');
-  const [selectedCity, setSelectedCity] = useState('Bangalore');
   const [quickName, setQuickName] = useState('');
   const [quickMobile, setQuickMobile] = useState('');
+  const [quickAddress, setQuickAddress] = useState('No. 44, 2nd Cross, Saraswathipuram, Mysuru, Karnataka - 570009');
+  const [quickAddressError, setQuickAddressError] = useState(null);
   const [quickBookingLoading, setQuickBookingLoading] = useState(false);
   const [careNeedModalVisible, setCareNeedModalVisible] = useState(false);
-  const [cityModalVisible, setCityModalVisible] = useState(false);
   const [quickDate, setQuickDate] = useState('Today (Immediate)');
   const [dateModalVisible, setDateModalVisible] = useState(false);
   const [quickCalMonth, setQuickCalMonth] = useState(new Date().getMonth());
@@ -190,6 +194,40 @@ const NurseBookingScreen = ({ navigation, route }) => {
     return { year: d.getFullYear(), month: d.getMonth(), day: d.getDate() };
   });
 
+  // Admin Enquiry Modal State
+  const [enquiryModalVisible, setEnquiryModalVisible] = useState(false);
+  const [selectedEnquiryReq, setSelectedEnquiryReq] = useState(null);
+  const [enquiryForm, setEnquiryForm] = useState({
+    service: '',
+    visits: '1 Visit',
+    duration: '45 mins',
+    specialReqs: '',
+    agreedDateTime: '',
+    charges: '349',
+    adminInternalNotes: '',
+    userNotes: '',
+  });
+
+  // Admin Do Not Confirm / Reject Modal State
+  const [rejectModalVisible, setRejectModalVisible] = useState(false);
+  const [selectedRejectReq, setSelectedRejectReq] = useState(null);
+  const [rejectReason, setRejectReason] = useState('Nurse unavailable on selected date');
+  const [rejectReasonPreset, setRejectReasonPreset] = useState('Nurse unavailable on selected date');
+
+  // User Payment Modal State
+  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+  const [selectedPaymentReq, setSelectedPaymentReq] = useState(null);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('upi');
+
+  // Confirmation Modal State
+  const [confirmationModalVisible, setConfirmationModalVisible] = useState(false);
+  const [submittedBookingDetail, setSubmittedBookingDetail] = useState(null);
+
+  // In-App Notification Toast State
+  const [inAppToast, setInAppToast] = useState({ visible: false, title: '', message: '' });
+
+  // Quick Calendar Generator
   const quickCalendarDays = useMemo(() => {
     const firstDayIndex = new Date(quickCalYear, quickCalMonth, 1).getDay();
     const totalDays = new Date(quickCalYear, quickCalMonth + 1, 0).getDate();
@@ -273,59 +311,144 @@ const NurseBookingScreen = ({ navigation, route }) => {
     ];
   };
 
+  // Load User & Home Screen Location Context
   useEffect(() => {
-    (async () => {
-      try {
-        const storedName = await AsyncStorage.getItem('userName');
-        const storedPhone = await AsyncStorage.getItem('userPhone');
-        const storedCity = await AsyncStorage.getItem('@mediunify_selected_city');
-        if (storedName) setQuickName(storedName);
-        if (storedPhone) setQuickMobile(storedPhone);
-        if (storedCity) setSelectedCity(storedCity);
-      } catch (e) {}
-    })();
+    loadUserAndLocationContext();
   }, []);
+
+  const loadUserAndLocationContext = async () => {
+    try {
+      const storedCity = await AsyncStorage.getItem('@mediunify_selected_city');
+      const storedLoc = await AsyncStorage.getItem('@unnathi_user_location');
+      const activeCity = storedCity || (storedLoc ? storedLoc.split(',')[0].trim() : 'Mysuru');
+      if (activeCity) {
+        setSelectedCity(activeCity);
+      }
+
+      const storedName = await AsyncStorage.getItem('userName');
+      const storedPhone = await AsyncStorage.getItem('userPhone');
+      if (storedName) setQuickName(storedName);
+      if (storedPhone) setQuickMobile(storedPhone);
+
+      if (activeCity) {
+        setAddress((prev) => prev ? prev.replace(/Mysuru|Bengaluru|Bangalore|Hassan/gi, activeCity) : `No. 44, 2nd Cross, Saraswathipuram, ${activeCity}, Karnataka - 570009`);
+        setQuickAddress((prev) => prev ? prev.replace(/Mysuru|Bengaluru|Bangalore|Hassan/gi, activeCity) : `No. 44, 2nd Cross, Saraswathipuram, ${activeCity}, Karnataka - 570009`);
+      }
+    } catch (e) {
+      console.log('Error loading context in NurseBookingScreen.web:', e);
+    }
+  };
+
+  const sendInAppNotification = async (title, message, category = 'Bookings', reqId = null) => {
+    try {
+      const notifItem = {
+        id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        category: 'Bookings',
+        title,
+        message,
+        time: 'Just now',
+        unread: true,
+        icon: 'heart',
+        iconColor: '#00B894',
+        iconBg: '#E6F8F5',
+        route: 'NurseBooking',
+        ctaText: 'View Request',
+        reqId,
+        createdAt: new Date().toISOString(),
+      };
+
+      const stored = await AsyncStorage.getItem('@mediunify_user_notifications');
+      const existing = stored ? JSON.parse(stored) : [];
+      const updated = [notifItem, ...(Array.isArray(existing) ? existing : [])];
+      await AsyncStorage.setItem('@mediunify_user_notifications', JSON.stringify(updated));
+
+      setInAppToast({ visible: true, title, message });
+      setTimeout(() => {
+        setInAppToast((prev) => ({ ...prev, visible: false }));
+      }, 5000);
+    } catch (e) {
+      console.log('Error saving in-app notification:', e);
+    }
+  };
 
   const handleQuickBookNurse = () => {
     requireLogin(() => _doQuickBookNurse());
   };
 
   const _doQuickBookNurse = async () => {
-
     if (!quickName.trim()) {
       showAlert('Name Required', 'Please enter your full name.');
       return;
     }
-    if (!quickMobile.trim() || quickMobile.trim().replace(/[^0-9]/g, '').length < 10) {
+    if (!quickMobile.trim() || quickMobile.trim().replace(/\D/g, '').length < 10) {
       showAlert('Valid Mobile Required', 'Please enter a valid 10-digit mobile number to receive your callback.');
       return;
     }
 
+    if (!quickAddress.trim() || quickAddress.trim().length < 5) {
+      const msg = 'Please enter complete service address (House/Flat No, Street/Area, City, State, Pincode).';
+      setQuickAddressError(msg);
+      showAlert('Address Required', msg);
+      return;
+    }
+
+    // Location rule: service address city must match Home Screen city
+    const validation = validateAddressMatchesCity(quickAddress, selectedCity);
+    if (!validation.isValid) {
+      setQuickAddressError(validation.errorMessage);
+      setAddressValidationMsg(validation.errorMessage);
+      setAddressValidationModalVisible(true);
+      return;
+    }
+
+    setQuickAddressError(null);
     setQuickBookingLoading(true);
     try {
       const careNeed = selectedCareNeed || 'General Nursing Consultation';
       const cleanPhone = quickMobile.trim();
       const chosenDate = quickDate || 'Today (Immediate)';
+      const newId = `MU-NUR-${Math.floor(1000 + Math.random() * 9000)}`;
+      const price = getServicePriceByName(careNeed);
+
       const newRequest = {
-        id: `NR-${Date.now().toString().slice(-6)}`,
+        id: newId,
+        bookingId: newId,
+        tokenNumber: newId,
+        type: 'Home Nurse Care',
+        serviceType: 'nurse',
         serviceName: careNeed,
         services: [careNeed],
+        selectedServices: [careNeed],
         patientName: quickName.trim(),
         contactNumber: cleanPhone,
-        address: `${selectedCity} (Home Visit)`,
+        phone: cleanPhone,
+        address: quickAddress.trim(),
         city: selectedCity,
+        homeCity: selectedCity,
         shiftDuration: 'General Visit',
-        preferredTimeSlot: 'Within 2-4 Hours',
+        preferredTimeSlot: 'Morning (08:00 AM - 11:00 AM)',
         startDate: chosenDate,
         requiredDate: chosenDate,
+        date: new Date().toISOString().split('T')[0],
+        time: 'Morning (08:00 AM - 11:00 AM)',
         careDays: 1,
-        totalPrice: '₹349',
-        status: 'Care Team Will Call You',
+        totalPrice: `₹${price}`,
+        fee: price,
+        paidAmount: 0,
+        paymentStatus: 'Pending',
+        status: 'Request Submitted',
+        currentStageIndex: 0,
+        assignedNurse: null,
         createdAt: new Date().toISOString(),
+        requestDate: 'Just now',
         timeline: [
-          { stage: 'Request Placed', completed: true, timestamp: 'Just now' },
-          { stage: 'Coordinator Connecting', completed: false, timestamp: 'Within 15 mins' },
-          { stage: 'Nurse Assigned', completed: false, timestamp: 'Pending qualification match' },
+          { stage: 'Request Submitted', completed: true, timestamp: 'Just now' },
+          { stage: 'Admin Contacting', completed: false, timestamp: 'Pending call from Care Coordinator' },
+          { stage: 'Enquiry Completed', completed: false, timestamp: 'Awaiting coordinator enquiry' },
+          { stage: 'Payment Pending', completed: false, timestamp: 'Pending payment link generation' },
+          { stage: 'Booking Confirmed', completed: false, timestamp: 'Pending payment' },
+          { stage: 'Service In Progress', completed: false, timestamp: 'Nurse visit pending' },
+          { stage: 'Completed', completed: false, timestamp: 'Visit pending' },
         ],
       };
 
@@ -334,14 +457,19 @@ const NurseBookingScreen = ({ navigation, route }) => {
       await saveRequests(updated, newRequest);
 
       setQuickBookingLoading(false);
-      showAlert(
-        'Consultation Booked Successfully',
-        `Thank you ${quickName.trim()}! Your request for ${careNeed} on ${chosenDate} in ${selectedCity} has been received. Our dedicated Clinical Coordinator will call ${cleanPhone} within 15 minutes.`,
-        [{ text: 'OK', style: 'default' }]
+      setSubmittedBookingDetail(newRequest);
+      setConfirmationModalVisible(true);
+
+      // Send in-app notification
+      sendInAppNotification(
+        `Home Nursing Request #${newId}`,
+        'Your request has been submitted successfully. Our coordinator will contact you shortly.',
+        'Bookings',
+        newId
       );
     } catch (e) {
       setQuickBookingLoading(false);
-      showAlert('Request Received', 'Thank you! Our nursing care coordinator will call you shortly.');
+      showAlert('Request Error', 'Unable to submit request. Please try again.');
     }
   };
 
@@ -467,31 +595,26 @@ const NurseBookingScreen = ({ navigation, route }) => {
         isPast,
         isToday,
         isSelected,
-        key: `day-${day}`,
+        key: `cal-${day}`,
       });
     }
 
     return cells;
   }, [calYear, calMonth, selectedCalDate]);
 
-  // Confirmed Request after submission
-  const [newlyCreatedRequest, setNewlyCreatedRequest] = useState(null);
-
-  // Dynamic Pricing Details that vary as careDays or services change
+  // Dynamic Multi-day Pricing Calculation
   const pricingDetails = useMemo(() => {
-    let dailyRate = 0;
-    if (selectedServices && selectedServices.length > 0) {
-      selectedServices.forEach((srvName) => {
-        dailyRate += getServicePriceByName(srvName);
-      });
-    } else {
-      dailyRate = 299;
-    }
+    let baseRate = 0;
+    selectedServices.forEach((srvName) => {
+      baseRate += getServicePriceByName(srvName);
+    });
+    if (baseRate === 0) baseRate = 299;
 
+    let dailyRate = baseRate;
     if (shiftDuration === '4-Hour Care Shift') {
-      dailyRate = Math.max(dailyRate, 699);
+      dailyRate = Math.max(dailyRate, 799);
     } else if (shiftDuration === '12-Hour Day Shift') {
-      dailyRate = Math.max(dailyRate, 1299);
+      dailyRate = Math.max(dailyRate, 1499);
     } else if (shiftDuration === '24-Hour Live-in Care') {
       dailyRate = Math.max(dailyRate, 2499);
     }
@@ -524,6 +647,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
   const [requestsList, setRequestsList] = useState(initialNursingRequests);
   const [requestsTabFilter, setRequestsTabFilter] = useState('All');
   const [selectedRequestDetail, setSelectedRequestDetail] = useState(null);
+  const [newlyCreatedRequest, setNewlyCreatedRequest] = useState(null);
 
   // Load stored requests from AsyncStorage on mount
   useEffect(() => {
@@ -585,6 +709,384 @@ const NurseBookingScreen = ({ navigation, route }) => {
     }
   };
 
+  // =========================================================================
+  // ADMIN / COORDINATOR WORKFLOW HANDLERS
+  // =========================================================================
+  const handleAdminStartContacting = async (req) => {
+    try {
+      const updatedList = requestsList.map((r) => {
+        if (r.id === req.id) {
+          return {
+            ...r,
+            status: 'Request Sent',
+            currentStageIndex: 0,
+          };
+        }
+        return r;
+      });
+      setRequestsList(updatedList);
+      await saveRequests(updatedList);
+
+      sendInAppNotification(
+        `Home Nursing Request #${req.id}`,
+        'Care coordinator is reviewing your request and contacting you shortly.',
+        'Bookings',
+        req.id
+      );
+      showAlert('Status Updated', `Request #${req.id} is now under coordinator review.`);
+    } catch (e) {
+      console.log('Error updating admin contacting:', e);
+    }
+  };
+
+  const handleOpenEnquiryModal = (req) => {
+    setSelectedEnquiryReq(req);
+    setEnquiryForm({
+      service: req.serviceName || (Array.isArray(req.selectedServices) ? req.selectedServices.join(', ') : 'Wound Dressing'),
+      visits: '1 Visit',
+      duration: '45 mins',
+      specialReqs: req.careInformation || 'Sterile clinical procedure kit included',
+      agreedDateTime: req.confirmedVisitDate ? `${req.confirmedVisitDate} at ${req.confirmedVisitTime || '10:00 AM'}` : 'Tomorrow at 10:30 AM',
+      charges: String(req.fee || 349),
+      adminInternalNotes: 'Prescription verified; coordinator confirmed patient availability.',
+      userNotes: 'Care plan confirmed with nurse assignment. Please complete payment to confirm your booking.',
+    });
+    setEnquiryModalVisible(true);
+  };
+
+  const handleSaveEnquiryAndSendPaymentLink = async () => {
+    if (!selectedEnquiryReq) return;
+    try {
+      const nowStr = new Date().toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const parsedFee = Number(enquiryForm.charges) || selectedEnquiryReq.fee || 349;
+      const updatedList = requestsList.map((r) => {
+        if (r.id === selectedEnquiryReq.id) {
+          const updatedTimeline = [
+            { stage: 'Request Sent', completed: true, timestamp: r.requestDate || 'Request Submitted' },
+            { stage: 'Payment Done', completed: false, isPending: true, timestamp: `Payment Link Generated (₹${parsedFee})` },
+            { stage: 'Booking Confirmed', completed: false, timestamp: 'Pending payment & confirmation' },
+            { stage: 'Service Completed', completed: false, timestamp: 'Scheduled visit pending' },
+          ];
+          return {
+            ...r,
+            status: 'Payment Pending',
+            currentStageIndex: 0.5,
+            fee: parsedFee,
+            totalPrice: `₹${parsedFee}`,
+            enquiryNotes: { ...enquiryForm },
+            timeline: updatedTimeline,
+          };
+        }
+        return r;
+      });
+
+      setRequestsList(updatedList);
+      await saveRequests(updatedList);
+      setEnquiryModalVisible(false);
+
+      // Notification to user with Pay Now prompt
+      sendInAppNotification(
+        `Home Nursing Request #${selectedEnquiryReq.id}`,
+        `Your Home Nursing service request has been reviewed. Please complete the payment of ₹${parsedFee} to confirm your booking.`,
+        'Bookings',
+        selectedEnquiryReq.id
+      );
+
+      showAlert('Payment Link Sent', `Payment link for ₹${parsedFee} has been sent to user (${selectedEnquiryReq.patientName}). Request is now "Payment Pending".`);
+    } catch (e) {
+      console.log('Error sending payment link:', e);
+    }
+  };
+
+  // 1. Confirm Booking Action
+  const handleAdminConfirmBooking = async (req) => {
+    try {
+      const nowStr = new Date().toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const parsedFee = req.fee || 349;
+      const updatedList = requestsList.map((r) => {
+        if (r.id === req.id) {
+          const updatedTimeline = [
+            { stage: 'Request Sent', completed: true, timestamp: r.requestDate || 'Initial Request' },
+            { stage: 'Payment Done', completed: true, timestamp: nowStr },
+            { stage: 'Booking Confirmed', completed: true, timestamp: nowStr },
+            { stage: 'Service Completed', completed: false, timestamp: 'Scheduled visit pending' },
+          ];
+          return {
+            ...r,
+            status: 'Booking Confirmed',
+            currentStageIndex: 2,
+            paymentStatus: 'Paid',
+            paidAmount: parsedFee,
+            timeline: updatedTimeline,
+          };
+        }
+        return r;
+      });
+
+      setRequestsList(updatedList);
+      await saveRequests(updatedList);
+
+      // Record transaction to global store
+      await saveTransaction({
+        id: `TXN-NUR-${Date.now().toString().slice(-6)}`,
+        title: `Home Nursing - ${req.serviceName || 'Procedure'}`,
+        amount: parsedFee,
+        type: 'Home Nursing',
+        status: 'Success',
+        date: 'Today, ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        referenceId: req.id,
+      });
+
+      sendInAppNotification(
+        `Home Nursing Request #${req.id}`,
+        'Your Home Nursing booking has been confirmed.',
+        'Bookings',
+        req.id
+      );
+
+      showAlert('Booking Confirmed', `Booking #${req.id} has been confirmed successfully.`);
+    } catch (e) {
+      console.log('Error confirming booking:', e);
+    }
+  };
+
+  // 2. Open Do Not Confirm Modal
+  const handleAdminOpenRejectModal = (req) => {
+    setSelectedRejectReq(req);
+    setRejectReason('Nurse unavailable on selected date');
+    setRejectReasonPreset('Nurse unavailable on selected date');
+    setRejectModalVisible(true);
+  };
+
+  // 3. Submit Do Not Confirm with Mandatory Reason
+  const handleAdminSubmitRejectBooking = async () => {
+    if (!selectedRejectReq) return;
+    const trimmed = (rejectReason || '').trim();
+    if (!trimmed) {
+      showAlert('Reason Required', 'Please enter or select a mandatory reason for not confirming this booking.');
+      return;
+    }
+
+    try {
+      const nowStr = new Date().toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const updatedList = requestsList.map((r) => {
+        if (r.id === selectedRejectReq.id) {
+          const updatedTimeline = [
+            { stage: 'Request Sent', completed: true, timestamp: r.requestDate || 'Initial Request' },
+            { stage: 'Payment Done', completed: r.paymentStatus === 'Paid' || r.paidAmount > 0, timestamp: nowStr },
+            { stage: 'Booking Not Confirmed', completed: false, isRejected: true, timestamp: nowStr, reason: trimmed },
+          ];
+          return {
+            ...r,
+            status: 'Booking Not Confirmed',
+            rejectionReason: trimmed,
+            currentStageIndex: 2,
+            timeline: updatedTimeline,
+          };
+        }
+        return r;
+      });
+
+      setRequestsList(updatedList);
+      await saveRequests(updatedList);
+      setRejectModalVisible(false);
+
+      sendInAppNotification(
+        `Home Nursing Request #${selectedRejectReq.id}`,
+        `Your Home Nursing booking could not be confirmed. Reason: ${trimmed}`,
+        'Bookings',
+        selectedRejectReq.id
+      );
+
+      showAlert('Booking Not Confirmed', `Booking #${selectedRejectReq.id} has been marked as Not Confirmed.`);
+    } catch (e) {
+      console.log('Error rejecting booking:', e);
+    }
+  };
+
+  const handleAdminVerifyPayment = async (req) => {
+    handleAdminConfirmBooking(req);
+  };
+
+  const handleAdminStartService = async (req) => {
+    try {
+      const nowStr = new Date().toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const updatedList = requestsList.map((r) => {
+        if (r.id === req.id) {
+          const updatedTimeline = [
+            { stage: 'Request Sent', completed: true, timestamp: r.requestDate || 'Initial Request' },
+            { stage: 'Payment Done', completed: true, timestamp: 'Paid' },
+            { stage: 'Booking Confirmed', completed: true, timestamp: 'Confirmed' },
+            { stage: 'Service Completed', completed: false, timestamp: `Service In Progress (${nowStr})` },
+          ];
+          return {
+            ...r,
+            status: 'Service In Progress',
+            currentStageIndex: 2.5,
+            timeline: updatedTimeline,
+          };
+        }
+        return r;
+      });
+
+      setRequestsList(updatedList);
+      await saveRequests(updatedList);
+
+      sendInAppNotification(
+        `Home Nursing Request #${req.id}`,
+        'Your Home Nursing service is currently in progress.',
+        'Bookings',
+        req.id
+      );
+
+      showAlert('Service In Progress', `Request #${req.id} updated to "Service In Progress".`);
+    } catch (e) {
+      console.log('Error updating service in progress:', e);
+    }
+  };
+
+  // 4. Mark Service Completed Action
+  const handleAdminMarkCompleted = async (req) => {
+    try {
+      const nowStr = new Date().toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const updatedList = requestsList.map((r) => {
+        if (r.id === req.id) {
+          const updatedTimeline = [
+            { stage: 'Request Sent', completed: true, timestamp: r.requestDate || 'Initial Request' },
+            { stage: 'Payment Done', completed: true, timestamp: 'Paid' },
+            { stage: 'Booking Confirmed', completed: true, timestamp: 'Confirmed' },
+            { stage: 'Service Completed', completed: true, timestamp: nowStr },
+          ];
+          return {
+            ...r,
+            status: 'Service Completed',
+            currentStageIndex: 3,
+            completedDate: nowStr,
+            serviceCompletedDate: nowStr,
+            timeline: updatedTimeline,
+          };
+        }
+        return r;
+      });
+
+      setRequestsList(updatedList);
+      await saveRequests(updatedList);
+
+      sendInAppNotification(
+        `Home Nursing Request #${req.id}`,
+        'Your Home Nursing service has been completed.',
+        'Bookings',
+        req.id
+      );
+
+      showAlert('Service Completed', `Request #${req.id} marked as "Completed".`);
+    } catch (e) {
+      console.log('Error marking service completed:', e);
+    }
+  };
+
+  const handleAdminCancelRequest = async (req) => {
+    handleAdminOpenRejectModal(req);
+  };
+
+  // =========================================================================
+  // USER PAYMENT FLOW HANDLERS
+  // =========================================================================
+  const handleInitiatePayment = (req) => {
+    setSelectedPaymentReq(req);
+    setPaymentModalVisible(true);
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!selectedPaymentReq) return;
+    setPaymentProcessing(true);
+
+    try {
+      const parsedFee = selectedPaymentReq.fee || 349;
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+
+      const updatedList = requestsList.map((r) => {
+        if (r.id === selectedPaymentReq.id) {
+          const updatedTimeline = (r.timeline || []).map((t, idx) => {
+            if (idx <= 4) return { ...t, completed: true, timestamp: t.timestamp || 'Just now' };
+            return t;
+          });
+          return {
+            ...r,
+            status: 'Booking Confirmed',
+            currentStageIndex: 4,
+            paymentStatus: 'Paid',
+            paidAmount: parsedFee,
+            paymentMethod: selectedPaymentMethod,
+            paymentDate: new Date().toISOString(),
+            timeline: updatedTimeline,
+          };
+        }
+        return r;
+      });
+
+      setRequestsList(updatedList);
+      await saveRequests(updatedList);
+
+      // Record transaction to user payment history
+      await saveTransaction({
+        id: `TXN-NUR-${Date.now().toString().slice(-6)}`,
+        title: `Home Nursing - ${selectedPaymentReq.serviceName || 'Procedure'}`,
+        amount: parsedFee,
+        type: 'Home Nursing',
+        status: 'Success',
+        date: 'Today, ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        referenceId: selectedPaymentReq.id,
+      });
+
+      setPaymentProcessing(false);
+      setPaymentModalVisible(false);
+
+      sendInAppNotification(
+        `Home Nursing Request #${selectedPaymentReq.id}`,
+        'Your Home Nursing booking has been confirmed successfully.',
+        'Bookings',
+        selectedPaymentReq.id
+      );
+
+      showAlert(
+        'Payment Successful',
+        `Payment of ₹${parsedFee} received successfully! Your Home Nursing visit #${selectedPaymentReq.id} is confirmed.`
+      );
+    } catch (e) {
+      setPaymentProcessing(false);
+      showAlert('Payment Error', 'Unable to complete transaction. Please try again.');
+    }
+  };
+
   // Toggle service selection
   const handleToggleService = (serviceName) => {
     if (serviceError) setServiceError(null);
@@ -605,33 +1107,11 @@ const NurseBookingScreen = ({ navigation, route }) => {
   };
 
   const _doStartBookingWithService = (serviceName) => {
-
     setSelectedServices([serviceName]);
     setShowAllServices(false);
     setServiceError(null);
     setFlowStep(1);
     setCurrentView('REQUEST_FLOW');
-  };
-
-  // Flow step 1 next
-  const handleStep1Next = () => {
-    if (selectedServices.length === 0) {
-      setServiceError('Please select at least one nursing service to proceed.');
-      return;
-    }
-    setServiceError(null);
-    setFlowStep(2);
-  };
-
-  // Flow step 2 next
-  const handleStep2Next = () => {
-    if (startDateOption === 'Custom') {
-      if (!customStartDate.trim()) {
-        showAlert('Required Field', 'Please select a custom start date from the calendar.');
-        return;
-      }
-    }
-    setFlowStep(3);
   };
 
   // Validate step 1
@@ -657,8 +1137,16 @@ const NurseBookingScreen = ({ navigation, route }) => {
     if (!cleanPhone || cleanPhone.length < 10) {
       errors.phone = 'Please provide a valid 10-digit contact number.';
     }
-    if (!address.trim() || address.trim().length < 6) {
-      errors.address = 'Please enter a complete home address for the visit.';
+    if (!address.trim() || address.trim().length < 5) {
+      errors.address = 'Please enter complete service address (House/Flat No, Street, City, State, Pincode).';
+    } else {
+      // Strict Location Validation against Home Screen City
+      const val = validateAddressMatchesCity(address, selectedCity);
+      if (!val.isValid) {
+        errors.address = val.errorMessage;
+        setAddressValidationMsg(val.errorMessage);
+        setAddressValidationModalVisible(true);
+      }
     }
 
     if (Object.keys(errors).length > 0) {
@@ -688,8 +1176,17 @@ const NurseBookingScreen = ({ navigation, route }) => {
   };
 
   const _doSubmitCareRequest = async () => {
+    // Validate address against selected Home Screen city before final booking
+    const validation = validateAddressMatchesCity(address, selectedCity);
+    if (!validation.isValid) {
+      setFlowStep(2);
+      setFormErrors((prev) => ({ ...prev, address: validation.errorMessage }));
+      setAddressValidationMsg(validation.errorMessage);
+      setAddressValidationModalVisible(true);
+      return;
+    }
 
-    const newId = `HN-2026-${Math.floor(10000 + Math.random() * 90000).toString().slice(0, 5)}`;
+    const newId = `MU-NUR-${Math.floor(1000 + Math.random() * 9000)}`;
     const nowStr = 'Just now';
 
     const startDt = startDateOption === 'Custom' ? (customStartDate.trim() || 'Custom Date') : startDateOption;
@@ -710,9 +1207,10 @@ const NurseBookingScreen = ({ navigation, route }) => {
       doctorName: 'Licensed Home Nurse',
       specialty: 'Home Nursing & Clinical Care',
       date: formattedDate,
-      time: preferredTimeSlot || 'Morning (8 AM - 12 PM)',
+      time: preferredTimeSlot || 'Morning (08:00 AM - 11:00 AM)',
       fee: pricingDetails.finalTotal,
-      paidAmount: pricingDetails.finalTotal,
+      paidAmount: 0,
+      paymentStatus: 'Pending',
       hospitalName: 'MediUnify Home Care Network',
       requestDate: nowStr,
       patientName,
@@ -722,6 +1220,8 @@ const NurseBookingScreen = ({ navigation, route }) => {
       contactNumber,
       phone: contactNumber,
       address,
+      city: selectedCity,
+      homeCity: selectedCity,
       selectedServices: [...selectedServices],
       careInformation: careInfo || 'None specified',
       uploadedDoc: uploadedDoc ? uploadedDoc.name : null,
@@ -737,20 +1237,20 @@ const NurseBookingScreen = ({ navigation, route }) => {
         languagePreference,
         continuityPreference,
       },
-      status: 'Care Team Will Call You',
+      status: 'Request Submitted',
       currentStageIndex: 0,
       assignedNurse: null,
       confirmedVisitDate: null,
       confirmedVisitTime: null,
       isRecurring: shiftDuration.includes('Shift') || shiftDuration.includes('Live-in'),
       timeline: [
-        { stage: 'Request Received', completed: true, timestamp: 'Just now' },
-        { stage: 'Care Team Contacted', completed: false, timestamp: 'Pending call from Care Coordinator' },
-        { stage: 'Requirement Confirmed', completed: false, timestamp: 'Awaiting coordination' },
-        { stage: 'Nurse Assigned', completed: false, timestamp: 'Pending qualification match' },
-        { stage: 'Visit Confirmed', completed: false, timestamp: 'Care team will confirm timing' },
-        { stage: 'Nursing Visit', completed: false, timestamp: 'Scheduled post confirmation' },
-        { stage: 'Visit Completed', completed: false, timestamp: 'Pending visit' },
+        { stage: 'Request Submitted', completed: true, timestamp: 'Just now' },
+        { stage: 'Admin Contacting', completed: false, timestamp: 'Pending call from Care Coordinator' },
+        { stage: 'Enquiry Completed', completed: false, timestamp: 'Awaiting coordinator enquiry' },
+        { stage: 'Payment Pending', completed: false, timestamp: 'Pending payment link generation' },
+        { stage: 'Booking Confirmed', completed: false, timestamp: 'Pending payment' },
+        { stage: 'Service In Progress', completed: false, timestamp: 'Nurse visit pending' },
+        { stage: 'Completed', completed: false, timestamp: 'Visit pending' },
       ],
     };
 
@@ -758,6 +1258,15 @@ const NurseBookingScreen = ({ navigation, route }) => {
     setRequestsList(updated);
     saveRequests(updated, newReq);
     setNewlyCreatedRequest(newReq);
+    setSubmittedBookingDetail(newReq);
+    setConfirmationModalVisible(true);
+
+    sendInAppNotification(
+      `Home Nursing Request #${newId}`,
+      'Your request has been submitted successfully. Our coordinator will contact you shortly.',
+      'Bookings',
+      newId
+    );
     setFlowStep(5);
   };
 
@@ -789,326 +1298,722 @@ const NurseBookingScreen = ({ navigation, route }) => {
     if (requestsTabFilter === 'All') return requestsList;
     if (requestsTabFilter === 'In Progress') {
       return requestsList.filter((r) =>
-        ['Care Team Will Call You', 'Requirement Confirmed', 'Nurse Assigned'].includes(r.status)
+        ['Request Submitted', 'Admin Contacting', 'Enquiry Completed', 'Payment Pending', 'Service In Progress'].includes(r.status)
       );
     }
     if (requestsTabFilter === 'Confirmed') {
       return requestsList.filter((r) =>
-        ['Visit Confirmed', 'Schedule Confirmed'].includes(r.status)
+        ['Booking Confirmed', 'Visit Confirmed', 'Schedule Confirmed'].includes(r.status)
       );
     }
     if (requestsTabFilter === 'Completed') {
-      return requestsList.filter((r) => r.status === 'Visit Completed');
+      return requestsList.filter((r) => ['Completed', 'Visit Completed'].includes(r.status));
     }
     return requestsList;
   }, [requestsList, requestsTabFilter]);
 
   // =========================================================================
-  // VIEW 1: PREMIUM LANDING PAGE
+  // VIEW 1: WEB LANDING PAGE
   // =========================================================================
-  const renderLandingView = () => (
-    <ScrollView
-      style={styles.scrollContainer}
-      contentContainerStyle={[styles.scrollContent, isDesktopWeb && styles.desktopContainer]}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={[styles.mainBody, isDesktopWeb && styles.desktopContainer]}>
-        <View style={[styles.layoutRow, isDesktopWeb && styles.layoutRowDesktop]}>
-          {/* ============================================================
-              LEFT COLUMN: HERO BANNER + WHY ASSURED SECTION
-          ============================================================ */}
-          <View style={[styles.leftColumn, isDesktopWeb && styles.leftColumnDesktop]}>
-            {/* 1. HERO NETWORK BANNER CARD */}
-            <View style={styles.heroCard}>
-              {/* Decorative Background Glow Discs */}
-              <View style={styles.heroGlowCircleTop} />
-              <View style={styles.heroGlowCircleBottom} />
+  const renderLandingView = () => {
+    const isPastStatus = (st) => {
+      if (!st) return false;
+      const s = st.toLowerCase();
+      return s.includes('completed') || s.includes('not confirmed') || s.includes('cancelled') || s.includes('rejected') || s.includes('concluded');
+    };
+    const activeRequests = requestsList.filter((r) => !isPastStatus(r.status));
+    const relevantRequests = activeRequests.length > 0 ? activeRequests : requestsList;
+    const displayRequests = relevantRequests.slice(0, 2);
 
-              <Text style={styles.heroTitle}>India’s fastest growing home nursing network</Text>
-              <Text style={styles.heroSubtitle}>
-                Trusted across India for safe, verified home nursing care.
-              </Text>
+    return (
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.mainInnerContent, isDesktopWeb && styles.desktopContainer]}>
+        {/* Top Header Bar */}
+        <View style={styles.topBarRow}>
+          <View style={styles.headerLeftGroup}>
+            <TouchableOpacity
+              style={styles.backCircleBtn}
+              onPress={() => {
+                if (navigation?.canGoBack && navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  navigation?.navigate('Home');
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={20} color="#0F172A" />
+            </TouchableOpacity>
 
-              {/* Nurse Visual with Surrounding 4 Badges */}
-              <View style={styles.doctorVisualSection}>
-                {/* Central Circular Backdrop & Nurse Image */}
-                <View style={styles.doctorCircleBackdrop}>
-                  <Image
-                    source={require('../../../../assets/images/home-nursing-banner.jpg')}
-                    style={styles.doctorImage}
-                    resizeMode="cover"
-                  />
-                </View>
-
-                {/* 4 Floating Badges Around Nurse */}
-                {/* Top Left: 50,000+ Home Visits */}
-                <View style={[styles.floatingBadge, styles.badgeTopLeft]}>
-                  <View style={[styles.badgeIconWrap, { backgroundColor: '#ECFDF5' }]}>
-                    <Ionicons name="person" size={16} color="#00B894" />
-                  </View>
-                  <View>
-                    <Text style={styles.badgeBoldText}>50,000+</Text>
-                    <Text style={styles.badgeSubText}>Home Visits</Text>
-                  </View>
-                </View>
-
-                {/* Top Right: 2,500+ Nurses */}
-                <View style={[styles.floatingBadge, styles.badgeTopRight]}>
-                  <View style={[styles.badgeIconWrap, { backgroundColor: '#EFF6FF' }]}>
-                    <Ionicons name="medkit" size={16} color="#1E3A8A" />
-                  </View>
-                  <View>
-                    <Text style={styles.badgeBoldText}>2,500+</Text>
-                    <Text style={styles.badgeSubText}>Verified Nurses</Text>
-                  </View>
-                </View>
-
-                {/* Bottom Left: 25+ Cities */}
-                <View style={[styles.floatingBadge, styles.badgeBottomLeft]}>
-                  <View style={[styles.badgeIconWrap, { backgroundColor: '#FFF5F0' }]}>
-                    <Ionicons name="business" size={16} color="#FF7F50" />
-                  </View>
-                  <View>
-                    <Text style={styles.badgeBoldText}>25+</Text>
-                    <Text style={styles.badgeSubText}>Cities</Text>
-                  </View>
-                </View>
-
-                {/* Bottom Right: 100% Hospital Protocol */}
-                <View style={[styles.floatingBadge, styles.badgeBottomRight]}>
-                  <View style={[styles.badgeIconWrap, { backgroundColor: '#F0FDFA' }]}>
-                    <Ionicons name="shield-checkmark" size={16} color="#00C2CB" />
-                  </View>
-                  <View>
-                    <Text style={styles.badgeBoldText}>100%</Text>
-                    <Text style={styles.badgeSubText}>Hospital Protocol</Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            {/* 2. WHY MEDIUNIFY ASSURED CARD */}
-            <View style={styles.assuredCard}>
-              <Text style={styles.assuredSectionHeader}>Why MediUnify Assured?</Text>
-
-              {/* Sub-header 1: MediUnify Assured Benefits */}
-              <Text style={styles.assuredSubHeader}>MediUnify Assured Benefits</Text>
-
-              {/* Grid of 3 Benefits */}
-              <View style={styles.benefitsGrid}>
-                {/* Card 1: 4.9/5 Clinical Excellence */}
-                <View style={styles.benefitItemCard}>
-                  <View style={styles.benefitTopRow}>
-                    <Ionicons name="star" size={20} color="#1E3A8A" />
-                    <Text style={styles.benefitScoreText}>4.9/5</Text>
-                  </View>
-                  <Text style={styles.benefitItemTitle}>Clinical Excellence Rating</Text>
-                  <Text style={styles.benefitItemDesc}>
-                    Evaluated for sterile protocols, GNM/B.Sc licensure, hygiene compliance, and audited clinical standards.
-                  </Text>
-                </View>
-
-                {/* Card 2: 2,500+ Assured Nurses */}
-                <View style={styles.benefitItemCard}>
-                  <View style={styles.benefitTopRow}>
-                    <Ionicons name="shield-checkmark-outline" size={20} color="#1E3A8A" />
-                    <Text style={styles.benefitScoreText}>2,500+</Text>
-                  </View>
-                  <Text style={styles.benefitItemTitle}>Assured Nurses</Text>
-                  <Text style={styles.benefitItemDesc}>
-                    Carefully vetted & police-verified clinicians with certified hospital background checks.
-                  </Text>
-                </View>
-
-                {/* Card 3: 15+ Years of Expertise */}
-                <View style={styles.benefitItemCard}>
-                  <View style={styles.benefitTopRow}>
-                    <Ionicons name="business-outline" size={20} color="#1E3A8A" />
-                    <Text style={styles.benefitScoreText}>15+</Text>
-                  </View>
-                  <Text style={styles.benefitItemTitle}>Years of Expertise</Text>
-                  <Text style={styles.benefitItemDesc}>
-                    Standardized care protocols, sterile consumable kits, and zero advance deposit.
-                  </Text>
-                </View>
-              </View>
-
-              {/* Sub-header 2: MediUnify's Assured Network */}
-              <Text style={[styles.assuredSubHeader, { marginTop: 24 }]}>MediUnify's Assured Network</Text>
-
-              {/* 3 Column Stat Strip */}
-              <View style={styles.networkStatsStrip}>
-                <View style={styles.networkStatCol}>
-                  <Text style={styles.networkStatNum}>1 Lakh+</Text>
-                  <Text style={styles.networkStatLabel}>Patients Nursed</Text>
-                </View>
-                <View style={styles.networkStatDivider} />
-                <View style={styles.networkStatCol}>
-                  <Text style={styles.networkStatNum}>2,500+</Text>
-                  <Text style={styles.networkStatLabel}>Verified Nurses</Text>
-                </View>
-                <View style={styles.networkStatDivider} />
-                <View style={styles.networkStatCol}>
-                  <Text style={styles.networkStatNum}>25+</Text>
-                  <Text style={styles.networkStatLabel}>Cities</Text>
-                </View>
+            <View style={styles.headerTitleWrap}>
+              <Text style={styles.headerTitle}>Home Nursing Care</Text>
+              <View style={styles.cityLocationPill}>
+                <Ionicons name="location-sharp" size={12} color="#0D9488" />
+                <Text style={styles.cityLocationText}>{selectedCity || 'Mysuru'}</Text>
               </View>
             </View>
           </View>
 
-          {/* ============================================================
-              RIGHT COLUMN: CONSULTATION BOOKING FORM & DIRECT CONTACTS
-          ============================================================ */}
-          <View style={[styles.rightColumn, isDesktopWeb && styles.rightColumnDesktop]}>
-            {/* BOOKING CARD */}
-            <View style={styles.formCard}>
-              <Text style={styles.formTitle}>Book your consultation today</Text>
-              <Text style={styles.formSubtitle}>Get a Call Back Within 15 Minutes</Text>
+          <TouchableOpacity
+            style={styles.helplineBtn}
+            onPress={() => showAlert('Care Helpline', 'Connecting to 24/7 Support: 1800-425-0099')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="call" size={13} color="#0D9488" />
+            <Text style={styles.helplineBtnText}>1800-425-0099</Text>
+          </TouchableOpacity>
+        </View>
 
-              <View style={styles.formBody}>
-                {/* Field 1: Nursing Care Need Selector */}
+        {/* 1. LIGHT BANNER HERO SECTION */}
+        <View style={[styles.webHeroBanner, !isDesktopWeb && styles.mobileHeroBanner]}>
+          <View style={styles.webHeroContentRow}>
+            <View style={styles.webHeroTextCol}>
+              <View style={styles.webHeroBadge}>
+                <Ionicons name="shield-checkmark" size={13} color="#0D9488" />
+                <Text style={styles.webHeroBadgeText}>KNC Verified Clinicians</Text>
+              </View>
+
+              <Text style={styles.webHeroTitle}>Home Nursing Care</Text>
+              <Text style={styles.webHeroSubtitle}>
+                Hospital-grade nursing delivered at your doorstep with certified clinicians.
+              </Text>
+
+              {/* Trust Badges */}
+              <View style={styles.webTrustRow}>
+                <View style={styles.webTrustBadge}>
+                  <Ionicons name="checkmark-circle" size={15} color="#0D9488" />
+                  <Text style={styles.webTrustText}>Verified Nurses</Text>
+                </View>
+                <View style={styles.webTrustBadge}>
+                  <Ionicons name="checkmark-circle" size={15} color="#0D9488" />
+                  <Text style={styles.webTrustText}>24/7 Support</Text>
+                </View>
+                <View style={styles.webTrustBadge}>
+                  <Ionicons name="checkmark-circle" size={15} color="#0D9488" />
+                  <Text style={styles.webTrustText}>Sterile Consumables</Text>
+                </View>
+              </View>
+            </View>
+
+            {isDesktopWeb && (
+              <View style={styles.webHeroGraphicBox}>
+                <View style={styles.webHeroIconCircle}>
+                  <Ionicons name="medkit-outline" size={40} color="#0D9488" />
+                </View>
+                <View style={styles.webHeroFloatingTag}>
+                  <Ionicons name="star" size={12} color="#F59E0B" />
+                  <Text style={styles.webHeroFloatingTagText}>4.9★ Rating</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* MAIN BODY: 2 COLUMN (ON DESKTOP) OR STACKED (ON MOBILE/TABLET) */}
+        <View style={[styles.webMainRow, isDesktopWeb && styles.webMainRowDesktop]}>
+          {/* LEFT: FORM CARD */}
+          <View style={[styles.webFormCol, isDesktopWeb && styles.webFormColDesktop]}>
+            <View style={styles.simpleFormCard}>
+              {/* Card Banner Header with Light Color (Desktop only) */}
+              <View style={[styles.cardBannerHeader, !isDesktopWeb && styles.mobileCardBannerHeader]}>
+                <View style={styles.cardBannerHeaderTitleRow}>
+                  <View style={styles.cardBannerIconWrap}>
+                    <Ionicons name="clipboard-outline" size={17} color="#0D9488" />
+                  </View>
+                  <View>
+                    <Text style={styles.cardBannerTitle}>Request Nursing Care</Text>
+                    <Text style={styles.cardBannerSub}>Request a certified nursing visit at home</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.cardBannerBody}>
+
+              {/* Field 1: Nursing Service */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Nursing Service</Text>
                 <TouchableOpacity
-                  style={styles.dropdownField}
+                  style={styles.fieldPickerBtn}
                   onPress={() => setCareNeedModalVisible(true)}
                   activeOpacity={0.8}
                 >
-                  <Text
-                    style={[
-                      styles.dropdownFieldText,
-                      !selectedCareNeed && styles.placeholderText,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {selectedCareNeed || 'Home Nursing Need'}
-                  </Text>
-                  <Ionicons name="chevron-down" size={18} color="#64748B" />
-                </TouchableOpacity>
-
-                {/* Field 2: City Selector */}
-                <TouchableOpacity
-                  style={styles.dropdownField}
-                  onPress={() => setCityModalVisible(true)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.dropdownFieldText} numberOfLines={1}>
-                    {selectedCity || 'Bangalore'}
-                  </Text>
-                  <Ionicons name="chevron-down" size={18} color="#64748B" />
-                </TouchableOpacity>
-
-                {/* Field 3: Service Required Date */}
-                <TouchableOpacity
-                  style={styles.dropdownField}
-                  onPress={() => setDateModalVisible(true)}
-                  activeOpacity={0.8}
-                >
                   <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
-                    <Ionicons name="calendar-outline" size={17} color="#00B894" />
-                    <Text
-                      style={[
-                        styles.dropdownFieldText,
-                        !quickDate && styles.placeholderText,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {quickDate ? `Service Date: ${quickDate}` : 'When do you need care? (Select Date)'}
+                    <Ionicons name="medkit-outline" size={18} color="#0D9488" />
+                    <Text style={[styles.pickerBtnText, !selectedCareNeed && styles.placeholderText]} numberOfLines={1}>
+                      {selectedCareNeed || 'Select service'}
                     </Text>
                   </View>
                   <Ionicons name="chevron-down" size={18} color="#64748B" />
                 </TouchableOpacity>
+              </View>
 
-                {/* Field 4: Name */}
-                <View style={styles.inputField}>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="Name"
-                    placeholderTextColor="#94A3B8"
-                    value={quickName}
-                    onChangeText={setQuickName}
-                  />
-                </View>
+              {/* Field 2: Patient Name */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Patient Name</Text>
+                <TextInput
+                  style={styles.simpleTextInput}
+                  placeholder="Enter name"
+                  placeholderTextColor="#94A3B8"
+                  value={quickName}
+                  onChangeText={setQuickName}
+                />
+              </View>
 
-                {/* Field 4: Mobile Number */}
-                <View style={styles.inputField}>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="Mobile Number"
-                    placeholderTextColor="#94A3B8"
-                    value={quickMobile}
-                    onChangeText={setQuickMobile}
-                    keyboardType="phone-pad"
-                    maxLength={15}
-                  />
-                </View>
+              {/* Field 3: Phone Number */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Phone Number</Text>
+                <TextInput
+                  style={styles.simpleTextInput}
+                  placeholder="Enter phone number"
+                  placeholderTextColor="#94A3B8"
+                  value={quickMobile}
+                  onChangeText={setQuickMobile}
+                  keyboardType="phone-pad"
+                  maxLength={15}
+                />
+              </View>
 
-                {/* Submit Button */}
+              {/* Field 4: Service Address */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Service Address</Text>
+                <TextInput
+                  ref={addressInputRef}
+                  style={[styles.simpleTextInput, styles.simpleAddressInput]}
+                  placeholder="Enter your full address"
+                  placeholderTextColor="#94A3B8"
+                  value={quickAddress}
+                  onChangeText={(t) => {
+                    setQuickAddress(t);
+                    if (quickAddressError) setQuickAddressError(null);
+                  }}
+                  multiline={true}
+                  numberOfLines={2}
+                />
+                {quickAddressError ? (
+                  <View style={styles.fieldErrorRow}>
+                    <Ionicons name="alert-circle" size={13} color="#DC2626" />
+                    <Text style={styles.fieldErrorText}>{quickAddressError}</Text>
+                  </View>
+                ) : null}
+              </View>
+
+              {/* Field 5: Date */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Date</Text>
                 <TouchableOpacity
-                  style={styles.submitBtn}
-                  onPress={handleQuickBookNurse}
-                  activeOpacity={0.9}
-                  disabled={quickBookingLoading}
+                  style={styles.fieldPickerBtn}
+                  onPress={() => setDateModalVisible(true)}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.submitBtnText}>
-                    {quickBookingLoading ? 'Submitting...' : 'Book Appointment'}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                    <Ionicons name="calendar-outline" size={18} color="#0D9488" />
+                    <Text style={styles.pickerBtnText} numberOfLines={1}>
+                      {quickDate || 'Select date'}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={18} color="#64748B" />
                 </TouchableOpacity>
+              </View>
 
-                {/* T&C Disclaimer */}
-                <Text style={styles.termsText}>
-                  By submitting the form, you agree to MediUnify's <Text style={styles.termsLink}>T&C</Text>
+              {/* Submit Primary Button */}
+              <TouchableOpacity
+                style={styles.primaryRequestBtn}
+                onPress={handleQuickBookNurse}
+                activeOpacity={0.9}
+                disabled={quickBookingLoading}
+              >
+                <Text style={styles.primaryRequestBtnText}>
+                  {quickBookingLoading ? 'Submitting...' : 'Request Nursing Care'}
                 </Text>
+              </TouchableOpacity>
+
+              {/* Compact Contact Options */}
+              <View style={styles.compactContactRow}>
+                <TouchableOpacity style={styles.compactContactBtn} onPress={handleCallHelpline} activeOpacity={0.8}>
+                  <Ionicons name="call" size={14} color="#0D9488" />
+                  <Text style={styles.compactContactBtnText}>Call Support</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.compactContactBtn} onPress={handleWhatsAppCare} activeOpacity={0.8}>
+                  <Ionicons name="logo-whatsapp" size={14} color="#16A34A" />
+                  <Text style={[styles.compactContactBtnText, { color: '#16A34A' }]}>WhatsApp</Text>
+                </TouchableOpacity>
+              </View>
+              </View>
+            </View>
+          </View>
+
+          {/* RIGHT / SECONDARY COLUMN: QUICK SERVICES & MY REQUESTS */}
+          <View style={[styles.webSideCol, isDesktopWeb && styles.webSideColDesktop]}>
+            {/* 3. QUICK SERVICES SECTION */}
+            <View style={styles.quickServicesSection}>
+              {/* Card Banner Header with Light Color (Desktop only) */}
+              <View style={[styles.cardBannerHeader, !isDesktopWeb && styles.mobileCardBannerHeader]}>
+                <View style={styles.cardBannerHeaderTitleRow}>
+                  <View style={styles.cardBannerIconWrap}>
+                    <Ionicons name="flash-outline" size={16} color="#0D9488" />
+                  </View>
+                  <View>
+                    <Text style={styles.cardBannerTitle}>Quick Services</Text>
+                    <Text style={styles.cardBannerSub}>One-tap common clinical procedures</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.cardBannerBody}>
+                <View style={styles.quickChipsGrid}>
+                {[
+                  { name: 'Wound Dressing', careNeed: 'Post-Surgical Wound Dressing', icon: 'cut-outline' },
+                  { name: 'Injection', careNeed: 'Daily Injection Administration (IM/IV)', icon: 'bandage-outline' },
+                  { name: 'Vital Monitoring', careNeed: 'Elderly Care & Vitals Monitoring', icon: 'pulse-outline' },
+                  { name: 'Elderly Care', careNeed: 'Elderly Care & Vitals Monitoring', icon: 'heart-outline' },
+                ].map((s) => {
+                  const isSelected = selectedCareNeed === s.careNeed || selectedCareNeed === s.name;
+                  return (
+                    <TouchableOpacity
+                      key={s.name}
+                      style={[styles.quickServiceCard, isSelected && styles.quickServiceCardSelected]}
+                      onPress={() => setSelectedCareNeed(s.careNeed)}
+                      activeOpacity={0.75}
+                    >
+                      <Ionicons name={s.icon} size={18} color={isSelected ? '#0D9488' : '#64748B'} />
+                      <Text style={[styles.quickServiceCardText, isSelected && styles.quickServiceCardTextSelected]}>
+                        {s.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                </View>
               </View>
             </View>
 
-            {/* OR DIVIDER */}
-            <View style={styles.orDividerContainer}>
-              <View style={styles.orDividerLine} />
-              <Text style={styles.orText}>OR</Text>
-              <View style={styles.orDividerLine} />
-            </View>
-
-            {/* DIRECT CONTACT CARD */}
-            <View style={styles.contactCard}>
-              <TouchableOpacity
-                style={styles.contactRow}
-                onPress={handleCallHelpline}
-                activeOpacity={0.8}
-              >
-                <View style={styles.contactLeft}>
-                  <View style={styles.phoneIconWrap}>
-                    <Ionicons name="call" size={16} color="#FFFFFF" />
+            {/* 4. MY REQUESTS & STATUS TRACKING SECTION */}
+            <View style={styles.myRequestsSection}>
+              {/* Card Banner Header with Light Color (Desktop only) */}
+              <View style={[styles.cardBannerHeader, !isDesktopWeb && styles.mobileCardBannerHeader]}>
+                <View style={styles.cardBannerHeaderTitleRow}>
+                  <View style={styles.cardBannerIconWrap}>
+                    <Ionicons name="calendar-outline" size={16} color="#0D9488" />
                   </View>
-                  <Text style={styles.contactLabel}>Reach Out to Us</Text>
-                </View>
-                <Text style={styles.contactNumber}>+91-8045685554</Text>
-              </TouchableOpacity>
-
-              <View style={styles.contactDivider} />
-
-              <TouchableOpacity
-                style={styles.contactRow}
-                onPress={handleWhatsAppCare}
-                activeOpacity={0.8}
-              >
-                <View style={styles.contactLeft}>
-                  <View style={styles.whatsappIconWrap}>
-                    <Ionicons name="logo-whatsapp" size={18} color="#FFFFFF" />
+                  <View>
+                    <Text style={styles.cardBannerTitle}>My Requests</Text>
+                    <Text style={styles.cardBannerSub}>Live status & visit tracking</Text>
                   </View>
-                  <Text style={styles.contactLabel}>Chat with Us</Text>
                 </View>
-                <Text style={styles.contactNumber}>+91-7353101441</Text>
-              </TouchableOpacity>
+                {requestsList.length > 0 && (
+                  <TouchableOpacity onPress={() => setCurrentView('MY_REQUESTS')} activeOpacity={0.7}>
+                    <Text style={styles.viewAllRequestsText}>View All ({requestsList.length}) →</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <View style={styles.cardBannerBody}>
+
+              {requestsList.length === 0 ? (
+                <View style={styles.emptyInlineRequestsCard}>
+                  <Ionicons name="document-text-outline" size={32} color="#94A3B8" />
+                  <Text style={styles.emptyInlineRequestsText}>No requests submitted yet</Text>
+                </View>
+              ) : (
+                <View style={{ gap: 12 }}>
+                  {displayRequests.map((req) => {
+                    const isRejected = req.status === 'Booking Not Confirmed' || req.status === 'Cancelled' || req.status === 'Rejected' || !!req.rejectionReason;
+                    const isServiceDone = ['Service Completed', 'Completed', 'Visit Completed'].includes(req.status);
+                    const isBookingDone = isServiceDone || ['Booking Confirmed', 'Service In Progress'].includes(req.status);
+                    const isPayDone = isBookingDone || isRejected || req.paymentStatus === 'Paid' || req.status === 'Payment Done';
+                    const isEnquiryDone = isPayDone || req.status === 'Payment Pending' || req.status === 'Admin Contacting' || req.status === 'Enquiry Completed';
+
+                    return (
+                      <TouchableOpacity
+                        key={req.id}
+                        style={styles.simpleReqCard}
+                        onPress={() => {
+                          setSelectedRequestDetail(req);
+                          setCurrentView('REQUEST_DETAILS');
+                        }}
+                        activeOpacity={0.88}
+                      >
+                        <View style={styles.simpleReqCardHeader}>
+                          <Text style={styles.simpleReqIdText}>Request #{req.id}</Text>
+                          <View
+                            style={[
+                              styles.simpleStatusBadge,
+                              isRejected && { backgroundColor: '#FEE2E2' },
+                              isServiceDone && { backgroundColor: '#F1F5F9' },
+                              isBookingDone && !isServiceDone && { backgroundColor: '#DCFCE7' },
+                              !isRejected && !isServiceDone && !isBookingDone && { backgroundColor: '#E0F2FE' },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.simpleStatusBadgeText,
+                                isRejected && { color: '#DC2626' },
+                                isServiceDone && { color: '#475569' },
+                                isBookingDone && !isServiceDone && { color: '#15803D' },
+                                !isRejected && !isServiceDone && !isBookingDone && { color: '#0369A1' },
+                              ]}
+                            >
+                              {isRejected ? 'Booking Not Confirmed' : isServiceDone ? 'Completed' : isBookingDone ? 'Booking Confirmed' : req.status === 'Payment Pending' ? 'Payment Pending' : 'Request Sent'}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <Text style={styles.simpleReqDetailsText} numberOfLines={1}>
+                          {req.patientName} • {req.serviceName || (Array.isArray(req.selectedServices) ? req.selectedServices[0] : 'Home Nursing')}
+                        </Text>
+
+                        {/* 5-Step Simple Status Flow */}
+                        <View style={styles.simpleStatusFlowContainer}>
+                          <Text style={styles.simpleStatusFlowTitle}>Request Status</Text>
+
+                          {isRejected ? (
+                            <View style={styles.rejectedReasonBox}>
+                              <Text style={styles.rejectedTitleText}>Booking not confirmed</Text>
+                              <Text style={styles.rejectedReasonText}>
+                                Reason: {req.rejectionReason || 'Service unavailable for the selected date.'}
+                              </Text>
+                            </View>
+                          ) : (
+                            <View style={styles.statusStepsRow}>
+                              {[
+                                { label: 'Request Sent', done: true },
+                                { label: 'Admin Enquiry', done: isEnquiryDone },
+                                { label: 'Payment', done: isPayDone },
+                                { label: 'Booking Confirmed', done: isBookingDone },
+                                { label: 'Completed', done: isServiceDone },
+                              ].map((st, sIdx, arr) => (
+                                <React.Fragment key={st.label}>
+                                  <View style={styles.statusStepNode}>
+                                    <View style={[styles.statusStepDot, st.done ? styles.statusStepDotDone : styles.statusStepDotPending]}>
+                                      {st.done ? (
+                                        <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                                      ) : (
+                                        <View style={styles.statusStepDotHollow} />
+                                      )}
+                                    </View>
+                                    <Text style={[styles.statusStepLabel, st.done ? styles.statusStepLabelDone : styles.statusStepLabelPending]}>
+                                      {st.label}
+                                    </Text>
+                                  </View>
+                                  {sIdx < arr.length - 1 && (
+                                    <Ionicons
+                                      name="arrow-forward"
+                                      size={12}
+                                      color={arr[sIdx + 1].done ? '#00B894' : '#CBD5E1'}
+                                      style={{ marginTop: -14 }}
+                                    />
+                                  )}
+                                </React.Fragment>
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {requestsList.length > 2 && (
+                    <TouchableOpacity
+                      style={styles.viewMoreOnNextPageBtn}
+                      onPress={() => setCurrentView('MY_REQUESTS')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.viewMoreOnNextPageText}>
+                        View other {requestsList.length - 2} requests on next page
+                      </Text>
+                      <Ionicons name="arrow-forward" size={15} color="#0D9488" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+              </View>
             </View>
           </View>
         </View>
-      </View>
+        </View>
 
-      {isDesktopWeb && <WebFooter />}
-    </ScrollView>
-  );
+        {isDesktopWeb && (
+          <WebFooter
+            navigation={navigation}
+            style={styles.webFooterLightBanner}
+          />
+        )}
+      </ScrollView>
+    );
+  };
 
   // =========================================================================
-  // VIEW 2: STEP-BY-STEP CARE REQUEST FLOW (STREAMLINED WIZARD)
+  // VIEW: ADMIN / COORDINATOR DESK VIEW
+  // =========================================================================
+  const renderAdminCoordinatorView = () => {
+    const submittedCount = requestsList.filter((r) => r.status === 'Request Submitted').length;
+    const paymentPendingCount = requestsList.filter((r) => r.status === 'Payment Pending').length;
+    const inProgressCount = requestsList.filter((r) => r.status === 'Service In Progress').length;
+    const completedCount = requestsList.filter((r) => ['Completed', 'Visit Completed'].includes(r.status)).length;
+
+    const filteredAdminList = requestsList.filter((r) => {
+      if (adminFilterTab === 'All') return true;
+      if (adminFilterTab === 'New Requests') return r.status === 'Request Submitted';
+      if (adminFilterTab === 'Contacting') return r.status === 'Admin Contacting';
+      if (adminFilterTab === 'Payment Pending') return r.status === 'Payment Pending';
+      if (adminFilterTab === 'Confirmed') return ['Booking Confirmed', 'Visit Confirmed'].includes(r.status);
+      if (adminFilterTab === 'In Progress') return r.status === 'Service In Progress';
+      if (adminFilterTab === 'Completed') return ['Completed', 'Visit Completed'].includes(r.status);
+      return true;
+    });
+
+    return (
+      <View style={styles.adminDeskRoot}>
+        {/* Admin Header Card */}
+        <View style={styles.adminHeaderCard}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="shield-checkmark" size={20} color="#38BDF8" />
+                <Text style={styles.adminDeskTitle}>Coordinator & Request Desk</Text>
+              </View>
+              <Text style={styles.adminDeskSub}>
+                Review requests, call patients, enquire requirements, send payment links, and coordinate nurses
+              </Text>
+            </View>
+
+            <View style={styles.adminLiveBadge}>
+              <View style={styles.adminLiveDot} />
+              <Text style={styles.adminLiveText}>{requestsList.length} Total Requests</Text>
+            </View>
+          </View>
+
+          {/* Quick Metrics */}
+          <View style={styles.adminStatsGrid}>
+            <View style={styles.adminStatItem}>
+              <Text style={[styles.adminStatNumber, { color: '#0284C7' }]}>{submittedCount}</Text>
+              <Text style={styles.adminStatLabel}>New Received</Text>
+            </View>
+            <View style={styles.adminStatItem}>
+              <Text style={[styles.adminStatNumber, { color: '#EA580C' }]}>{paymentPendingCount}</Text>
+              <Text style={styles.adminStatLabel}>Pay Pending</Text>
+            </View>
+            <View style={styles.adminStatItem}>
+              <Text style={[styles.adminStatNumber, { color: '#4F46E5' }]}>{inProgressCount}</Text>
+              <Text style={styles.adminStatLabel}>In Progress</Text>
+            </View>
+            <View style={styles.adminStatItem}>
+              <Text style={[styles.adminStatNumber, { color: '#16A34A' }]}>{completedCount}</Text>
+              <Text style={styles.adminStatLabel}>Completed</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Filter Chips */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.adminFilterScroll}
+        >
+          {['All', 'New Requests', 'Contacting', 'Payment Pending', 'Confirmed', 'In Progress', 'Completed'].map((tab) => {
+            const isSel = adminFilterTab === tab;
+            return (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.adminFilterChip, isSel && styles.adminFilterChipActive]}
+                onPress={() => setAdminFilterTab(tab)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.adminFilterChipText, isSel && styles.adminFilterChipTextActive]}>
+                  {tab}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* Admin Request Cards */}
+        {filteredAdminList.length === 0 ? (
+          <View style={styles.emptyRequestsBox}>
+            <Ionicons name="folder-open-outline" size={40} color="#94A3B8" />
+            <Text style={styles.emptyRequestsTitle}>No Requests in "{adminFilterTab}"</Text>
+          </View>
+        ) : (
+          <View style={{ gap: 14 }}>
+            {filteredAdminList.map((req) => {
+              const isCompleted = ['Service Completed', 'Completed', 'Visit Completed'].includes(req.status);
+              const isRejected = req.status === 'Booking Not Confirmed' || req.status === 'Cancelled' || !!req.rejectionReason;
+              const isConfirmed = req.status === 'Booking Confirmed' || req.status === 'Service In Progress';
+
+              return (
+                <View key={req.id} style={styles.adminReqCard}>
+                  {/* Card Header */}
+                  <View style={styles.adminReqCardHeader}>
+                    <View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.adminReqIdText}>{req.id}</Text>
+                        <View style={styles.adminCityTag}>
+                          <Text style={styles.adminCityTagText}>{req.city || req.homeCity || selectedCity}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.adminReqDateText}>Received: {req.requestDate || req.date}</Text>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.reqStatusPill,
+                        isRejected && { backgroundColor: '#FEE2E2' },
+                        isCompleted && { backgroundColor: '#F1F5F9' },
+                        isConfirmed && { backgroundColor: '#DCFCE7' },
+                        req.status === 'Payment Pending' && { backgroundColor: '#FFEDD5' },
+                        !isRejected && !isCompleted && !isConfirmed && req.status !== 'Payment Pending' && { backgroundColor: '#E0F2FE' },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.reqStatusText,
+                          isRejected && { color: '#DC2626' },
+                          isCompleted && { color: '#475569' },
+                          isConfirmed && { color: '#15803D' },
+                          req.status === 'Payment Pending' && { color: '#C2410C' },
+                          !isRejected && !isCompleted && !isConfirmed && req.status !== 'Payment Pending' && { color: '#0369A1' },
+                        ]}
+                      >
+                        {isRejected ? 'Booking Not Confirmed' : isCompleted ? 'Service Completed' : isConfirmed ? 'Booking Confirmed' : req.status}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Patient Info & Direct Contact */}
+                  <View style={styles.adminPatientRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.adminPatientName}>{req.patientName}</Text>
+                      <Text style={styles.adminPatientMeta}>
+                        Phone: {req.contactNumber || req.phone} • Age: {req.patientAge || '58'} yrs
+                      </Text>
+                    </View>
+
+                    <View style={styles.adminContactBtnsRow}>
+                      <TouchableOpacity
+                        style={styles.adminCallBtn}
+                        onPress={() => Linking.openURL(`tel:${req.contactNumber || req.phone}`).catch(() => showAlert('Call', `Dial ${req.contactNumber}`)) }
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="call" size={13} color="#FFFFFF" />
+                        <Text style={styles.adminCallBtnText}>Call</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.adminWhatsAppBtn}
+                        onPress={() => Linking.openURL(`https://wa.me/${(req.contactNumber || req.phone || '').replace(/[^0-9]/g, '')}`).catch(() => {}) }
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="logo-whatsapp" size={13} color="#FFFFFF" />
+                        <Text style={styles.adminCallBtnText}>Chat</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Service & Requested Date */}
+                  <View style={styles.adminDetailRow}>
+                    <Text style={styles.adminDetailLabel}>Service:</Text>
+                    <Text style={styles.adminDetailVal}>
+                      {req.serviceName || (Array.isArray(req.selectedServices) ? req.selectedServices.join(', ') : 'Home Nursing')}
+                    </Text>
+                  </View>
+
+                  <View style={styles.adminDetailRow}>
+                    <Text style={styles.adminDetailLabel}>Req Date:</Text>
+                    <Text style={styles.adminDetailVal}>{req.startDate || req.date || 'Immediate'}</Text>
+                  </View>
+
+                  {/* Full Service Address */}
+                  <View style={styles.adminDetailRow}>
+                    <Text style={styles.adminDetailLabel}>Address:</Text>
+                    <Text style={[styles.adminDetailVal, { flex: 1 }]}>{req.address}</Text>
+                  </View>
+
+                  {/* Rejection Note if not confirmed */}
+                  {isRejected && (
+                    <View style={[styles.adminEnquiryNotesBox, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
+                      <Text style={[styles.adminEnquiryNotesTitle, { color: '#B91C1C' }]}>Non-Confirmation Reason:</Text>
+                      <Text style={[styles.adminEnquiryNotesText, { color: '#991B1B' }]}>
+                        {req.rejectionReason || 'Nurse unavailable for the selected date.'}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Enquiry Notes if any */}
+                  {req.enquiryNotes && !isRejected && (
+                    <View style={styles.adminEnquiryNotesBox}>
+                      <Text style={styles.adminEnquiryNotesTitle}>Enquiry & Quote Summary:</Text>
+                      <Text style={styles.adminEnquiryNotesText}>
+                        • Visits: {req.enquiryNotes.visits} ({req.enquiryNotes.duration})
+                      </Text>
+                      <Text style={styles.adminEnquiryNotesText}>
+                        • Agreed Time: {req.enquiryNotes.agreedDateTime} • Fee: ₹{req.fee || 349}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* 4 Admin Actions: 1. Send Payment Link, 2. Confirm Booking, 3. Do Not Confirm Booking, 4. Mark Completed */}
+                  <View style={styles.adminActionButtonsGrid}>
+                    {/* Action 1: Send Payment Link */}
+                    {['Request Sent', 'Request Submitted', 'Admin Contacting', 'Enquiry Completed'].includes(req.status) && (
+                      <TouchableOpacity
+                        style={styles.adminEnquiryActionBtn}
+                        onPress={() => handleOpenEnquiryModal(req)}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="document-text-outline" size={14} color="#FFFFFF" />
+                        <Text style={styles.adminPrimaryActionBtnText}>Send Payment Link</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Action 2: Confirm Booking */}
+                    {['Request Sent', 'Request Submitted', 'Admin Contacting', 'Payment Pending', 'Enquiry Completed'].includes(req.status) && (
+                      <TouchableOpacity
+                        style={[styles.adminPrimaryActionBtn, { backgroundColor: '#0D9488' }]}
+                        onPress={() => handleAdminConfirmBooking(req)}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="checkmark-circle-outline" size={14} color="#FFFFFF" />
+                        <Text style={styles.adminPrimaryActionBtnText}>Confirm Booking</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Action 3: Do Not Confirm Booking (with mandatory reason modal) */}
+                    {!isCompleted && !isRejected && (
+                      <TouchableOpacity
+                        style={[styles.adminCancelBtn, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}
+                        onPress={() => handleAdminOpenRejectModal(req)}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="close-circle-outline" size={13} color="#DC2626" style={{ marginRight: 3 }} />
+                        <Text style={[styles.adminCancelBtnText, { color: '#DC2626', fontWeight: '800' }]}>Do Not Confirm</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Action 4: Mark Service Completed */}
+                    {isConfirmed && (
+                      <TouchableOpacity
+                        style={[styles.adminPrimaryActionBtn, { backgroundColor: '#16A34A' }]}
+                        onPress={() => handleAdminMarkCompleted(req)}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="checkmark-done-circle-outline" size={14} color="#FFFFFF" />
+                        <Text style={styles.adminPrimaryActionBtnText}>Mark Completed</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  // =========================================================================
+  // VIEW 2: STEP-BY-STEP CARE REQUEST FLOW
   // =========================================================================
   const renderRequestFlowView = () => (
     <View style={styles.flowRoot}>
@@ -1214,9 +2119,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ====================================================
-            STEP 1: SELECT CARE SERVICES
-        ==================================================== */}
+        {/* STEP 1: SELECT CARE SERVICES */}
         {flowStep === 1 && (
           <View>
             <View style={styles.stepTitleBox}>
@@ -1239,7 +2142,6 @@ const NurseBookingScreen = ({ navigation, route }) => {
               </View>
             )}
 
-            {/* When a service is selected and user has not expanded catalog, show ONLY the selected service(s) */}
             {selectedServices.length > 0 && !showAllServices ? (
               <View style={styles.selectedConfirmedWrap}>
                 {selectedServices.map((srvName) => {
@@ -1289,7 +2191,6 @@ const NurseBookingScreen = ({ navigation, route }) => {
                   );
                 })}
 
-                {/* Button to add another procedure or change */}
                 <TouchableOpacity
                   style={styles.addMoreServicesBtn}
                   onPress={() => setShowAllServices(true)}
@@ -1299,7 +2200,6 @@ const NurseBookingScreen = ({ navigation, route }) => {
                   <Text style={styles.addMoreServicesBtnText}>+ Add another procedure or change service</Text>
                 </TouchableOpacity>
 
-                {/* Trust & Pricing Guarantee Banner */}
                 <View style={styles.bookingSelectedTrustBanner}>
                   <Ionicons name="shield-checkmark" size={18} color="#00B894" />
                   <View style={{ flex: 1, marginLeft: 10 }}>
@@ -1311,7 +2211,6 @@ const NurseBookingScreen = ({ navigation, route }) => {
                 </View>
               </View>
             ) : (
-              /* Full Services List (shown when no service selected or when user clicked "+ Add another") */
               <View>
                 {selectedServices.length > 0 && (
                   <View style={styles.selectedCountBanner}>
@@ -1378,7 +2277,6 @@ const NurseBookingScreen = ({ navigation, route }) => {
               </View>
             )}
 
-            {/* Step 1 Footer Action */}
             <View style={styles.stepActionFooter}>
               <TouchableOpacity
                 style={styles.primaryProceedBtn}
@@ -1392,15 +2290,13 @@ const NurseBookingScreen = ({ navigation, route }) => {
           </View>
         )}
 
-        {/* ====================================================
-            STEP 2: PATIENT & VISIT ADDRESS DETAILS
-        ==================================================== */}
+        {/* STEP 2: PATIENT & VISIT ADDRESS DETAILS */}
         {flowStep === 2 && (
           <View>
             <View style={styles.stepTitleBox}>
               <Text style={styles.stepMainHeading}>Patient & Visit Details</Text>
               <Text style={styles.stepSubHeading}>
-                Tell us who will be receiving care so our coordinator can plan appropriately:
+                Tell us who will be receiving care in {selectedCity} so our coordinator can plan appropriately:
               </Text>
             </View>
 
@@ -1493,7 +2389,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
 
             {/* Address */}
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Complete Home Visit Address *</Text>
+              <Text style={styles.formLabel}>Complete Home Visit Address * (Must be in {selectedCity})</Text>
               <TextInput
                 style={[styles.formInput, { height: 75, textAlignVertical: 'top' }, formErrors.address && styles.formInputError]}
                 value={address}
@@ -1501,7 +2397,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
                   setAddress(t);
                   if (formErrors.address) setFormErrors({ ...formErrors, address: null });
                 }}
-                placeholder="House/flat number, building name, street, locality, Mysuru / Bengaluru..."
+                placeholder={`House/flat number, building name, street, locality, ${selectedCity}, State, Pincode...`}
                 placeholderTextColor="#94A3B8"
                 multiline={true}
               />
@@ -1543,9 +2439,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
           </View>
         )}
 
-        {/* ====================================================
-            STEP 3: SHIFT TIMING & PREFERENCES
-        ==================================================== */}
+        {/* STEP 3: SHIFT TIMING & PREFERENCES */}
         {flowStep === 3 && (
           <View>
             <View style={styles.stepTitleBox}>
@@ -1625,7 +2519,6 @@ const NurseBookingScreen = ({ navigation, route }) => {
 
               {startDateOption === 'Custom' && (
                 <View style={styles.calendarContainer}>
-                  {/* Calendar Month Navigation Header */}
                   <View style={styles.calNavHeader}>
                     <TouchableOpacity
                       style={[styles.calNavBtn, isCurrentMonthOrPast && styles.calNavBtnDisabled]}
@@ -1656,7 +2549,6 @@ const NurseBookingScreen = ({ navigation, route }) => {
                     </TouchableOpacity>
                   </View>
 
-                  {/* Weekdays Row */}
                   <View style={styles.calWeekdaysRow}>
                     {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
                       <View key={d} style={styles.calWeekdayCell}>
@@ -1665,7 +2557,6 @@ const NurseBookingScreen = ({ navigation, route }) => {
                     ))}
                   </View>
 
-                  {/* Calendar Days Grid */}
                   <View style={styles.calGrid}>
                     {calendarDays.map((cell) => {
                       if (cell.type === 'empty') {
@@ -1699,35 +2590,11 @@ const NurseBookingScreen = ({ navigation, route }) => {
                       );
                     })}
                   </View>
-
-                  {/* Calendar Footer: Selected Date Banner */}
-                  <View style={styles.calFooterBar}>
-                    <View style={styles.calFooterLeft}>
-                      <Ionicons name="checkmark-circle" size={16} color="#00B894" />
-                      <Text style={styles.calFooterText}>
-                        Selected Start Date: <Text style={{ fontWeight: '800', color: '#0F172A' }}>{customStartDate}</Text>
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.calQuickTodayBtn}
-                      onPress={() => {
-                        const now = new Date();
-                        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                        setCalMonth(now.getMonth());
-                        setCalYear(now.getFullYear());
-                        setSelectedCalDate({ year: now.getFullYear(), month: now.getMonth(), day: now.getDate() });
-                        setCustomStartDate(`${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`);
-                      }}
-                      activeOpacity={0.75}
-                    >
-                      <Text style={styles.calQuickTodayText}>Jump to Today</Text>
-                    </TouchableOpacity>
-                  </View>
                 </View>
               )}
             </View>
 
-            {/* Duration of Care - How Many Days */}
+            {/* Duration of Care */}
             <View style={styles.formGroup}>
               <View style={styles.labelWithOptional}>
                 <Text style={styles.formLabel}>How Many Days is Care Required? *</Text>
@@ -1739,7 +2606,6 @@ const NurseBookingScreen = ({ navigation, route }) => {
                 </View>
               </View>
 
-              {/* Quick Preset Days Pills */}
               <View style={styles.daysPresetsRow}>
                 {[
                   { days: 1, label: '1 Day (Single)' },
@@ -1762,35 +2628,6 @@ const NurseBookingScreen = ({ navigation, route }) => {
                     </TouchableOpacity>
                   );
                 })}
-              </View>
-
-              {/* Interactive Counter Stepper */}
-              <View style={styles.daysCounterContainer}>
-                <Text style={styles.daysCounterTitle}>Adjust Exact Number of Days:</Text>
-                <View style={styles.daysCounterBox}>
-                  <TouchableOpacity
-                    style={[styles.daysCounterBtn, careDays <= 1 && styles.daysCounterBtnDisabled]}
-                    onPress={() => setCareDays(Math.max(1, careDays - 1))}
-                    disabled={careDays <= 1}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="remove" size={18} color={careDays <= 1 ? '#CBD5E1' : '#0F172A'} />
-                  </TouchableOpacity>
-
-                  <View style={styles.daysCounterCenter}>
-                    <Text style={styles.daysCounterNumber}>{careDays}</Text>
-                    <Text style={styles.daysCounterUnit}>{careDays === 1 ? 'Day' : 'Days'}</Text>
-                  </View>
-
-                  <TouchableOpacity
-                    style={[styles.daysCounterBtn, careDays >= 90 && styles.daysCounterBtnDisabled]}
-                    onPress={() => setCareDays(Math.min(90, careDays + 1))}
-                    disabled={careDays >= 90}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="add" size={18} color={careDays >= 90 ? '#CBD5E1' : '#0F172A'} />
-                  </TouchableOpacity>
-                </View>
               </View>
 
               {/* Dynamic Estimated Pricing Card */}
@@ -1824,26 +2661,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
                     <Text style={styles.pricingFinalAmount}>
                       ₹{pricingDetails.finalTotal.toLocaleString('en-IN')}
                     </Text>
-                    <Text style={styles.pricingPerVisitNote}>Total for {pricingDetails.days} {pricingDetails.days === 1 ? 'Day' : 'Days'}</Text>
                   </View>
-                </View>
-
-                {pricingDetails.discountAmount > 0 && (
-                  <View style={styles.pricingSavingsRow}>
-                    <Ionicons name="sparkles" size={13} color="#059669" />
-                    <Text style={styles.pricingSavingsText}>
-                      Multi-day savings applied: -₹{pricingDetails.discountAmount.toLocaleString('en-IN')} ({pricingDetails.discountPercent}% off package)
-                    </Text>
-                  </View>
-                )}
-
-                <View style={styles.pricingDivider} />
-
-                <View style={styles.pricingGuaranteeRow}>
-                  <Ionicons name="shield-checkmark" size={14} color="#0D9488" />
-                  <Text style={styles.pricingGuaranteeText}>
-                    Zero advance payment • Pay upon visit completion • Re-schedule anytime
-                  </Text>
                 </View>
               </View>
             </View>
@@ -1919,9 +2737,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
           </View>
         )}
 
-        {/* ====================================================
-            STEP 4: REVIEW & CONFIRM
-        ==================================================== */}
+        {/* STEP 4: REVIEW & CONFIRM */}
         {flowStep === 4 && (
           <View>
             <View style={styles.stepTitleBox}>
@@ -2024,18 +2840,17 @@ const NurseBookingScreen = ({ navigation, route }) => {
                   </View>
                   <View style={styles.reviewRow}>
                     <Text style={styles.reviewLabel}>Payment Terms:</Text>
-                    <Text style={styles.reviewValue}>Zero advance • Pay after visit completion</Text>
+                    <Text style={styles.reviewValue}>Zero advance • Pay after coordinator enquiry</Text>
                   </View>
                 </View>
               </View>
 
-              {/* Zero Deposit Promise */}
               <View style={styles.zeroDepositNotice}>
                 <Ionicons name="shield-checkmark" size={18} color="#00B894" />
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <Text style={styles.zeroDepositTitle}>Zero Advance Payment Needed</Text>
                   <Text style={styles.zeroDepositSub}>
-                    Our clinical care coordinator will call your registered number within 15 minutes to confirm nurse availability and exact schedule. Payment is due only after care delivery.
+                    Our clinical care coordinator will call your registered number within 15 minutes to confirm nurse availability and exact schedule. Payment link is sent only after confirming care details.
                   </Text>
                 </View>
               </View>
@@ -2062,9 +2877,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
           </View>
         )}
 
-        {/* ====================================================
-            STEP 5: CONFIRMATION SUCCESS STATE
-        ==================================================== */}
+        {/* STEP 5: CONFIRMATION SUCCESS STATE */}
         {flowStep === 5 && newlyCreatedRequest && (
           <View style={styles.successStateBox}>
             <View style={styles.successIconOuter}>
@@ -2081,7 +2894,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
             <View style={styles.successPricingPill}>
               <Ionicons name="pricetag" size={16} color="#00B894" />
               <Text style={styles.successPricingPillText}>
-                Estimated Total: <Text style={{ fontWeight: '800', color: '#0F172A' }}>₹{(newlyCreatedRequest.preferences?.estimatedTotalCost || pricingDetails.finalTotal).toLocaleString('en-IN')}</Text> ({newlyCreatedRequest.preferences?.careDays || pricingDetails.days} {newlyCreatedRequest.preferences?.careDays === 1 ? 'Day' : 'Days'}) • Pay after visit
+                Estimated Total: <Text style={{ fontWeight: '800', color: '#0F172A' }}>₹{(newlyCreatedRequest.preferences?.estimatedTotalCost || pricingDetails.finalTotal).toLocaleString('en-IN')}</Text> ({newlyCreatedRequest.preferences?.careDays || pricingDetails.days} {newlyCreatedRequest.preferences?.careDays === 1 ? 'Day' : 'Days'}) • Zero Advance Deposit
               </Text>
             </View>
 
@@ -2096,13 +2909,13 @@ const NurseBookingScreen = ({ navigation, route }) => {
               <View style={styles.nextStepItem}>
                 <Text style={styles.nextStepNum}>2</Text>
                 <Text style={styles.nextStepText}>
-                  A suitable licensed nurse (GNM / B.Sc) is assigned with sterile procedure kit.
+                  Coordinator reviews requirements, confirms schedule & sends secure payment link.
                 </Text>
               </View>
               <View style={styles.nextStepItem}>
                 <Text style={styles.nextStepNum}>3</Text>
                 <Text style={styles.nextStepText}>
-                  Visit schedule and arrival time are confirmed via SMS and live WhatsApp notification.
+                  A suitable licensed nurse (GNM / B.Sc) arrives with sterile procedure kit.
                 </Text>
               </View>
             </View>
@@ -2110,22 +2923,6 @@ const NurseBookingScreen = ({ navigation, route }) => {
             <View style={styles.successActionsRow}>
               <TouchableOpacity
                 style={[styles.trackRequestBtn, { backgroundColor: '#10B981' }]}
-                onPress={() => {
-                  if (navigation?.navigate) {
-                    navigation.navigate('MyAppointments', { initialTab: 'upcoming', newAppointment: newlyCreatedRequest });
-                  } else {
-                    setSelectedRequestDetail(newlyCreatedRequest);
-                    setCurrentView('MY_REQUESTS');
-                  }
-                }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="calendar-outline" size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.trackRequestBtnText}>View in My Bookings</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.trackRequestBtn}
                 onPress={() => {
                   setSelectedRequestDetail(newlyCreatedRequest);
                   setCurrentView('MY_REQUESTS');
@@ -2153,175 +2950,408 @@ const NurseBookingScreen = ({ navigation, route }) => {
   // =========================================================================
   // VIEW 3: MY REQUESTS & LIVE TRACKING
   // =========================================================================
-  const renderMyRequestsView = () => (
-    <ScrollView
-      style={styles.scrollContainer}
-      contentContainerStyle={[styles.scrollContent, isDesktopWeb && styles.desktopContainer]}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Top Header */}
-      <View style={styles.myRequestsHeaderRow}>
-        <TouchableOpacity
-          style={styles.flowBackBtn}
-          onPress={() => setCurrentView('LANDING')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={20} color="#0F172A" />
-        </TouchableOpacity>
+  const renderMyRequestsView = () => {
+    const isPastStatus = (st) => {
+      if (!st) return false;
+      const s = st.toLowerCase();
+      return s.includes('completed') || s.includes('not confirmed') || s.includes('cancelled') || s.includes('rejected') || s.includes('concluded');
+    };
+    const activeRequests = requestsList.filter((r) => !isPastStatus(r.status));
+    const pastRequests = requestsList.filter((r) => isPastStatus(r.status));
+    const currentList = requestsHistoryTab === 'CURRENT' ? activeRequests : pastRequests;
 
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.myRequestsMainTitle}>My Home Care Requests</Text>
-          <Text style={styles.myRequestsSub}>
-            Track coordinator status, assigned nurse credentials, and confirmed visit schedules
-          </Text>
+    const REQUESTS_PER_PAGE = 2;
+    const totalPages = Math.ceil(currentList.length / REQUESTS_PER_PAGE) || 1;
+    const safeCurrentPage = Math.min(Math.max(1, requestsCurrentPage), totalPages);
+    const startIndex = (safeCurrentPage - 1) * REQUESTS_PER_PAGE;
+    const paginatedList = currentList.slice(startIndex, startIndex + REQUESTS_PER_PAGE);
+
+    return (
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.mainInnerContent, isDesktopWeb && styles.desktopContainer]}>
+        {/* Top Header - Note: "+ New Request" button is removed per requirements */}
+        <View style={styles.myRequestsHeaderRow}>
+          <TouchableOpacity
+            style={styles.flowBackBtn}
+            onPress={() => setCurrentView('LANDING')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={20} color="#0F172A" />
+          </TouchableOpacity>
+
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.myRequestsMainTitle}>My Home Care Requests</Text>
+            <Text style={styles.myRequestsSub}>
+              Track status, enquiry details, payments & nurse visits in {selectedCity}
+            </Text>
+          </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.newRequestBtn}
-          onPress={() => {
-            setFlowStep(1);
-            setCurrentView('REQUEST_FLOW');
-          }}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="add" size={16} color="#FFFFFF" />
-          <Text style={styles.newRequestBtnText}>New Care Request</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Filter Tabs */}
-      <View style={styles.requestFilterTabsRow}>
-        {['All', 'In Progress', 'Confirmed', 'Completed'].map((tab) => {
-          const isSelected = requestsTabFilter === tab;
-          return (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.requestFilterTab, isSelected && styles.requestFilterTabActive]}
-              onPress={() => setRequestsTabFilter(tab)}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.requestFilterTabText, isSelected && styles.requestFilterTabTextActive]}>
-                {tab}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* Requests Cards List */}
-      {filteredRequests.length === 0 ? (
-        <View style={styles.emptyRequestsBox}>
-          <Ionicons name="clipboard-outline" size={48} color="#94A3B8" />
-          <Text style={styles.emptyRequestsTitle}>No requests found in "{requestsTabFilter}"</Text>
-          <Text style={styles.emptyRequestsSub}>
-            Need professional nursing care at home? Submit a new request in 2 minutes.
-          </Text>
+        {/* Primary Tab Toggle: CURRENT REQUESTS vs PAST REQUESTS */}
+        <View style={styles.historySegmentWrap}>
           <TouchableOpacity
-            style={styles.emptyStartBtn}
+            style={[styles.historySegmentBtn, requestsHistoryTab === 'CURRENT' && styles.historySegmentBtnActive]}
             onPress={() => {
-              setFlowStep(1);
-              setCurrentView('REQUEST_FLOW');
+              setRequestsHistoryTab('CURRENT');
+              setRequestsCurrentPage(1);
             }}
+            activeOpacity={0.8}
           >
-            <Text style={styles.emptyStartBtnText}>Request a Nurse Now</Text>
+            <Ionicons name="pulse" size={15} color={requestsHistoryTab === 'CURRENT' ? '#00B894' : '#64748B'} />
+            <Text style={[styles.historySegmentText, requestsHistoryTab === 'CURRENT' && styles.historySegmentTextActive]}>
+              Current Requests ({activeRequests.length})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.historySegmentBtn, requestsHistoryTab === 'PAST' && styles.historySegmentBtnActive]}
+            onPress={() => {
+              setRequestsHistoryTab('PAST');
+              setRequestsCurrentPage(1);
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="checkmark-done-circle" size={15} color={requestsHistoryTab === 'PAST' ? '#00B894' : '#64748B'} />
+            <Text style={[styles.historySegmentText, requestsHistoryTab === 'PAST' && styles.historySegmentTextActive]}>
+              Past Requests ({pastRequests.length})
+            </Text>
           </TouchableOpacity>
         </View>
-      ) : (
-        <View style={styles.requestsCardsList}>
-          {filteredRequests.map((req) => (
-            <View key={req.id} style={styles.requestItemCard}>
-              <View style={styles.reqCardHeader}>
-                <View>
-                  <View style={styles.reqIdRow}>
-                    <Text style={styles.reqIdText}>{req.id}</Text>
-                    <View style={styles.reqStatusPill}>
-                      <Text style={styles.reqStatusText}>{req.status}</Text>
+
+        {/* Requests Cards List */}
+        {currentList.length === 0 ? (
+          <View style={styles.emptyRequestsBox}>
+            <Ionicons name="clipboard-outline" size={48} color="#94A3B8" />
+            <Text style={styles.emptyRequestsTitle}>
+              {requestsHistoryTab === 'CURRENT' ? 'No Active Nursing Requests' : 'No Past Requests Found'}
+            </Text>
+            <Text style={styles.emptyRequestsSub}>
+              {requestsHistoryTab === 'CURRENT'
+                ? 'No ongoing care requests. View your previous history in the Past Requests tab.'
+                : 'Completed or cancelled care requests will be listed here.'}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.requestsCardsList}>
+            {paginatedList.map((req) => {
+              const isRejected = req.status === 'Booking Not Confirmed' || req.status === 'Cancelled' || req.status === 'Rejected' || !!req.rejectionReason;
+              const isServiceDone = ['Service Completed', 'Completed', 'Visit Completed'].includes(req.status);
+              const isBookingDone = isServiceDone || ['Booking Confirmed', 'Service In Progress'].includes(req.status);
+              const isPayDone = isBookingDone || isRejected || req.paymentStatus === 'Paid' || req.status === 'Payment Done';
+              const isPayPending = req.status === 'Payment Pending' && !isPayDone;
+
+              return (
+                <View key={req.id} style={styles.requestItemCard}>
+                  <View style={styles.reqCardHeader}>
+                    <View>
+                      <View style={styles.reqIdRow}>
+                        <Text style={styles.reqIdText}>{req.id}</Text>
+                        <View
+                          style={[
+                            styles.reqStatusPill,
+                            isRejected && { backgroundColor: '#FEE2E2' },
+                            isServiceDone && { backgroundColor: '#F1F5F9' },
+                            isBookingDone && !isServiceDone && { backgroundColor: '#DCFCE7' },
+                            isPayPending && { backgroundColor: '#FFEDD5' },
+                            !isRejected && !isServiceDone && !isBookingDone && !isPayPending && { backgroundColor: '#E0F2FE' },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.reqStatusText,
+                              isRejected && { color: '#DC2626' },
+                              isServiceDone && { color: '#475569' },
+                              isBookingDone && !isServiceDone && { color: '#15803D' },
+                              isPayPending && { color: '#C2410C' },
+                              !isRejected && !isServiceDone && !isBookingDone && !isPayPending && { color: '#0369A1' },
+                            ]}
+                          >
+                            {isRejected ? 'Booking Not Confirmed' : isServiceDone ? 'Service Completed' : isBookingDone ? 'Booking Confirmed' : isPayPending ? 'Payment Pending' : 'Request Sent'}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.reqDateText}>
+                        {isServiceDone && req.completedDate ? `Completed: ${req.completedDate}` : `Requested: ${req.requestDate || req.date}`}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.viewTimelineBtn}
+                      onPress={() => {
+                        setSelectedRequestDetail(req);
+                        setCurrentView('REQUEST_DETAILS');
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.viewTimelineBtnText}>Timeline →</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.reqPatientRow}>
+                    <Ionicons name="person-outline" size={15} color="#64748B" />
+                    <Text style={styles.reqPatientText}>
+                      Patient: <Text style={{ fontWeight: '700', color: '#0F172A' }}>{req.patientName}</Text> ({req.patientAge || '58'} yrs, {req.patientGender || 'Male'})
+                    </Text>
+                  </View>
+
+                  <View style={styles.reqAddressRow}>
+                    <Ionicons name="location-outline" size={15} color="#64748B" />
+                    <Text style={styles.reqAddressText} numberOfLines={1}>
+                      {req.address}
+                    </Text>
+                  </View>
+
+                  {/* Services tags */}
+                  <View style={styles.reqServicesRow}>
+                    {(Array.isArray(req.selectedServices) ? req.selectedServices : [req.serviceName || 'Home Nursing']).map((s) => (
+                      <View key={s} style={styles.reqServiceChip}>
+                        <Text style={styles.reqServiceChipText}>{s}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* 4-Step Simplified Status Stepper */}
+                  <View style={styles.compactWorkflowBox}>
+                    <View style={styles.fourStepStepperRow}>
+                      {/* Step 1: Request Sent */}
+                      <View style={styles.fourStepItem}>
+                        <View style={[styles.fourStepDot, styles.fourStepDotDone]}>
+                          <Ionicons name="checkmark" size={11} color="#FFFFFF" />
+                        </View>
+                        <Text style={[styles.fourStepLabel, styles.fourStepLabelDone]}>Request Sent</Text>
+                      </View>
+
+                      <View style={[styles.fourStepLine, isPayDone ? styles.fourStepLineDone : styles.fourStepLinePending]} />
+
+                      {/* Step 2: Payment Done */}
+                      <View style={styles.fourStepItem}>
+                        <View
+                          style={[
+                            styles.fourStepDot,
+                            isPayDone && styles.fourStepDotDone,
+                            isPayPending && styles.fourStepDotPending,
+                            !isPayDone && !isPayPending && styles.fourStepDotTodo,
+                          ]}
+                        >
+                          {isPayDone ? (
+                            <Ionicons name="checkmark" size={11} color="#FFFFFF" />
+                          ) : isPayPending ? (
+                            <Ionicons name="time" size={11} color="#B45309" />
+                          ) : (
+                            <View style={styles.fourStepDotHollow} />
+                          )}
+                        </View>
+                        <Text
+                          style={[
+                            styles.fourStepLabel,
+                            isPayDone && styles.fourStepLabelDone,
+                            isPayPending && styles.fourStepLabelPending,
+                            !isPayDone && !isPayPending && styles.fourStepLabelTodo,
+                          ]}
+                        >
+                          {isPayPending ? 'Payment Pending' : 'Payment Done'}
+                        </Text>
+                      </View>
+
+                      <View style={[styles.fourStepLine, (isBookingDone || isRejected) ? (isRejected ? styles.fourStepLineRejected : styles.fourStepLineDone) : styles.fourStepLinePending]} />
+
+                      {/* Step 3: Booking Confirmed / Booking Not Confirmed */}
+                      <View style={styles.fourStepItem}>
+                        <View
+                          style={[
+                            styles.fourStepDot,
+                            isBookingDone && styles.fourStepDotDone,
+                            isRejected && styles.fourStepDotRejected,
+                            !isBookingDone && !isRejected && styles.fourStepDotTodo,
+                          ]}
+                        >
+                          {isBookingDone ? (
+                            <Ionicons name="checkmark" size={11} color="#FFFFFF" />
+                          ) : isRejected ? (
+                            <Ionicons name="close" size={12} color="#FFFFFF" />
+                          ) : (
+                            <View style={styles.fourStepDotHollow} />
+                          )}
+                        </View>
+                        <Text
+                          style={[
+                            styles.fourStepLabel,
+                            isBookingDone && styles.fourStepLabelDone,
+                            isRejected && styles.fourStepLabelRejected,
+                            !isBookingDone && !isRejected && styles.fourStepLabelTodo,
+                          ]}
+                        >
+                          {isRejected ? 'Booking Not Confirmed' : 'Booking Confirmed'}
+                        </Text>
+                      </View>
+
+                      {/* Step 4: Service Completed (Only shown if booking is not rejected) */}
+                      {!isRejected && (
+                        <>
+                          <View style={[styles.fourStepLine, isServiceDone ? styles.fourStepLineDone : styles.fourStepLinePending]} />
+                          <View style={styles.fourStepItem}>
+                            <View
+                              style={[
+                                styles.fourStepDot,
+                                isServiceDone && styles.fourStepDotDone,
+                                !isServiceDone && styles.fourStepDotTodo,
+                              ]}
+                            >
+                              {isServiceDone ? (
+                                <Ionicons name="checkmark" size={11} color="#FFFFFF" />
+                              ) : (
+                                <View style={styles.fourStepDotHollow} />
+                              )}
+                            </View>
+                            <Text
+                              style={[
+                                styles.fourStepLabel,
+                                isServiceDone && styles.fourStepLabelDone,
+                                !isServiceDone && styles.fourStepLabelTodo,
+                              ]}
+                            >
+                              Service Completed
+                            </Text>
+                          </View>
+                        </>
+                      )}
                     </View>
                   </View>
-                  <Text style={styles.reqDateText}>Requested: {req.requestDate}</Text>
+
+                  {/* Booking Not Confirmed Reason Card */}
+                  {isRejected && (
+                    <View style={styles.notConfirmedReasonCard}>
+                      <View style={styles.notConfirmedHead}>
+                        <Ionicons name="alert-circle" size={16} color="#DC2626" />
+                        <Text style={styles.notConfirmedTitle}>Booking Not Confirmed</Text>
+                      </View>
+                      <Text style={styles.notConfirmedReasonLabel}>Reason:</Text>
+                      <Text style={styles.notConfirmedReasonText}>
+                        {req.rejectionReason || req.rejectReason || 'The requested nursing service is not available on the selected date.'}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Pay Now Banner when status is Payment Pending */}
+                  {isPayPending && (
+                    <View style={styles.paymentActionBanner}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: '#92400E' }}>
+                          Payment Link Ready: ₹{req.fee || 349}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: '#B45309' }}>
+                          Care coordinator verified your requirement. Complete payment to confirm.
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.payNowBtn}
+                        onPress={() => handleInitiatePayment(req)}
+                        activeOpacity={0.88}
+                      >
+                        <Ionicons name="card" size={13} color="#FFFFFF" />
+                        <Text style={styles.payNowBtnText}>Pay Now</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
+              );
+            })}
+          </View>
+        )}
 
-                <TouchableOpacity
-                  style={styles.viewTimelineBtn}
-                  onPress={() => {
-                    setSelectedRequestDetail(req);
-                    setCurrentView('REQUEST_DETAILS');
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.viewTimelineBtnText}>View Details & Timeline →</Text>
-                </TouchableOpacity>
-              </View>
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <View style={styles.paginationCard}>
+            <Text style={styles.paginationSummaryText}>
+              Showing <Text style={styles.paginationHighlightText}>{startIndex + 1} - {Math.min(startIndex + REQUESTS_PER_PAGE, currentList.length)}</Text> of <Text style={styles.paginationHighlightText}>{currentList.length}</Text> requests
+            </Text>
 
-              <View style={styles.reqPatientRow}>
-                <Ionicons name="person-outline" size={16} color="#64748B" />
-                <Text style={styles.reqPatientText}>
-                  Patient: <Text style={{ fontWeight: '700', color: '#0F172A' }}>{req.patientName}</Text> ({req.patientAge} yrs, {req.patientGender}) • {req.relationship}
-                </Text>
-              </View>
+            <View style={styles.paginationNavRow}>
+              <TouchableOpacity
+                style={[styles.paginationArrowBtn, safeCurrentPage === 1 && styles.paginationBtnDisabled]}
+                onPress={() => setRequestsCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={safeCurrentPage === 1}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="chevron-back" size={15} color={safeCurrentPage === 1 ? '#94A3B8' : '#0D9488'} />
+                <Text style={[styles.paginationArrowText, safeCurrentPage === 1 && styles.paginationTextDisabled]}>Prev</Text>
+              </TouchableOpacity>
 
-              <View style={styles.reqAddressRow}>
-                <Ionicons name="location-outline" size={16} color="#64748B" />
-                <Text style={styles.reqAddressText} numberOfLines={1}>
-                  {req.address}
-                </Text>
-              </View>
-
-              {/* Services tags */}
-              <View style={styles.reqServicesRow}>
-                {req.selectedServices.map((s) => (
-                  <View key={s} style={styles.reqServiceChip}>
-                    <Text style={styles.reqServiceChipText}>{s}</Text>
-                  </View>
+              <View style={styles.paginationNumbersWrap}>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                  <TouchableOpacity
+                    key={`p-${pageNum}`}
+                    style={[styles.paginationNumBtn, safeCurrentPage === pageNum && styles.paginationNumBtnActive]}
+                    onPress={() => setRequestsCurrentPage(pageNum)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.paginationNumText, safeCurrentPage === pageNum && styles.paginationNumTextActive]}>
+                      {pageNum}
+                    </Text>
+                  </TouchableOpacity>
                 ))}
               </View>
 
-              {/* Assigned Nurse Preview if available */}
-              {req.assignedNurse && assignedNursesData[req.assignedNurse] && (
-                <View style={styles.assignedNurseMiniCard}>
-                  <Image
-                    source={{ uri: assignedNursesData[req.assignedNurse].photo }}
-                    style={styles.assignedNurseMiniPhoto}
-                  />
-                  <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={styles.assignedNurseMiniTitle}>
-                      Assigned: {assignedNursesData[req.assignedNurse].name} ({assignedNursesData[req.assignedNurse].qualification})
-                    </Text>
-                    <Text style={styles.assignedNurseMiniSub}>
-                      Scheduled Visit: {req.confirmedVisitDate || 'Today'} at {req.confirmedVisitTime || '11:00 AM'}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.callNurseBtn}
-                    onPress={() => showAlert('Contact Coordinator', 'Call Care Desk at 1800-425-0099 to coordinate with your nurse.')}
-                  >
-                    <Ionicons name="call" size={14} color="#00B894" />
-                  </TouchableOpacity>
-                </View>
-              )}
+              <TouchableOpacity
+                style={[styles.paginationArrowBtn, safeCurrentPage === totalPages && styles.paginationBtnDisabled]}
+                onPress={() => setRequestsCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safeCurrentPage === totalPages}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.paginationArrowText, safeCurrentPage === totalPages && styles.paginationTextDisabled]}>Next</Text>
+                <Ionicons name="chevron-forward" size={15} color={safeCurrentPage === totalPages ? '#94A3B8' : '#0D9488'} />
+              </TouchableOpacity>
             </View>
-          ))}
+          </View>
+        )}
         </View>
-      )}
 
-      {isDesktopWeb && <WebFooter />}
-    </ScrollView>
-  );
+        {isDesktopWeb && (
+          <WebFooter
+            navigation={navigation}
+            style={styles.webFooterLightBanner}
+          />
+        )}
+      </ScrollView>
+    );
+  };
 
   // =========================================================================
   // VIEW 4: DETAILED REQUEST & STAGE TIMELINE
   // =========================================================================
   const renderRequestDetailsView = () => {
     if (!selectedRequestDetail) return null;
-    const req = selectedRequestDetail;
-    const assignedNurse = req.assignedNurse ? assignedNursesData[req.assignedNurse] : null;
+    const req = requestsList.find((r) => r.id === selectedRequestDetail.id) || selectedRequestDetail;
+    const isRejected = req.status === 'Booking Not Confirmed' || req.status === 'Cancelled' || req.status === 'Rejected' || !!req.rejectionReason;
+    const isServiceDone = ['Service Completed', 'Completed', 'Visit Completed'].includes(req.status);
+    const isBookingDone = isServiceDone || ['Booking Confirmed', 'Service In Progress'].includes(req.status);
+    const isPayDone = isBookingDone || isRejected || req.paymentStatus === 'Paid' || req.status === 'Payment Done';
+    const isPayPending = req.status === 'Payment Pending' && !isPayDone;
+
+    const timelineItems = isRejected
+      ? [
+          { label: 'Request Sent', status: 'done', desc: 'Care request submitted by patient', timestamp: req.requestDate || 'Initial Request' },
+          { label: 'Payment Done', status: isPayDone ? 'done' : 'pending', desc: isPayDone ? 'Service payment confirmed' : 'Payment link sent', timestamp: req.paymentStatus === 'Paid' ? 'Paid' : 'Pending' },
+          { label: 'Booking Not Confirmed', status: 'rejected', desc: 'Booking could not be confirmed by coordinator', timestamp: req.completedDate || 'Recent', reason: req.rejectionReason || 'Nurse is unavailable for the selected date.' },
+        ]
+      : [
+          { label: 'Request Sent', status: 'done', desc: 'Care request submitted by patient', timestamp: req.requestDate || 'Initial Request' },
+          { label: 'Payment Done', status: isPayDone ? 'done' : isPayPending ? 'pending' : 'todo', desc: isPayDone ? 'Service payment confirmed' : isPayPending ? `Payment link active (₹${req.fee || 349})` : 'Awaiting quote & payment link', timestamp: isPayDone ? 'Payment Verified' : isPayPending ? 'Pending Payment' : '' },
+          { label: 'Booking Confirmed', status: isBookingDone ? 'done' : 'todo', desc: isBookingDone ? 'Nurse scheduled and booking confirmed' : 'Pending coordinator confirmation', timestamp: isBookingDone ? 'Confirmed' : '' },
+          { label: 'Service Completed', status: isServiceDone ? 'done' : 'todo', desc: isServiceDone ? 'Home nursing visit delivered successfully' : 'Visit pending as scheduled', timestamp: req.completedDate || '' },
+        ];
 
     return (
       <ScrollView
         style={styles.scrollContainer}
-        contentContainerStyle={[styles.scrollContent, isDesktopWeb && styles.desktopContainer]}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        <View style={[styles.mainInnerContent, isDesktopWeb && styles.desktopContainer]}>
         <View style={styles.detailHeaderRow}>
           <TouchableOpacity
             style={styles.flowBackBtn}
@@ -2332,59 +3362,103 @@ const NurseBookingScreen = ({ navigation, route }) => {
           </TouchableOpacity>
 
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.detailMainTitle}>Care Request Details</Text>
-            <Text style={styles.detailSub}>ID: {req.id} • {req.status}</Text>
+            <Text style={styles.detailMainTitle}>Home Care Request Details</Text>
+            <Text style={styles.detailSub}>ID: {req.id} • Status: {isRejected ? 'Booking Not Confirmed' : req.status}</Text>
           </View>
         </View>
 
         {/* Status Card */}
         <View style={styles.detailStatusCard}>
           <View style={styles.detailStatusTop}>
-            <View style={styles.detailPulseWrap}>
-              <View style={styles.detailLiveDot} />
+            <View style={[styles.detailPulseWrap, isRejected && { backgroundColor: '#FEE2E2' }]}>
+              <View style={[styles.detailLiveDot, isRejected && { backgroundColor: '#DC2626' }]} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.detailStatusTitle}>{req.status}</Text>
+              <Text style={[styles.detailStatusTitle, isRejected && { color: '#DC2626' }]}>
+                {isRejected ? 'Booking Not Confirmed' : req.status}
+              </Text>
               <Text style={styles.detailStatusDesc}>
-                {req.status === 'Care Team Will Call You' && 'A clinical care coordinator is reviewing your request and will call within 15 minutes.'}
-                {req.status === 'Visit Confirmed' && 'Visit timing confirmed. The assigned nurse will arrive with sterile supplies.'}
-                {req.status === 'Visit Completed' && 'Care delivery completed and signed off.'}
+                {isRejected && 'Your booking could not be confirmed. Please check the coordinator reason below.'}
+                {!isRejected && req.status === 'Request Sent' && 'Your request has been submitted. Clinical coordinator will review and contact you.'}
+                {!isRejected && req.status === 'Payment Pending' && `Coordinator has reviewed requirements. Please complete payment of ₹${req.fee || 349} to confirm booking.`}
+                {!isRejected && req.status === 'Booking Confirmed' && 'Booking Confirmed. Certified nurse is scheduled to visit with sterile care kits.'}
+                {!isRejected && req.status === 'Service Completed' && 'Home nursing service successfully delivered and concluded.'}
               </Text>
             </View>
           </View>
 
-          {/* Timeline Stages */}
-          <View style={styles.timelineList}>
-            {careTimelineStages.map((stage, idx) => {
-              const isPast = idx <= req.currentStageIndex;
-              const isCurrent = idx === req.currentStageIndex;
+          {/* Pay Now Button if pending */}
+          {isPayPending && (
+            <TouchableOpacity
+              style={[styles.payNowBtn, { width: '100%', marginTop: 12, paddingVertical: 12 }]}
+              onPress={() => handleInitiatePayment(req)}
+              activeOpacity={0.88}
+            >
+              <Ionicons name="card" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={[styles.payNowBtnText, { fontSize: 14 }]}>Pay ₹{req.fee || 349} Now to Confirm Booking</Text>
+            </TouchableOpacity>
+          )}
 
+          {/* 4-Stage Stepper List */}
+          <View style={styles.timelineList}>
+            {timelineItems.map((st, idx) => {
               return (
-                <View key={stage.id} style={styles.timelineRow}>
+                <View key={st.label} style={styles.timelineRow}>
                   <View style={styles.timelineLeftCol}>
                     <View
                       style={[
                         styles.timelineBullet,
-                        isPast && styles.timelineBulletPast,
-                        isCurrent && styles.timelineBulletCurrent,
+                        st.status === 'done' && styles.timelineBulletPast,
+                        st.status === 'rejected' && { backgroundColor: '#DC2626' },
+                        st.status === 'pending' && { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' },
                       ]}
                     >
-                      {isPast ? (
-                        <Ionicons name="checkmark" size={11} color="#FFFFFF" />
+                      {st.status === 'done' ? (
+                        <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                      ) : st.status === 'rejected' ? (
+                        <Ionicons name="close" size={11} color="#FFFFFF" />
+                      ) : st.status === 'pending' ? (
+                        <Ionicons name="time" size={9} color="#B45309" />
                       ) : (
-                        <View style={styles.timelineUncompletedDot} />
+                        <View style={styles.timelineBulletFuture} />
                       )}
                     </View>
-                    {idx < careTimelineStages.length - 1 && (
-                      <View style={[styles.timelineLine, isPast && styles.timelineLinePast]} />
+                    {idx < timelineItems.length - 1 && (
+                      <View
+                        style={[
+                          styles.timelineConnectingLine,
+                          (st.status === 'done' || st.status === 'rejected') && styles.timelineConnectingLinePast,
+                        ]}
+                      />
                     )}
                   </View>
 
-                  <View style={styles.timelineRightCol}>
-                    <Text style={[styles.timelineStageTitle, isCurrent && styles.timelineStageTitleCurrent]}>
-                      {stage.label}
-                    </Text>
-                    <Text style={styles.timelineStageDesc}>{stage.desc}</Text>
+                  <View style={styles.timelineContentCol}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text
+                        style={[
+                          styles.timelineStageLabel,
+                          st.status === 'done' && styles.timelineStageLabelActive,
+                          st.status === 'rejected' && { color: '#DC2626', fontWeight: '800' },
+                        ]}
+                      >
+                        {st.label}
+                      </Text>
+                      {st.timestamp ? (
+                        <Text style={{ fontSize: 11, color: '#94A3B8', fontWeight: '600' }}>{st.timestamp}</Text>
+                      ) : null}
+                    </View>
+                    <Text style={styles.timelineStageDesc}>{st.desc}</Text>
+
+                    {st.reason && (
+                      <View style={[styles.notConfirmedReasonCard, { marginTop: 8 }]}>
+                        <View style={styles.notConfirmedHead}>
+                          <Ionicons name="alert-circle" size={15} color="#DC2626" />
+                          <Text style={styles.notConfirmedTitle}>Reason for non-confirmation:</Text>
+                        </View>
+                        <Text style={styles.notConfirmedReasonText}>{st.reason}</Text>
+                      </View>
+                    )}
                   </View>
                 </View>
               );
@@ -2392,27 +3466,69 @@ const NurseBookingScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* Assigned Nurse Card if Available */}
-        {assignedNurse && (
-          <View style={styles.assignedNurseCard}>
-            <Text style={styles.assignedCardHeader}>Assigned Home Care Nurse</Text>
-            <View style={styles.assignedCardBody}>
-              <Image source={{ uri: assignedNurse.photo }} style={styles.assignedPhotoLarge} />
-              <View style={{ flex: 1, marginLeft: 14 }}>
-                <Text style={styles.assignedNameLarge}>{assignedNurse.name}</Text>
-                <Text style={styles.assignedQualLarge}>
-                  {assignedNurse.qualification} • {assignedNurse.experience} Experience
-                </Text>
-                <Text style={styles.assignedSpecLarge}>
-                  {assignedNurse.specialization}
-                </Text>
-                <Text style={styles.assignedRegLarge}>Council Reg: {assignedNurse.councilReg}</Text>
-              </View>
+        {/* Patient & Service Address Summary */}
+        <View style={styles.summaryInfoCard}>
+          <Text style={styles.summaryInfoCardHeader}>Patient & Service Information</Text>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Patient Name:</Text>
+            <Text style={styles.summaryValue}>{req.patientName}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Contact Number:</Text>
+            <Text style={styles.summaryValue}>{req.contactNumber || req.phone}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Service Address:</Text>
+            <Text style={[styles.summaryValue, { flex: 1, textAlign: 'right' }]}>{req.address}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Service City:</Text>
+            <Text style={styles.summaryValue}>{req.city || req.homeCity || selectedCity}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Selected Service:</Text>
+            <Text style={styles.summaryValue}>
+              {req.serviceName || (Array.isArray(req.selectedServices) ? req.selectedServices.join(', ') : 'Home Nursing')}
+            </Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Payment Status:</Text>
+            <Text style={[styles.summaryValue, { color: req.paymentStatus === 'Paid' ? '#16A34A' : '#EA580C', fontWeight: '800' }]}>
+              {req.paymentStatus || (req.paidAmount ? 'Paid' : 'Pending')} (₹{req.fee || 349})
+            </Text>
+          </View>
+          {req.serviceCompletedDate ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Completed On:</Text>
+              <Text style={[styles.summaryValue, { color: '#16A34A' }]}>{req.serviceCompletedDate}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        {/* Enquiry Notes if available */}
+        {req.enquiryNotes && (
+          <View style={[styles.summaryInfoCard, { borderColor: '#BBF7D0', backgroundColor: '#F0FDF4' }]}>
+            <Text style={[styles.summaryInfoCardHeader, { color: '#166534' }]}>Enquiry & Service Scope</Text>
+            <Text style={styles.enquiryUserNotesText}>{req.enquiryNotes.userNotes || 'Care plan confirmed with nurse assignment.'}</Text>
+            <View style={{ marginTop: 8, gap: 4 }}>
+              <Text style={styles.enquiryBullet}>• Number of Visits: {req.enquiryNotes.visits}</Text>
+              <Text style={styles.enquiryBullet}>• Duration per Visit: {req.enquiryNotes.duration}</Text>
+              <Text style={styles.enquiryBullet}>• Agreed Schedule: {req.enquiryNotes.agreedDateTime}</Text>
+              {req.enquiryNotes.specialReqs ? (
+                <Text style={styles.enquiryBullet}>• Special Scope: {req.enquiryNotes.specialReqs}</Text>
+              ) : null}
             </View>
           </View>
         )}
+        </View>
 
-        {isDesktopWeb && <WebFooter />}
+        {isDesktopWeb && (
+          <WebFooter
+            navigation={navigation}
+            style={styles.webFooterLightBanner}
+          />
+        )}
       </ScrollView>
     );
   };
@@ -2465,57 +3581,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
                     {need}
                   </Text>
                   {selectedCareNeed === need && (
-                    <Ionicons name="checkmark-circle" size={18} color="#1E3A8A" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* CITY SELECTION MODAL */}
-      <Modal
-        visible={cityModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setCityModalVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalBackdrop}
-          activeOpacity={1}
-          onPress={() => setCityModalVisible(false)}
-        >
-          <View style={styles.modalContentCard} onStartShouldSetResponder={() => true}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select City</Text>
-              <TouchableOpacity onPress={() => setCityModalVisible(false)}>
-                <Ionicons name="close" size={22} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={{ maxHeight: 340 }} showsVerticalScrollIndicator={true}>
-              {NURSING_CITIES.map((city, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={[
-                    styles.modalListItem,
-                    selectedCity === city && styles.modalListItemSelected,
-                  ]}
-                  onPress={() => {
-                    setSelectedCity(city);
-                    setCityModalVisible(false);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.modalListItemText,
-                      selectedCity === city && styles.modalListItemTextSelected,
-                    ]}
-                  >
-                    {city}
-                  </Text>
-                  {selectedCity === city && (
-                    <Ionicons name="checkmark-circle" size={18} color="#1E3A8A" />
+                    <Ionicons name="checkmark-circle" size={18} color="#00B894" />
                   )}
                 </TouchableOpacity>
               ))}
@@ -2587,7 +3653,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
               })}
             </View>
 
-            {/* Interactive Calendar Header */}
+            {/* Calendar */}
             <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A', marginBottom: 8 }}>
               Or Select Specific Date:
             </Text>
@@ -2603,7 +3669,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
 
                 <View style={styles.calMonthYearBox}>
                   <Text style={styles.calMonthYearText}>
-                    {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][quickCalMonth]} {quickCalYear}
+                    {CALENDAR_MONTH_NAMES[quickCalMonth]} {quickCalYear}
                   </Text>
                 </View>
 
@@ -2616,7 +3682,6 @@ const NurseBookingScreen = ({ navigation, route }) => {
                 </TouchableOpacity>
               </View>
 
-              {/* Weekdays */}
               <View style={styles.calWeekdaysRow}>
                 {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d, i) => (
                   <View key={i} style={styles.calWeekdayCell}>
@@ -2625,7 +3690,6 @@ const NurseBookingScreen = ({ navigation, route }) => {
                 ))}
               </View>
 
-              {/* Days Grid */}
               <View style={styles.calGrid}>
                 {quickCalendarDays.map((cell) => {
                   if (cell.type === 'empty') {
@@ -2662,6 +3726,449 @@ const NurseBookingScreen = ({ navigation, route }) => {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* ADMIN ENQUIRY MODAL */}
+      <Modal
+        visible={enquiryModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setEnquiryModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setEnquiryModalVisible(false)}
+        >
+          <View style={[styles.modalContentCard, { maxWidth: 520 }]} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Admin Enquiry & Payment Link</Text>
+                <Text style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>
+                  Request #{selectedEnquiryReq?.id} • Patient: {selectedEnquiryReq?.patientName}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setEnquiryModalVisible(false)}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+              <View style={{ gap: 10, paddingVertical: 6 }}>
+                <View>
+                  <Text style={styles.formLabel}>Required Nursing Service</Text>
+                  <TextInput
+                    style={styles.enquiryInput}
+                    value={enquiryForm.service}
+                    onChangeText={(t) => setEnquiryForm({ ...enquiryForm, service: t })}
+                    placeholder="e.g. Wound Dressing & Daily Vitals"
+                  />
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.formLabel}>Number of Visits</Text>
+                    <TextInput
+                      style={styles.enquiryInput}
+                      value={enquiryForm.visits}
+                      onChangeText={(t) => setEnquiryForm({ ...enquiryForm, visits: t })}
+                      placeholder="e.g. 1 Visit / 3 Visits"
+                    />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.formLabel}>Duration per Visit</Text>
+                    <TextInput
+                      style={styles.enquiryInput}
+                      value={enquiryForm.duration}
+                      onChangeText={(t) => setEnquiryForm({ ...enquiryForm, duration: t })}
+                      placeholder="e.g. 45 mins / 4 Hours"
+                    />
+                  </View>
+                </View>
+
+                <View>
+                  <Text style={styles.formLabel}>Agreed Date & Timing</Text>
+                  <TextInput
+                    style={styles.enquiryInput}
+                    value={enquiryForm.agreedDateTime}
+                    onChangeText={(t) => setEnquiryForm({ ...enquiryForm, agreedDateTime: t })}
+                    placeholder="e.g. Tomorrow at 10:30 AM"
+                  />
+                </View>
+
+                <View>
+                  <Text style={styles.formLabel}>Agreed Service Charges (₹)</Text>
+                  <TextInput
+                    style={styles.enquiryInput}
+                    value={enquiryForm.charges}
+                    onChangeText={(t) => setEnquiryForm({ ...enquiryForm, charges: t })}
+                    keyboardType="numeric"
+                    placeholder="e.g. 349"
+                  />
+                </View>
+
+                <View>
+                  <Text style={styles.formLabel}>Special Requirements / Clinical Scope</Text>
+                  <TextInput
+                    style={[styles.enquiryInput, { height: 50, textAlignVertical: 'top' }]}
+                    value={enquiryForm.specialReqs}
+                    onChangeText={(t) => setEnquiryForm({ ...enquiryForm, specialReqs: t })}
+                    multiline={true}
+                    placeholder="e.g. Bring sterile surgical gauze, iodine, BP apparatus"
+                  />
+                </View>
+
+                <View>
+                  <Text style={styles.formLabel}>Internal Admin Notes (Hidden from Patient)</Text>
+                  <TextInput
+                    style={[styles.enquiryInput, { height: 50, textAlignVertical: 'top' }]}
+                    value={enquiryForm.adminInternalNotes}
+                    onChangeText={(t) => setEnquiryForm({ ...enquiryForm, adminInternalNotes: t })}
+                    multiline={true}
+                    placeholder="e.g. Nurse Anita assigned; discharge summary verified."
+                  />
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E2E8F0' }}>
+              <TouchableOpacity
+                style={styles.submitBtn}
+                onPress={handleSaveEnquiryAndSendPaymentLink}
+                activeOpacity={0.88}
+              >
+                <Text style={styles.submitBtnText}>Send Payment Link to User (₹{enquiryForm.charges || 349})</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* PATIENT PAYMENT MODAL */}
+      <Modal
+        visible={paymentModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => !paymentProcessing && setPaymentModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => !paymentProcessing && setPaymentModalVisible(false)}
+        >
+          <View style={[styles.modalContentCard, { maxWidth: 460 }]} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Confirm & Pay</Text>
+                <Text style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>
+                  Request #{selectedPaymentReq?.id} • {selectedPaymentReq?.serviceName}
+                </Text>
+              </View>
+              {!paymentProcessing && (
+                <TouchableOpacity onPress={() => setPaymentModalVisible(false)}>
+                  <Ionicons name="close" size={22} color="#64748B" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Bill Summary */}
+            <View style={styles.paymentBillCard}>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Service:</Text>
+                <Text style={styles.summaryValue}>{selectedPaymentReq?.serviceName || 'Home Nursing'}</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Service Address:</Text>
+                <Text style={[styles.summaryValue, { flex: 1, textAlign: 'right' }]}>{selectedPaymentReq?.address}</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { fontWeight: '800', color: '#0F172A' }]}>Amount Payable:</Text>
+                <Text style={[styles.summaryValue, { fontSize: 16, fontWeight: '900', color: '#00B894' }]}>
+                  ₹{selectedPaymentReq?.fee || 349}
+                </Text>
+              </View>
+            </View>
+
+            {/* Payment Method Selector */}
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#0F172A', marginBottom: 8 }}>
+              Select Payment Method:
+            </Text>
+            <View style={{ gap: 6, marginBottom: 16 }}>
+              {[
+                { id: 'upi', label: 'UPI / Google Pay / PhonePe', icon: 'qr-code-outline' },
+                { id: 'card', label: 'Credit / Debit Card', icon: 'card-outline' },
+                { id: 'netbanking', label: 'Net Banking', icon: 'business-outline' },
+              ].map((m) => (
+                <TouchableOpacity
+                  key={m.id}
+                  style={[
+                    styles.choicePill,
+                    { justifyContent: 'flex-start', paddingVertical: 10, paddingHorizontal: 12 },
+                    selectedPaymentMethod === m.id && styles.choicePillActive,
+                  ]}
+                  onPress={() => setSelectedPaymentMethod(m.id)}
+                >
+                  <Ionicons name={m.icon} size={16} color={selectedPaymentMethod === m.id ? '#00B894' : '#64748B'} />
+                  <Text style={[styles.choicePillText, selectedPaymentMethod === m.id && styles.choicePillTextActive, { marginLeft: 8 }]}>
+                    {m.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={styles.submitBtn}
+              onPress={handleConfirmPayment}
+              activeOpacity={0.88}
+              disabled={paymentProcessing}
+            >
+              {paymentProcessing ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.submitBtnText}>Pay ₹{selectedPaymentReq?.fee || 349} & Confirm Booking</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* SUBMISSION CONFIRMATION MODAL */}
+      <Modal
+        visible={confirmationModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setConfirmationModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setConfirmationModalVisible(false)}
+        >
+          <View style={[styles.modalContentCard, { maxWidth: 460 }]} onStartShouldSetResponder={() => true}>
+            <View style={{ alignItems: 'center', marginBottom: 12 }}>
+              <View style={styles.successIconInner}>
+                <Ionicons name="checkmark" size={28} color="#FFFFFF" />
+              </View>
+              <Text style={[styles.modalTitle, { marginTop: 10, textAlign: 'center' }]}>
+                Nursing Request Submitted
+              </Text>
+              <Text style={{ fontSize: 12, color: '#64748B', textAlign: 'center', marginTop: 4 }}>
+                Your nursing request has been submitted successfully. Our coordinator will contact you shortly.
+              </Text>
+            </View>
+
+            {submittedBookingDetail && (
+              <View style={styles.paymentBillCard}>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Request ID:</Text>
+                  <Text style={styles.summaryValue}>{submittedBookingDetail.id}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Service:</Text>
+                  <Text style={styles.summaryValue}>{submittedBookingDetail.serviceName}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Requested Date:</Text>
+                  <Text style={styles.summaryValue}>{submittedBookingDetail.startDate || submittedBookingDetail.date}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Service Address:</Text>
+                  <Text style={[styles.summaryValue, { flex: 1, textAlign: 'right' }]}>{submittedBookingDetail.address}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Current Status:</Text>
+                  <Text style={[styles.summaryValue, { color: '#0369A1', fontWeight: '800' }]}>{submittedBookingDetail.status}</Text>
+                </View>
+              </View>
+            )}
+
+            <View style={{ gap: 8, marginTop: 8 }}>
+              <TouchableOpacity
+                style={styles.submitBtn}
+                onPress={() => {
+                  setConfirmationModalVisible(false);
+                  if (submittedBookingDetail) {
+                    setSelectedRequestDetail(submittedBookingDetail);
+                  }
+                  setCurrentView('MY_REQUESTS');
+                }}
+              >
+                <Text style={styles.submitBtnText}>Track My Request</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.stepBackOutlineBtn}
+                onPress={() => setConfirmationModalVisible(false)}
+              >
+                <Text style={[styles.stepBackOutlineBtnText, { textAlign: 'center' }]}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ADDRESS VALIDATION MISMATCH MODAL */}
+      <Modal
+        visible={addressValidationModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setAddressValidationModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setAddressValidationModalVisible(false)}
+        >
+          <View style={[styles.modalContentCard, { maxWidth: 440 }]} onStartShouldSetResponder={() => true}>
+            <View style={{ alignItems: 'center', marginBottom: 12 }}>
+              <View style={[styles.successIconInner, { backgroundColor: '#FEE2E2' }]}>
+                <Ionicons name="location-outline" size={28} color="#DC2626" />
+              </View>
+              <Text style={[styles.modalTitle, { marginTop: 10, textAlign: 'center', color: '#B91C1C' }]}>
+                Service Location Notice
+              </Text>
+              <Text style={{ fontSize: 13, color: '#475569', textAlign: 'center', marginTop: 6, lineHeight: 18 }}>
+                {addressValidationMsg || `Home Nursing is currently unavailable for this address. Please change your location or enter an address within ${selectedCity}.`}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.submitBtn, { backgroundColor: '#0F172A' }]}
+              onPress={() => setAddressValidationModalVisible(false)}
+            >
+              <Text style={styles.submitBtnText}>Understood</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ADMIN DO NOT CONFIRM / REJECTION MODAL */}
+      <Modal
+        visible={rejectModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setRejectModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setRejectModalVisible(false)}
+        >
+          <View style={[styles.modalContentCard, { maxWidth: 460 }]} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="alert-circle" size={20} color="#DC2626" />
+                </View>
+                <View>
+                  <Text style={[styles.modalTitle, { color: '#B91C1C' }]}>Booking Not Confirmed</Text>
+                  <Text style={styles.modalSubtitle}>Request #{selectedRejectReq?.id} • {selectedRejectReq?.patientName}</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={() => setRejectModalVisible(false)}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ paddingVertical: 12 }}>
+              <Text style={styles.enquiryFieldLabel}>Reason for not confirming * (Mandatory)</Text>
+              <Text style={{ fontSize: 11, color: '#64748B', marginBottom: 8 }}>
+                Select a standard reason or enter custom details below. This will be clearly shown to the patient.
+              </Text>
+
+              {/* Quick Preset Chips */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                {[
+                  'Service unavailable on selected date',
+                  'Nurse unavailable',
+                  'Address outside service area',
+                  'Required service not available',
+                  'Payment issue',
+                  'Patient requested cancellation',
+                  'Other',
+                ].map((preset) => {
+                  const isSel = rejectReasonPreset === preset;
+                  return (
+                    <TouchableOpacity
+                      key={preset}
+                      style={[
+                        styles.rejectReasonChip,
+                        isSel && styles.rejectReasonChipActive,
+                      ]}
+                      onPress={() => {
+                        setRejectReasonPreset(preset);
+                        if (preset === 'Other') {
+                          setRejectReason('');
+                        } else {
+                          setRejectReason(preset);
+                        }
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.rejectReasonChipText, isSel && styles.rejectReasonChipTextActive]}>
+                        {preset}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <TextInput
+                style={[styles.enquiryInput, { height: 80, textAlignVertical: 'top', borderColor: !rejectReason.trim() ? '#FCA5A5' : '#CBD5E1' }]}
+                value={rejectReason}
+                onChangeText={(t) => {
+                  setRejectReason(t);
+                  setRejectReasonPreset('');
+                }}
+                placeholder="Enter specific reason for not confirming this booking..."
+                placeholderTextColor="#94A3B8"
+                multiline={true}
+              />
+              {!rejectReason.trim() && (
+                <Text style={{ fontSize: 11, color: '#DC2626', marginTop: 4, fontWeight: '600' }}>
+                  * Reason is required to reject/not confirm booking.
+                </Text>
+              )}
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+              <TouchableOpacity
+                style={styles.rejectCancelBtn}
+                onPress={() => setRejectModalVisible(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.rejectCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.rejectConfirmBtn,
+                  !rejectReason.trim() && styles.rejectConfirmBtnDisabled,
+                ]}
+                onPress={handleAdminSubmitRejectBooking}
+                disabled={!rejectReason.trim()}
+                activeOpacity={0.88}
+              >
+                <Text style={styles.rejectConfirmBtnText}>Confirm Non-Confirmation</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* FLOATING IN-APP NOTIFICATION TOAST */}
+      {inAppToast.visible && (
+        <View style={styles.floatingToastWrap}>
+          <Ionicons name="notifications" size={20} color="#5EEAD4" />
+          <View style={styles.floatingToastContent}>
+            <Text style={styles.floatingToastTitle}>{inAppToast.title}</Text>
+            <Text style={styles.floatingToastMessage}>{inAppToast.message}</Text>
+          </View>
+          <TouchableOpacity onPress={() => setInAppToast({ visible: false, title: '', message: '' })}>
+            <Ionicons name="close" size={18} color="#94A3B8" />
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 };
@@ -2676,8 +4183,14 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flex: 1,
+    width: '100%',
   },
   scrollContent: {
+    paddingBottom: 0,
+    width: '100%',
+  },
+  mainInnerContent: {
+    width: '100%',
     paddingBottom: 40,
   },
   desktopContainer: {
@@ -2685,6 +4198,12 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
     paddingHorizontal: 28,
+  },
+  webFooterLightBanner: {
+    backgroundColor: '#E6F8F5',
+    backgroundImage: Platform.OS === 'web' ? 'linear-gradient(180deg, #E6F8F5 0%, #EDFAF7 50%, #E0F5F1 100%)' : undefined,
+    borderTopWidth: 1.5,
+    borderTopColor: '#99F6E4',
   },
 
   // Top Bar Row
@@ -2699,25 +4218,48 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 12,
   },
-  breadcrumbRow: {
+  headerLeftGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
-  breadcrumbLink: {
-    fontSize: 13,
-    color: '#00B894',
-    fontWeight: '600',
+  backCircleBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  breadcrumbDivider: {
-    fontSize: 14,
-    color: '#94A3B8',
+  headerTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  breadcrumbCurrent: {
-    fontSize: 13,
-    color: '#1E3A8A',
-    fontWeight: '700',
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  cityLocationPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    gap: 4,
+  },
+  cityLocationText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#0D9488',
   },
   liveVerifiedPill: {
     flexDirection: 'row',
@@ -2725,930 +4267,1205 @@ const styles = StyleSheet.create({
     backgroundColor: '#ECFDF5',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#DCE7EC',
+    borderRadius: 6,
     gap: 5,
   },
   livePulseDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#7BC96F',
+    backgroundColor: '#00B894',
   },
   liveVerifiedPillText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#00B894',
+    color: '#065F46',
   },
-  topActionsGroup: {
+  roleTogglePill: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    padding: 2,
+  },
+  roleToggleBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  roleToggleBtnActive: {
+    backgroundColor: '#0F172A',
+  },
+  roleToggleBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  roleToggleBtnTextActive: {
+    color: '#FFFFFF',
   },
   helplineBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F8FB',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
+    backgroundColor: '#F0FDFA',
     borderWidth: 1,
-    borderColor: '#DCE7EC',
+    borderColor: '#99F6E4',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
     gap: 6,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   helplineBtnText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#00B894',
-  },
-  myRequestsPillBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1.2,
-    borderColor: '#00B894',
-    gap: 6,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-  },
-  myRequestsPillBtnText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#00B894',
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0D9488',
   },
 
-  // Hero Banner Card
-  heroBannerCard: {
-    backgroundColor: '#F1F8FB',
+  // Light Banner Web Hero
+  webHeroBanner: {
+    backgroundColor: '#E6F8F5', // Richer light mint/teal banner
     borderRadius: 20,
-    padding: 32,
+    paddingVertical: 24,
+    paddingHorizontal: 28,
+    marginBottom: 24,
+    borderWidth: 1.5,
+    borderColor: '#99F6E4',
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 3,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  mobileHeroBanner: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    padding: 0,
+    shadowOpacity: 0,
+    elevation: 0,
+    marginBottom: 16,
+  },
+  cardBannerHeader: {
+    backgroundColor: '#E6F8F5', // Light colored banner header matching hero
+    paddingVertical: 13,
+    paddingHorizontal: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: '#99F6E4',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 24,
-    overflow: 'hidden',
-    position: 'relative',
-    borderWidth: 1,
-    borderColor: '#DCE7EC',
-    shadowColor: '#1E3A8A',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
-    shadowRadius: 18,
-    elevation: 4,
+    gap: 12,
   },
-  heroContentCol: {
-    flex: 1,
-    maxWidth: 760,
+  mobileCardBannerHeader: {
+    backgroundColor: 'transparent',
+    borderBottomWidth: 0,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 4,
   },
-  heroBadgePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#DCE7EC',
-    gap: 6,
-    marginBottom: 14,
-  },
-  heroBadgePillText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#00B894',
-    letterSpacing: 0.4,
-  },
-  heroHeadline: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#1E3A8A',
-    lineHeight: 40,
-    letterSpacing: -0.6,
-    marginBottom: 12,
-  },
-  heroHeadlineAccent: {
-    color: '#00B894',
-  },
-  heroSubheadline: {
-    fontSize: 14.5,
-    color: '#64748B',
-    lineHeight: 22,
-    marginBottom: 20,
-    maxWidth: 680,
-  },
-  heroValuePropsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-    marginBottom: 24,
-  },
-  heroValueItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  heroValueItemText: {
-    fontSize: 13,
-    color: '#334155',
-    fontWeight: '600',
-  },
-  heroActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    flexWrap: 'wrap',
-  },
-  heroPrimaryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#00B894',
-    paddingHorizontal: 22,
-    paddingVertical: 13,
-    borderRadius: 12,
-    shadowColor: '#00B894',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer', transition: 'all 0.2s ease' } : {}),
-  },
-  heroPrimaryBtnText: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  heroSecondaryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 18,
-    paddingVertical: 13,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#DCE7EC',
-    shadowColor: '#1E3A8A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-  },
-  heroSecondaryBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1E3A8A',
-  },
-
-  // Hero Floating Quick Estimate Card (Desktop)
-  heroFloatingCard: {
-    width: 320,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.2,
-    shadowRadius: 28,
-    elevation: 10,
-    marginLeft: 32,
-  },
-  floatingCardHeader: {
+  cardBannerHeaderTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 14,
+    flex: 1,
   },
-  floatingPulseBox: {
+  cardBannerIconWrap: {
     width: 34,
     height: 34,
-    borderRadius: 17,
-    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#99F6E4',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  floatingCardTitle: {
-    fontSize: 14.5,
+  cardBannerTitle: {
+    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
   },
-  floatingCardSub: {
+  cardBannerSub: {
+    fontSize: 12,
+    color: '#0D9488',
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  cardBannerBody: {
+    padding: 18,
+  },
+  webHeroContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 20,
+  },
+  webHeroTextCol: {
+    flex: 1,
+  },
+  webHeroBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#E6FFFA',
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    marginBottom: 10,
+  },
+  webHeroBadgeText: {
     fontSize: 11.5,
-    color: '#64748B',
+    fontWeight: '800',
+    color: '#0D9488',
   },
-  floatingServicesList: {
-    gap: 7,
+  webHeroTitle: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -0.5,
+    marginBottom: 6,
+  },
+  webHeroSubtitle: {
+    fontSize: 14,
+    color: '#475569',
+    lineHeight: 20,
     marginBottom: 14,
+    maxWidth: 620,
   },
-  floatingChip: {
+  webTrustRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  webTrustBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  webTrustText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0D9488',
+  },
+  webHeroGraphicBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    paddingRight: 10,
+  },
+  webHeroIconCircle: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#99F6E4',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  webHeroFloatingTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    position: 'absolute',
+    bottom: -6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  webHeroFloatingTagText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+
+  // Web Main Layout
+  webMainRow: {
+    flexDirection: 'column',
+    gap: 24,
+    marginBottom: 32,
+  },
+  webMainRowDesktop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 32,
+  },
+  webFormCol: {
+    flex: 1,
+  },
+  webFormColDesktop: {
+    flex: 1.1,
+  },
+  webSideCol: {
+    flex: 1,
+  },
+  webSideColDesktop: {
+    flex: 0.9,
+  },
+
+  // Simplified Form Card with Light Banner
+  simpleFormCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 0,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
+    marginBottom: 20,
+    overflow: 'hidden',
+  },
+  simpleFormHeading: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 3,
+  },
+  simpleFormSubheading: {
+    fontSize: 13.5,
+    color: '#64748B',
+    marginBottom: 18,
+  },
+  fieldGroup: {
+    marginBottom: 16,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 6,
+  },
+  fieldPickerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#F8FAFC',
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 46,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  floatingChipText: {
-    fontSize: 12,
+  pickerBtnText: {
+    fontSize: 14,
+    color: '#0F172A',
     fontWeight: '600',
-    color: '#1E293B',
   },
-  floatingCtaBtn: {
-    backgroundColor: '#00B894',
-    paddingVertical: 11,
+  placeholderText: {
+    color: '#94A3B8',
+    fontWeight: '400',
+  },
+  simpleTextInput: {
+    backgroundColor: '#F8FAFC',
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    fontSize: 14,
+    color: '#0F172A',
+    minHeight: 46,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+  },
+  simpleAddressInput: {
+    minHeight: 68,
+    textAlignVertical: 'top',
+    paddingTop: 10,
+  },
+  fieldErrorRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  fieldErrorText: {
+    fontSize: 12,
+    color: '#DC2626',
+    fontWeight: '600',
+  },
+  primaryRequestBtn: {
+    backgroundColor: '#00B894',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    marginBottom: 14,
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  floatingCtaBtnText: {
-    fontSize: 13,
+  primaryRequestBtnText: {
+    fontSize: 15,
     fontWeight: '800',
     color: '#FFFFFF',
   },
-  floatingGuaranteeText: {
-    fontSize: 10.5,
-    color: '#64748B',
-    textAlign: 'center',
-    marginTop: 8,
-    fontWeight: '500',
-  },
-
-  // Stats Ribbon
-  statsRibbon: {
+  compactContactRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 30,
-    flexWrap: 'wrap',
     gap: 12,
   },
-  statBox: {
-    alignItems: 'center',
-    minWidth: 140,
-  },
-  statValue: {
-    fontSize: 21,
-    fontWeight: '900',
-    color: '#00B894',
-    letterSpacing: -0.5,
-  },
-  statLabel: {
-    fontSize: 11.5,
-    color: '#64748B',
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  statDivider: {
-    width: 1,
-    height: 32,
-    backgroundColor: '#E2E8F0',
-  },
-
-  // Search & Filter Wrap
-  searchSectionWrap: {
-    marginBottom: 20,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: 16,
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  sectionHeading: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#0F172A',
-    letterSpacing: -0.4,
-  },
-  sectionSubheading: {
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  allRequestsLinkBtn: {
-    paddingVertical: 4,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-  },
-  allRequestsLinkText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#00B894',
-  },
-  searchInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-    marginBottom: 14,
-  },
-  searchInput: {
+  compactContactBtn: {
     flex: 1,
-    height: 48,
-    paddingHorizontal: 12,
-    fontSize: 13.5,
-    color: '#0F172A',
-  },
-  categoryPillsScroll: {
     flexDirection: 'row',
-    gap: 8,
-    paddingVertical: 4,
-  },
-  categoryPillBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    paddingVertical: 11,
+    gap: 6,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  categoryPillBtnActive: {
-    backgroundColor: '#0F172A',
-    borderColor: '#0F172A',
-  },
-  categoryPillBtnText: {
-    fontSize: 12.5,
+  compactContactBtnText: {
+    fontSize: 13,
     fontWeight: '700',
-    color: '#475569',
-  },
-  categoryPillBtnTextActive: {
-    color: '#FFFFFF',
+    color: '#0D9488',
   },
 
-  // Services Grid
-  servicesGrid: {
-    gap: 16,
-    marginBottom: 36,
-  },
-  desktopServicesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 18,
-  },
-  serviceElevatedCard: {
+  // Quick Services Section with Light Banner
+  quickServicesSection: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 18,
+    padding: 0,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 4 },
+    borderColor: '#CCFBF1',
+    marginBottom: 20,
+    overflow: 'hidden',
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.05,
     shadowRadius: 10,
     elevation: 2,
-    justifyContent: 'space-between',
-    ...(Platform.OS === 'web' ? { transition: 'transform 0.18s ease, box-shadow 0.18s ease' } : {}),
   },
-  desktopServiceElevatedCard: {
-    width: 'calc(33.333% - 12px)',
-    minWidth: 320,
+  sectionHeaderTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 12,
   },
-  serviceElevatedCardSelected: {
+  quickChipsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  quickServiceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 8,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', transition: 'all 0.15s ease' } : {}),
+  },
+  quickServiceCardSelected: {
     borderColor: '#00B894',
-    borderWidth: 1.5,
     backgroundColor: '#F0FDFA',
   },
-  cardHeaderRow: {
+  quickServiceCardText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  quickServiceCardTextSelected: {
+    color: '#0D9488',
+    fontWeight: '800',
+  },
+
+  // My Requests Inline Section with Light Banner
+  myRequestsSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 0,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    marginBottom: 20,
+    overflow: 'hidden',
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 12,
   },
-  categoryBadge: {
+  viewAllRequestsText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0D9488',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  viewMoreOnNextPageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 4,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  viewMoreOnNextPageText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0D9488',
+  },
+  emptyInlineRequestsCard: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  emptyInlineRequestsText: {
+    fontSize: 13,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  simpleReqCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 14,
+    marginBottom: 10,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  simpleReqCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  simpleReqIdText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  simpleStatusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
-  categoryBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  tagBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#CCFBF1',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6,
-    gap: 4,
-  },
-  tagBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#0F766E',
-  },
-  serviceTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 10,
-  },
-  serviceIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  serviceCardTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0F172A',
-    letterSpacing: -0.2,
-  },
-  serviceCardDuration: {
+  simpleStatusBadgeText: {
     fontSize: 11.5,
-    color: '#64748B',
-    marginTop: 2,
-    fontWeight: '500',
+    fontWeight: '700',
   },
-  serviceCardDesc: {
+  simpleReqDetailsText: {
     fontSize: 12.5,
-    color: '#475569',
-    lineHeight: 18,
+    color: '#64748B',
     marginBottom: 12,
   },
-  consumablesPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  simpleStatusFlowContainer: {
     backgroundColor: '#F8FAFC',
-    borderRadius: 8,
+    borderRadius: 10,
+    padding: 10,
     borderWidth: 1,
     borderColor: '#F1F5F9',
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    gap: 6,
-    marginBottom: 16,
   },
-  consumablesText: {
+  simpleStatusFlowTitle: {
     fontSize: 11,
-    color: '#64748B',
-    flex: 1,
+    fontWeight: '700',
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
   },
-  serviceCardFooter: {
+  rejectedReasonBox: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 8,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+  },
+  rejectedTitleText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#DC2626',
+    marginBottom: 2,
+  },
+  rejectedReasonText: {
+    fontSize: 12,
+    color: '#B91C1C',
+    fontWeight: '500',
+  },
+  statusStepsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 12,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+  },
+  statusStepNode: {
+    alignItems: 'center',
+    maxWidth: 60,
+  },
+  statusStepDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  statusStepDotDone: {
+    backgroundColor: '#00B894',
+  },
+  statusStepDotPending: {
+    backgroundColor: '#E2E8F0',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  statusStepDotHollow: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#94A3B8',
+  },
+  statusStepLabel: {
+    fontSize: 9.5,
+    textAlign: 'center',
+    lineHeight: 12,
+  },
+  statusStepLabelDone: {
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  statusStepLabelPending: {
+    fontWeight: '500',
+    color: '#94A3B8',
+  },
+
+  // HERO SECTION (Legacy fallback)
+  heroContainer: {
+    flexDirection: 'column',
+    gap: 24,
+    marginBottom: 32,
+  },
+  networkStatsStrip: {
+    flexDirection: 'row',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    marginTop: 20,
+  },
+  networkStatCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  networkStatNum: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  networkStatLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  networkStatDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: '#CBD5E1',
+  },
+
+  // RIGHT COLUMN: FORM CARD
+  rightColumn: {
+    flex: 1,
+  },
+  rightColumnDesktop: {
+    flex: 1,
+  },
+  formCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  formTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 3,
+  },
+  formSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 16,
+  },
+  formBody: {
+    gap: 10,
+  },
+  dropdownField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    height: 44,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  dropdownFieldText: {
+    fontSize: 13,
+    color: '#0F172A',
+    fontWeight: '500',
+    flex: 1,
+  },
+  placeholderText: {
+    color: '#94A3B8',
+  },
+  inputField: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    height: 44,
+    justifyContent: 'center',
+  },
+  textInput: {
+    fontSize: 13,
+    color: '#0F172A',
+    height: '100%',
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+  },
+  addressInputField: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minHeight: 56,
+  },
+  addressTextInput: {
+    fontSize: 12.5,
+    color: '#0F172A',
+    lineHeight: 18,
+    textAlignVertical: 'top',
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+  },
+  quickAddressErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    gap: 6,
+  },
+  quickAddressErrorText: {
+    fontSize: 11,
+    color: '#DC2626',
+    fontWeight: '600',
+    flex: 1,
+    lineHeight: 15,
+  },
+  submitBtn: {
+    backgroundColor: '#00B894',
+    height: 46,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 4,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  submitBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  formShortcutsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
   },
-  pricingCol: {
-    justifyContent: 'center',
-  },
-  priceSub: {
-    fontSize: 10,
-    color: '#64748B',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  priceValue: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  bookServiceBtn: {
+  shortcutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#00B894',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
     gap: 5,
+    paddingVertical: 4,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  bookServiceBtnText: {
-    fontSize: 12.5,
+  shortcutBtnText: {
+    fontSize: 11.5,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#475569',
   },
 
-  // Nurses Showcase Section
-  nursesShowcaseSection: {
+  // DIRECT CONTACT CARD
+  contactCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 26,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginBottom: 36,
+    marginTop: 14,
+    gap: 10,
   },
-  nursesSectionHeader: {
-    marginBottom: 20,
-  },
-  nurseHeaderBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
-  },
-  nurseHeaderBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#00B894',
-    letterSpacing: 0.5,
-  },
-  nursesMainTitle: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  nursesSubTitle: {
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 4,
-    maxWidth: 700,
-    lineHeight: 19,
-  },
-  nursesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-  nurseCard: {
-    flex: 1,
-    minWidth: 280,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  nursePhotoWrapper: {
-    position: 'relative',
-  },
-  nursePhoto: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#E2E8F0',
-  },
-  nurseVerifiedCheck: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#00B894',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-  },
-  nurseInfoCol: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  nurseNameRow: {
+  contactRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingVertical: 4,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  nurseName: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  nurseRatingPill: {
+  contactLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 6,
-    gap: 3,
+    gap: 8,
   },
-  nurseRatingText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#B45309',
-  },
-  nurseQualification: {
-    fontSize: 11.5,
-    color: '#64748B',
-    marginTop: 1,
-    fontWeight: '600',
-  },
-  nurseSpecializationRow: {
-    flexDirection: 'row',
+  phoneIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#00B894',
     alignItems: 'center',
-    gap: 4,
-    marginTop: 6,
+    justifyContent: 'center',
   },
-  nurseSpecializationText: {
-    fontSize: 11.5,
-    color: '#00B894',
-    fontWeight: '700',
-    flex: 1,
+  whatsappIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#25D366',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  nurseMetaRow: {
-    marginTop: 6,
-    gap: 2,
-  },
-  nurseCouncilText: {
-    fontSize: 10.5,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  nurseLanguagesText: {
-    fontSize: 10.5,
+  contactLabel: {
+    fontSize: 12,
     color: '#475569',
     fontWeight: '600',
   },
-  requestThisNurseBtn: {
-    marginTop: 10,
-    alignSelf: 'flex-start',
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-  },
-  requestThisNurseBtnText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#00B894',
-  },
-
-  // How It Works
-  howItWorksSection: {
-    marginBottom: 36,
-  },
-  howItWorksHeader: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  howTitle: {
-    fontSize: 22,
-    fontWeight: '900',
+  contactNumber: {
+    fontSize: 12,
+    fontWeight: '800',
     color: '#0F172A',
   },
-  howSubtitle: {
+  contactDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+  },
+
+  // POPULAR SERVICES GRID
+  procedureCatalogSection: {
+    marginTop: 10,
+    marginBottom: 30,
+  },
+  sectionHeaderTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  sectionHeaderSub: {
     fontSize: 13,
     color: '#64748B',
-    marginTop: 4,
+    marginBottom: 16,
   },
-  howStepsGrid: {
+  procedureCardsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 14,
   },
-  howStepCard: {
+  procedureCard: {
     flex: 1,
-    minWidth: 220,
+    minWidth: 260,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 18,
+    borderRadius: 14,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
-  howStepNumPill: {
-    backgroundColor: '#E6F8F4',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    marginBottom: 12,
-  },
-  howStepNumText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#00B894',
-  },
-  howIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F0FDFA',
+  procedureIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
   },
-  howStepTitle: {
+  procedureCardName: {
     fontSize: 14,
     fontWeight: '800',
     color: '#0F172A',
     marginBottom: 4,
   },
-  howStepDesc: {
-    fontSize: 12,
+  procedureCardDesc: {
+    fontSize: 11.5,
     color: '#64748B',
-    lineHeight: 17,
+    lineHeight: 16,
+    marginBottom: 12,
+  },
+  procedureCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  procedureCardPrice: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#00B894',
+  },
+  procedureBookBtn: {
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 6,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  procedureBookBtnText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#0D9488',
   },
 
-  // Testimonials
-  testimonialsSection: {
-    marginBottom: 36,
+  // ADMIN DESK STYLES
+  adminDeskRoot: {
+    marginBottom: 30,
   },
-  testimonialsHeader: {
-    marginBottom: 18,
+  adminHeaderCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 16,
   },
-  testimonialsTitle: {
-    fontSize: 21,
+  adminDeskTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  adminDeskSub: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  adminLiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    borderWidth: 1,
+    borderColor: '#38BDF8',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 6,
+  },
+  adminLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#38BDF8',
+  },
+  adminLiveText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#38BDF8',
+  },
+  adminStatsGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#334155',
+  },
+  adminStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  adminStatNumber: {
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  adminStatLabel: {
+    fontSize: 10.5,
+    color: '#94A3B8',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  adminFilterScroll: {
+    gap: 8,
+    paddingBottom: 14,
+  },
+  adminFilterChip: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  adminFilterChipActive: {
+    backgroundColor: '#0F172A',
+    borderColor: '#0F172A',
+  },
+  adminFilterChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  adminFilterChipTextActive: {
+    color: '#FFFFFF',
+  },
+  adminReqCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  adminReqCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 10,
+    marginBottom: 10,
+  },
+  adminReqIdText: {
+    fontSize: 14,
     fontWeight: '900',
     color: '#0F172A',
   },
-  testimonialsSub: {
-    fontSize: 13,
-    color: '#64748B',
+  adminCityTag: {
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  adminCityTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#0369A1',
+  },
+  adminReqDateText: {
+    fontSize: 11,
+    color: '#94A3B8',
     marginTop: 2,
   },
-  testimonialsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-  testimonialCard: {
-    flex: 1,
-    minWidth: 300,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    justifyContent: 'space-between',
-  },
-  testimonialStarsRow: {
+  adminPatientRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 10,
   },
-  testimonialVerifiedPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 6,
-    marginLeft: 'auto',
-    gap: 3,
-  },
-  testimonialVerifiedText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  testimonialQuote: {
-    fontSize: 12.5,
-    color: '#334155',
-    lineHeight: 19,
-    fontStyle: 'italic',
-    marginBottom: 14,
-  },
-  testimonialAuthorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  authorAvatarCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#00B894',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  authorAvatarText: {
+  adminPatientName: {
     fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  adminPatientMeta: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  adminContactBtnsRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  adminCallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0D9488',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    gap: 4,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  adminWhatsAppBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#16A34A',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    gap: 4,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  adminCallBtnText: {
+    fontSize: 11.5,
     fontWeight: '800',
     color: '#FFFFFF',
   },
-  authorName: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#0F172A',
+  adminDetailRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+    gap: 6,
   },
-  authorFamily: {
-    fontSize: 10.5,
+  adminDetailLabel: {
+    fontSize: 11.5,
     color: '#64748B',
-  },
-  authorServiceTag: {
-    fontSize: 10.5,
-    color: '#00B894',
     fontWeight: '700',
-    marginTop: 1,
+    width: 65,
   },
-
-  // FAQ
-  faqSection: {
-    marginBottom: 36,
+  adminDetailVal: {
+    fontSize: 11.5,
+    color: '#1E293B',
+    fontWeight: '600',
   },
-  faqHeader: {
-    marginBottom: 16,
-  },
-  faqTitle: {
-    fontSize: 21,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  faqSub: {
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  faqList: {
-    gap: 10,
-  },
-  faqItemCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+  adminEnquiryNotesBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+    padding: 10,
+    marginVertical: 8,
   },
-  faqItemCardOpen: {
-    borderColor: '#00B894',
-    backgroundColor: '#FCFDFE',
+  adminEnquiryNotesTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#334155',
+    marginBottom: 3,
   },
-  faqQuestionRow: {
+  adminEnquiryNotesText: {
+    fontSize: 11,
+    color: '#475569',
+  },
+  adminActionButtonsGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  faqQuestionText: {
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: '#0F172A',
-    flex: 1,
-  },
-  faqQuestionTextActive: {
-    color: '#00B894',
-  },
-  faqAnswerWrap: {
+    flexWrap: 'wrap',
+    gap: 8,
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
   },
-  faqAnswerText: {
-    fontSize: 12.5,
-    color: '#475569',
-    lineHeight: 19,
-  },
-
-  // Emergency Strip
-  emergencyStrip: {
+  adminPrimaryActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0D9488',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 40,
-    flexWrap: 'wrap',
-    gap: 14,
-  },
-  emergencyIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emergencyTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  emergencySub: {
-    fontSize: 12.5,
-    color: '#CCFBF1',
-    marginTop: 2,
-    lineHeight: 18,
-  },
-  emergencyCallNowBtn: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 10,
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 6,
+    gap: 5,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  emergencyCallNowBtnText: {
-    fontSize: 13,
+  adminPrimaryActionBtnText: {
+    fontSize: 11.5,
     fontWeight: '800',
-    color: '#0F766E',
+    color: '#FFFFFF',
+  },
+  adminEnquiryActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#00B894',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 6,
+    gap: 5,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  adminVerifyPayBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EA580C',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 6,
+    gap: 5,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  adminCancelBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 6,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  adminCancelBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#DC2626',
   },
 
-  // =========================================================================
-  // REQUEST FLOW WIZARD STYLES
-  // =========================================================================
+  // WIZARD FLOW STYLES
   flowRoot: {
     flex: 1,
     backgroundColor: '#F8FAFC',
@@ -3656,8 +5473,8 @@ const styles = StyleSheet.create({
   flowHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
@@ -3679,54 +5496,45 @@ const styles = StyleSheet.create({
   flowHeaderSub: {
     fontSize: 11.5,
     color: '#64748B',
-    marginTop: 1,
   },
   flowCloseBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 6,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-
-  // Stepper Container
   stepperContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: '#FFFFFF',
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
-    gap: 12,
+    justifyContent: 'space-between',
   },
   stepItemWrapper: {
-    flexDirection: 'row',
+    flex: 1,
     alignItems: 'center',
-    gap: 6,
+    position: 'relative',
   },
   stepperCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
     borderWidth: 1.5,
     borderColor: '#CBD5E1',
-  },
-  stepperCircleDone: {
-    backgroundColor: '#00B894',
-    borderColor: '#00B894',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   stepperCircleCurrent: {
     backgroundColor: '#00B894',
     borderColor: '#00B894',
   },
+  stepperCircleDone: {
+    backgroundColor: '#0D9488',
+    borderColor: '#0D9488',
+  },
   stepperCircleText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '800',
     color: '#64748B',
   },
@@ -3734,95 +5542,212 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   stepperLabelText: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '600',
-    color: '#64748B',
+    color: '#94A3B8',
+    marginTop: 4,
   },
   stepperLabelTextCurrent: {
-    color: '#00B894',
+    color: '#0F172A',
     fontWeight: '800',
   },
   stepperConnectingLine: {
-    width: 30,
+    position: 'absolute',
+    top: 13,
+    left: '50%',
+    right: '-50%',
     height: 2,
     backgroundColor: '#E2E8F0',
-    marginLeft: 6,
+    zIndex: -1,
   },
   stepperConnectingLineActive: {
-    backgroundColor: '#00B894',
+    backgroundColor: '#0D9488',
   },
-
   flowScroll: {
     flex: 1,
   },
   flowScrollContent: {
-    padding: 20,
-    paddingBottom: 60,
+    padding: 16,
+    paddingBottom: 40,
   },
   flowDesktopContainer: {
-    maxWidth: 820,
-    alignSelf: 'center',
+    maxWidth: 800,
     width: '100%',
+    alignSelf: 'center',
   },
-
   stepTitleBox: {
     marginBottom: 16,
   },
   stepMainHeading: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '900',
     color: '#0F172A',
   },
   stepSubHeading: {
-    fontSize: 13,
+    fontSize: 12.5,
     color: '#64748B',
     marginTop: 3,
-  },
-
-  selectedCountBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    gap: 8,
-    marginBottom: 14,
-  },
-  selectedCountBannerText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#047857',
   },
   errorAlertBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FEF2F2',
-    padding: 10,
-    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#FECACA',
+    borderRadius: 8,
+    padding: 10,
     marginBottom: 12,
   },
   errorAlertText: {
     fontSize: 12,
     color: '#DC2626',
     fontWeight: '600',
+    flex: 1,
   },
-
-  servicesSelectList: {
+  selectedConfirmedWrap: {
     gap: 10,
-    marginBottom: 20,
+  },
+  singleSelectedCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: '#00B894',
+  },
+  singleSelectedTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  singleSelectedTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  singleSelectedPrice: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#00B894',
+  },
+  singleSelectedMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  greenCheckBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    gap: 4,
+  },
+  greenCheckBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  singleSelectedDuration: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  singleSelectedDesc: {
+    fontSize: 12,
+    color: '#475569',
+    lineHeight: 16,
+    marginBottom: 8,
+  },
+  singleSelectedKitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    padding: 8,
+    borderRadius: 6,
+    gap: 6,
+  },
+  singleSelectedKitText: {
+    fontSize: 11,
+    color: '#0F766E',
+    flex: 1,
+  },
+  addMoreServicesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#99F6E4',
+    borderRadius: 10,
+    paddingVertical: 10,
+    gap: 6,
+    marginTop: 8,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  addMoreServicesBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#0D9488',
+  },
+  bookingSelectedTrustBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    marginTop: 8,
+  },
+  bookingSelectedTrustTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#065F46',
+  },
+  bookingSelectedTrustSub: {
+    fontSize: 11,
+    color: '#047857',
+    marginTop: 1,
+  },
+  selectedCountBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  selectedCountBannerText: {
+    fontSize: 12,
+    color: '#065F46',
+  },
+  doneAddingPill: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#00B894',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  doneAddingPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#00B894',
+  },
+  servicesSelectList: {
+    gap: 8,
   },
   serviceSelectCard: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1.5,
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
     borderColor: '#E2E8F0',
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
@@ -3831,15 +5756,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0FDFA',
   },
   customCheckbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 2,
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.5,
     borderColor: '#CBD5E1',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
     backgroundColor: '#FFFFFF',
+    marginRight: 10,
   },
   customCheckboxChecked: {
     backgroundColor: '#00B894',
@@ -3848,18 +5773,17 @@ const styles = StyleSheet.create({
   selectCardIconWrap: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 10,
   },
   selectCardHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
   selectCardTitle: {
-    fontSize: 14.5,
+    fontSize: 13,
     fontWeight: '800',
     color: '#0F172A',
   },
@@ -3869,224 +5793,126 @@ const styles = StyleSheet.create({
     color: '#00B894',
   },
   selectCardDesc: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748B',
     marginTop: 2,
   },
   selectCardKit: {
-    fontSize: 11,
-    color: '#475569',
-    marginTop: 4,
+    fontSize: 10.5,
+    color: '#0D9488',
   },
-
-  // Selected Confirmed Card Styles (Shown when booking selected)
-  selectedConfirmedWrap: {
-    marginBottom: 20,
+  stepActionFooter: {
+    marginTop: 16,
   },
-  singleSelectedCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 2,
-    borderColor: '#00B894',
-    marginBottom: 14,
-    shadowColor: '#00B894',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  singleSelectedTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  singleSelectedTitle: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  singleSelectedPrice: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#00B894',
-  },
-  singleSelectedMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 4,
-  },
-  greenCheckBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 8,
-    paddingVertical: 2.5,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    gap: 4,
-  },
-  greenCheckBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#047857',
-  },
-  singleSelectedDuration: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  singleSelectedDesc: {
-    fontSize: 13,
-    color: '#475569',
-    lineHeight: 19,
-    marginBottom: 12,
-  },
-  singleSelectedKitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDFA',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#CCFBF1',
-    gap: 7,
-  },
-  singleSelectedKitText: {
-    fontSize: 12,
-    color: '#0F766E',
-    flex: 1,
-  },
-  addMoreServicesBtn: {
+  primaryProceedBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 11,
+    backgroundColor: '#00B894',
+    paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 10,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: '#0D9488',
-    backgroundColor: '#F0FDFA',
-    gap: 8,
-    marginBottom: 14,
+    gap: 6,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  addMoreServicesBtnText: {
+  primaryProceedBtnText: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#0D9488',
-  },
-  bookingSelectedTrustBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  bookingSelectedTrustTitle: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  bookingSelectedTrustSub: {
-    fontSize: 11.5,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  doneAddingPill: {
-    marginLeft: 'auto',
-    backgroundColor: '#00B894',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-  },
-  doneAddingPillText: {
-    fontSize: 11,
     fontWeight: '800',
     color: '#FFFFFF',
   },
-
-  // Form Controls
-  formGroup: {
-    marginBottom: 16,
+  stepDualActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 16,
   },
-  formLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 6,
-  },
-  formInput: {
-    backgroundColor: '#FFFFFF',
+  stepBackOutlineBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderRadius: 10,
     borderWidth: 1.5,
     borderColor: '#CBD5E1',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 13.5,
-    color: '#0F172A',
+    backgroundColor: '#FFFFFF',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  formInputError: {
-    borderColor: '#EF4444',
+  stepBackOutlineBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#475569',
   },
-  formErrorText: {
-    fontSize: 11,
-    color: '#EF4444',
-    marginTop: 4,
-    fontWeight: '600',
+
+  // FORM GROUP
+  formGroup: {
+    marginBottom: 14,
   },
   formRow: {
     flexDirection: 'row',
   },
+  formLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 6,
+  },
+  formInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 13,
+    color: '#0F172A',
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+  },
+  formInputError: {
+    borderColor: '#EF4444',
+    backgroundColor: '#FEF2F2',
+  },
+  formErrorText: {
+    fontSize: 11,
+    color: '#DC2626',
+    marginTop: 3,
+    fontWeight: '600',
+  },
   pillsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
   },
   choicePill: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: 8,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: '#CBD5E1',
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   choicePillActive: {
-    backgroundColor: '#00B894',
+    backgroundColor: '#F0FDFA',
     borderColor: '#00B894',
   },
   choicePillText: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '600',
     color: '#475569',
   },
   choicePillTextActive: {
-    color: '#FFFFFF',
+    color: '#00B894',
+    fontWeight: '800',
   },
 
+  // SHIFT CARDS
   shiftDurationGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
   shiftCard: {
-    flex: 1,
-    minWidth: 180,
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: '#E2E8F0',
+    borderRadius: 10,
+    padding: 12,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   shiftCardActive: {
@@ -4096,181 +5922,289 @@ const styles = StyleSheet.create({
   shiftCardTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
+    gap: 8,
   },
   shiftCardTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#334155',
   },
   shiftCardTitleActive: {
-    color: '#0D9488',
+    color: '#00B894',
+    fontWeight: '800',
   },
   shiftCardDesc: {
     fontSize: 11,
     color: '#64748B',
+    marginTop: 2,
+    marginLeft: 25,
+  },
+  dateOptionRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dateOptionCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  dateOptionCardActive: {
+    borderColor: '#00B894',
+    backgroundColor: '#F0FDFA',
+  },
+  dateOptionTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  dateRadioCircle: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateRadioCircleActive: {
+    borderColor: '#00B894',
+  },
+  dateRadioInnerCircle: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#00B894',
+  },
+  dateOptionLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  dateOptionLabelActive: {
+    color: '#00B894',
+  },
+  dateOptionSub: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginTop: 1,
   },
 
-  labelWithOptional: {
+  // PRICING SUMMARY CARD
+  pricingSummaryCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginTop: 10,
+  },
+  pricingTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  pricingTagRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
+  },
+  pricingTagText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  discountBadge: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+  },
+  discountBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  pricingCalcSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  pricingAmountWrap: {
+    alignItems: 'flex-end',
+  },
+  pricingStrikePrice: {
+    fontSize: 11,
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  pricingFinalAmount: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#00B894',
+  },
+  labelWithOptional: {
+    flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 6,
+  },
+  daysBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    gap: 4,
+  },
+  daysBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0D9488',
+  },
+  daysPresetsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  presetDayPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  presetDayPillActive: {
+    backgroundColor: '#F0FDFA',
+    borderColor: '#00B894',
+  },
+  presetDayText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  presetDayTextActive: {
+    color: '#00B894',
+    fontWeight: '800',
   },
   optionalTag: {
     backgroundColor: '#F1F5F9',
     paddingHorizontal: 6,
-    paddingVertical: 1,
+    paddingVertical: 1.5,
     borderRadius: 4,
   },
   optionalTagText: {
-    fontSize: 10.5,
+    fontSize: 10,
     color: '#64748B',
     fontWeight: '600',
-  },
-  uploadDropzone: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-    borderStyle: 'dashed',
-    padding: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-  },
-  uploadDropzoneTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#00B894',
-    marginTop: 6,
-  },
-  uploadDropzoneSub: {
-    fontSize: 11,
-    color: '#94A3B8',
-    marginTop: 2,
   },
   uploadedDocCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F0FDFA',
-    borderRadius: 10,
+    padding: 10,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#99F6E4',
-    padding: 12,
   },
   uploadedDocName: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#0F766E',
   },
   uploadedDocSize: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 1,
+    fontSize: 10.5,
+    color: '#14B8A6',
   },
-
-  // Step Actions
-  stepActionFooter: {
-    marginTop: 16,
-  },
-  stepDualActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 20,
-  },
-  primaryProceedBtn: {
-    flexDirection: 'row',
+  uploadDropzone: {
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#CBD5E1',
+    borderRadius: 10,
+    padding: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#00B894',
-    paddingVertical: 14,
-    borderRadius: 10,
-    gap: 8,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-  },
-  primaryProceedBtnText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  stepBackOutlineBtn: {
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
     backgroundColor: '#FFFFFF',
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  stepBackOutlineBtnText: {
-    fontSize: 13.5,
+  uploadDropzoneTitle: {
+    fontSize: 12.5,
     fontWeight: '700',
-    color: '#475569',
+    color: '#0F172A',
+    marginTop: 6,
+  },
+  uploadDropzoneSub: {
+    fontSize: 10.5,
+    color: '#94A3B8',
+    marginTop: 2,
   },
 
-  // Review Card
+  // REVIEW CARD
   reviewCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 14,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   reviewSection: {
-    marginBottom: 12,
+    marginVertical: 4,
   },
   reviewSectionTitle: {
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: '800',
-    color: '#64748B',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    color: '#0F172A',
     marginBottom: 8,
   },
   reviewPillsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
   },
   reviewServicePill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#ECFDF5',
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
-    gap: 5,
+    gap: 4,
   },
   reviewServicePillText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
     color: '#065F46',
   },
   reviewDivider: {
     height: 1,
     backgroundColor: '#F1F5F9',
-    marginVertical: 12,
+    marginVertical: 10,
   },
   reviewGrid: {
-    gap: 6,
+    gap: 5,
   },
   reviewRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   reviewLabel: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     color: '#64748B',
-    width: '35%',
+    fontWeight: '600',
+    width: 110,
   },
   reviewValue: {
-    fontSize: 12.5,
-    fontWeight: '700',
+    fontSize: 11.5,
     color: '#0F172A',
+    fontWeight: '700',
     flex: 1,
     textAlign: 'right',
   },
@@ -4278,74 +6212,80 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     backgroundColor: '#F0FDFA',
-    borderRadius: 10,
     padding: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#99F6E4',
-    marginTop: 14,
+    borderColor: '#CCFBF1',
+    marginTop: 12,
   },
   zeroDepositTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
     color: '#0F766E',
   },
   zeroDepositSub: {
-    fontSize: 11.5,
-    color: '#134E4A',
-    lineHeight: 16,
+    fontSize: 11,
+    color: '#115E59',
     marginTop: 2,
+    lineHeight: 16,
   },
 
-  // Success State
+  // SUCCESS BOX
   successStateBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 30,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    maxWidth: 600,
-    alignSelf: 'center',
-    width: '100%',
+    paddingVertical: 20,
   },
   successIconOuter: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     backgroundColor: '#ECFDF5',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   successIconInner: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: '#00B894',
     alignItems: 'center',
     justifyContent: 'center',
   },
   successTitle: {
-    fontSize: 21,
+    fontSize: 20,
     fontWeight: '900',
     color: '#0F172A',
     textAlign: 'center',
-    marginBottom: 6,
   },
   successSub: {
-    fontSize: 13.5,
+    fontSize: 13,
     color: '#64748B',
+    marginTop: 4,
     textAlign: 'center',
-    marginBottom: 20,
+  },
+  successPricingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 6,
+    marginTop: 12,
+  },
+  successPricingPillText: {
+    fontSize: 12,
+    color: '#065F46',
   },
   nextStepsCard: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
     borderRadius: 14,
     padding: 16,
-    width: '100%',
-    marginBottom: 24,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    width: '100%',
+    marginVertical: 18,
   },
   nextStepsHeader: {
     fontSize: 13.5,
@@ -4357,32 +6297,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     marginBottom: 8,
-    gap: 10,
   },
   nextStepNum: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#00B894',
-    color: '#FFFFFF',
-    fontSize: 11,
+    backgroundColor: '#ECFDF5',
+    color: '#00B894',
     fontWeight: '800',
+    fontSize: 11,
     textAlign: 'center',
     lineHeight: 20,
+    marginRight: 8,
   },
   nextStepText: {
     fontSize: 12,
     color: '#475569',
     flex: 1,
-    lineHeight: 18,
+    lineHeight: 17,
   },
   successActionsRow: {
-    flexDirection: 'row',
-    gap: 12,
     width: '100%',
+    gap: 10,
   },
   trackRequestBtn: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -4392,182 +6330,263 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   trackRequestBtnText: {
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: '800',
     color: '#FFFFFF',
   },
   backToHomeBtn: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F1F5F9',
-    paddingVertical: 12,
+    paddingVertical: 11,
     borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   backToHomeBtnText: {
-    fontSize: 13.5,
+    fontSize: 12.5,
     fontWeight: '700',
     color: '#475569',
   },
 
-  // =========================================================================
-  // MY REQUESTS LIST VIEW STYLES
-  // =========================================================================
+  // MY REQUESTS VIEW
+  paginationCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 20,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  paginationSummaryText: {
+    fontSize: 12.5,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  paginationHighlightText: {
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  paginationNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  paginationArrowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  paginationArrowText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#0D9488',
+  },
+  paginationNumbersWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  paginationNumBtn: {
+    minWidth: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 8,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  paginationNumBtnActive: {
+    backgroundColor: '#0D9488',
+    borderColor: '#0D9488',
+  },
+  paginationNumText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  paginationNumTextActive: {
+    color: '#FFFFFF',
+  },
+  paginationBtnDisabled: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+    opacity: 0.6,
+    ...(Platform.OS === 'web' ? { cursor: 'default' } : {}),
+  },
+  paginationTextDisabled: {
+    color: '#94A3B8',
+  },
   myRequestsHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 18,
-    flexWrap: 'wrap',
-    gap: 12,
+    marginBottom: 14,
   },
   myRequestsMainTitle: {
-    fontSize: 22,
+    fontSize: 16,
     fontWeight: '900',
     color: '#0F172A',
   },
   myRequestsSub: {
-    fontSize: 12.5,
+    fontSize: 11,
     color: '#64748B',
-    marginTop: 2,
   },
   newRequestBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#00B894',
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 10,
-    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 3,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   newRequestBtnText: {
-    fontSize: 12.5,
+    fontSize: 11,
     fontWeight: '800',
     color: '#FFFFFF',
   },
-  requestFilterTabsRow: {
+  historySegmentWrap: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-    flexWrap: 'wrap',
-  },
-  requestFilterTab: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
     backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 4,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    marginBottom: 14,
+    gap: 6,
+  },
+  historySegmentBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  requestFilterTabActive: {
-    backgroundColor: '#0F172A',
-    borderColor: '#0F172A',
+  historySegmentBtnActive: {
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#5EEAD4',
   },
-  requestFilterTabText: {
-    fontSize: 12.5,
+  historySegmentText: {
+    fontSize: 12,
     fontWeight: '700',
     color: '#64748B',
   },
-  requestFilterTabTextActive: {
-    color: '#FFFFFF',
+  historySegmentTextActive: {
+    color: '#0D9488',
+    fontWeight: '800',
   },
   emptyRequestsBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 36,
     alignItems: 'center',
+    paddingVertical: 40,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginTop: 10,
   },
   emptyRequestsTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
     color: '#0F172A',
-    marginTop: 12,
+    marginTop: 8,
   },
   emptyRequestsSub: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     color: '#64748B',
     textAlign: 'center',
+    paddingHorizontal: 20,
     marginTop: 4,
-    maxWidth: 360,
+    marginBottom: 14,
   },
   emptyStartBtn: {
     backgroundColor: '#00B894',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
     borderRadius: 8,
-    marginTop: 16,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   emptyStartBtnText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
     color: '#FFFFFF',
   },
   requestsCardsList: {
-    gap: 14,
-    marginBottom: 30,
+    gap: 12,
   },
   requestItemCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 18,
+    borderRadius: 14,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
   },
   reqCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
-    flexWrap: 'wrap',
-    gap: 10,
+    marginBottom: 10,
   },
   reqIdRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   reqIdText: {
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '900',
     color: '#0F172A',
   },
   reqStatusPill: {
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 5,
   },
   reqStatusText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
-    color: '#065F46',
+    color: '#92400E',
   },
   reqDateText: {
-    fontSize: 11.5,
+    fontSize: 10.5,
     color: '#94A3B8',
     marginTop: 2,
   },
   viewTimelineBtn: {
-    paddingVertical: 4,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   viewTimelineBtnText: {
-    fontSize: 12.5,
+    fontSize: 10.5,
     fontWeight: '700',
-    color: '#00B894',
+    color: '#0D9488',
   },
   reqPatientRow: {
     flexDirection: 'row',
@@ -4576,7 +6595,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   reqPatientText: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     color: '#475569',
   },
   reqAddressRow: {
@@ -4586,531 +6605,312 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   reqAddressText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748B',
     flex: 1,
   },
   reqServicesRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 10,
+    gap: 5,
   },
   reqServiceChip: {
     backgroundColor: '#F1F5F9',
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: 5,
   },
   reqServiceChipText: {
-    fontSize: 11,
-    color: '#334155',
+    fontSize: 10.5,
     fontWeight: '600',
-  },
-  assignedNurseMiniCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDFA',
-    borderRadius: 10,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#99F6E4',
-    marginTop: 4,
-  },
-  assignedNurseMiniPhoto: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-  },
-  assignedNurseMiniTitle: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#0F766E',
-  },
-  assignedNurseMiniSub: {
-    fontSize: 11,
-    color: '#115E59',
-  },
-  callNurseBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#99F6E4',
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+    color: '#334155',
   },
 
-  // =========================================================================
-  // DETAILS & TIMELINE VIEW STYLES
-  // =========================================================================
+  // COMPACT 7-STAGE STATUS STEPPER
+  compactStepperWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  compactStepItem: {
+    alignItems: 'center',
+    flex: 1,
+    position: 'relative',
+  },
+  compactStepDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactStepDotPast: {
+    backgroundColor: '#00B894',
+  },
+  compactStepDotCurrent: {
+    backgroundColor: '#0284C7',
+    borderWidth: 2,
+    borderColor: '#BAE6FD',
+  },
+  compactStepDotLive: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+  },
+  compactStepDotFuture: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#CBD5E1',
+  },
+  compactStepLine: {
+    position: 'absolute',
+    top: 7,
+    left: '50%',
+    right: '-50%',
+    height: 2,
+    backgroundColor: '#E2E8F0',
+    zIndex: -1,
+  },
+  compactStepLinePast: {
+    backgroundColor: '#00B894',
+  },
+  compactStepLabel: {
+    fontSize: 9,
+    color: '#94A3B8',
+    fontWeight: '600',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  compactStepLabelActive: {
+    color: '#0F172A',
+    fontWeight: '800',
+  },
+
+  // PAYMENT ACTION BANNER
+  paymentActionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 10,
+    gap: 8,
+  },
+  payNowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00B894',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+    gap: 4,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  payNowBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  // DETAILS VIEW
   detailHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 14,
   },
   detailMainTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '900',
     color: '#0F172A',
   },
   detailSub: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748B',
-    marginTop: 2,
   },
   detailStatusCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 14,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   detailStatusTop: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 16,
   },
   detailPulseWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#ECFDF5',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#DCFCE7',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 2,
   },
   detailLiveDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#10B981',
-  },
-  detailStatusTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  detailStatusDesc: {
-    fontSize: 12.5,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  timelineList: {
-    paddingLeft: 4,
-  },
-  timelineRow: {
-    flexDirection: 'row',
-    minHeight: 48,
-  },
-  timelineLeftCol: {
-    alignItems: 'center',
-    width: 24,
-    marginRight: 12,
-  },
-  timelineBullet: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#E2E8F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  timelineBulletPast: {
-    backgroundColor: '#00B894',
-  },
-  timelineBulletCurrent: {
-    backgroundColor: '#0F172A',
-  },
-  timelineUncompletedDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#94A3B8',
-  },
-  timelineLine: {
-    width: 2,
-    flex: 1,
-    backgroundColor: '#E2E8F0',
-  },
-  timelineLinePast: {
-    backgroundColor: '#00B894',
-  },
-  timelineRightCol: {
-    flex: 1,
-    paddingBottom: 16,
-  },
-  timelineStageTitle: {
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  timelineStageTitleCurrent: {
-    color: '#0F172A',
-    fontWeight: '800',
-  },
-  timelineStageDesc: {
-    fontSize: 11.5,
-    color: '#94A3B8',
-    marginTop: 2,
-  },
-  assignedNurseCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 24,
-  },
-  assignedCardHeader: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 12,
-  },
-  assignedCardBody: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  assignedPhotoLarge: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-  },
-  assignedNameLarge: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  assignedQualLarge: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  assignedSpecLarge: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#00B894',
-    marginTop: 3,
-  },
-  assignedRegLarge: {
-    fontSize: 11,
-    color: '#94A3B8',
-    marginTop: 2,
-  },
-  // Date Option Styles
-  dateOptionRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 4,
-    flexWrap: 'wrap',
-  },
-  dateOptionCard: {
-    flex: 1,
-    minWidth: 140,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    padding: 12,
-  },
-  dateOptionCardActive: {
-    borderColor: '#00B894',
-    backgroundColor: '#F0FDF4',
-  },
-  dateOptionTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  dateRadioCircle: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dateRadioCircleActive: {
-    borderColor: '#00B894',
-  },
-  dateRadioInnerCircle: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: '#00B894',
   },
-  dateOptionLabel: {
+  detailStatusTitle: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  dateOptionLabelActive: {
-    color: '#00B894',
-  },
-  dateOptionSub: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  customDateInputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#00B894',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginTop: 10,
-  },
-  customDateInput: {
-    flex: 1,
-    fontSize: 14,
-    color: '#0F172A',
-    outlineStyle: 'none',
-  },
-  // Days Duration Styles
-  daysBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    gap: 5,
-  },
-  daysBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0D9488',
-  },
-  daysPresetsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 4,
-    marginBottom: 12,
-  },
-  presetDayPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#F8FAFC',
-  },
-  presetDayPillActive: {
-    backgroundColor: '#00B894',
-    borderColor: '#00B894',
-  },
-  presetDayText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  presetDayTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  daysCounterContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  daysCounterTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  daysCounterBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    padding: 3,
-  },
-  daysCounterBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  daysCounterBtnDisabled: {
-    opacity: 0.4,
-  },
-  daysCounterCenter: {
-    minWidth: 64,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-  },
-  daysCounterNumber: {
-    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
   },
-  daysCounterUnit: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#64748B',
-    textTransform: 'uppercase',
-  },
-  // Dynamic Pricing Card Styles
-  pricingSummaryCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#CCFBF1',
-    padding: 16,
-    marginTop: 14,
-    marginBottom: 8,
-  },
-  pricingTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  pricingTagRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
-    flexWrap: 'wrap',
-  },
-  pricingTagText: {
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  discountBadge: {
-    backgroundColor: '#ECFDF5',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  discountBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  pricingCalcSubtitle: {
+  detailStatusDesc: {
     fontSize: 12,
     color: '#64748B',
     marginTop: 2,
+    lineHeight: 17,
   },
-  pricingAmountWrap: {
-    alignItems: 'flex-end',
+  timelineList: {
+    marginTop: 8,
   },
-  pricingStrikePrice: {
-    fontSize: 12,
-    color: '#94A3B8',
-    textDecorationLine: 'line-through',
-    fontWeight: '600',
-  },
-  pricingFinalAmount: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#00B894',
-  },
-  pricingPerVisitNote: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  pricingSavingsRow: {
+  timelineRow: {
     flexDirection: 'row',
+  },
+  timelineLeftCol: {
     alignItems: 'center',
-    backgroundColor: '#F0FDF4',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginTop: 10,
-    gap: 6,
+    width: 24,
   },
-  pricingSavingsText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  pricingDivider: {
-    height: 1,
+  timelineBullet: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: '#E2E8F0',
-    marginVertical: 12,
-  },
-  pricingGuaranteeRow: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
   },
-  pricingGuaranteeText: {
-    fontSize: 11.5,
-    color: '#0D9488',
-    fontWeight: '600',
+  timelineBulletPast: {
+    backgroundColor: '#00B894',
+  },
+  timelineBulletCurrent: {
+    backgroundColor: '#0284C7',
+  },
+  timelineBulletLive: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+  },
+  timelineBulletFuture: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#CBD5E1',
+  },
+  timelineConnectingLine: {
+    width: 2,
     flex: 1,
+    backgroundColor: '#E2E8F0',
+    marginTop: 2,
+    marginBottom: 2,
   },
-  successPricingPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDF4',
+  timelineConnectingLinePast: {
+    backgroundColor: '#00B894',
+  },
+  timelineContentCol: {
+    flex: 1,
+    paddingBottom: 14,
+    paddingLeft: 8,
+  },
+  timelineStageLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  timelineStageLabelActive: {
+    color: '#0F172A',
+    fontWeight: '800',
+  },
+  timelineStageDesc: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 1,
+  },
+  summaryInfoCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginTop: 12,
-    gap: 8,
+    borderColor: '#E2E8F0',
+    marginBottom: 14,
   },
-  successPricingPillText: {
+  summaryInfoCardHeader: {
     fontSize: 13,
-    color: '#1E293B',
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 10,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  summaryLabel: {
+    fontSize: 11.5,
+    color: '#64748B',
+    fontWeight: '600',
+    width: 110,
+  },
+  summaryValue: {
+    fontSize: 11.5,
+    color: '#0F172A',
+    fontWeight: '700',
+    flex: 1,
+    textAlign: 'right',
+  },
+  enquiryUserNotesText: {
+    fontSize: 12,
+    color: '#15803D',
     fontWeight: '600',
   },
-  // Interactive Calendar Widget Styles
+  enquiryBullet: {
+    fontSize: 11.5,
+    color: '#166534',
+  },
+
+  // CALENDAR STYLES
   calendarContainer: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 1.5,
+    borderRadius: 10,
+    borderWidth: 1,
     borderColor: '#E2E8F0',
-    padding: 14,
-    marginTop: 10,
+    padding: 10,
+    marginTop: 6,
   },
   calNavHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   calNavBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 6,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   calNavBtnDisabled: {
     opacity: 0.35,
@@ -5120,7 +6920,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   calMonthYearText: {
-    fontSize: 14.5,
+    fontSize: 12.5,
     fontWeight: '800',
     color: '#0F172A',
   },
@@ -5128,8 +6928,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
-    paddingBottom: 6,
-    marginBottom: 4,
+    paddingBottom: 4,
+    marginBottom: 2,
   },
   calWeekdayCell: {
     width: '14.28%',
@@ -5137,7 +6937,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   calWeekdayText: {
-    fontSize: 11.5,
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#94A3B8',
   },
@@ -5147,23 +6947,24 @@ const styles = StyleSheet.create({
   },
   calDayCell: {
     width: '14.28%',
-    height: 38,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    borderRadius: 10,
+    borderRadius: 6,
     marginVertical: 1,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   calDayCellSelected: {
     backgroundColor: '#00B894',
   },
   calDayCellToday: {
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: '#00B894',
     backgroundColor: '#F0FDF4',
   },
   calDayText: {
-    fontSize: 13,
+    fontSize: 11.5,
     fontWeight: '600',
     color: '#1E293B',
   },
@@ -5180,514 +6981,11 @@ const styles = StyleSheet.create({
   },
   calTodayDot: {
     position: 'absolute',
-    bottom: 3,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    bottom: 2,
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
     backgroundColor: '#00B894',
-  },
-  calFooterBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    marginTop: 10,
-    paddingTop: 10,
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  calFooterLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  calFooterText: {
-    fontSize: 12.5,
-    color: '#475569',
-  },
-  calQuickTodayBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
-  },
-  calQuickTodayText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: '#00B894',
-  },
-
-  // Reference Hero & Form Layout matching HospitalCareScreen
-  desktopBreadcrumbWrap: {
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    marginBottom: 20,
-    width: '100%',
-  },
-  desktopBreadcrumbInner: {
-    maxWidth: 1240,
-    alignSelf: 'center',
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  breadcrumbActive: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1E3A8A',
-  },
-  verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  verifiedBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#00B894',
-  },
-
-  // LAYOUT
-  mainBody: {
-    width: '100%',
-    paddingTop: 20,
-    paddingBottom: 24,
-  },
-  layoutRow: {
-    flexDirection: 'column',
-    gap: 24,
-  },
-  layoutRowDesktop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 24,
-  },
-  leftColumn: {
-    width: '100%',
-    gap: 24,
-  },
-  leftColumnDesktop: {
-    flex: 1.35,
-  },
-  rightColumn: {
-    width: '100%',
-    gap: 16,
-  },
-  rightColumnDesktop: {
-    flex: 0.9,
-    maxWidth: 420,
-    position: Platform.OS === 'web' ? 'sticky' : 'relative',
-    top: Platform.OS === 'web' ? 20 : 0,
-  },
-
-  // 1. HERO NETWORK BANNER CARD
-  heroCard: {
-    backgroundColor: '#00B894', // Brand Teal
-    borderRadius: 20,
-    padding: 28,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    shadowColor: '#00B894',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 18,
-    elevation: 4,
-    alignItems: 'center',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  heroGlowCircleTop: {
-    position: 'absolute',
-    top: -60,
-    right: -60,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: 'rgba(0, 194, 203, 0.25)', // Aqua glow
-    pointerEvents: 'none',
-  },
-  heroGlowCircleBottom: {
-    position: 'absolute',
-    bottom: -70,
-    left: -70,
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    backgroundColor: 'rgba(123, 201, 111, 0.22)', // Fresh Green glow
-    pointerEvents: 'none',
-  },
-  heroTitle: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 8,
-    letterSpacing: -0.3,
-    zIndex: 2,
-    textShadow: '0px 2px 4px rgba(0, 0, 0, 0.15)',
-  },
-  heroSubtitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#ECFDF5', // Soft Mint White
-    textAlign: 'center',
-    marginBottom: 26,
-    zIndex: 2,
-  },
-
-  // Nurse Visual with surrounding badges
-  doctorVisualSection: {
-    width: '100%',
-    maxWidth: 480,
-    height: 320,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    zIndex: 2,
-  },
-  doctorCircleBackdrop: {
-    width: 210,
-    height: 210,
-    borderRadius: 105,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 4,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 14,
-    elevation: 4,
-  },
-  doctorImage: {
-    width: 210,
-    height: 210,
-  },
-
-  // 4 Badges
-  floatingBadge: {
-    position: 'absolute',
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#BFDBFE',
-    borderRadius: 24,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    gap: 8,
-    shadowColor: '#1E3A8A',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 4,
-    zIndex: 10,
-  },
-  badgeIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#EFF6FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  badgeBoldText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#1E3A8A',
-    lineHeight: 16,
-  },
-  badgeSubText: {
-    fontSize: 11,
-    color: '#64748B',
-    lineHeight: 13,
-  },
-  badgeTopLeft: {
-    top: 20,
-    left: 10,
-  },
-  badgeTopRight: {
-    top: 20,
-    right: 10,
-  },
-  badgeBottomLeft: {
-    bottom: 25,
-    left: 15,
-  },
-  badgeBottomRight: {
-    bottom: 25,
-    right: 15,
-  },
-
-  // 2. WHY MEDIUNIFY ASSURED SECTION
-  assuredCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 26,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#1E3A8A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
-  },
-  assuredSectionHeader: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#0F172A',
-    marginBottom: 16,
-  },
-  assuredSubHeader: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 14,
-  },
-  benefitsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  benefitItemCard: {
-    flex: 1,
-    minWidth: Platform.OS === 'web' ? 180 : '100%',
-    backgroundColor: '#F0F8FF',
-    borderWidth: 1,
-    borderColor: '#DCEEFF',
-    borderRadius: 12,
-    padding: 16,
-  },
-  benefitTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  benefitScoreText: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#1E3A8A',
-  },
-  benefitItemTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 6,
-    lineHeight: 18,
-  },
-  benefitItemDesc: {
-    fontSize: 11,
-    color: '#475569',
-    lineHeight: 16,
-  },
-  networkStatsStrip: {
-    flexDirection: 'row',
-    backgroundColor: '#F0F8FF',
-    borderWidth: 1,
-    borderColor: '#DCEEFF',
-    borderRadius: 12,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'space-around',
-  },
-  networkStatCol: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  networkStatNum: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#1E3A8A',
-    marginBottom: 2,
-  },
-  networkStatLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  networkStatDivider: {
-    width: 1,
-    height: 32,
-    backgroundColor: '#CBD5E1',
-  },
-
-  // RIGHT COLUMN: FORM CARD
-  formCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#1E3A8A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
-  },
-  formTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 4,
-  },
-  formSubtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    marginBottom: 20,
-  },
-  formBody: {
-    gap: 14,
-  },
-  dropdownField: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    height: 46,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-  },
-  dropdownFieldText: {
-    fontSize: 14,
-    color: '#0F172A',
-    fontWeight: '500',
-    flex: 1,
-  },
-  placeholderText: {
-    color: '#94A3B8',
-  },
-  inputField: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    height: 46,
-    justifyContent: 'center',
-  },
-  textInput: {
-    fontSize: 14,
-    color: '#0F172A',
-    height: '100%',
-    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
-  },
-  submitBtn: {
-    backgroundColor: '#1E293B',
-    height: 48,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 6,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-  },
-  submitBtnText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  termsText: {
-    fontSize: 11,
-    color: '#94A3B8',
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  termsLink: {
-    color: '#2563EB',
-    fontWeight: '600',
-  },
-
-  // OR DIVIDER
-  orDividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 4,
-  },
-  orDividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E2E8F0',
-  },
-  orText: {
-    fontSize: 12,
-    color: '#94A3B8',
-    fontWeight: '700',
-    paddingHorizontal: 12,
-  },
-
-  // DIRECT CONTACT CARD
-  contactCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#1E3A8A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-    gap: 12,
-  },
-  contactRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-  },
-  contactLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  phoneIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#00B894',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  whatsappIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#25D366',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  contactLabel: {
-    fontSize: 13,
-    color: '#475569',
-    fontWeight: '600',
-  },
-  contactNumber: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#1E3A8A',
-  },
-  contactDivider: {
-    height: 1,
-    backgroundColor: '#F1F5F9',
   },
 
   // MODALS
@@ -5735,22 +7033,22 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   modalListItemSelected: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#F0FDFA',
     borderRadius: 8,
   },
   modalListItemText: {
-    fontSize: 14,
+    fontSize: 13.5,
     color: '#334155',
   },
   modalListItemTextSelected: {
-    color: '#1E3A8A',
+    color: '#0D9488',
     fontWeight: '700',
   },
   modalPresetChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
     backgroundColor: '#F1F5F9',
     borderWidth: 1,
@@ -5762,13 +7060,244 @@ const styles = StyleSheet.create({
     borderColor: '#00B894',
   },
   modalPresetChipText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '600',
     color: '#475569',
   },
   modalPresetChipTextSelected: {
     color: '#00B894',
     fontWeight: '700',
+  },
+  enquiryInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    fontSize: 12.5,
+    color: '#0F172A',
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+  },
+  paymentBillCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
+  },
+
+  // Compact 4-Step Stepper Styles
+  compactWorkflowBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  fourStepStepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  fourStepItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  fourStepDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E2E8F0',
+    marginBottom: 4,
+  },
+  fourStepDotDone: {
+    backgroundColor: '#00B894',
+  },
+  fourStepDotPending: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1.5,
+    borderColor: '#F59E0B',
+  },
+  fourStepDotRejected: {
+    backgroundColor: '#DC2626',
+  },
+  fourStepDotTodo: {
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+  },
+  fourStepDotHollow: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#94A3B8',
+  },
+  fourStepLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    textAlign: 'center',
+    color: '#94A3B8',
+    lineHeight: 13,
+  },
+  fourStepLabelDone: {
+    color: '#0F766E',
+    fontWeight: '800',
+  },
+  fourStepLabelPending: {
+    color: '#B45309',
+    fontWeight: '800',
+  },
+  fourStepLabelRejected: {
+    color: '#DC2626',
+    fontWeight: '800',
+  },
+  fourStepLabelTodo: {
+    color: '#94A3B8',
+  },
+  fourStepLine: {
+    height: 2,
+    flex: 0.6,
+    backgroundColor: '#E2E8F0',
+    marginBottom: 16,
+  },
+  fourStepLineDone: {
+    backgroundColor: '#00B894',
+  },
+  fourStepLinePending: {
+    backgroundColor: '#CBD5E1',
+  },
+  fourStepLineRejected: {
+    backgroundColor: '#FCA5A5',
+  },
+
+  // Booking Not Confirmed Reason Card
+  notConfirmedReasonCard: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 10,
+  },
+  notConfirmedHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  notConfirmedTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#B91C1C',
+  },
+  notConfirmedReasonLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#991B1B',
+    marginBottom: 2,
+  },
+  notConfirmedReasonText: {
+    fontSize: 11.5,
+    color: '#7F1D1D',
+    lineHeight: 16,
+  },
+
+  // Reject Modal Styles
+  rejectReasonChip: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  rejectReasonChipActive: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#F87171',
+  },
+  rejectReasonChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  rejectReasonChipTextActive: {
+    color: '#B91C1C',
+    fontWeight: '800',
+  },
+  rejectCancelBtn: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  rejectCancelBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  rejectConfirmBtn: {
+    flex: 1.5,
+    paddingVertical: 11,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DC2626',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  rejectConfirmBtnDisabled: {
+    backgroundColor: '#FCA5A5',
+  },
+  rejectConfirmBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  // FLOATING IN-APP TOAST
+  floatingToastWrap: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    right: 20,
+    maxWidth: 420,
+    alignSelf: 'center',
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+    zIndex: 9999,
+  },
+  floatingToastContent: {
+    flex: 1,
+  },
+  floatingToastTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  floatingToastMessage: {
+    fontSize: 11,
+    color: '#CBD5E1',
+    marginTop: 1,
   },
 });
 

@@ -36,7 +36,7 @@ const SUPPORT_LINKS = [
   { label: 'Refund Policy', route: 'HelpSupport' },
 ];
 
-const WebFooter = ({ navigation }) => {
+const WebFooter = ({ navigation, style }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
   const [emailInput, setEmailInput] = useState('');
@@ -67,7 +67,7 @@ const WebFooter = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.footerWrapper} nativeID="mediunify-footer">
+    <View style={[styles.footerWrapper, style]} nativeID="mediunify-footer">
       <View style={styles.footerContainer}>
         {/* ============================================================
             MAIN 5-COLUMN ROW

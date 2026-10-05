@@ -21,6 +21,8 @@ import inPersonDoctors, { doctorSpecialties as inPersonSpecialties } from '../..
 import colors from '../../../theme/colors';
 import WebFooter from '../../../components/web/WebFooter';
 import DoctorBookingModal from '../../../components/booking/DoctorBookingModal';
+import OptimizedImage from '../../../components/common/OptimizedImage';
+import Pagination from '../../../components/common/Pagination';
 
 const LANGUAGES_LIST = ['All', 'English', 'Kannada', 'Hindi', 'Telugu', 'Malayalam'];
 
@@ -233,7 +235,12 @@ const VideoConsultationScreen = ({ navigation, route }) => {
           activeOpacity={0.88}
           onPress={() => setProfileDoctor(item)}
         >
-          <Image source={{ uri: item.image }} style={styles.avatar} />
+          <OptimizedImage
+            source={{ uri: item.image }}
+            style={styles.avatar}
+            fallbackIcon="person-outline"
+            fallbackColor="#007D69"
+          />
 
           <View style={styles.doctorInfoCol}>
             <View style={styles.nameRow}>
@@ -941,64 +948,16 @@ const VideoConsultationScreen = ({ navigation, route }) => {
                   ))}
                 </View>
 
-                {/* PAGINATION (5 DOCTORS PER PAGE) */}
+                {/* PAGINATION */}
                 {totalPages > 1 && (
-                  <View style={styles.paginationContainer}>
-                    <TouchableOpacity
-                      style={[styles.pageNavBtn, safeCurrentPage === 1 && styles.pageNavBtnDisabled]}
-                      onPress={() => {
-                        if (safeCurrentPage > 1) {
-                          setCurrentPage(safeCurrentPage - 1);
-                          scrollViewRef.current?.scrollTo({ y: isDesktopWeb ? 90 : 140, animated: true });
-                        }
-                      }}
-                      disabled={safeCurrentPage === 1}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="chevron-back" size={16} color={safeCurrentPage === 1 ? '#94A3B8' : '#0F172A'} />
-                      <Text style={[styles.pageNavBtnText, safeCurrentPage === 1 && styles.pageNavBtnTextDisabled]}>
-                        Previous
-                      </Text>
-                    </TouchableOpacity>
-
-                    <View style={styles.pageNumbersWrap}>
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
-                        const isActive = pageNum === safeCurrentPage;
-                        return (
-                          <TouchableOpacity
-                            key={`page-${pageNum}`}
-                            style={[styles.pageNumberBtn, isActive && styles.pageNumberBtnActive]}
-                            onPress={() => {
-                              setCurrentPage(pageNum);
-                              scrollViewRef.current?.scrollTo({ y: isDesktopWeb ? 90 : 140, animated: true });
-                            }}
-                            activeOpacity={0.8}
-                          >
-                            <Text style={[styles.pageNumberText, isActive && styles.pageNumberTextActive]}>
-                              {pageNum}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-
-                    <TouchableOpacity
-                      style={[styles.pageNavBtn, safeCurrentPage === totalPages && styles.pageNavBtnDisabled]}
-                      onPress={() => {
-                        if (safeCurrentPage < totalPages) {
-                          setCurrentPage(safeCurrentPage + 1);
-                          scrollViewRef.current?.scrollTo({ y: isDesktopWeb ? 90 : 140, animated: true });
-                        }
-                      }}
-                      disabled={safeCurrentPage === totalPages}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.pageNavBtnText, safeCurrentPage === totalPages && styles.pageNavBtnTextDisabled]}>
-                        Next
-                      </Text>
-                      <Ionicons name="chevron-forward" size={16} color={safeCurrentPage === totalPages ? '#94A3B8' : '#0F172A'} />
-                    </TouchableOpacity>
-                  </View>
+                  <Pagination
+                    currentPage={safeCurrentPage}
+                    totalPages={totalPages}
+                    onPageChange={(pageNum) => {
+                      setCurrentPage(pageNum);
+                      scrollViewRef.current?.scrollTo({ y: isDesktopWeb ? 90 : 140, animated: true });
+                    }}
+                  />
                 )}
               </>
             )}
@@ -1031,7 +990,12 @@ const VideoConsultationScreen = ({ navigation, route }) => {
             {profileDoctor && (
               <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
                 <View style={styles.modalProfileHeader}>
-                  <Image source={{ uri: profileDoctor.image }} style={styles.modalAvatar} />
+                  <OptimizedImage
+                    source={{ uri: profileDoctor.image }}
+                    style={styles.modalAvatar}
+                    fallbackIcon="person-outline"
+                    fallbackColor="#007D69"
+                  />
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={styles.modalDocName}>{profileDoctor.name}</Text>
                     <Text style={styles.modalDocSpec}>{profileDoctor.specialty}</Text>
@@ -1521,7 +1485,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: Platform.OS === 'ios' ? 95 : 85,
+    paddingBottom: 115,
   },
   doctorsCardsList: {
     width: '100%',

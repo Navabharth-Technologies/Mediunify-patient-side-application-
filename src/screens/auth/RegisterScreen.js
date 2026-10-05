@@ -73,8 +73,20 @@ const RegisterScreen = ({ navigation, route }) => {
     } catch (e) {}
   }, []);
 
-  const handleSkipToHome = () => {
-    safeNavigateToMain(navigation);
+  const handleSkipToHome = async () => {
+    try {
+      await AsyncStorage.setItem('isLoggedIn', 'false');
+      await AsyncStorage.setItem('@unnathi_is_guest', 'true');
+      await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('userName');
+      await AsyncStorage.removeItem('userEmail');
+      await AsyncStorage.removeItem('userPhone');
+      await AsyncStorage.removeItem('@unnathi_primary_user');
+      await AsyncStorage.removeItem('@mediunify_membership');
+      await AsyncStorage.removeItem('@unnathi_active_patient');
+    } catch (e) {}
+    await safeNavigateToMain(navigation);
   };
 
   // Strictly accept numeric digits and cap at exactly 10 digits
@@ -282,7 +294,7 @@ const RegisterScreen = ({ navigation, route }) => {
           activeOpacity={0.7}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Text style={styles.guestLinkText}>Skip</Text>
+          <Text style={styles.guestLinkText}>Continue as Guest</Text>
           <Ionicons name="chevron-forward" size={14} color="#007D69" />
         </TouchableOpacity>
       </View>

@@ -18,6 +18,7 @@ import WebFooter from '../../../components/web/WebFooter';
 import PaginationBar from '../../../components/web/PaginationBar';
 import PatientPageBanner from '../../../components/web/PatientPageBanner';
 import { useCart } from '../../../context/CartContext';
+import { isGuestUser } from '../../../utils/authHelper';
 import {
   getActivePatient,
   getMedicineOrders,
@@ -78,6 +79,7 @@ const MyMedicineOrdersScreenWeb = ({ navigation, route }) => {
   const [patient, setPatient] = useState(null);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isGuestMode, setIsGuestMode] = useState(false);
   const [error, setError] = useState(null);
   const [selectedFilter, setSelectedFilter] = useState('All Orders');
   const [searchQuery, setSearchQuery] = useState('');
@@ -110,6 +112,15 @@ const MyMedicineOrdersScreenWeb = ({ navigation, route }) => {
     setLoading(true);
     setError(null);
     try {
+      const guest = await isGuestUser();
+      if (guest) {
+        setIsGuestMode(true);
+        setPatient(null);
+        setOrders([]);
+        setLoading(false);
+        return;
+      }
+      setIsGuestMode(false);
       const p = await getActivePatient();
       setPatient(p);
       const ords = await getMedicineOrders();
@@ -581,7 +592,30 @@ const MyMedicineOrdersScreenWeb = ({ navigation, route }) => {
               STATES: LOADING, ERROR, EMPTY, LIST (Requirement 8)
           ========================================================= */}
 
-          {loading ? (
+          {isGuestMode ? (
+            <View style={styles.emptyCard}>
+              <View style={[styles.emptyIconCircle, { backgroundColor: '#E6F8F4' }]}>
+                <Ionicons name="cart-outline" size={42} color={BRAND.TEAL} />
+              </View>
+              <Text style={styles.emptyTitle}>Login to view your medicine orders</Text>
+              <Text style={styles.emptyDesc}>
+                Please sign in to view your placed medicine orders, doorstep deliveries, and invoices.
+              </Text>
+              <TouchableOpacity
+                style={[styles.browsePharmacyBtn, { marginTop: 18, alignSelf: 'center', paddingHorizontal: 32 }]}
+                onPress={() => {
+                  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('open-auth-modal'));
+                  }
+                  navigation?.navigate('Login', { openAuthModal: true });
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="log-in-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.browsePharmacyBtnText}>Login</Text>
+              </TouchableOpacity>
+            </View>
+          ) : loading ? (
             /* 1. SKELETON / LOADING UI */
             <View style={styles.skeletonContainer}>
               <View style={styles.skeletonCard}>

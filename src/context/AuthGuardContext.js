@@ -100,14 +100,15 @@ export const AuthGuardProvider = ({ children }) => {
   const requireLogin = useCallback(async (pendingAction, customMessage, customTitle) => {
     try {
       const stored = await AsyncStorage.getItem('isLoggedIn');
-      if (stored === 'true') {
+      const isGuest = await AsyncStorage.getItem('@unnathi_is_guest');
+      if (stored === 'true' && isGuest !== 'true') {
         if (pendingAction) pendingAction();
         return;
       }
     } catch (e) {}
     pendingActionRef.current = pendingAction || null;
     setGateTitle(customTitle || 'Login Required');
-    setGateMessage(customMessage || 'You need to login first to book an appointment with the doctor.');
+    setGateMessage(customMessage || 'Please login to continue with this booking.');
     setGateVisible(true);
   }, []);
 
@@ -143,8 +144,19 @@ export const AuthGuardProvider = ({ children }) => {
     const inputVal = email.trim();
     const inputPassword = password.trim();
     setErrorMessage('');
-    if (!inputVal || !inputPassword) {
-      setErrorMessage('Please enter your email/phone and password.');
+    if (!inputVal) {
+      setErrorMessage('Enter a valid email or 10-digit mobile number.');
+      return;
+    }
+    const cleanPhone = inputVal.replace(/[^0-9]/g, '');
+    const isEmail = inputVal.includes('@') && inputVal.includes('.');
+    const isPhone = cleanPhone.length === 10;
+    if (!isEmail && !isPhone) {
+      setErrorMessage('Enter a valid email or 10-digit mobile number.');
+      return;
+    }
+    if (!inputPassword) {
+      setErrorMessage('Password is required.');
       return;
     }
     setIsSubmitting(true);
@@ -153,6 +165,7 @@ export const AuthGuardProvider = ({ children }) => {
         const syncRes = await syncLogin(inputVal, inputPassword);
         if (syncRes.success && syncRes.user) {
           await AsyncStorage.setItem('isLoggedIn', 'true');
+          await AsyncStorage.setItem('@unnathi_is_guest', 'false');
           await onLoginSuccess();
           return;
         } else if (syncRes.status === 401) {
@@ -199,6 +212,7 @@ export const AuthGuardProvider = ({ children }) => {
       await AsyncStorage.setItem('userName', userData.name);
       await AsyncStorage.setItem('userEmail', userData.email);
       await AsyncStorage.setItem('isLoggedIn', 'true');
+      await AsyncStorage.setItem('@unnathi_is_guest', 'false');
       try { syncRegister(userData, inputPassword); } catch (e) {}
       await onLoginSuccess();
     } catch (err) {
@@ -236,6 +250,7 @@ export const AuthGuardProvider = ({ children }) => {
       await AsyncStorage.setItem('userName', userData.name);
       await AsyncStorage.setItem('userEmail', userData.email);
       await AsyncStorage.setItem('isLoggedIn', 'true');
+      await AsyncStorage.setItem('@unnathi_is_guest', 'false');
       try { syncRegister(userData, passVal); } catch (e) {}
       await onLoginSuccess();
     } catch (err) {
@@ -282,7 +297,7 @@ export const AuthGuardProvider = ({ children }) => {
                 onPress={handleGateOK}
                 activeOpacity={0.85}
               >
-                <Text style={styles.gateOKText}>OK</Text>
+                <Text style={styles.gateOKText}>Login</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -335,7 +350,7 @@ export const AuthGuardProvider = ({ children }) => {
                 <Text style={styles.inputLabel}>Email or Mobile Number</Text>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Enter email or 10-digit mobile"
+                  placeholder="Enter email or 10-digit mobile number"
                   placeholderTextColor="#94A3B8"
                   value={email}
                   onChangeText={setEmail}
@@ -374,7 +389,10 @@ export const AuthGuardProvider = ({ children }) => {
                   activeOpacity={0.85}
                 >
                   {isSubmitting
-                    ? <ActivityIndicator size="small" color="#FFFFFF" />
+                    ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                        <Text style={styles.submitBtnText}>Signing in...</Text>
+                      </View>
                     : <Text style={styles.submitBtnText}>Login</Text>
                   }
                 </TouchableOpacity>
@@ -397,7 +415,10 @@ export const AuthGuardProvider = ({ children }) => {
                   activeOpacity={0.85}
                 >
                   {isSubmitting
-                    ? <ActivityIndicator size="small" color="#FFFFFF" />
+                    ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                        <Text style={styles.submitBtnText}>Creating account...</Text>
+                      </View>
                     : <Text style={styles.submitBtnText}>Register & Get Started</Text>
                   }
                 </TouchableOpacity>
@@ -405,7 +426,7 @@ export const AuthGuardProvider = ({ children }) => {
             )}
 
             <TouchableOpacity onPress={handleCloseLogin} style={styles.guestBtn} activeOpacity={0.7}>
-              <Text style={styles.guestBtnText}>Skip login & explore as Guest</Text>
+              <Text style={styles.guestBtnText}>Continue as Guest →</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -432,7 +453,7 @@ const styles = StyleSheet.create({
   gateOKBtn: { flex: 1, flexDirection: 'row', paddingVertical: 13, borderRadius: 11, backgroundColor: '#00B894', alignItems: 'center', justifyContent: 'center', shadowColor: '#00B894', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.28, shadowRadius: 8, elevation: 4, ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
   gateOKText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
   forgotPasswordText: { fontSize: 12, color: '#00B894', fontWeight: '600', ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
-  loginContainer: { width: '100%', maxWidth: 460, backgroundColor: '#FFFFFF', borderRadius: 20, overflow: 'hidden', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 24 }, shadowOpacity: 0.18, shadowRadius: 48, elevation: 14, ...(Platform.OS === 'web' ? { zIndex: 999999 } : {}) },
+  loginContainer: { width: '100%', maxWidth: 460, maxHeight: '92%', backgroundColor: '#FFFFFF', borderRadius: 20, overflow: 'hidden', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 24 }, shadowOpacity: 0.18, shadowRadius: 48, elevation: 14, ...(Platform.OS === 'web' ? { zIndex: 999999, overflowY: 'auto' } : {}) },
   loginHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 24, paddingTop: 22, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   brandRow: { flexDirection: 'row', alignItems: 'baseline' },
   brandMedi: { fontSize: 21, fontWeight: '900', color: '#1E3A8A', letterSpacing: -0.5 },

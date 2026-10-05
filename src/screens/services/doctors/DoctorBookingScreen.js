@@ -25,6 +25,7 @@ import { saveTransaction } from '../../../services/transactionService';
 import WebFooter from '../../../components/web/WebFooter';
 import { getAvailableDates, getSlotsForDate } from '../../../utils/appointmentSlotHelper';
 import { validateAndBookSlot, subscribeToSlotChanges } from '../../../services/slotBookingService';
+import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
 
 const DoctorBookingScreen = ({ route, navigation }) => {
   const { width } = useWindowDimensions();
@@ -115,6 +116,12 @@ const DoctorBookingScreen = ({ route, navigation }) => {
 
   const loadUserData = async () => {
     try {
+      const guest = await isGuestUser();
+      if (guest) {
+        setPatientName('');
+        setPatientPhone('');
+        return;
+      }
       const storedName = await AsyncStorage.getItem('userName');
       if (storedName && storedName.trim()) {
         const clean = storedName.trim().replace(/\s*\(Self\)$/i, '');
@@ -250,8 +257,13 @@ const DoctorBookingScreen = ({ route, navigation }) => {
 
   const feeAmount = doctor.fee || 400;
 
-  const handleBooking = () => {
-    requireLogin(() => _doBooking(), 'You need to login first to book an appointment with the doctor.');
+  const handleBooking = async () => {
+    const isGuest = await isGuestUser();
+    if (isGuest) {
+      promptLoginRequired(navigation, { service: 'doctor' });
+      return;
+    }
+    requireLogin(() => _doBooking(), 'Please login to continue with this booking.');
   };
 
   const _doBooking = async () => {

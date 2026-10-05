@@ -20,6 +20,7 @@ import {
 } from '../../../data/membershipData';
 import { saveTransaction } from '../../../services/transactionService';
 import { showAlert } from '../../../utils/alert';
+import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
 
 const PAYMENT_METHODS = [
   { id: 'upi-gpay', name: 'Google Pay / PhonePe / UPI', icon: 'flash-outline', iconType: 'ionicons' },
@@ -51,6 +52,12 @@ const MembershipScreen = ({ navigation }) => {
 
   const loadMembershipStatus = async () => {
     try {
+      const isGuest = await isGuestUser();
+      if (isGuest) {
+        setActiveMembership(null);
+        setLoading(false);
+        return;
+      }
       const stored = await AsyncStorage.getItem('@mediunify_membership');
       if (stored) {
         const parsed = JSON.parse(stored);
@@ -77,13 +84,25 @@ const MembershipScreen = ({ navigation }) => {
     setIsDetailsModalVisible(true);
   };
 
-  const handleChoosePlan = (plan) => {
+  const handleChoosePlan = async (plan) => {
+    const isGuest = await isGuestUser();
+    if (isGuest) {
+      setIsDetailsModalVisible(false);
+      promptLoginRequired(navigation, { service: 'membership' });
+      return;
+    }
     setSelectedPlanForDetails(plan);
     setIsDetailsModalVisible(false);
     setIsPaymentModalVisible(true);
   };
 
   const handleConfirmPayment = async () => {
+    const isGuest = await isGuestUser();
+    if (isGuest) {
+      setIsPaymentModalVisible(false);
+      promptLoginRequired(navigation, { service: 'membership' });
+      return;
+    }
     if (!selectedPlanForDetails) return;
     setProcessingPayment(true);
 
@@ -701,7 +720,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 40,
+    paddingBottom: 80,
   },
 
   // MY MEMBERSHIP CARD

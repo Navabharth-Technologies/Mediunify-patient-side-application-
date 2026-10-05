@@ -17,6 +17,7 @@ import WebFooter from '../../components/web/WebFooter';
 import PaginationBar from '../../components/web/PaginationBar';
 import PatientPageBanner from '../../components/web/PatientPageBanner';
 import { useCart } from '../../context/CartContext';
+import { isGuestUser } from '../../utils/authHelper';
 import {
   getActivePatient,
   getPatientFamilyMembers,
@@ -37,6 +38,7 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route }) => {
   const [familyMembers, setFamilyMembers] = useState([]);
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isGuestMode, setIsGuestMode] = useState(false);
 
   // Tab & Filters
   const [activeTab, setActiveTab] = useState('All Records');
@@ -74,6 +76,16 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route }) => {
   const loadData = async () => {
     setLoading(true);
     try {
+      const guest = await isGuestUser();
+      if (guest) {
+        setIsGuestMode(true);
+        setPatient(null);
+        setFamilyMembers([]);
+        setRecords([]);
+        setLoading(false);
+        return;
+      }
+      setIsGuestMode(false);
       const p = await getActivePatient();
       setPatient(p);
       const fam = await getPatientFamilyMembers();
@@ -347,7 +359,30 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route }) => {
           </View>
 
           {/* Records List */}
-          {loading ? (
+          {isGuestMode ? (
+            <View style={styles.emptyCard}>
+              <View style={[styles.emptyIconCircle, { backgroundColor: '#E6F8F4' }]}>
+                <Ionicons name="document-text-outline" size={42} color="#00B894" />
+              </View>
+              <Text style={styles.emptyTitle}>Login to view your medical records</Text>
+              <Text style={styles.emptyDesc}>
+                Please sign in to access your digital prescriptions, clinical summaries, and diagnostic reports.
+              </Text>
+              <TouchableOpacity
+                style={[styles.uploadFab, { marginTop: 18, alignSelf: 'center', paddingHorizontal: 32 }]}
+                onPress={() => {
+                  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('open-auth-modal'));
+                  }
+                  navigation?.navigate('Login', { openAuthModal: true });
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="log-in-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.uploadFabText}>Login</Text>
+              </TouchableOpacity>
+            </View>
+          ) : loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#00B894" />
               <Text style={styles.loadingText}>Loading your clinical records...</Text>

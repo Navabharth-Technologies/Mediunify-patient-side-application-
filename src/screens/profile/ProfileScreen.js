@@ -22,6 +22,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../theme/colors';
 import { useTheme } from '../../context/ThemeContext';
 import { syncActiveUser } from '../../services/dataSyncService';
+import { promptLoginRequired } from '../../utils/authHelper';
 
 const ProfileScreen = ({ navigation, route }) => {
   const { isDarkMode, language, changeLanguage, LANGUAGES } = useTheme();
@@ -44,6 +45,7 @@ const ProfileScreen = ({ navigation, route }) => {
   });
 
   const [familyCount, setFamilyCount] = useState(1);
+  const [isGuest, setIsGuest] = useState(false);
 
   // Modals state
   const [showLanguageModal, setShowLanguageModal] = useState(false);
@@ -83,6 +85,30 @@ const ProfileScreen = ({ navigation, route }) => {
 
   const loadProfileData = async () => {
     try {
+      const storedIsLoggedIn = await AsyncStorage.getItem('isLoggedIn');
+      const storedIsGuest = await AsyncStorage.getItem('@unnathi_is_guest');
+      const isGuestMode = storedIsGuest === 'true' || storedIsLoggedIn !== 'true';
+      setIsGuest(isGuestMode);
+
+      if (isGuestMode) {
+        setUser({
+          name: 'Guest User',
+          email: '',
+          phone: '',
+          location: 'Mysuru, Karnataka',
+          photo: '',
+          bloodGroup: '',
+          age: '',
+          gender: '',
+          emergencyContact: '',
+          uhid: '',
+          dob: '',
+        });
+        setUserMembership(null);
+        setFamilyCount(0);
+        return;
+      }
+
       const storedPrimary = await AsyncStorage.getItem('@unnathi_primary_user');
       const storedUser = await AsyncStorage.getItem('user');
       const storedName = await AsyncStorage.getItem('userName');
@@ -305,7 +331,81 @@ const ProfileScreen = ({ navigation, route }) => {
     );
   };
 
-  const userInitial = user.name?.trim() ? user.name.trim().charAt(0).toUpperCase() : 'U';
+  const userInitial = isGuest ? 'G' : (user.name?.trim() ? user.name.trim().charAt(0).toUpperCase() : 'U');
+
+  const getMembershipInfo = () => {
+    if (isGuest || !userMembership || userMembership.status !== 'active') {
+      return null;
+    }
+    const tid = (userMembership.tierId || userMembership.tierName || '').toLowerCase();
+    if (tid.includes('gold')) {
+      return {
+        tierName: 'Gold Membership',
+        tierLabel: 'Gold Member',
+        ringColor: '#F59E0B',
+        bgColor: '#FEF3C7',
+        textColor: '#D97706',
+        badgeBg: '#D97706',
+        cardBg: '#FFFBEB',
+        cardBorder: '#FDE68A',
+        iconColor: '#D97706',
+      };
+    }
+    if (tid.includes('plat') || tid.includes('premium')) {
+      return {
+        tierName: tid.includes('plat') ? 'Family Platinum Membership' : 'Premium Membership',
+        tierLabel: tid.includes('plat') ? 'Platinum Member' : 'Premium Member',
+        ringColor: '#2563EB',
+        bgColor: '#EFF6FF',
+        textColor: '#1D4ED8',
+        badgeBg: '#1D4ED8',
+        cardBg: '#EFF6FF',
+        cardBorder: '#BFDBFE',
+        iconColor: '#2563EB',
+      };
+    }
+    if (tid.includes('silver')) {
+      return {
+        tierName: 'Silver Membership',
+        tierLabel: 'Silver Member',
+        ringColor: '#94A3B8',
+        bgColor: '#F1F5F9',
+        textColor: '#475569',
+        badgeBg: '#64748B',
+        cardBg: '#F8FAFC',
+        cardBorder: '#CBD5E1',
+        iconColor: '#64748B',
+      };
+    }
+    // Default Prime
+    return {
+      tierName: 'Prime Membership',
+      tierLabel: 'Prime Member',
+      ringColor: '#007D69',
+      bgColor: '#CCFBF1',
+      textColor: '#007D69',
+      badgeBg: '#007D69',
+      cardBg: '#F0FDFA',
+      cardBorder: '#99F6E4',
+      iconColor: '#007D69',
+    };
+  };
+
+  const memInfo = getMembershipInfo();
+
+  const formatValidityDate = (dateStr) => {
+    if (!dateStr) return null;
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return null;
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch (e) {
+      return null;
+    }
+  };
 
   return (
     <SafeAreaView
@@ -346,31 +446,60 @@ const ProfileScreen = ({ navigation, route }) => {
         <View style={[styles.pageInnerContainer, isTablet && styles.pageInnerTablet]}>
           {/* ============================================================
               PROFILE HEADER SECTION
-              [ Profile Photo ]
-              User Name
-              Phone Number
-              Location
-              [ Edit ]
+              - Initial Avatar with Membership Ring & Star Badge
+              - User Name
+              - Membership Status Pill (e.g. Gold Member, Prime Member)
+              - Phone Number
+              - Location
+              - [ Edit Profile ]
           ============================================================ */}
           <View style={[styles.profileHeaderCard, { backgroundColor: isDarkMode ? '#111827' : '#FFFFFF' }]}>
-            {/* PROFILE PHOTO */}
+            {/* AVATAR HERO WITH MATCHING MEMBERSHIP RING */}
             <View style={styles.photoContainer}>
-              <TouchableOpacity
-                style={styles.avatarWrapper}
-                onPress={handleEditProfile}
-                activeOpacity={0.85}
+              <View
+                style={[
+                  styles.avatarWrapper,
+                  memInfo
+                    ? {
+                        borderColor: memInfo.ringColor,
+                        borderWidth: 3.5,
+                        backgroundColor: '#FFFFFF',
+                        borderRadius: 48,
+                      }
+                    : {
+                        borderColor: '#007D69',
+                        borderWidth: 2,
+                        backgroundColor: '#007D69',
+                        borderRadius: 48,
+                      },
+                ]}
               >
-                {user.photo ? (
-                  <Image source={{ uri: user.photo }} style={styles.avatarImg} />
-                ) : (
-                  <View style={styles.avatarFallback}>
-                    <Text style={styles.avatarInitial}>{userInitial}</Text>
+                <View
+                  style={[
+                    styles.avatarFallback,
+                    memInfo
+                      ? { backgroundColor: memInfo.bgColor, borderRadius: 42 }
+                      : { backgroundColor: '#007D69', borderRadius: 42 },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.avatarInitial,
+                      memInfo
+                        ? { color: memInfo.textColor }
+                        : { color: '#FFFFFF' },
+                    ]}
+                  >
+                    {userInitial}
+                  </Text>
+                </View>
+
+                {memInfo && (
+                  <View style={[styles.profileMembershipCrownBadge, { backgroundColor: memInfo.badgeBg }]}>
+                    <Ionicons name="star" size={13} color="#FFFFFF" />
                   </View>
                 )}
-                <View style={styles.avatarEditBadge}>
-                  <Ionicons name="camera" size={13} color="#FFFFFF" />
-                </View>
-              </TouchableOpacity>
+              </View>
             </View>
 
             {/* USER NAME */}
@@ -378,13 +507,37 @@ const ProfileScreen = ({ navigation, route }) => {
               style={[styles.userName, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}
               numberOfLines={1}
             >
-              {user.name}
+              {isGuest ? 'Guest User' : user.name}
             </Text>
 
+            {/* SUBTITLE FOR GUEST */}
+            {isGuest && (
+              <Text style={{ fontSize: 13, color: '#64748B', marginTop: 4, marginBottom: 8, fontWeight: '500' }}>
+                Login to access your profile
+              </Text>
+            )}
+
+            {/* ACTIVE MEMBERSHIP STATUS PILL */}
+            {!isGuest && memInfo && (
+              <TouchableOpacity
+                style={[styles.membershipStatusPill, { backgroundColor: memInfo.bgColor, borderColor: memInfo.ringColor }]}
+                onPress={() => navigation.navigate('Membership')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="star" size={12} color={memInfo.textColor} />
+                <Text style={[styles.membershipStatusText, { color: memInfo.textColor }]}>
+                  {memInfo.tierLabel}
+                </Text>
+                <Ionicons name="chevron-forward" size={12} color={memInfo.textColor} />
+              </TouchableOpacity>
+            )}
+
             {/* PHONE NUMBER */}
-            <Text style={styles.userPhone}>
-              {user.phone}
-            </Text>
+            {!isGuest && user.phone ? (
+              <Text style={styles.userPhone}>
+                {user.phone}
+              </Text>
+            ) : null}
 
             {/* LOCATION */}
             <View style={styles.locationRow}>
@@ -397,16 +550,81 @@ const ProfileScreen = ({ navigation, route }) => {
               </Text>
             </View>
 
-            {/* [ EDIT ] BUTTON */}
+            {/* [ EDIT ] or [ LOGIN ] BUTTON */}
+            {isGuest ? (
+              <TouchableOpacity
+                style={[styles.editBtn, { backgroundColor: '#00B894', borderColor: '#00B894', marginTop: 10, paddingHorizontal: 20 }]}
+                onPress={() => {
+                  const parent = navigation.getParent?.();
+                  if (parent?.navigate) {
+                    try { parent.navigate('Auth', { screen: 'Login' }); return; } catch (e) {}
+                  }
+                  navigation.navigate('Login');
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="log-in-outline" size={16} color="#FFFFFF" />
+                <Text style={[styles.editBtnText, { color: '#FFFFFF' }]}>Login / Sign In</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.editBtn}
+                onPress={handleEditProfile}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="create-outline" size={15} color="#0D9488" />
+                <Text style={styles.editBtnText}>Edit Profile</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* ============================================================
+              ACTIVE MEMBERSHIP CARD (SECTION 4 REQUIREMENT)
+              Only displays validity info if expiresAt already exists
+          ============================================================ */}
+          {memInfo && (
             <TouchableOpacity
-              style={styles.editBtn}
-              onPress={handleEditProfile}
+              style={[
+                styles.activeMembershipCard,
+                {
+                  backgroundColor: isDarkMode ? '#1E293B' : memInfo.cardBg,
+                  borderColor: memInfo.cardBorder,
+                },
+              ]}
+              onPress={() => navigation.navigate('Membership')}
               activeOpacity={0.85}
             >
-              <Ionicons name="create-outline" size={15} color="#0D9488" />
-              <Text style={styles.editBtnText}>Edit</Text>
+              <View style={styles.membershipCardHeader}>
+                <View style={styles.membershipCardLeft}>
+                  <View style={[styles.membershipCardStarIconWrap, { backgroundColor: memInfo.ringColor }]}>
+                    <Ionicons name="star" size={16} color="#FFFFFF" />
+                  </View>
+                  <View>
+                    <Text style={[styles.membershipCardTitle, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
+                      {memInfo.tierName}
+                    </Text>
+                    <View style={styles.membershipActiveStatusRow}>
+                      <View style={styles.activeDot} />
+                      <Text style={styles.membershipActiveText}>Active</Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.membershipViewManageWrap}>
+                  <Text style={[styles.membershipManageText, { color: memInfo.textColor }]}>View</Text>
+                  <Ionicons name="chevron-forward" size={14} color={memInfo.textColor} />
+                </View>
+              </View>
+
+              {userMembership?.expiresAt && formatValidityDate(userMembership.expiresAt) ? (
+                <View style={styles.membershipValidityDivider}>
+                  <Ionicons name="calendar-outline" size={13} color={isDarkMode ? '#94A3B8' : '#64748B'} />
+                  <Text style={[styles.membershipValidityText, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                    Valid until: {formatValidityDate(userMembership.expiresAt)}
+                  </Text>
+                </View>
+              ) : null}
             </TouchableOpacity>
-          </View>
+          )}
 
           {/* ============================================================
               QUICK ACCESS:
@@ -427,7 +645,13 @@ const ProfileScreen = ({ navigation, route }) => {
                 isTablet && styles.quickAccessCardTablet,
                 { backgroundColor: isDarkMode ? '#111827' : '#FFFFFF' },
               ]}
-              onPress={() => navigation.navigate('FamilyProfiles')}
+              onPress={() => {
+                if (isGuest) {
+                  promptLoginRequired(navigation, { service: 'family' });
+                } else {
+                  navigation.navigate('FamilyProfiles');
+                }
+              }}
               activeOpacity={0.78}
             >
               <View style={[styles.quickAccessIconWrap, { backgroundColor: '#EFF6FF' }]}>
@@ -448,7 +672,13 @@ const ProfileScreen = ({ navigation, route }) => {
                 isTablet && styles.quickAccessCardTablet,
                 { backgroundColor: isDarkMode ? '#111827' : '#FFFFFF' },
               ]}
-              onPress={() => navigation.navigate('HealthRecords')}
+              onPress={() => {
+                if (isGuest) {
+                  promptLoginRequired(navigation, { service: 'profile', message: 'Please login to access your health records.' });
+                } else {
+                  navigation.navigate('HealthRecords');
+                }
+              }}
               activeOpacity={0.78}
             >
               <View style={[styles.quickAccessIconWrap, { backgroundColor: '#F0FDFA' }]}>
@@ -469,7 +699,13 @@ const ProfileScreen = ({ navigation, route }) => {
                 isTablet && styles.quickAccessCardTablet,
                 { backgroundColor: isDarkMode ? '#111827' : '#FFFFFF' },
               ]}
-              onPress={() => navigation.navigate('TransactionHistory')}
+              onPress={() => {
+                if (isGuest) {
+                  promptLoginRequired(navigation, { service: 'payment', message: 'Please login to view payment history.' });
+                } else {
+                  navigation.navigate('TransactionHistory');
+                }
+              }}
               activeOpacity={0.78}
             >
               <View style={[styles.quickAccessIconWrap, { backgroundColor: '#ECFDF5' }]}>
@@ -518,7 +754,13 @@ const ProfileScreen = ({ navigation, route }) => {
             {/* 1. PERSONAL INFORMATION */}
             <TouchableOpacity
               style={styles.menuRow}
-              onPress={handleEditProfile}
+              onPress={() => {
+                if (isGuest) {
+                  promptLoginRequired(navigation, { service: 'profile' });
+                } else {
+                  handleEditProfile();
+                }
+              }}
               activeOpacity={0.75}
             >
               <View style={[styles.menuIconCircle, { backgroundColor: '#EFF6FF' }]}>
@@ -537,7 +779,13 @@ const ProfileScreen = ({ navigation, route }) => {
             {/* 2. ADDRESS */}
             <TouchableOpacity
               style={styles.menuRow}
-              onPress={() => setShowAddressModal(true)}
+              onPress={() => {
+                if (isGuest) {
+                  promptLoginRequired(navigation, { service: 'profile', message: 'Please login to manage your delivery address.' });
+                } else {
+                  setShowAddressModal(true);
+                }
+              }}
               activeOpacity={0.75}
             >
               <View style={[styles.menuIconCircle, { backgroundColor: '#F0FDFA' }]}>
@@ -663,16 +911,33 @@ const ProfileScreen = ({ navigation, route }) => {
           </View>
 
           {/* ============================================================
-              LOG OUT BUTTON
+              LOG OUT / SIGN IN BUTTON
           ============================================================ */}
-          <TouchableOpacity
-            style={styles.logoutBtn}
-            onPress={handleLogout}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-            <Text style={styles.logoutBtnText}>Log Out</Text>
-          </TouchableOpacity>
+          {isGuest ? (
+            <TouchableOpacity
+              style={[styles.logoutBtn, { borderColor: '#00B894', backgroundColor: '#E6F8F4' }]}
+              onPress={() => {
+                const parent = navigation.getParent?.();
+                if (parent?.navigate) {
+                  try { parent.navigate('Auth', { screen: 'Login' }); return; } catch (e) {}
+                }
+                navigation.navigate('Login');
+              }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="log-in-outline" size={20} color="#007D69" />
+              <Text style={[styles.logoutBtnText, { color: '#007D69' }]}>Sign In / Login</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.logoutBtn}
+              onPress={handleLogout}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+              <Text style={styles.logoutBtnText}>Log Out</Text>
+            </TouchableOpacity>
+          )}
 
           {/* FOOTER */}
           <View style={styles.footerWrap}>
@@ -951,7 +1216,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: 110,
   },
   pageInnerContainer: {
     width: '100%',
@@ -985,57 +1250,66 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   avatarWrapper: {
-    width: 92,
-    height: 92,
-    borderRadius: 46,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: '#CCFBF1',
-  },
-  avatarImg: {
-    width: 86,
-    height: 86,
-    borderRadius: 43,
+    borderWidth: 3.5,
+    borderColor: '#007D69',
   },
   avatarFallback: {
-    width: 86,
-    height: 86,
-    borderRadius: 43,
-    backgroundColor: '#0D9488',
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: '#007D69',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarInitial: {
-    fontSize: 36,
+    fontSize: 38,
     fontWeight: '800',
     color: '#FFFFFF',
   },
-  avatarEditBadge: {
+  profileMembershipCrownBadge: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#0F766E',
+    top: -3,
+    right: -3,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#007D69',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#FFFFFF',
-    elevation: 3,
+    elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.2,
     shadowRadius: 3,
   },
   userName: {
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: '800',
     color: '#0F172A',
     marginBottom: 4,
     textAlign: 'center',
+  },
+  membershipStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 4.5,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  membershipStatusText: {
+    fontSize: 12.5,
+    fontWeight: '800',
   },
   userPhone: {
     fontSize: 14,
@@ -1048,7 +1322,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   userLocation: {
     fontSize: 13,
@@ -1060,7 +1334,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 20,
-    paddingVertical: 7,
+    paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: '#F0FDFA',
     borderWidth: 1,
@@ -1070,6 +1344,83 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '700',
     color: '#0D9488',
+  },
+
+  // ACTIVE MEMBERSHIP CARD (SECTION 4)
+  activeMembershipCard: {
+    borderRadius: 16,
+    borderWidth: 1.5,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  membershipCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  membershipCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  membershipCardStarIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  membershipCardTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  membershipActiveStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  activeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#10B981',
+  },
+  membershipActiveText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  membershipViewManageWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+  },
+  membershipManageText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  membershipValidityDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.06)',
+  },
+  membershipValidityText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 
   // QUICK ACCESS

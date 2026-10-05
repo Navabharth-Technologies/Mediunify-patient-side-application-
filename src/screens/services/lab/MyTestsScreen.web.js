@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import WebFooter from '../../../components/web/WebFooter';
 import PaginationBar from '../../../components/web/PaginationBar';
 import PatientPageBanner from '../../../components/web/PatientPageBanner';
+import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
 import {
   getActivePatient,
   getPatientFamilyMembers,
@@ -135,6 +136,7 @@ const MyTestsScreenWeb = ({ navigation, route }) => {
   const [bookedTests, setBookedTests] = useState([]);
   const [testReports, setTestReports] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isGuestMode, setIsGuestMode] = useState(false);
 
   // Active view switcher (defaults to all appointments so both lab & radiology appear immediately)
   const initialMode = route?.params?.initialTab || (route?.params?.tab === 'radiology' ? 'radiology' : route?.params?.tab === 'lab' ? 'lab' : route?.params?.tab === 'packages' ? 'packages' : route?.params?.tab === 'reports' ? 'reports' : 'all_appts');
@@ -208,6 +210,17 @@ const MyTestsScreenWeb = ({ navigation, route }) => {
   const loadData = async () => {
     setLoading(true);
     try {
+      const guest = await isGuestUser();
+      if (guest) {
+        setIsGuestMode(true);
+        setPatient(null);
+        setFamilyMembers([]);
+        setBookedTests([]);
+        setTestReports([]);
+        setLoading(false);
+        return;
+      }
+      setIsGuestMode(false);
       const p = await getActivePatient();
       setPatient(p);
       const fam = await getPatientFamilyMembers();
@@ -224,6 +237,12 @@ const MyTestsScreenWeb = ({ navigation, route }) => {
   };
 
   const handleSaveFamilyMember = async () => {
+    const guest = await isGuestUser();
+    if (guest) {
+      setIsAddMemberModalOpen(false);
+      promptLoginRequired(navigation, { service: 'family' });
+      return;
+    }
     if (!newMemberName.trim()) {
       showToast('Please enter the family member’s name.');
       return;
@@ -759,7 +778,30 @@ const MyTestsScreenWeb = ({ navigation, route }) => {
           {/* =========================================================
               MAIN CONTENT: BOOKED TESTS NOW (ACTIVE)
           ========================================================= */}
-          {loading ? (
+          {isGuestMode ? (
+            <View style={styles.emptyCard}>
+              <View style={[styles.emptyIconCircle, { backgroundColor: '#E6F8F4' }]}>
+                <Ionicons name="flask-outline" size={42} color="#00B894" />
+              </View>
+              <Text style={styles.emptyTitle}>Login to view your tests and reports</Text>
+              <Text style={styles.emptyDesc}>
+                Please sign in to access your booked diagnostic appointments, lab results, scan images, and test passes.
+              </Text>
+              <TouchableOpacity
+                style={[styles.bookTestBtn, { marginTop: 18, alignSelf: 'center', paddingHorizontal: 32 }]}
+                onPress={() => {
+                  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('open-auth-modal'));
+                  }
+                  navigation?.navigate('Login', { openAuthModal: true });
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="log-in-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.bookTestBtnText}>Login</Text>
+              </TouchableOpacity>
+            </View>
+          ) : loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#00B894" />
               <Text style={styles.loadingText}>Loading diagnostic records and scheduled appointments...</Text>

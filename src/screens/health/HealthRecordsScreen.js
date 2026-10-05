@@ -708,7 +708,7 @@ const styles = StyleSheet.create({
     shadowColor: '#0F766E', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 2,
   },
   uploadHeaderBtnText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
-  scroll: { paddingBottom: 40 },
+  scroll: { paddingBottom: 110 },
   sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 10 },
   sectionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   sectionLabel: { fontSize: 14, fontWeight: '800', color: '#0F172A' },

@@ -13,13 +13,11 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   TouchableWithoutFeedback,
-  Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as ImagePicker from 'expo-image-picker';
 import colors from '../../theme/colors';
 import { syncActiveUser } from '../../services/dataSyncService';
 
@@ -62,7 +60,6 @@ const EditProfileScreen = ({ navigation, route }) => {
   const initialPhoneDigits = rawInitialPhone.length >= 10 ? rawInitialPhone.slice(-10) : rawInitialPhone;
 
   // Personal Info Form State
-  const [photo, setPhoto] = useState(passedUser.photo || '');
   const [name, setName] = useState(passedUser.name || 'Ramesh Kumar');
   const [email, setEmail] = useState(passedUser.email || 'ramesh.kumar@example.com');
   const [phone, setPhone] = useState(initialPhoneDigits || '9845012345');
@@ -73,86 +70,69 @@ const EditProfileScreen = ({ navigation, route }) => {
   const [emergencyContact, setEmergencyContact] = useState(
     (passedUser.emergencyContact || '').replace(/[^0-9]/g, '').slice(-10) || ''
   );
+  const [membership, setMembership] = useState(null);
 
+  // Load Membership from Shared Storage
   useEffect(() => {
-    const loadSavedPhoto = async () => {
+    const loadMembershipData = async () => {
       try {
-        const storedPhoto = await AsyncStorage.getItem('@unnathi_user_photo');
-        if (storedPhoto && !passedUser.photo) {
-          setPhoto(storedPhoto);
+        const memStr = await AsyncStorage.getItem('@mediunify_membership');
+        if (memStr) {
+          const parsed = JSON.parse(memStr);
+          if (parsed && parsed.status === 'active') {
+            setMembership(parsed);
+          } else {
+            setMembership(null);
+          }
+        } else {
+          setMembership(null);
         }
       } catch (e) {}
     };
-    loadSavedPhoto();
-  }, [passedUser.photo]);
+    loadMembershipData();
+  }, []);
 
-  const handlePickFromGallery = async () => {
-    try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        showAlert('Permission Denied', 'Please allow photo gallery permissions to choose a profile image.');
-        return;
-      }
-      const res = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-      if (!res.canceled && res.assets && res.assets[0]?.uri) {
-        setPhoto(res.assets[0].uri);
-      }
-    } catch (e) {
-      showAlert('Gallery Error', 'Could not access photo library.');
+  // Helper for consistent membership styling
+  const getMembershipStyle = () => {
+    if (!membership || membership.status !== 'active') return null;
+    const tid = (membership.tierId || membership.tierName || '').toLowerCase();
+    if (tid.includes('gold')) {
+      return {
+        ringColor: '#F59E0B',
+        bgColor: '#FEF3C7',
+        textColor: '#D97706',
+        badgeBg: '#D97706',
+        label: 'Gold Member',
+      };
     }
-  };
-
-  const handleTakePhoto = async () => {
-    try {
-      const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) {
-        showAlert('Permission Denied', 'Please grant camera access to capture a profile picture.');
-        return;
-      }
-      const res = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-      if (!res.canceled && res.assets && res.assets[0]?.uri) {
-        setPhoto(res.assets[0].uri);
-      }
-    } catch (e) {
-      showAlert('Camera Error', 'Could not open camera.');
+    if (tid.includes('plat') || tid.includes('premium')) {
+      return {
+        ringColor: '#2563EB',
+        bgColor: '#EFF6FF',
+        textColor: '#1D4ED8',
+        badgeBg: '#1D4ED8',
+        label: 'Premium Member',
+      };
     }
+    if (tid.includes('silver')) {
+      return {
+        ringColor: '#94A3B8',
+        bgColor: '#F1F5F9',
+        textColor: '#475569',
+        badgeBg: '#64748B',
+        label: 'Silver Member',
+      };
+    }
+    return {
+      ringColor: '#007D69',
+      bgColor: '#CCFBF1',
+      textColor: '#007D69',
+      badgeBg: '#007D69',
+      label: 'Prime Member',
+    };
   };
 
-  const handlePhotoOptions = () => {
-    showAlert(
-      'Profile Photo',
-      'Select an option to update your profile photo',
-      [
-        {
-          text: 'Choose from Gallery',
-          onPress: handlePickFromGallery,
-        },
-        {
-          text: 'Take Photo',
-          onPress: handleTakePhoto,
-        },
-        ...(photo
-          ? [
-              {
-                text: 'Remove Photo',
-                style: 'destructive',
-                onPress: () => setPhoto(''),
-              },
-            ]
-          : []),
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
-  };
+  const memStyle = getMembershipStyle();
 
   // OTP Verification Modal State (when changing Phone or Email)
   const [otpModalVisible, setOtpModalVisible] = useState(false);
@@ -390,14 +370,7 @@ const EditProfileScreen = ({ navigation, route }) => {
         gender,
         age: finalAge,
         emergencyContact: formattedEmergency,
-        photo: photo || '',
       };
-
-      if (photo) {
-        await AsyncStorage.setItem('@unnathi_user_photo', photo);
-      } else {
-        await AsyncStorage.removeItem('@unnathi_user_photo');
-      }
 
       // Save updated data in AsyncStorage
       await AsyncStorage.setItem('userName', trimmedName);
@@ -600,38 +573,66 @@ const EditProfileScreen = ({ navigation, route }) => {
           keyboardDismissMode="on-drag"
           automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         >
-        {/* AVATAR HERO EDIT */}
+        {/* AVATAR HERO DISPLAY (AUTO-GENERATED FROM NAME + REAL-TIME MEMBERSHIP RING) */}
         <View style={styles.avatarCard}>
-          <TouchableOpacity
-            style={styles.avatarCircle}
-            onPress={handlePhotoOptions}
-            activeOpacity={0.85}
+          <View
+            style={[
+              styles.avatarCircle,
+              memStyle
+                ? {
+                    borderColor: memStyle.ringColor,
+                    borderWidth: 3.5,
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: 40,
+                  }
+                : {
+                    borderColor: '#007D69',
+                    borderWidth: 2,
+                    backgroundColor: '#007D69',
+                    borderRadius: 40,
+                  },
+            ]}
           >
-            {photo ? (
-              <Image source={{ uri: photo }} style={styles.avatarImg} />
-            ) : (
-              <View style={styles.avatarFallback}>
-                <Text style={styles.avatarInitialText}>
-                  {name?.trim() ? name.trim().charAt(0).toUpperCase() : 'U'}
-                </Text>
+            <View
+              style={[
+                styles.avatarFallback,
+                memStyle
+                  ? { backgroundColor: memStyle.bgColor, borderRadius: 35 }
+                  : { backgroundColor: '#007D69', borderRadius: 35 },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.avatarInitialText,
+                  memStyle
+                    ? { color: memStyle.textColor }
+                    : { color: '#FFFFFF' },
+                ]}
+              >
+                {name?.trim() ? name.trim().charAt(0).toUpperCase() : 'U'}
+              </Text>
+            </View>
+
+            {memStyle && (
+              <View style={[styles.membershipCrownBadge, { backgroundColor: memStyle.badgeBg }]}>
+                <Ionicons name="star" size={13} color="#FFFFFF" />
               </View>
             )}
-            <View style={styles.cameraIconBtn}>
-              <Ionicons name="camera" size={13} color="#FFFFFF" />
-            </View>
-          </TouchableOpacity>
+          </View>
+
           <View style={styles.avatarNameRow}>
             <Text style={styles.avatarName}>{name || 'Patient Name'}</Text>
             <Ionicons name="checkmark-circle" size={16} color="#00B894" />
           </View>
-          <TouchableOpacity
-            style={styles.changePhotoBtn}
-            onPress={handlePhotoOptions}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="image-outline" size={13} color="#0D9488" />
-            <Text style={styles.changePhotoText}>{photo ? 'Change Photo' : 'Upload Photo'}</Text>
-          </TouchableOpacity>
+
+          {memStyle && (
+            <View style={[styles.avatarMemberPill, { backgroundColor: memStyle.bgColor, borderColor: memStyle.ringColor }]}>
+              <Ionicons name="star" size={11} color={memStyle.textColor} />
+              <Text style={[styles.avatarMemberPillText, { color: memStyle.textColor }]}>
+                {memStyle.label}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* SECTION 1: BASIC DETAILS */}
@@ -1116,48 +1117,47 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E2E8F0',
   },
   avatarCircle: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: '#0D9488',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
     position: 'relative',
-    borderWidth: 2,
+    borderWidth: 3.5,
     borderColor: '#CCFBF1',
   },
-  avatarImg: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-  },
   avatarFallback: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#0D9488',
   },
   avatarInitialText: {
     color: '#FFFFFF',
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: '900',
   },
-  cameraIconBtn: {
+  membershipCrownBadge: {
     position: 'absolute',
-    bottom: -2,
+    top: -2,
     right: -2,
-    backgroundColor: '#0D9488',
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    backgroundColor: '#007D69',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#FFFFFF',
-    elevation: 3,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
   },
   avatarNameRow: {
     flexDirection: 'row',
@@ -1169,22 +1169,19 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#0F172A',
   },
-  changePhotoBtn: {
+  avatarMemberPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     marginTop: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 14,
-    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 10,
+    paddingVertical: 3.5,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#CCFBF1',
   },
-  changePhotoText: {
+  avatarMemberPillText: {
     fontSize: 11.5,
-    fontWeight: '700',
-    color: '#0D9488',
+    fontWeight: '800',
   },
   sectionHeader: {
     paddingHorizontal: 16,

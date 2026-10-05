@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../../theme/colors';
 import WebFooter from '../../../components/web/WebFooter';
+import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
 
 const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
@@ -51,6 +52,13 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
 
   const loadPatientAndFamilyContext = async () => {
     try {
+      const isGuest = await isGuestUser();
+      if (isGuest) {
+        setPatientName('');
+        setPatientPhone('');
+        setFamilyMembers([]);
+        return;
+      }
       const storedName = await AsyncStorage.getItem('userName');
       const storedPhone = await AsyncStorage.getItem('userPhone');
       if (storedName) setPatientName(storedName);
@@ -97,10 +105,10 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
 
 
   // Form State
-  const [patientName, setPatientName] = useState('Ramesh Kumar');
+  const [patientName, setPatientName] = useState('');
   const [patientAge, setPatientAge] = useState('32');
   const [patientGender, setPatientGender] = useState('Male');
-  const [patientPhone, setPatientPhone] = useState('+91 98450 12345');
+  const [patientPhone, setPatientPhone] = useState('');
   const [preferredDate, setPreferredDate] = useState('Within this week');
   const [hasInsurance, setHasInsurance] = useState('yes'); // 'yes' | 'no'
   const [insuranceProvider, setInsuranceProvider] = useState('Star Health Insurance');
@@ -151,6 +159,11 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
   };
 
   const handleSubmitQuote = async () => {
+    const isGuest = await isGuestUser();
+    if (isGuest) {
+      promptLoginRequired(navigation, { service: 'surgery' });
+      return;
+    }
     if (!patientName.trim() || !patientPhone.trim()) {
       showAlert('Required Fields', 'Please enter patient name and contact phone number.');
       return;

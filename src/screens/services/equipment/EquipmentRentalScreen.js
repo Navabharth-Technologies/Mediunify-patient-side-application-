@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,213 +9,107 @@ import {
   Image,
   Modal,
   Platform,
+  KeyboardAvoidingView,
   useWindowDimensions,
-  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { validateAddressMatchesCity } from '../../../utils/addressLocationValidator';
 import { showAlert } from '../../../utils/alert';
+import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
 import WebFooter from '../../../components/web/WebFooter';
+import OptimizedImage from '../../../components/common/OptimizedImage';
+import Pagination from '../../../components/common/Pagination';
 import {
   equipmentCategories,
   equipmentCatalog,
   verifiedVendors,
   initialRentalRequests,
-  initialActiveRentals,
+  EQUIPMENT_WORKFLOW_STEPS,
+  getEquipmentStatusStageIndex,
 } from '../../../data/equipmentRentalData';
 
 const ASYNC_KEY_EQUIPMENT_REQUESTS = '@unnathi_equipment_rental_requests';
-const ASYNC_KEY_ACTIVE_RENTALS = '@unnathi_equipment_active_rentals';
-const EQUIPMENT_CARE_NEEDS = [
-  'Oxygen Concentrator (5L / 10L)',
-  'Motorized ICU Hospital Bed (3-Function / 5-Function)',
-  'BiPAP / CPAP Respiration Machine',
-  'Wheelchair (Manual / Electric Recliner)',
-  'Suction Machine (Electric / Portable)',
-  'DVT Prevention Pump & Sleeves',
-  'Patient Transfer Hoist / Lifter',
-  'Multipara Patient Cardiac Monitor',
-  'Air Mattress with Pressure Relief Pump',
-  'Nebulizer & Respiratory Therapy Kit',
-  'Infusion & Syringe Pump',
-  'Other Medical / Biomedical Equipment',
-];
+const ASYNC_KEY_NOTIFICATIONS = '@mediunify_user_notifications';
 
+const REQUIRED_DATE_CHOICES = ['Today', 'Tomorrow', 'Within 2-3 Days', 'Specific Date'];
+const DURATION_CHOICES = ['1 Week', '2 Weeks', '1 Month', '2 Months', '3 Months', 'Long-term'];
 
 const EquipmentRentalScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 992;
-  const isTablet = width >= 768 && width < 992;
+  const isTablet = width >= 600 && width < 992;
+  const isVerySmallMobile = width < 360;
 
-  // Scroll Ref and Y Position for auto-scrolling to equipment section
-  const homeScrollRef = useRef(null);
-  const equipmentListingY = useRef(0);
-
-  // View States: 'HOME' | 'DETAILS' | 'REQUEST_FLOW' | 'MY_RENTALS' | 'RENTAL_REQUESTS' | 'REQUEST_DETAILS' | 'RENTAL_DETAILS'
+  // View States: 'HOME' | 'DETAILS' | 'REQUEST_FORM' | 'MY_RENTALS'
   const [currentView, setCurrentView] = useState('HOME');
 
-  // Search & Filter State
+  // Search, Filter & Pagination
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [filterModalVisible, setFilterModalVisible] = useState(false);
-  const [filterDuration, setFilterDuration] = useState('all'); // 'all' | 'Daily' | 'Weekly' | 'Monthly'
-  const [filterMaxPrice, setFilterMaxPrice] = useState(10000);
-  const [filterServiceArea, setFilterServiceArea] = useState('all'); // 'all' | 'Mysuru' | 'Bengaluru'
-  const [filterInstallationOnly, setFilterInstallationOnly] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Selected Equipment for Details and Request Flow
+  // Selected Equipment
   const [selectedEquipment, setSelectedEquipment] = useState(null);
 
-  // Request Multi-step Flow: Step 1: Duration & Qty, Step 2: Address, Step 3: Review, Step 4: Submitted
-  const [flowStep, setFlowStep] = useState(1);
-  const [rentalDurationType, setRentalDurationType] = useState('Monthly'); // 'Daily' | 'Weekly' | 'Monthly' | 'Custom'
-  const [customDays, setCustomDays] = useState('14');
-  const [customStartDate, setCustomStartDate] = useState('Immediate / Next Available');
+  // Request Form State
+  const [formStep, setFormStep] = useState(1); // 1: Form, 2: Review, 3: Submitted
   const [quantity, setQuantity] = useState(1);
+  const [requiredFromDate, setRequiredFromDate] = useState('Today');
+  const [requiredUntilDuration, setRequiredUntilDuration] = useState('1 Month');
+  const [customFromDate, setCustomFromDate] = useState('');
+  const [additionalNotes, setAdditionalNotes] = useState('');
 
-  // Delivery Address Form
-  const [deliveryName, setDeliveryName] = useState('Ramesh Kumar');
-  const [deliveryPhone, setDeliveryPhone] = useState('+91 98450 12345');
-  const [deliveryAddress, setDeliveryAddress] = useState('No. 44, 2nd Cross, Saraswathipuram');
-  const [deliveryCity, setDeliveryCity] = useState('Mysuru');
-  const [deliveryPincode, setDeliveryPincode] = useState('570009');
-  const [deliveryInstructions, setDeliveryInstructions] = useState('Please call 30 minutes before arrival.');
-  const [addressErrors, setAddressErrors] = useState({});
-
-  // Newly Created Request
-  const [newlyCreatedRequest, setNewlyCreatedRequest] = useState(null);
-
-  // Local & Persistent Data Lists
-  const [rentalRequests, setRentalRequests] = useState(initialRentalRequests);
-  const [activeRentals, setActiveRentals] = useState(initialActiveRentals);
-
-  // Detail View Selected Objects
-  const [selectedRequestDetail, setSelectedRequestDetail] = useState(null);
-  const [selectedRentalDetail, setSelectedRentalDetail] = useState(null);
-  // Location single source of truth from Home Screen
-  const [selectedCity, setSelectedCity] = useState('Mysuru');
-  const [addressValidationModalVisible, setAddressValidationModalVisible] = useState(false);
-  const [citySelectionModalVisible, setCitySelectionModalVisible] = useState(false);
-  const [addressValidationMsg, setAddressValidationMsg] = useState('');
-  const deliveryAddressInputRef = useRef(null);
-
-  // Quick Consultation Hero Form State (matching Web HospitalCare & EquipmentRental references)
-  const [selectedEquipmentNeed, setSelectedEquipmentNeed] = useState('');
-  const [quickName, setQuickName] = useState('');
-  const [quickMobile, setQuickMobile] = useState('');
-  const [quickBookingLoading, setQuickBookingLoading] = useState(false);
-  const [equipmentNeedModalVisible, setEquipmentNeedModalVisible] = useState(false);
-  const [quickDate, setQuickDate] = useState('Today (Immediate)');
-  const [dateModalVisible, setDateModalVisible] = useState(false);
-
-  // Family Members & Active Patient selection
+  // Patient & Mobile
+  const [patientName, setPatientName] = useState('Ramesh Kumar');
+  const [patientMobile, setPatientMobile] = useState('+91 98450 12345');
   const [familyMembers, setFamilyMembers] = useState([]);
   const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState('self');
 
+  // Delivery Address Fields
+  const [houseNo, setHouseNo] = useState('No. 44');
+  const [streetArea, setStreetArea] = useState('2nd Cross, Saraswathipuram');
+  const [pincode, setPincode] = useState('570009');
+  const [addressErrors, setAddressErrors] = useState({});
 
-  // Modals
-  const [offerModalVisible, setOfferModalVisible] = useState(false);
-  const [activeOfferRequest, setActiveOfferRequest] = useState(null);
+  // Location Single Source of Truth
+  const [selectedCity, setSelectedCity] = useState('Mysuru');
+  const [addressValidationModalVisible, setAddressValidationModalVisible] = useState(false);
+  const [addressValidationMsg, setAddressValidationMsg] = useState('');
 
-  const [extendModalVisible, setExtendModalVisible] = useState(false);
-  const [extendDuration, setExtendDuration] = useState('1 Month');
-  const [extendNote, setExtendNote] = useState('');
-  const [targetRentalForExtend, setTargetRentalForExtend] = useState(null);
+  // Requests Data & Active Rentals
+  const [rentalRequests, setRentalRequests] = useState(initialRentalRequests);
+  const [newlyCreatedRequest, setNewlyCreatedRequest] = useState(null);
 
-  const [pickupModalVisible, setPickupModalVisible] = useState(false);
-  const [pickupPreferredWindow, setPickupPreferredWindow] = useState('Morning (10 AM - 1 PM)');
-  const [pickupInstructions, setPickupInstructions] = useState('Equipment will be packed with all original accessories.');
-  const [targetRentalForPickup, setTargetRentalForPickup] = useState(null);
+  // My Rentals & Details Modals
+  const [myRentalsTab, setMyRentalsTab] = useState('CURRENT'); // 'CURRENT' | 'PAST'
+  const [selectedRequestForModal, setSelectedRequestForModal] = useState(null);
+  const [requestDetailModalVisible, setRequestDetailModalVisible] = useState(false);
 
-  // Tabs for My Rentals & Rental Requests
-  const [rentalRequestsFilterTab, setRentalRequestsFilterTab] = useState('All'); // 'All' | 'In Progress' | 'Confirmed' | 'Completed'
-  const [myRentalsFilterTab, setMyRentalsFilterTab] = useState('Active'); // 'Active' | 'Pending' | 'Completed'
-
-  // Load persistent requests & rentals on mount
   useEffect(() => {
-    const loadStoredData = async () => {
-      try {
-        const storedReqs = await AsyncStorage.getItem(ASYNC_KEY_EQUIPMENT_REQUESTS);
-        if (storedReqs) {
-          const parsed = JSON.parse(storedReqs);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const merged = [...parsed];
-            initialRentalRequests.forEach((item) => {
-              if (!merged.some((m) => m.id === item.id)) {
-                merged.push(item);
-              }
-            });
-            setRentalRequests(merged);
-          }
-        }
-
-        const storedRentals = await AsyncStorage.getItem(ASYNC_KEY_ACTIVE_RENTALS);
-        if (storedRentals) {
-          const parsedRentals = JSON.parse(storedRentals);
-          if (Array.isArray(parsedRentals) && parsedRentals.length > 0) {
-            const mergedRentals = [...parsedRentals];
-            initialActiveRentals.forEach((item) => {
-              if (!mergedRentals.some((m) => m.id === item.id)) {
-                mergedRentals.push(item);
-              }
-            });
-            setActiveRentals(mergedRentals);
-          }
-        }
-      } catch (e) {
-        console.log('Error reading stored equipment rentals:', e);
-      }
-    };
-    loadStoredData();
-  }, []);
-
-  const saveRequests = async (updated) => {
-    try {
-      await AsyncStorage.setItem(ASYNC_KEY_EQUIPMENT_REQUESTS, JSON.stringify(updated));
-    } catch (e) {
-      console.log('Error saving requests:', e);
-    }
-  };
-
-  const saveActiveRentals = async (updated) => {
-    try {
-      await AsyncStorage.setItem(ASYNC_KEY_ACTIVE_RENTALS, JSON.stringify(updated));
-    } catch (e) {
-      console.log('Error saving active rentals:', e);
-    }
-  };
-
-  
-  useEffect(() => {
-    loadEquipmentContext();
-    const unsub = navigation.addListener('focus', () => {
-      loadEquipmentContext();
+    loadContextData();
+    const unsub = navigation?.addListener?.('focus', () => {
+      loadContextData();
     });
-    return unsub;
+    return () => {
+      if (unsub) unsub();
+    };
   }, [navigation]);
 
-  const loadEquipmentContext = async () => {
+  const loadContextData = async () => {
     try {
       const storedCity = await AsyncStorage.getItem('@mediunify_selected_city');
       const storedLoc = await AsyncStorage.getItem('@unnathi_user_location');
       const activeCity = storedCity || (storedLoc ? storedLoc.split(',')[0].trim() : 'Mysuru');
       if (activeCity) {
         setSelectedCity(activeCity);
-        setDeliveryCity(activeCity);
       }
 
       const storedName = await AsyncStorage.getItem('userName');
       const storedPhone = await AsyncStorage.getItem('userPhone');
-      if (storedName) {
-        setQuickName(storedName);
-        setDeliveryName(storedName);
-      }
-      if (storedPhone) {
-        setQuickMobile(storedPhone);
-        setDeliveryPhone(storedPhone);
-      }
+      if (storedName) setPatientName(storedName);
+      if (storedPhone) setPatientMobile(storedPhone);
 
       const savedFam = await AsyncStorage.getItem('@unnathi_family_members');
       if (savedFam) {
@@ -225,532 +119,306 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
         } catch (e) {}
       }
 
-      const activePtStr = await AsyncStorage.getItem('@unnathi_active_patient');
-      if (activePtStr) {
-        try {
-          const activePt = JSON.parse(activePtStr);
-          if (activePt && (activePt.name || activePt.displayName)) {
-            const pName = (activePt.displayName || activePt.name || '').replace(/\s*\([Ss]elf\)/g, '').trim();
-            if (pName) setDeliveryName(pName);
-            if (activePt.phone) setDeliveryPhone(activePt.phone);
-          }
-        } catch (e) {}
+      const storedReqs = await AsyncStorage.getItem(ASYNC_KEY_EQUIPMENT_REQUESTS);
+      if (storedReqs) {
+        const parsed = JSON.parse(storedReqs);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const merged = [...parsed];
+          initialRentalRequests.forEach((item) => {
+            if (!merged.some((m) => m.id === item.id)) {
+              merged.push(item);
+            }
+          });
+          setRentalRequests(merged);
+        }
       }
     } catch (e) {
-      console.log('Error loading equipment context:', e);
+      console.log('Error loading equipment data:', e);
     }
   };
 
-  const handleSelectFamilyMember = (member) => {
+  const saveRequests = async (updated) => {
+    try {
+      setRentalRequests(updated);
+      await AsyncStorage.setItem(ASYNC_KEY_EQUIPMENT_REQUESTS, JSON.stringify(updated));
+    } catch (e) {
+      console.log('Error saving requests:', e);
+    }
+  };
+
+  const pushInAppNotification = async (title, message) => {
+    try {
+      const stored = await AsyncStorage.getItem(ASYNC_KEY_NOTIFICATIONS);
+      const notifs = stored ? JSON.parse(stored) : [];
+      const newNotif = {
+        id: `notif_${Date.now()}`,
+        title,
+        message,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        date: new Date().toLocaleDateString('en-GB'),
+        read: false,
+        type: 'equipment_rental',
+      };
+      const updated = [newNotif, ...(Array.isArray(notifs) ? notifs : [])];
+      await AsyncStorage.setItem(ASYNC_KEY_NOTIFICATIONS, JSON.stringify(updated));
+    } catch (e) {
+      console.log('Error saving notification:', e);
+    }
+  };
+
+  const handleSelectPatient = (member) => {
     if (member === 'self') {
       setSelectedFamilyMemberId('self');
-      setDeliveryName(quickName || 'Self');
-      if (quickMobile) setDeliveryPhone(quickMobile);
+      setPatientName('Self');
       return;
     }
     setSelectedFamilyMemberId(member.id || member._id || member.name);
-    setDeliveryName(member.name || member.displayName || '');
-    if (member.phone) setDeliveryPhone(member.phone);
+    setPatientName(member.name || member.displayName || '');
+    if (member.phone) setPatientMobile(member.phone);
   };
 
-  const handleQuickBookEquipment = () => {
-    requireLogin(() => _doQuickBookEquipment());
-  };
-
-  const _doQuickBookEquipment = async () => {
-    if (!quickName.trim()) {
-      showAlert('Name Required', 'Please enter your full name.');
-      return;
-    }
-    if (!quickMobile.trim() || quickMobile.trim().replace(/\D/g, '').length < 10) {
-      showAlert('Valid Mobile Required', 'Please enter a valid 10-digit mobile number to receive your callback.');
-      return;
-    }
-
-    setQuickBookingLoading(true);
-    try {
-      const equipNeed = selectedEquipmentNeed || 'General Medical Equipment Consultation';
-      const cleanPhone = quickMobile.trim();
-      const chosenDate = quickDate || 'Today (Immediate)';
-      const newId = `ER-${Date.now().toString().slice(-6)}`;
-
-      const newRequest = {
-        id: newId,
-        bookingId: newId,
-        type: 'Medical Equipment Rental',
-        serviceType: 'equipment',
-        equipmentName: equipNeed,
-        category: 'Consultation & Rental',
-        categoryLabel: equipNeed,
-        durationLabel: 'Monthly / Custom Duration',
-        rentalDurationType: 'Monthly',
-        quantity: 1,
-        rentalPrice: 2499,
-        deposit: 0,
-        deliveryCharge: 0,
-        estimatedTotal: 2499,
-        fee: 2499,
-        paidAmount: 2499,
-        status: 'Consultation Requested',
-        statusStageIndex: 1,
-        createdAt: 'Just now',
-        deliveryDate: chosenDate,
-        requiredDate: chosenDate,
-        date: new Date().toISOString().split('T')[0],
-        time: 'Within 2-4 Hours',
-        deliveryName: quickName.trim(),
-        deliveryPhone: cleanPhone,
-        deliveryAddress: {
-          name: quickName.trim(),
-          contactNumber: cleanPhone,
-          address: `${selectedCity} (Doorstep Delivery)`,
-          city: selectedCity,
-          pincode: '',
-          instructions: `Requested delivery: ${chosenDate}. Callback from biomedical equipment specialist`,
-        },
-        verifiedPartner: {
-          name: 'MediUnify Verified Biomedical Partner Network',
-          rating: 4.9,
-          serviceArea: selectedCity,
-        },
-        timeline: [
-          { stage: 'Request Placed', completed: true, timestamp: 'Just now' },
-          { stage: 'Biomedical Specialist Calling', completed: false, timestamp: 'Within 15 mins' },
-          { stage: 'Equipment Reserved & Sterilized', completed: false, timestamp: 'Pending confirmation' },
-          { stage: 'Doorstep Delivery & Demo', completed: false, timestamp: chosenDate },
-        ],
-      };
-
-      const updated = [newRequest, ...rentalRequests];
-      setRentalRequests(updated);
-      await saveRequests(updated);
-
-      setQuickBookingLoading(false);
-      showAlert(
-        'Consultation Booked Successfully',
-        `Thank you ${quickName.trim()}! Your request for ${equipNeed} on ${chosenDate} in ${selectedCity} has been received. Our Biomedical Equipment Specialist will call ${cleanPhone} within 15 minutes.`,
-        [{ text: 'OK', style: 'default' }]
-      );
-    } catch (e) {
-      setQuickBookingLoading(false);
-      showAlert('Request Received', 'Thank you! Our equipment coordinator will call you shortly.');
-    }
-  };
-
-  const handleCallHelpline = () => {
-    Linking.openURL('tel:+918045685554').catch(() => {
-      showAlert('Helpline', 'Please dial +91-8045685554 to reach our Equipment Care Desk.');
-    });
-  };
-
-  const handleWhatsAppCare = () => {
-    const text = encodeURIComponent('Hi, I would like to rent medical equipment on MediUnify.');
-    Linking.openURL(`https://wa.me/917353101441?text=${text}`).catch(() => {
-      showAlert('WhatsApp', 'Please message +91-7353101441 on WhatsApp.');
-    });
-  };
-
-  // Filtered equipment list
+  // Filtered Equipment List
   const filteredEquipment = useMemo(() => {
     return equipmentCatalog.filter((item) => {
-      // Category filter
       if (selectedCategory !== 'all' && item.category !== selectedCategory) {
         return false;
       }
-      // Duration filter
-      if (filterDuration === 'Daily' && !item.rentalPrices.daily) return false;
-      if (filterDuration === 'Weekly' && !item.rentalPrices.weekly) return false;
-      if (filterDuration === 'Monthly' && !item.rentalPrices.monthly) return false;
-
-      // Price filter (monthly rate)
-      if (item.rentalPrices.monthly > filterMaxPrice) return false;
-
-      // Installation filter
-      if (filterInstallationOnly && !item.installationIncluded) return false;
-
-      // Service area filter
-      if (filterServiceArea === 'Mysuru' && !item.serviceArea.toLowerCase().includes('mysuru')) return false;
-
-      // Search Query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const matchesName = item.name.toLowerCase().includes(q);
-        const matchesCategory = item.categoryLabel.toLowerCase().includes(q);
-        const matchesDesc = item.description.toLowerCase().includes(q);
-        const matchesArea = item.serviceArea.toLowerCase().includes(q);
-        const matchesPartner = item.verifiedPartner?.name.toLowerCase().includes(q);
-        if (!matchesName && !matchesCategory && !matchesDesc && !matchesArea && !matchesPartner) {
-          return false;
-        }
+        const matchName = item.name.toLowerCase().includes(q);
+        const matchCategory = item.categoryLabel?.toLowerCase().includes(q);
+        const matchDesc = item.shortDescription?.toLowerCase().includes(q);
+        if (!matchName && !matchCategory && !matchDesc) return false;
       }
-
       return true;
     });
-  }, [selectedCategory, filterDuration, filterMaxPrice, filterInstallationOnly, filterServiceArea, searchQuery]);
+  }, [selectedCategory, searchQuery]);
 
-  // Pricing calculations
-  const calculateEstimatedPricing = (equip, durType, qty, cDays) => {
-    if (!equip) return { rentalRate: 0, deposit: 0, delivery: 0, total: 0, durationLabel: '' };
+  // Items per page to guarantee balanced full rows (full screen on tablet)
+  const itemsPerPage = useMemo(() => {
+    if (width >= 992) return 8; // Desktop: 2 rows x 4 cols = 8 cards
+    if (width >= 600) return 9; // Tablet: 3 rows x 3 cols = 9 cards (screen full of cards)
+    return 4;                   // Mobile: 2 rows x 2 cols = 4 cards
+  }, [width]);
 
-    let unitRate = equip.rentalPrices.monthly;
-    let durationLabel = '1 Month';
+  const totalPages = Math.ceil(filteredEquipment.length / itemsPerPage) || 1;
 
-    if (durType === 'Daily') {
-      unitRate = equip.rentalPrices.daily;
-      durationLabel = '1 Day';
-    } else if (durType === 'Weekly') {
-      unitRate = equip.rentalPrices.weekly;
-      durationLabel = '1 Week (7 Days)';
-    } else if (durType === 'Monthly') {
-      unitRate = equip.rentalPrices.monthly;
-      durationLabel = '1 Month (30 Days)';
-    } else if (durType === 'Custom') {
-      const daysCount = parseInt(cDays, 10) || 14;
-      unitRate = Math.round(equip.rentalPrices.daily * daysCount * 0.85); // 15% custom duration discount
-      durationLabel = `${daysCount} Days (Custom)`;
-    }
+  // Paginated equipment list
+  const paginatedItems = useMemo(() => {
+    const startIdx = (currentPage - 1) * itemsPerPage;
+    return filteredEquipment.slice(startIdx, startIdx + itemsPerPage);
+  }, [filteredEquipment, currentPage, itemsPerPage]);
 
-    const totalRent = unitRate * qty;
-    const deposit = equip.deposit * qty;
-    const delivery = equip.deliveryCharge;
-    const total = totalRent + deposit + delivery;
+  // Partitioned Rentals
+  const currentRentals = useMemo(() => {
+    return rentalRequests.filter((r) => {
+      return r.status !== 'Returned' && r.status !== 'Equipment Returned' && r.status !== 'Rental Completed' && r.status !== 'Equipment Unavailable';
+    });
+  }, [rentalRequests]);
 
-    return {
-      rentalRate: totalRent,
-      deposit,
-      delivery,
-      total,
-      durationLabel,
-    };
-  };
+  const pastRentals = useMemo(() => {
+    return rentalRequests.filter((r) => {
+      return r.status === 'Returned' || r.status === 'Equipment Returned' || r.status === 'Rental Completed' || r.status === 'Equipment Unavailable';
+    });
+  }, [rentalRequests]);
 
-  // Open Details Screen
-  const handleOpenEquipmentDetails = (item) => {
+  // Request Flow Handlers
+  const handleOpenDetails = (item) => {
     setSelectedEquipment(item);
     setCurrentView('DETAILS');
   };
 
-  // Select Category & Auto-scroll down to equipment results on mobile & web
-  const handleSelectCategory = (catId) => {
-    setSelectedCategory(catId);
-    setTimeout(() => {
-      if (Platform.OS === 'web' && typeof document !== 'undefined') {
-        const el = document.getElementById('equipment-listing-section');
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          return;
-        }
-      }
-      if (homeScrollRef.current && equipmentListingY.current > 0) {
-        homeScrollRef.current.scrollTo({
-          y: Math.max(0, equipmentListingY.current - 12),
-          animated: true,
-        });
-      }
-    }, 100);
-  };
-
-  // Start Request Flow
-  const handleStartRentalRequest = (item) => {
-    setSelectedEquipment(item);
-    setFlowStep(1);
-    setRentalDurationType('Monthly');
-    setQuantity(1);
-    setCurrentView('REQUEST_FLOW');
-  };
-
-  // Quantity Stepper
-  const handleQuantityChange = (delta) => {
-    setQuantity((prev) => Math.max(1, Math.min(5, prev + delta)));
-  };
-
-  // Proceed from Step 1 to Step 2
-  const handleProceedToAddress = () => {
-    setFlowStep(2);
-  };
-
-  const handleSelectNewCity = async (newCity) => {
-    setSelectedCity(newCity);
-    setDeliveryCity(newCity);
-    setCitySelectionModalVisible(false);
-    try {
-      await AsyncStorage.setItem('@mediunify_selected_city', newCity);
-      await AsyncStorage.setItem('@unnathi_user_location', newCity);
-    } catch (e) {}
-
-    // Re-validate address if user has typed something
-    if (deliveryAddress && deliveryAddress.trim()) {
-      const fullDeliveryAddr = `${deliveryAddress}, ${newCity}`;
-      const val = validateAddressMatchesCity(fullDeliveryAddr, newCity, deliveryPincode);
-      if (val.isValid) {
-        setAddressErrors((prev) => ({ ...prev, address: null, city: null }));
-        setAddressValidationModalVisible(false);
-      } else {
-        setAddressErrors((prev) => ({ ...prev, address: val.errorMessage }));
-        setAddressValidationMsg(val.errorMessage);
-      }
+  const handleStartRequest = async (item) => {
+    const isGuest = await isGuestUser();
+    if (isGuest) {
+      promptLoginRequired(navigation, { service: 'equipment' });
+      return;
     }
+    setSelectedEquipment(item);
+    setFormStep(1);
+    setQuantity(1);
+    setRequiredFromDate('Today');
+    setRequiredUntilDuration('1 Month');
+    setAdditionalNotes('');
+    setAddressErrors({});
+    setCurrentView('REQUEST_FORM');
   };
 
-  // Validate and proceed from Step 2 to Step 3 with strict location-based address verification
   const handleProceedToReview = () => {
     const errors = {};
-    if (!deliveryName.trim()) errors.name = 'Patient or contact name is required';
-    if (!deliveryPhone.trim() || deliveryPhone.trim().length < 8) errors.phone = 'Valid 10-digit phone number required';
-    if (!deliveryAddress.trim()) errors.address = 'Street address & flat/house number required';
-    if (!deliveryCity.trim()) errors.city = 'City is required';
-    if (!deliveryPincode.trim() || deliveryPincode.trim().length < 6) errors.pincode = 'Valid 6-digit postal code required';
+    if (!patientName.trim()) errors.name = 'Patient name is required';
+    if (!patientMobile.trim() || patientMobile.trim().replace(/\D/g, '').length < 10) {
+      errors.phone = 'Valid 10-digit mobile number required';
+    }
+    if (!houseNo.trim()) errors.houseNo = 'House / Flat number required';
+    if (!streetArea.trim()) errors.streetArea = 'Street / Area required';
+    if (!pincode.trim() || pincode.trim().length < 6) errors.pincode = 'Valid 6-digit pincode required';
 
     if (Object.keys(errors).length > 0) {
       setAddressErrors(errors);
-      showAlert('Incomplete Details', 'Please fill in all required delivery address fields.');
+      showAlert('Enter Delivery Address', 'Please fill in all required delivery address fields.');
       return;
     }
 
-    // Validate that entered address matches selected Home Screen city
-    const fullDeliveryAddr = `${deliveryAddress}, ${deliveryCity}`;
-    const validation = validateAddressMatchesCity(fullDeliveryAddr, selectedCity, deliveryPincode);
+    // Validate address city against selected location
+    const fullAddr = `${houseNo.trim()}, ${streetArea.trim()}, ${selectedCity}`;
+    const validation = validateAddressMatchesCity(fullAddr, selectedCity, pincode.trim());
     if (!validation.isValid) {
-      setAddressErrors({ ...errors, address: validation.errorMessage });
-      setAddressValidationMsg(validation.errorMessage);
+      const err = `Equipment delivery is unavailable for this location. Please enter an address within ${selectedCity}.`;
+      setAddressErrors({ address: err });
+      setAddressValidationMsg(err);
       setAddressValidationModalVisible(true);
       return;
     }
 
     setAddressErrors({});
-    setFlowStep(3);
+    setFormStep(2);
   };
 
-  // Submit Rental Request (Step 3 -> Step 4)
-  const handleSubmitRentalRequest = () => {
+  const handleSubmitRequest = async () => {
     if (!selectedEquipment) return;
 
-    // Validate address against selected Home Screen city before final booking
-    const fullDeliveryAddr = `${deliveryAddress}, ${deliveryCity}`;
-    const validation = validateAddressMatchesCity(fullDeliveryAddr, selectedCity, deliveryPincode);
+    const fullAddr = `${houseNo.trim()}, ${streetArea.trim()}, ${selectedCity}`;
+    const validation = validateAddressMatchesCity(fullAddr, selectedCity, pincode.trim());
     if (!validation.isValid) {
-      setFlowStep(2);
-      setAddressErrors({ address: validation.errorMessage });
-      setAddressValidationMsg(validation.errorMessage);
+      setFormStep(1);
+      const err = `Equipment delivery is unavailable for this location.`;
+      setAddressErrors({ address: err });
+      setAddressValidationMsg(err);
       setAddressValidationModalVisible(true);
       return;
     }
 
-    const pricing = calculateEstimatedPricing(selectedEquipment, rentalDurationType, quantity, customDays);
-    const newId = `ER-2026-${Math.floor(10000 + Math.random() * 90000).toString().slice(0, 5)}`;
-    const nowStr = 'Just now';
+    const newId = `ER-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+    const effectiveFromDate = requiredFromDate === 'Specific Date' && customFromDate.trim()
+      ? customFromDate.trim()
+      : requiredFromDate;
 
     const newReq = {
       id: newId,
-      requestDate: nowStr,
+      requestDate: 'Today',
       equipmentId: selectedEquipment.id,
       equipmentName: selectedEquipment.name,
       equipmentImage: selectedEquipment.image,
       category: selectedEquipment.category,
       quantity,
-      rentalDurationType,
-      durationLabel: pricing.durationLabel,
-      rentalPrice: pricing.rentalRate,
-      deposit: pricing.deposit,
-      deliveryCharge: pricing.delivery,
-      installationIncluded: selectedEquipment.installationIncluded,
-      estimatedTotal: pricing.total,
+      requiredFromDate: effectiveFromDate,
+      requiredUntilDate: requiredUntilDuration,
+      purpose: additionalNotes.trim() || 'Home Care & Recovery',
+      patientName: patientName.trim(),
+      contactNumber: patientMobile.trim(),
       deliveryAddress: {
-        name: deliveryName,
-        contactNumber: deliveryPhone,
-        address: deliveryAddress,
-        city: deliveryCity,
-        pincode: deliveryPincode,
-        instructions: deliveryInstructions || 'None specified',
+        name: patientName.trim(),
+        contactNumber: patientMobile.trim(),
+        houseNo: houseNo.trim(),
+        street: streetArea.trim(),
+        city: selectedCity,
+        pincode: pincode.trim(),
+        address: `${houseNo.trim()}, ${streetArea.trim()}, ${selectedCity} - ${pincode.trim()}`,
       },
-      status: 'Request Received',
+      status: 'Request Sent',
       statusStageIndex: 0,
-      verifiedPartner: selectedEquipment.verifiedPartner,
-      careTeamNote: `MediUnify care coordinator is checking real-time availability with ${selectedEquipment.verifiedPartner?.name || 'verified partner'}.`,
+      careTeamNote: "We'll check availability for you and confirm shortly.",
       timeline: [
-        { stage: 'Rental Request Submitted', completed: true, timestamp: 'Just now' },
-        { stage: 'Equipment Availability Confirmed', completed: false, timestamp: 'Partner availability check in progress' },
-        { stage: 'Rental Confirmed', completed: false, timestamp: 'Awaiting patient confirmation' },
-        { stage: 'Delivery Scheduled', completed: false, timestamp: 'Logistics coordination' },
-        { stage: 'Delivered', completed: false, timestamp: 'Pending delivery' },
-        { stage: 'Installation Completed', completed: false, timestamp: 'Technician setup' },
-        { stage: 'Active Rental', completed: false, timestamp: 'Ongoing rental' },
-        { stage: 'Pickup Requested', completed: false, timestamp: 'Post rental duration' },
-        { stage: 'Returned', completed: false, timestamp: 'Return verification' },
+        { stage: 'Request Sent', completed: true, timestamp: 'Just now' },
+        { stage: 'Equipment Available', completed: false, timestamp: 'Checking stock' },
+        { stage: 'Rental Confirmed', completed: false, timestamp: '' },
+        { stage: 'Preparing', completed: false, timestamp: '' },
+        { stage: 'Out for Delivery', completed: false, timestamp: '' },
+        { stage: 'Delivered', completed: false, timestamp: '' },
+        { stage: 'Return Pending', completed: false, timestamp: '' },
+        { stage: 'Returned', completed: false, timestamp: '' },
       ],
     };
 
     const updated = [newReq, ...rentalRequests];
-    setRentalRequests(updated);
-    saveRequests(updated);
+    await saveRequests(updated);
+    await pushInAppNotification(
+      `Equipment Request Sent (${newId})`,
+      `Your request for ${selectedEquipment.name} has been sent. We'll check availability for you.`
+    );
+
     setNewlyCreatedRequest(newReq);
-    setFlowStep(4);
+    setFormStep(3);
   };
 
-  // Open Offer Modal
-  const handleOpenRentalOffer = (req) => {
-    setActiveOfferRequest(req);
-    setOfferModalVisible(true);
-  };
-
-  // Confirm Rental Offer
-  const handleConfirmRentalOffer = () => {
-    if (!activeOfferRequest) return;
-
+  const handleUserReturn = async (req) => {
     const updated = rentalRequests.map((r) => {
-      if (r.id === activeOfferRequest.id) {
+      if (r.id === req.id) {
         return {
           ...r,
-          status: 'Delivery Scheduled',
-          statusStageIndex: 3,
-          deliveryDetails: {
-            scheduledDate: 'Tomorrow, 11:00 AM',
-            scheduledWindow: '11:00 AM - 01:00 PM',
-            deliveryAgent: 'Kiran Gowda (Verified Partner Logistics)',
-            agentPhone: '+91 98451 99882',
-            installationStatus: 'Installation & Demo Included',
-          },
-          careTeamNote: 'Rental confirmed! Logistics partner will deliver and install equipment as scheduled.',
-          timeline: r.timeline.map((t, idx) => {
-            if (idx <= 3) return { ...t, completed: true, timestamp: idx === 2 ? 'Just now' : idx === 3 ? 'Tomorrow, 11 AM' : t.timestamp };
-            return t;
+          status: 'Return Pending',
+          statusStageIndex: 6,
+          careTeamNote: 'Return scheduled. Our team will collect the equipment.',
+          timeline: r.timeline.map((st) => {
+            if (st.stage === 'Return Pending') return { ...st, completed: true, timestamp: 'Just now' };
+            return st;
           }),
         };
       }
       return r;
     });
-
-    setRentalRequests(updated);
-    saveRequests(updated);
-    setOfferModalVisible(false);
-    showAlert('Rental Confirmed!', `Your rental for ${activeOfferRequest.equipmentName} has been confirmed. Delivery is scheduled for tomorrow.`);
+    await saveRequests(updated);
+    showAlert('Return Scheduled', 'Our team will contact you to collect the equipment.');
   };
 
-  // Decline / Modify Offer
-  const handleDeclineOffer = () => {
-    if (!activeOfferRequest) return;
-    const updated = rentalRequests.map((r) => {
-      if (r.id === activeOfferRequest.id) {
-        return {
-          ...r,
-          status: 'Cancelled',
-          careTeamNote: 'Rental offer declined by patient. Coordinator will contact if alternative equipment required.',
-        };
-      }
-      return r;
-    });
-    setRentalRequests(updated);
-    saveRequests(updated);
-    setOfferModalVisible(false);
-    showAlert('Offer Declined', 'The rental offer has been declined.');
+  // Card width dynamic style for Mobile & Tablet responsive grid
+  const getCardWidthStyle = () => {
+    if (width >= 992) return styles.cardCol4;
+    if (width >= 600) return styles.cardCol3;
+    if (isVerySmallMobile) return styles.cardCol1;
+    return styles.cardCol2;
   };
 
-  // Open Extend Modal
-  const handleOpenExtendModal = (rental) => {
-    setTargetRentalForExtend(rental);
-    setExtendDuration('1 Month');
-    setExtendNote('');
-    setExtendModalVisible(true);
-  };
-
-  // Submit Extension Request
-  const handleSubmitExtensionRequest = () => {
-    if (!targetRentalForExtend) return;
-
-    const updated = activeRentals.map((item) => {
-      if (item.id === targetRentalForExtend.id) {
-        return {
-          ...item,
-          isExtensionRequested: true,
-          extensionDetails: {
-            requestedDuration: extendDuration,
-            note: extendNote || 'Standard extension request',
-            requestedAt: 'Just now',
-            status: 'Pending Coordinator Review',
-          },
-        };
-      }
-      return item;
-    });
-
-    setActiveRentals(updated);
-    saveActiveRentals(updated);
-    setExtendModalVisible(false);
-    showAlert('Extension Request Submitted', 'Your extension request will be reviewed and confirmed by MediUnify.');
-  };
-
-  // Open Pickup Modal
-  const handleOpenPickupModal = (rental) => {
-    setTargetRentalForPickup(rental);
-    setPickupPreferredWindow('Morning (10 AM - 1 PM)');
-    setPickupInstructions('Equipment is deflated/packed with all cables and accessories.');
-    setPickupModalVisible(true);
-  };
-
-  // Submit Pickup Request
-  const handleSubmitPickupRequest = () => {
-    if (!targetRentalForPickup) return;
-
-    const updated = activeRentals.map((item) => {
-      if (item.id === targetRentalForPickup.id) {
-        return {
-          ...item,
-          status: 'Pickup Requested',
-          isPickupRequested: true,
-          pickupDetails: {
-            requestedDate: 'Just now',
-            preferredPickupWindow: pickupPreferredWindow,
-            pickupAddress: item.deliveryAddress,
-            instructions: pickupInstructions,
-            returnStatus: 'Pickup Requested',
-            returnTimeline: [
-              { stage: 'Pickup Requested', completed: true, timestamp: 'Just now' },
-              { stage: 'Pickup Scheduled', completed: false, timestamp: 'Partner logistics assigning van' },
-              { stage: 'Equipment Collected', completed: false, timestamp: 'Doorstep pickup' },
-              { stage: 'Equipment Inspection', completed: false, timestamp: 'Sanitization & check' },
-              { stage: 'Rental Completed', completed: false, timestamp: 'Deposit refund initiated' },
-            ],
-          },
-        };
-      }
-      return item;
-    });
-
-    setActiveRentals(updated);
-    saveActiveRentals(updated);
-    setPickupModalVisible(false);
-    showAlert('Pickup Request Submitted', 'MediUnify will coordinate pickup with the equipment partner.');
-  };
-
-  // Reset Filters
-  const handleResetFilters = () => {
-    setSelectedCategory('all');
-    setFilterDuration('all');
-    setFilterMaxPrice(10000);
-    setFilterServiceArea('all');
-    setFilterInstallationOnly(false);
-    setSearchQuery('');
-    setFilterModalVisible(false);
+  // Render individual Equipment Card in the reference format
+  const renderCardItem = (item) => {
+    return (
+      <View
+        key={item.id}
+        style={[
+          styles.gridCard,
+          getCardWidthStyle(),
+        ]}
+      >
+        <OptimizedImage
+          source={{ uri: item.image }}
+          style={styles.gridCardImg}
+          resizeMode="cover"
+          fallbackIcon="fitness-outline"
+        />
+        <View style={styles.gridCardBody}>
+          <Text style={styles.gridCardTitle} numberOfLines={1}>
+            {item.name}
+          </Text>
+          <Text style={styles.gridCardDesc} numberOfLines={1}>
+            {item.shortDescription}
+          </Text>
+          <Text style={styles.gridCardAvail}>
+            {item.availabilityInfo || 'Available for request'}
+          </Text>
+          <TouchableOpacity
+            style={styles.gridCardBtn}
+            onPress={() => handleStartRequest(item)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.gridCardBtnText}>Request Equipment</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   };
 
   // ==========================================================
   // VIEW: 1. HOME / BROWSE SCREEN
   // ==========================================================
   const renderHomeView = () => {
-    const popularList = equipmentCatalog.filter((item) => item.popular);
-    const featuredList = equipmentCatalog.filter((item) => item.featured);
-
     return (
       <ScrollView
-        ref={homeScrollRef}
         style={styles.scrollContainer}
-        contentContainerStyle={[
-          styles.scrollContent,
-          isDesktopWeb && styles.desktopContainer,
-        ]}
+        contentContainerStyle={[styles.scrollContent, isDesktopWeb && styles.desktopContainer]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Clean Header Row */}
+        {/* Simple Clean Header */}
         <View style={styles.topHeaderBar}>
           <TouchableOpacity
             style={styles.headerBackBtn}
@@ -758,245 +426,138 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
               if (navigation?.canGoBack()) navigation.goBack();
               else navigation?.navigate('Home');
             }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Ionicons name="arrow-back" size={20} color="#0F172A" />
           </TouchableOpacity>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={{ fontSize: 17, fontWeight: '800', color: '#0F172A' }} numberOfLines={1}>
-              Medical Equipment Rental
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-              <View style={styles.cityLocationPill}>
-                <Ionicons name="location-sharp" size={11} color="#007D69" />
-                <Text style={styles.cityLocationText}>{selectedCity || 'Mysuru'}</Text>
-              </View>
-              <View style={styles.liveVerifiedPill}>
-                <View style={styles.livePulseDot} />
-                <Text style={styles.liveVerifiedPillText}>24/7 Verified Care</Text>
-              </View>
-            </View>
+
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={styles.screenHeaderTitle}>Equipment Rental</Text>
+            <Text style={styles.screenHeaderSubtitle}>Medical equipment for your home care needs</Text>
           </View>
 
+          <View style={styles.locationBadge}>
+            <Ionicons name="location-sharp" size={12} color="#007D69" />
+            <Text style={styles.locationBadgeText}>{selectedCity}</Text>
+          </View>
+        </View>
+
+        {/* View Tabs */}
+        <View style={styles.topNavTabs}>
           <TouchableOpacity
-            style={styles.helplineBtn}
-            onPress={() => showAlert('Care Helpline', 'Connecting to 24/7 Equipment Support: 1800-425-0099')}
-            activeOpacity={0.8}
+            style={[styles.navTabBtn, currentView === 'HOME' && styles.navTabBtnActive]}
+            onPress={() => setCurrentView('HOME')}
           >
-            <Ionicons name="call" size={12} color="#0D9488" />
-            <Text style={styles.helplineBtnText}>1800-425-0099</Text>
+            <Text style={[styles.navTabText, currentView === 'HOME' && styles.navTabTextActive]}>
+              Find Equipment
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.navTabBtn, currentView === 'MY_RENTALS' && styles.navTabBtnActive]}
+            onPress={() => setCurrentView('MY_RENTALS')}
+          >
+            <Text style={[styles.navTabText, currentView === 'MY_RENTALS' && styles.navTabTextActive]}>
+              My Requests ({rentalRequests.length})
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Hero Banner Card */}
-        <View style={styles.heroBannerCard}>
-          <View style={styles.heroBadgePill}>
-            <Ionicons name="shield-checkmark" size={13} color="#5EEAD4" />
-            <Text style={styles.heroBadgePillText}>NABH & Biomedical Certified</Text>
-          </View>
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Ionicons name="search-outline" size={18} color="#64748B" style={{ marginRight: 8 }} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search equipment"
+            placeholderTextColor="#94A3B8"
+            value={searchQuery}
+            onChangeText={(text) => {
+              setSearchQuery(text);
+              setCurrentPage(1);
+            }}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => {
+              setSearchQuery('');
+              setCurrentPage(1);
+            }}>
+              <Ionicons name="close-circle" size={18} color="#94A3B8" />
+            </TouchableOpacity>
+          )}
+        </View>
 
-          <Text style={styles.heroHeadline}>
-            Hospital-Grade Equipment, <Text style={styles.heroHeadlineAccent}>In Your Home</Text>
-          </Text>
+        {/* Categories Bar */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoriesScroll}
+        >
+          {equipmentCategories.map((cat) => {
+            const isSelected = selectedCategory === cat.id;
+            return (
+              <TouchableOpacity
+                key={cat.id}
+                style={[styles.categoryPill, isSelected && styles.categoryPillActive]}
+                onPress={() => {
+                  setSelectedCategory(cat.id);
+                  setCurrentPage(1);
+                }}
+              >
+                <Ionicons
+                  name={cat.icon}
+                  size={14}
+                  color={isSelected ? '#FFFFFF' : '#007D69'}
+                  style={{ marginRight: 5 }}
+                />
+                <Text style={[styles.categoryPillText, isSelected && styles.categoryPillTextActive]}>
+                  {cat.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
 
-          <Text style={styles.heroSubheadline}>
-            Oxygen concentrators, motorized ICU beds, wheelchairs, BiPAP/CPAP, and suction machines delivered with doorstep demo & sanitization.
-          </Text>
-
-          {/* Guarantees */}
-          <View style={styles.heroValuePropsRow}>
-            <View style={styles.heroValueItem}>
-              <Ionicons name="checkmark-circle" size={14} color="#00B894" />
-              <Text style={styles.heroValueText}>100% Sanitized & Tested</Text>
-            </View>
-            <View style={styles.heroValueItem}>
-              <Ionicons name="checkmark-circle" size={14} color="#00B894" />
-              <Text style={styles.heroValueText}>Doorstep Setup & Demo</Text>
-            </View>
-            <View style={styles.heroValueItem}>
-              <Ionicons name="checkmark-circle" size={14} color="#00B894" />
-              <Text style={styles.heroValueText}>24/7 Coordinator Support</Text>
-            </View>
-          </View>
-
-          {/* Quick Consultation Form */}
-          <View style={styles.quickFormCard}>
-            <Text style={styles.quickFormTitle}>Book Equipment / Home Visit</Text>
-            <Text style={styles.quickFormSubtitle}>
-              Our biomedical coordinator calls within 15 minutes to verify specs and timing
+        {/* Equipment Cards Section */}
+        <View style={styles.sectionWrapper}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionHeading}>
+              {selectedCategory === 'all' && !searchQuery
+                ? `Available Equipment (${filteredEquipment.length})`
+                : `Search Results (${filteredEquipment.length})`}
             </Text>
-
-            {/* Equipment Dropdown */}
-            <TouchableOpacity
-              style={styles.dropdownField}
-              onPress={() => setEquipmentNeedModalVisible(true)}
-              activeOpacity={0.8}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
-                <Ionicons name="fitness-outline" size={17} color="#00B894" />
-                <Text
-                  style={[
-                    styles.dropdownFieldText,
-                    !selectedEquipmentNeed && styles.placeholderText,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {selectedEquipmentNeed || 'Select Equipment / Requirement'}
-                </Text>
-              </View>
-              <Ionicons name="chevron-down" size={18} color="#64748B" />
-            </TouchableOpacity>
-
-            {/* Date Selector */}
-            <TouchableOpacity
-              style={styles.dropdownField}
-              onPress={() => setDateModalVisible(true)}
-              activeOpacity={0.8}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
-                <Ionicons name="calendar-outline" size={17} color="#00B894" />
-                <Text style={styles.dropdownFieldText} numberOfLines={1}>
-                  {quickDate ? `Delivery Date: ${quickDate}` : 'Select Preferred Delivery Date'}
-                </Text>
-              </View>
-              <Ionicons name="chevron-down" size={18} color="#64748B" />
-            </TouchableOpacity>
-
-            {/* Full Name */}
-            <View style={styles.quickInputField}>
-              <TextInput
-                style={styles.quickTextInput}
-                placeholder="Patient Full Name"
-                placeholderTextColor="#94A3B8"
-                value={quickName}
-                onChangeText={setQuickName}
-              />
-            </View>
-
-            {/* Mobile Number */}
-            <View style={styles.quickInputField}>
-              <TextInput
-                style={styles.quickTextInput}
-                placeholder="Contact Mobile Number (10 digits)"
-                placeholderTextColor="#94A3B8"
-                value={quickMobile}
-                onChangeText={setQuickMobile}
-                keyboardType="phone-pad"
-                maxLength={15}
-              />
-            </View>
-
-            {/* Submit Quick Request */}
-            <TouchableOpacity
-              style={styles.quickSubmitBtn}
-              onPress={handleQuickBookEquipment}
-              activeOpacity={0.9}
-              disabled={quickBookingLoading}
-            >
-              <Text style={styles.quickSubmitBtnText}>
-                {quickBookingLoading ? 'Submitting Request...' : 'Book Free Equipment Callback'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Direct Assistance Desk */}
-            <View style={styles.quickContactRow}>
-              <TouchableOpacity style={styles.quickContactBtn} onPress={handleCallHelpline} activeOpacity={0.8}>
-                <Ionicons name="call" size={13} color="#0D9488" />
-                <Text style={styles.quickContactBtnText}>Call Helpline</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.quickContactBtn} onPress={handleWhatsAppCare} activeOpacity={0.8}>
-                <Ionicons name="logo-whatsapp" size={13} color="#16A34A" />
-                <Text style={[styles.quickContactBtnText, { color: '#16A34A' }]}>WhatsApp Desk</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.pageIndicatorText}>
+              Page {currentPage} of {totalPages}
+            </Text>
           </View>
 
-          {/* Hero Actions (Stacked for clear mobile readability and touch targets) */}
-          <View style={styles.heroActionsRow}>
-            <TouchableOpacity
-              style={styles.heroPrimaryBtn}
-              onPress={() => {
-                const defaultItem = equipmentCatalog.find((e) => e.popular) || equipmentCatalog[0];
-                handleStartRentalRequest(defaultItem);
-              }}
-              activeOpacity={0.88}
-            >
-              <Ionicons name="calendar" size={17} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <Text style={styles.heroPrimaryBtnText}>Request Equipment Rental</Text>
-              <Ionicons name="arrow-forward" size={15} color="#FFFFFF" style={{ marginLeft: 'auto' }} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.heroSecondaryBtn}
-              onPress={() => setCurrentView('RENTAL_REQUESTS')}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="time-outline" size={16} color="#CBD5E1" style={{ marginRight: 8 }} />
-              <Text style={styles.heroSecondaryBtnText}>Track Existing Requests ({rentalRequests.length})</Text>
-              <Ionicons name="chevron-forward" size={14} color="#94A3B8" style={{ marginLeft: 'auto' }} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Quick Match Floating Chips Box */}
-          <View style={styles.quickMatchCard}>
-            <View style={styles.quickMatchHeader}>
-              <Ionicons name="flash" size={15} color="#F59E0B" />
-              <Text style={styles.quickMatchTitle}>Need Quick Equipment?</Text>
-              <Text style={styles.quickMatchSub}>• Coordinator calls in 15 mins</Text>
+          {paginatedItems.length === 0 ? (
+            <View style={styles.emptyBox}>
+              <Ionicons name="medkit-outline" size={40} color="#94A3B8" />
+              <Text style={styles.emptyTitle}>No equipment found</Text>
+              <Text style={styles.emptySub}>Try searching for hospital bed, wheelchair, or oxygen.</Text>
             </View>
-
-            <View style={styles.quickMatchChipsRow}>
-              {[
-                { name: 'Oxygen Concentrator', term: 'oxygen' },
-                { name: 'ICU Hospital Bed', term: 'bed' },
-                { name: 'Wheelchair', term: 'wheelchair' },
-                { name: 'BiPAP / CPAP', term: 'bipap' },
-              ].map((item) => (
-                <TouchableOpacity
-                  key={item.name}
-                  style={styles.quickChip}
-                  onPress={() => {
-                    const match = equipmentCatalog.find((e) =>
-                      e.name.toLowerCase().includes(item.term) ||
-                      e.category.toLowerCase().includes(item.term)
-                    ) || equipmentCatalog[0];
-                    handleStartRentalRequest(match);
-                  }}
-                  activeOpacity={0.75}
-                >
-                  <Text style={styles.quickChipText}>{item.name}</Text>
-                  <Ionicons name="arrow-forward" size={11} color="#0D9488" />
-                </TouchableOpacity>
-              ))}
+          ) : (
+            <View style={styles.gridContainer}>
+              {paginatedItems.map(renderCardItem)}
             </View>
-          </View>
+          )}
+
+          {/* Pagination Navigation Controls */}
+          {totalPages > 1 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={(p) => setCurrentPage(p)}
+            />
+          )}
         </View>
 
-        {/* Trust & Stats Grid */}
-        <View style={styles.statsGrid}>
-          <View style={styles.statBox}>
-            <Text style={styles.statValue}>10,000+</Text>
-            <Text style={styles.statLabel}>Rentals Completed</Text>
-          </View>
-          <View style={styles.statBox}>
-            <Text style={styles.statValue}>4.9/5</Text>
-            <Text style={styles.statLabel}>Family Rating</Text>
-          </View>
-          <View style={styles.statBox}>
-            <Text style={styles.statValue}>100%</Text>
-            <Text style={styles.statLabel}>Sanitized Units</Text>
-          </View>
-          <View style={styles.statBox}>
-            <Text style={styles.statValue}>&lt; 15m</Text>
-            <Text style={styles.statLabel}>Coordinator Callback</Text>
-          </View>
-        </View>
+        {isDesktopWeb && <WebFooter />}
       </ScrollView>
     );
   };
 
   // ==========================================================
-  // VIEW: 2. EQUIPMENT DETAILS SCREEN
+  // VIEW: 2. EQUIPMENT DETAILS
   // ==========================================================
   const renderDetailsView = () => {
     if (!selectedEquipment) return null;
@@ -1005,192 +566,50 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
     return (
       <ScrollView
         style={styles.scrollContainer}
-        contentContainerStyle={[
-          styles.scrollContent,
-          isDesktopWeb && styles.desktopContainer,
-        ]}
+        contentContainerStyle={[styles.scrollContent, isDesktopWeb && styles.desktopContainer]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Navigation Header */}
         <View style={styles.topHeaderBar}>
           <TouchableOpacity
             style={styles.headerBackBtn}
             onPress={() => setCurrentView('HOME')}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="arrow-back" size={22} color="#0F172A" />
+            <Ionicons name="arrow-back" size={20} color="#0F172A" />
           </TouchableOpacity>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.mainScreenTitle}>Equipment Details</Text>
-            <Text style={styles.mainScreenSubtitle}>{item.categoryLabel}</Text>
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={styles.screenHeaderTitle}>{item.name}</Text>
+            <Text style={styles.screenHeaderSubtitle}>{item.categoryLabel}</Text>
           </View>
         </View>
 
-        {/* Large Equipment Hero Image */}
-        <View style={styles.detailsHeroImageContainer}>
-          <Image source={{ uri: item.image }} style={styles.detailsHeroImg} resizeMode="cover" />
-          <View style={styles.detailsVerifiedBadge}>
-            <Ionicons name="shield-checkmark" size={15} color="#00B894" />
-            <Text style={styles.detailsVerifiedText}>Verified MediUnify Partner</Text>
-          </View>
-        </View>
+        <View style={styles.detailsCard}>
+          <OptimizedImage source={{ uri: item.image }} style={styles.detailsImg} resizeMode="cover" fallbackIcon="fitness-outline" />
+          
+          <Text style={styles.detailsTitle}>{item.name}</Text>
+          <Text style={styles.detailsDesc}>{item.description}</Text>
 
-        {/* Title & Category Info */}
-        <View style={styles.detailsHeaderCard}>
-          <View style={styles.detailsCategoryRow}>
-            <Text style={styles.detailsCategoryPill}>
-              {item.categoryEmoji} {item.categoryLabel}
-            </Text>
-            <View style={styles.detailsAvailabilityBadge}>
-              <View style={styles.availDot} />
-              <Text style={styles.detailsAvailabilityText}>{item.availability}</Text>
-            </View>
-          </View>
-
-          <Text style={styles.detailsMainTitle}>{item.name}</Text>
-          <Text style={styles.detailsShortDesc}>{item.description}</Text>
-        </View>
-
-        {/* Pricing Breakdown Card */}
-        <View style={styles.detailsPricingCard}>
-          <Text style={styles.detailsSectionHeading}>Rental Pricing</Text>
-          <View style={styles.pricingOptionRow}>
-            <View style={[styles.pricingTierBox, styles.pricingTierHighlight]}>
-              <Text style={styles.pricingTierTitle}>Monthly</Text>
-              <Text style={styles.pricingTierPrice}>₹{item.rentalPrices.monthly.toLocaleString()}</Text>
-              <Text style={styles.pricingTierSub}>Best Value</Text>
-            </View>
-
-            <View style={styles.pricingTierBox}>
-              <Text style={styles.pricingTierTitle}>Weekly</Text>
-              <Text style={styles.pricingTierPrice}>₹{item.rentalPrices.weekly.toLocaleString()}</Text>
-              <Text style={styles.pricingTierSub}>7 Days</Text>
-            </View>
-
-            <View style={styles.pricingTierBox}>
-              <Text style={styles.pricingTierTitle}>Daily</Text>
-              <Text style={styles.pricingTierPrice}>₹{item.rentalPrices.daily.toLocaleString()}</Text>
-              <Text style={styles.pricingTierSub}>Per Day</Text>
-            </View>
-          </View>
-
-          <View style={styles.pricingMetaGrid}>
-            <View style={styles.pricingMetaItem}>
-              <Ionicons name="lock-closed-outline" size={16} color="#0284C7" />
-              <View style={{ marginLeft: 8 }}>
-                <Text style={styles.pricingMetaLabel}>Security Deposit</Text>
-                <Text style={styles.pricingMetaVal}>₹{item.deposit.toLocaleString()} (100% Refundable)</Text>
-              </View>
-            </View>
-
-            <View style={styles.pricingMetaItem}>
-              <Ionicons name="car-outline" size={16} color="#00B894" />
-              <View style={{ marginLeft: 8 }}>
-                <Text style={styles.pricingMetaLabel}>Delivery Charge</Text>
-                <Text style={styles.pricingMetaVal}>₹{item.deliveryCharge} (Doorstep Setup)</Text>
-              </View>
-            </View>
-
-            <View style={styles.pricingMetaItem}>
-              <Ionicons name="build-outline" size={16} color="#D97706" />
-              <View style={{ marginLeft: 8 }}>
-                <Text style={styles.pricingMetaLabel}>Installation & Demo</Text>
-                <Text style={styles.pricingMetaVal}>
-                  {item.installationIncluded ? 'Included at No Extra Cost' : 'Available on request'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.pricingMetaItem}>
-              <Ionicons name="location-outline" size={16} color="#64748B" />
-              <View style={{ marginLeft: 8 }}>
-                <Text style={styles.pricingMetaLabel}>Service Area</Text>
-                <Text style={styles.pricingMetaVal}>{item.serviceArea}</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Verified Partner Information (Section 7) */}
-        <View style={styles.vendorInfoCard}>
-          <View style={styles.vendorInfoHeader}>
-            <View style={styles.vendorAvatarCircle}>
-              <Ionicons name="business" size={24} color="#1E3A8A" />
-            </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.vendorName}>{item.verifiedPartner?.name}</Text>
-                <Ionicons name="checkmark-circle" size={16} color="#00B894" style={{ marginLeft: 4 }} />
-              </View>
-              <Text style={styles.vendorSub}>
-                {item.verifiedPartner?.rating}/5 • {item.verifiedPartner?.serviceArea}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.vendorBadgesRow}>
-            {item.verifiedPartner?.badges.map((b, i) => (
-              <View key={i} style={styles.vendorBadgeChip}>
-                <Text style={styles.vendorBadgeChipText}>{b}</Text>
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.partnerModelNotice}>
-            <Ionicons name="information-circle" size={16} color="#0284C7" style={{ marginRight: 6 }} />
-            <Text style={styles.partnerModelNoticeText}>
-              "Equipment supplied and fulfilled by a verified MediUnify partner. MediUnify coordinates your rental request with verified equipment partners."
-            </Text>
-          </View>
-        </View>
-
-        {/* Key Features */}
-        <View style={styles.detailsContentBlock}>
-          <Text style={styles.detailsSectionHeading}>Clinical Features</Text>
-          {item.features.map((feat, idx) => (
-            <View key={idx} style={styles.featureBulletRow}>
-              <Ionicons name="checkmark-circle-outline" size={17} color="#00B894" style={{ marginTop: 2, marginRight: 8 }} />
-              <Text style={styles.featureBulletText}>{feat}</Text>
+          {/* Key Features */}
+          <Text style={styles.detailsSectionTitle}>Key Features</Text>
+          {item.features?.map((f, i) => (
+            <View key={i} style={styles.bulletRow}>
+              <Ionicons name="checkmark-circle" size={15} color="#00B894" style={{ marginRight: 6, marginTop: 2 }} />
+              <Text style={styles.bulletText}>{f}</Text>
             </View>
           ))}
-        </View>
 
-        {/* Specifications Table */}
-        <View style={styles.detailsContentBlock}>
-          <Text style={styles.detailsSectionHeading}>Technical Specifications</Text>
-          {Object.entries(item.specifications).map(([key, val], idx) => (
-            <View key={idx} style={styles.specTableRow}>
-              <Text style={styles.specTableKey}>{key}</Text>
-              <Text style={styles.specTableVal}>{val}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Rental Terms & Conditions */}
-        <View style={styles.detailsContentBlock}>
-          <Text style={styles.detailsSectionHeading}>Rental Terms</Text>
-          {item.rentalTerms.map((term, idx) => (
-            <View key={idx} style={styles.termItemRow}>
-              <Ionicons name="shield-outline" size={15} color="#64748B" style={{ marginRight: 6, marginTop: 2 }} />
-              <Text style={styles.termItemText}>{term}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Sticky Action Bar */}
-        <View style={styles.detailsStickyFooter}>
-          <View>
-            <Text style={styles.footerPriceLabel}>Starting from</Text>
-            <Text style={styles.footerPriceVal}>
-              ₹{item.rentalPrices.monthly.toLocaleString()}
-              <Text style={{ fontSize: 13, color: '#64748B', fontWeight: '400' }}> / mo</Text>
+          {/* Availability Notice */}
+          <View style={styles.noticeCard}>
+            <Ionicons name="information-circle" size={18} color="#0284C7" style={{ marginRight: 8 }} />
+            <Text style={styles.noticeCardText}>
+              Availability will be confirmed after your request.
             </Text>
           </View>
+
           <TouchableOpacity
-            style={styles.footerPrimaryBtn}
-            onPress={() => handleStartRentalRequest(item)}
+            style={styles.detailsRequestBtn}
+            onPress={() => handleStartRequest(item)}
           >
-            <Text style={styles.footerPrimaryBtnText}>Request Rental →</Text>
+            <Text style={styles.detailsRequestBtnText}>Request Equipment</Text>
           </TouchableOpacity>
         </View>
 
@@ -1200,896 +619,434 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
   };
 
   // ==========================================================
-  // VIEW: 3. RENTAL REQUEST FLOW (Steps 1, 2, 3, 4)
+  // VIEW: 3. REQUEST FORM (Keyboard Aware & Smooth Scrolling)
   // ==========================================================
-  const renderRequestFlowView = () => {
+  const renderRequestFormView = () => {
     if (!selectedEquipment) return null;
     const item = selectedEquipment;
-    const pricing = calculateEstimatedPricing(item, rentalDurationType, quantity, customDays);
 
     return (
-      <ScrollView
-        style={styles.scrollContainer}
-        contentContainerStyle={[
-          styles.scrollContent,
-          isDesktopWeb && styles.desktopContainer,
-        ]}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        style={{ flex: 1 }}
       >
-        {/* Navigation Header */}
-        <View style={styles.topHeaderBar}>
-          <TouchableOpacity
-            style={styles.headerBackBtn}
-            onPress={() => {
-              if (flowStep > 1 && flowStep < 4) {
-                setFlowStep(flowStep - 1);
-              } else {
-                setCurrentView('DETAILS');
-              }
-            }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="arrow-back" size={22} color="#0F172A" />
-          </TouchableOpacity>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.mainScreenTitle}>Rental Request</Text>
-            <Text style={styles.mainScreenSubtitle}>Step {flowStep} of 3 • {item.name}</Text>
-          </View>
-        </View>
-
-        {/* Step Progress Pills */}
-        <View style={styles.stepProgressRow}>
-          {(isDesktopWeb
-            ? ['Duration & Quantity', 'Delivery Address', 'Review Request']
-            : ['Duration', 'Address', 'Review']
-          ).map((sName, idx) => {
-            const stepNum = idx + 1;
-            const isDone = flowStep > stepNum;
-            const isCurr = flowStep === stepNum;
-            return (
-              <View key={sName} style={[styles.stepPillBox, isCurr && styles.stepPillBoxActive]}>
-                <Text style={[styles.stepPillNum, (isDone || isCurr) && styles.stepPillNumActive]}>
-                  {isDone ? 'Done' : stepNum}
-                </Text>
-                <Text
-                  style={[styles.stepPillLabel, isCurr && styles.stepPillLabelActive]}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  {sName}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
-
-        {/* STEP 1: DURATION & QUANTITY */}
-        {flowStep === 1 && (
-          <View>
-            <View style={styles.cardHeaderSnippet}>
-              <Image source={{ uri: item.image }} style={styles.snippetImg} />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.snippetTitle} numberOfLines={2}>{item.name}</Text>
-                <Text style={styles.snippetPartner}>Fulfilled by {item.verifiedPartner?.name}</Text>
-              </View>
-            </View>
-
-            {/* Rental Duration Options (Section 8) */}
-            <View style={styles.formCardBox}>
-              <View style={styles.formCardHeader}>
-                <Ionicons name="calendar-outline" size={18} color="#00B894" />
-                <Text style={styles.formCardTitle}>Select Rental Duration</Text>
-              </View>
-              <Text style={styles.formCardDesc}>
-                Select the expected rental duration. You can easily request an extension later if required.
-              </Text>
-
-              <View style={styles.durationOptionsGrid}>
-                {[
-                  { type: 'Daily', label: 'Daily', rate: item.rentalPrices.daily, unit: '/ day' },
-                  { type: 'Weekly', label: 'Weekly', rate: item.rentalPrices.weekly, unit: '/ 7 days' },
-                  { type: 'Monthly', label: 'Monthly', rate: item.rentalPrices.monthly, unit: '/ month (Popular)' },
-                  { type: 'Custom', label: 'Custom Duration', rate: null, unit: 'Flexible Days' },
-                ].map((opt) => {
-                  const isSelected = rentalDurationType === opt.type;
-                  return (
-                    <TouchableOpacity
-                      key={opt.type}
-                      style={[styles.durationCard, isSelected && styles.durationCardActive]}
-                      onPress={() => setRentalDurationType(opt.type)}
-                    >
-                      <View style={styles.durationRadioCircle}>
-                        {isSelected && <View style={styles.durationRadioInner} />}
-                      </View>
-                      <View style={{ flex: 1, marginLeft: 10 }}>
-                        <Text style={[styles.durationCardLabel, isSelected && styles.durationCardLabelActive]}>
-                          {opt.label}
-                        </Text>
-                        {opt.rate && (
-                          <Text style={styles.durationCardPrice}>
-                            ₹{opt.rate.toLocaleString()} <Text style={{ fontSize: 11, color: '#64748B' }}>{opt.unit}</Text>
-                          </Text>
-                        )}
-                        {!opt.rate && (
-                          <Text style={styles.durationCardPrice}>Choose number of days</Text>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* If Custom Duration Selected */}
-              {rentalDurationType === 'Custom' && (
-                <View style={styles.customDurationSubBox}>
-                  <Text style={styles.inputFieldLabel}>Number of Rental Days:</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    keyboardType="numeric"
-                    value={customDays}
-                    onChangeText={setCustomDays}
-                    placeholder="e.g. 14"
-                  />
-                  <Text style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>
-                    Estimated custom rental: ₹{pricing.rentalRate.toLocaleString()} for {customDays} days.
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            {/* Quantity Stepper (Section 9) */}
-            <View style={styles.formCardBox}>
-              <View style={styles.formCardHeader}>
-                <Ionicons name="cube-outline" size={18} color="#00B894" />
-                <Text style={styles.formCardTitle}>Quantity</Text>
-              </View>
-
-              <View style={styles.quantityStepperRow}>
-                <TouchableOpacity
-                  style={[styles.stepperBtn, quantity <= 1 && styles.stepperBtnDisabled]}
-                  onPress={() => handleQuantityChange(-1)}
-                  disabled={quantity <= 1}
-                >
-                  <Ionicons name="remove" size={20} color={quantity <= 1 ? '#CBD5E1' : '#0F172A'} />
-                </TouchableOpacity>
-
-                <View style={styles.stepperCountBox}>
-                  <Text style={styles.stepperCountText}>{quantity}</Text>
-                  <Text style={styles.stepperCountUnit}>Unit{quantity > 1 ? 's' : ''}</Text>
-                </View>
-
-                <TouchableOpacity
-                  style={[styles.stepperBtn, quantity >= 5 && styles.stepperBtnDisabled]}
-                  onPress={() => handleQuantityChange(1)}
-                  disabled={quantity >= 5}
-                >
-                  <Ionicons name="add" size={20} color={quantity >= 5 ? '#CBD5E1' : '#0F172A'} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Real-time Estimated Pricing Preview */}
-            <View style={styles.estimatedPricingBox}>
-              <Text style={styles.estimatedPricingTitle}>Estimated Cost Summary</Text>
-              <View style={styles.pricingSummaryLine}>
-                <Text style={styles.pricingSummaryLabel}>
-                  Rental ({quantity} unit × {pricing.durationLabel})
-                </Text>
-                <Text style={styles.pricingSummaryVal}>₹{pricing.rentalRate.toLocaleString()}</Text>
-              </View>
-
-              <View style={styles.pricingSummaryLine}>
-                <Text style={styles.pricingSummaryLabel}>Security Deposit (100% Refundable)</Text>
-                <Text style={styles.pricingSummaryVal}>₹{pricing.deposit.toLocaleString()}</Text>
-              </View>
-
-              <View style={styles.pricingSummaryLine}>
-                <Text style={styles.pricingSummaryLabel}>Doorstep Delivery & Logistics</Text>
-                <Text style={styles.pricingSummaryVal}>₹{pricing.delivery}</Text>
-              </View>
-
-              <View style={styles.pricingSummaryLine}>
-                <Text style={styles.pricingSummaryLabel}>Technician Installation & Demo</Text>
-                <Text style={[styles.pricingSummaryVal, { color: '#00B894' }]}>Included</Text>
-              </View>
-
-              <View style={styles.dividerThin} />
-
-              <View style={styles.pricingSummaryLineTotal}>
-                <Text style={styles.totalPriceLabel}>Estimated Initial Total</Text>
-                <Text style={styles.totalPriceVal}>₹{pricing.total.toLocaleString()}</Text>
-              </View>
-            </View>
-
-            {/* Continue Button */}
-            <TouchableOpacity style={styles.flowPrimaryBtn} onPress={handleProceedToAddress}>
-              <Text style={styles.flowPrimaryBtnText}>Continue to Delivery Address →</Text>
+        <ScrollView
+          style={styles.scrollContainer}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: 220 },
+            isDesktopWeb && styles.desktopContainer,
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.topHeaderBar}>
+            <TouchableOpacity
+              style={styles.headerBackBtn}
+              onPress={() => {
+                if (formStep === 2) setFormStep(1);
+                else setCurrentView('HOME');
+              }}
+            >
+              <Ionicons name="arrow-back" size={20} color="#0F172A" />
             </TouchableOpacity>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.screenHeaderTitle}>Request Equipment</Text>
+              <Text style={styles.screenHeaderSubtitle}>{item.name}</Text>
+            </View>
           </View>
-        )}
 
-        {/* STEP 2: DELIVERY REQUIREMENTS & ADDRESS (Section 10) */}
-        {flowStep === 2 && (
-          <View>
-            <View style={styles.formCardBox}>
-              <View style={styles.formCardHeader}>
-                <Ionicons name="location-outline" size={18} color="#00B894" />
-                <Text style={styles.formCardTitle}>Delivery Address</Text>
+          {/* STEP 1: FORM FIELDS */}
+          {formStep === 1 && (
+            <View style={styles.formBox}>
+              {/* Equipment Preview */}
+              <View style={styles.formEquipRow}>
+                <OptimizedImage source={{ uri: item.image }} style={styles.formEquipImg} resizeMode="cover" fallbackIcon="fitness-outline" />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={styles.formEquipName}>{item.name}</Text>
+                  <Text style={styles.formEquipCity}>Location: {selectedCity}</Text>
+                </View>
               </View>
-              <Text style={styles.formCardDesc}>
-                Technician will deliver, inspect, and demonstrate the equipment at this address.
-              </Text>
 
-              {/* Name */}
-              <View style={styles.inputGroup}>
-                {/* Select Patient / Family Member */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Select Patient / Recipient *</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.familyPillsRow}>
+              {/* Quantity */}
+              <Text style={styles.inputLabel}>Quantity</Text>
+              <View style={styles.qtyRow}>
+                <TouchableOpacity
+                  style={styles.qtyButton}
+                  onPress={() => setQuantity((q) => Math.max(1, q - 1))}
+                >
+                  <Ionicons name="remove" size={16} color="#0F172A" />
+                </TouchableOpacity>
+                <Text style={styles.qtyValue}>{quantity}</Text>
+                <TouchableOpacity
+                  style={styles.qtyButton}
+                  onPress={() => setQuantity((q) => Math.min(5, q + 1))}
+                >
+                  <Ionicons name="add" size={16} color="#0F172A" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Required From */}
+              <Text style={styles.inputLabel}>Required From</Text>
+              <View style={styles.pillSelectRow}>
+                {REQUIRED_DATE_CHOICES.map((d) => (
                   <TouchableOpacity
-                    style={[
-                      styles.familyMemberPill,
-                      selectedFamilyMemberId === 'self' && styles.familyMemberPillActive,
-                    ]}
-                    onPress={() => handleSelectFamilyMember('self')}
-                    activeOpacity={0.8}
+                    key={d}
+                    style={[styles.selectPill, requiredFromDate === d && styles.selectPillActive]}
+                    onPress={() => setRequiredFromDate(d)}
                   >
-                    <Ionicons
-                      name="person"
-                      size={14}
-                      color={selectedFamilyMemberId === 'self' ? '#FFFFFF' : '#007D69'}
-                    />
-                    <Text
-                      style={[
-                        styles.familyMemberPillText,
-                        selectedFamilyMemberId === 'self' && styles.familyMemberPillTextActive,
-                      ]}
-                    >
-                      Self {quickName ? `(${quickName.split(' ')[0]})` : ''}
+                    <Text style={[styles.selectPillText, requiredFromDate === d && styles.selectPillTextActive]}>{d}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Required Until */}
+              <Text style={styles.inputLabel}>Required Until</Text>
+              <View style={styles.pillSelectRow}>
+                {DURATION_CHOICES.map((dur) => (
+                  <TouchableOpacity
+                    key={dur}
+                    style={[styles.selectPill, requiredUntilDuration === dur && styles.selectPillActive]}
+                    onPress={() => setRequiredUntilDuration(dur)}
+                  >
+                    <Text style={[styles.selectPillText, requiredUntilDuration === dur && styles.selectPillTextActive]}>{dur}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Patient */}
+              <Text style={styles.inputLabel}>Patient</Text>
+              <View style={styles.pillSelectRow}>
+                <TouchableOpacity
+                  style={[styles.selectPill, selectedFamilyMemberId === 'self' && styles.selectPillActive]}
+                  onPress={() => handleSelectPatient('self')}
+                >
+                  <Text style={[styles.selectPillText, selectedFamilyMemberId === 'self' && styles.selectPillTextActive]}>Self</Text>
+                </TouchableOpacity>
+
+                {familyMembers.map((fm) => (
+                  <TouchableOpacity
+                    key={fm.id || fm._id || fm.name}
+                    style={[styles.selectPill, selectedFamilyMemberId === (fm.id || fm._id || fm.name) && styles.selectPillActive]}
+                    onPress={() => handleSelectPatient(fm)}
+                  >
+                    <Text style={[styles.selectPillText, selectedFamilyMemberId === (fm.id || fm._id || fm.name) && styles.selectPillTextActive]}>
+                      {fm.name || fm.displayName}
                     </Text>
                   </TouchableOpacity>
-
-                  {familyMembers.map((member, idx) => {
-                    const mId = member.id || member._id || `fam-${idx}`;
-                    const isSelected = selectedFamilyMemberId === mId;
-                    const label = member.name || member.displayName || `Member ${idx + 1}`;
-                    const rel = member.relation || member.relationship || 'Family';
-                    return (
-                      <TouchableOpacity
-                        key={mId}
-                        style={[styles.familyMemberPill, isSelected && styles.familyMemberPillActive]}
-                        onPress={() => handleSelectFamilyMember(member)}
-                        activeOpacity={0.8}
-                      >
-                        <Ionicons
-                          name="people"
-                          size={14}
-                          color={isSelected ? '#FFFFFF' : '#64748B'}
-                        />
-                        <Text
-                          style={[
-                            styles.familyMemberPillText,
-                            isSelected && styles.familyMemberPillTextActive,
-                          ]}
-                        >
-                          {label} ({rel})
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
+                ))}
               </View>
 
-              <Text style={styles.inputLabel}>Patient / Contact Full Name *</Text>
-                <TextInput
-                  style={[styles.formInput, addressErrors.name && styles.formInputError]}
-                  value={deliveryName}
-                  onChangeText={setDeliveryName}
-                  placeholder="e.g. Ramesh Kumar"
-                />
-                {addressErrors.name && <Text style={styles.errorText}>{addressErrors.name}</Text>}
-              </View>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Patient Name"
+                placeholderTextColor="#94A3B8"
+                value={patientName}
+                onChangeText={setPatientName}
+              />
 
-              {/* Phone */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Contact Phone Number *</Text>
-                <TextInput
-                  style={[styles.formInput, addressErrors.phone && styles.formInputError]}
-                  value={deliveryPhone}
-                  onChangeText={setDeliveryPhone}
-                  keyboardType="phone-pad"
-                  placeholder="e.g. +91 98450 12345"
-                />
-                {addressErrors.phone && <Text style={styles.errorText}>{addressErrors.phone}</Text>}
-              </View>
+              {/* Mobile Number */}
+              <Text style={styles.inputLabel}>Mobile Number</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="10-digit Mobile Number"
+                placeholderTextColor="#94A3B8"
+                value={patientMobile}
+                onChangeText={setPatientMobile}
+                keyboardType="phone-pad"
+                maxLength={15}
+              />
 
-              {/* Street Address */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Door / Flat No., Street, Landmark *</Text>
+              {/* Delivery Address Section */}
+              <View style={styles.addressSection}>
+                <Text style={styles.addressSectionHeading}>Delivery Address</Text>
+                <Text style={styles.addressHelperText}>Must be within {selectedCity} for equipment delivery.</Text>
+
                 <TextInput
-                  ref={deliveryAddressInputRef}
-                  style={[styles.formInput, addressErrors.address && styles.formInputError]}
-                  value={deliveryAddress}
-                  onChangeText={(t) => {
-                    setDeliveryAddress(t);
-                    if (addressErrors.address) setAddressErrors({ ...addressErrors, address: null });
-                  }}
-                  multiline
-                  numberOfLines={2}
-                  placeholder={`Enter address in ${selectedCity} (Door/Flat No, Street, Area, Landmark)`}
+                  style={[styles.textInput, addressErrors.houseNo && styles.textInputError]}
+                  placeholder="House / Flat Number"
+                  placeholderTextColor="#94A3B8"
+                  value={houseNo}
+                  onChangeText={setHouseNo}
                 />
-                {addressErrors.address && (
-                  <View style={styles.addressErrorCard}>
-                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
-                      <Ionicons name="alert-circle" size={16} color="#DC2626" style={{ marginTop: 2 }} />
-                      <Text style={styles.addressErrorCardText}>{addressErrors.address}</Text>
-                    </View>
-                    <View style={styles.addressErrorActionsRow}>
-                      <TouchableOpacity
-                        style={styles.changeLocBtnSmall}
-                        onPress={() => setCitySelectionModalVisible(true)}
-                        activeOpacity={0.8}
-                      >
-                        <Ionicons name="swap-horizontal" size={13} color="#FFFFFF" />
-                        <Text style={styles.changeLocBtnSmallText}>Change Location</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.editAddrBtnSmall}
-                        onPress={() => deliveryAddressInputRef.current?.focus()}
-                        activeOpacity={0.8}
-                      >
-                        <Ionicons name="create-outline" size={13} color="#00B894" />
-                        <Text style={styles.editAddrBtnSmallText}>Edit Address</Text>
-                      </TouchableOpacity>
-                    </View>
+
+                <TextInput
+                  style={[styles.textInput, addressErrors.streetArea && styles.textInputError]}
+                  placeholder="Street / Area / Landmark"
+                  placeholderTextColor="#94A3B8"
+                  value={streetArea}
+                  onChangeText={setStreetArea}
+                />
+
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={[styles.textInput, { flex: 1, backgroundColor: '#E2E8F0', justifyContent: 'center' }]}>
+                    <Text style={{ fontSize: 13, color: '#334155', fontWeight: '600' }}>{selectedCity}</Text>
                   </View>
+
+                  <TextInput
+                    style={[styles.textInput, { flex: 1 }, addressErrors.pincode && styles.textInputError]}
+                    placeholder="Pincode"
+                    placeholderTextColor="#94A3B8"
+                    value={pincode}
+                    onChangeText={setPincode}
+                    keyboardType="numeric"
+                    maxLength={6}
+                  />
+                </View>
+
+                {addressErrors.address && (
+                  <Text style={styles.errorMsgText}>{addressErrors.address}</Text>
                 )}
               </View>
 
-              {/* City & Pincode Row */}
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.inputLabel}>City *</Text>
-                  <TextInput
-                    style={[styles.formInput, addressErrors.city && styles.formInputError]}
-                    value={deliveryCity}
-                    onChangeText={setDeliveryCity}
-                    placeholder="e.g. Mysuru"
-                  />
-                  {addressErrors.city && <Text style={styles.errorText}>{addressErrors.city}</Text>}
-                </View>
+              {/* Additional Notes */}
+              <Text style={styles.inputLabel}>Additional Requirements</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Any special instructions or ground floor delivery?"
+                placeholderTextColor="#94A3B8"
+                value={additionalNotes}
+                onChangeText={setAdditionalNotes}
+              />
 
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.inputLabel}>Pincode *</Text>
-                  <TextInput
-                    style={[styles.formInput, addressErrors.pincode && styles.formInputError]}
-                    value={deliveryPincode}
-                    onChangeText={setDeliveryPincode}
-                    keyboardType="numeric"
-                    placeholder="e.g. 570009"
-                  />
-                  {addressErrors.pincode && <Text style={styles.errorText}>{addressErrors.pincode}</Text>}
-                </View>
-              </View>
-
-              {/* Delivery Instructions */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Delivery Instructions (Optional)</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={deliveryInstructions}
-                  onChangeText={setDeliveryInstructions}
-                  placeholder="e.g. 1st floor elevator available, please call before delivery"
-                />
-              </View>
-            </View>
-
-            <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity
-                style={styles.flowSecondaryBtn}
-                onPress={() => setFlowStep(1)}
-              >
-                <Text style={styles.flowSecondaryBtnText}>Back</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.flowPrimaryBtn, { flex: 2 }]}
+                style={styles.submitBtn}
                 onPress={handleProceedToReview}
+                activeOpacity={0.85}
               >
-                <Text style={styles.flowPrimaryBtnText}>Review Request →</Text>
+                <Text style={styles.submitBtnText}>Review & Submit →</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        )}
+          )}
 
-        {/* STEP 3: REVIEW RENTAL REQUEST (Section 12) */}
-        {flowStep === 3 && (
-          <View>
-            <View style={styles.reviewCard}>
-              <View style={styles.reviewHeader}>
-                <Text style={styles.reviewMainTitle}>Review Rental Request</Text>
-                <Text style={styles.reviewSubTitle}>
-                  Verify all details before submitting your request to MediUnify.
-                </Text>
-              </View>
+          {/* STEP 2: REVIEW */}
+          {formStep === 2 && (
+            <View style={styles.formBox}>
+              <Text style={styles.reviewHeader}>Confirm Details</Text>
 
-              {/* Section: Equipment */}
-              <View style={styles.reviewSectionBlock}>
-                <View style={styles.reviewSectionHeaderRow}>
-                  <Text style={styles.reviewSectionTitle}>Equipment & Quantity</Text>
-                  <TouchableOpacity onPress={() => setFlowStep(1)}>
-                    <Text style={styles.reviewEditLink}>Edit</Text>
-                  </TouchableOpacity>
-                </View>
+              <View style={styles.reviewList}>
                 <View style={styles.reviewRow}>
                   <Text style={styles.reviewLabel}>Equipment</Text>
-                  <Text style={styles.reviewVal}>{item.name}</Text>
+                  <Text style={styles.reviewValue}>{item.name}</Text>
                 </View>
                 <View style={styles.reviewRow}>
                   <Text style={styles.reviewLabel}>Quantity</Text>
-                  <Text style={styles.reviewVal}>{quantity} Unit{quantity > 1 ? 's' : ''}</Text>
+                  <Text style={styles.reviewValue}>{quantity} Unit</Text>
                 </View>
                 <View style={styles.reviewRow}>
-                  <Text style={styles.reviewLabel}>Rental Duration</Text>
-                  <Text style={styles.reviewVal}>{pricing.durationLabel}</Text>
-                </View>
-              </View>
-
-              {/* Section: Delivery Address */}
-              <View style={styles.reviewSectionBlock}>
-                <View style={styles.reviewSectionHeaderRow}>
-                  <Text style={styles.reviewSectionTitle}>Delivery Address</Text>
-                  <TouchableOpacity onPress={() => setFlowStep(2)}>
-                    <Text style={styles.reviewEditLink}>Edit</Text>
-                  </TouchableOpacity>
+                  <Text style={styles.reviewLabel}>Required From</Text>
+                  <Text style={styles.reviewValue}>{requiredFromDate}</Text>
                 </View>
                 <View style={styles.reviewRow}>
-                  <Text style={styles.reviewLabel}>Recipient</Text>
-                  <Text style={styles.reviewVal}>{deliveryName} ({deliveryPhone})</Text>
+                  <Text style={styles.reviewLabel}>Required Until</Text>
+                  <Text style={styles.reviewValue}>{requiredUntilDuration}</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Patient</Text>
+                  <Text style={styles.reviewValue}>{patientName}</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Mobile</Text>
+                  <Text style={styles.reviewValue}>{patientMobile}</Text>
                 </View>
                 <View style={styles.reviewRow}>
                   <Text style={styles.reviewLabel}>Address</Text>
-                  <Text style={styles.reviewVal}>{deliveryAddress}, {deliveryCity} - {deliveryPincode}</Text>
-                </View>
-                {deliveryInstructions ? (
-                  <View style={styles.reviewRow}>
-                    <Text style={styles.reviewLabel}>Note</Text>
-                    <Text style={styles.reviewVal}>{deliveryInstructions}</Text>
-                  </View>
-                ) : null}
-              </View>
-
-              {/* Section: Pricing Breakdown */}
-              <View style={styles.reviewSectionBlock}>
-                <View style={styles.reviewSectionHeaderRow}>
-                  <Text style={styles.reviewSectionTitle}>Pricing Summary</Text>
-                </View>
-                <View style={styles.reviewRow}>
-                  <Text style={styles.reviewLabel}>Rental Amount</Text>
-                  <Text style={styles.reviewVal}>₹{pricing.rentalRate.toLocaleString()}</Text>
-                </View>
-                <View style={styles.reviewRow}>
-                  <Text style={styles.reviewLabel}>Deposit (Refundable)</Text>
-                  <Text style={styles.reviewVal}>₹{pricing.deposit.toLocaleString()}</Text>
-                </View>
-                <View style={styles.reviewRow}>
-                  <Text style={styles.reviewLabel}>Delivery</Text>
-                  <Text style={styles.reviewVal}>₹{pricing.delivery}</Text>
-                </View>
-                <View style={styles.reviewRow}>
-                  <Text style={styles.reviewLabel}>Installation</Text>
-                  <Text style={[styles.reviewVal, { color: '#00B894' }]}>Included</Text>
-                </View>
-                <View style={styles.dividerThin} />
-                <View style={styles.reviewRowTotal}>
-                  <Text style={styles.reviewTotalLabel}>Estimated Total</Text>
-                  <Text style={styles.reviewTotalVal}>₹{pricing.total.toLocaleString()}</Text>
+                  <Text style={styles.reviewValue}>{houseNo}, {streetArea}, {selectedCity} - {pincode}</Text>
                 </View>
               </View>
 
-              {/* MediUnify Coordination Disclaimer */}
-              <View style={styles.coordinationNoticeBox}>
-                <Ionicons name="shield-checkmark" size={18} color="#00B894" style={{ marginRight: 8 }} />
-                <Text style={styles.coordinationNoticeText}>
-                  "MediUnify coordinates your rental request with verified equipment partners. Payment is settled upon physical doorstep inspection."
+              <View style={styles.noticeCard}>
+                <Ionicons name="information-circle" size={18} color="#0284C7" style={{ marginRight: 8 }} />
+                <Text style={styles.noticeCardText}>
+                  Availability will be confirmed after your request is placed.
                 </Text>
               </View>
-            </View>
 
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
-              <TouchableOpacity
-                style={styles.flowSecondaryBtn}
-                onPress={() => setFlowStep(2)}
-              >
-                <Text style={styles.flowSecondaryBtnText}>Back</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.flowPrimaryBtn, { flex: 2 }]}
-                onPress={handleSubmitRentalRequest}
-              >
-                <Text style={styles.flowPrimaryBtnText}>Request Rental</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                <TouchableOpacity
+                  style={[styles.btnOutline, { flex: 1, paddingVertical: 12 }]}
+                  onPress={() => setFormStep(1)}
+                >
+                  <Text style={styles.btnOutlineText}>Edit</Text>
+                </TouchableOpacity>
 
-        {/* STEP 4: REQUEST SUBMITTED (Section 13) */}
-        {flowStep === 4 && newlyCreatedRequest && (
-          <View style={styles.submittedCard}>
-            <View style={styles.submittedCheckCircle}>
-              <Ionicons name="checkmark-circle" size={68} color="#00B894" />
-            </View>
-            <Text style={styles.submittedTitle}>Rental Request Submitted</Text>
-            <Text style={styles.submittedDesc}>
-              "Your rental request has been submitted. MediUnify will confirm equipment availability and rental terms with a suitable verified partner."
-            </Text>
-
-            <View style={styles.submittedDetailsBox}>
-              <View style={styles.submittedRow}>
-                <Text style={styles.submittedLabel}>Request ID</Text>
-                <Text style={styles.submittedValId}>{newlyCreatedRequest.id}</Text>
-              </View>
-              <View style={styles.submittedRow}>
-                <Text style={styles.submittedLabel}>Status</Text>
-                <View style={styles.statusBadgeReceived}>
-                  <Text style={styles.statusBadgeReceivedText}>Request Received</Text>
-                </View>
-              </View>
-              <View style={styles.submittedRow}>
-                <Text style={styles.submittedLabel}>Equipment</Text>
-                <Text style={styles.submittedVal}>{newlyCreatedRequest.equipmentName}</Text>
-              </View>
-              <View style={styles.submittedRow}>
-                <Text style={styles.submittedLabel}>Duration</Text>
-                <Text style={styles.submittedVal}>{newlyCreatedRequest.durationLabel}</Text>
-              </View>
-              <View style={styles.submittedRow}>
-                <Text style={styles.submittedLabel}>Delivery Address</Text>
-                <Text style={styles.submittedVal} numberOfLines={2}>
-                  {newlyCreatedRequest.deliveryAddress.address}, {newlyCreatedRequest.deliveryAddress.city}
-                </Text>
+                <TouchableOpacity
+                  style={[styles.submitBtn, { flex: 2, marginTop: 0 }]}
+                  onPress={handleSubmitRequest}
+                >
+                  <Text style={styles.submitBtnText}>Submit Request</Text>
+                </TouchableOpacity>
               </View>
             </View>
+          )}
 
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
-              <TouchableOpacity
-                style={[styles.flowSecondaryBtn, { flex: 1 }]}
-                onPress={() => setCurrentView('HOME')}
-              >
-                <Text style={styles.flowSecondaryBtnText}>Browse Equipment</Text>
-              </TouchableOpacity>
+          {/* STEP 3: SUBMITTED CONFIRMATION */}
+          {formStep === 3 && newlyCreatedRequest && (
+            <View style={styles.submittedBox}>
+              <Ionicons name="checkmark-circle" size={56} color="#00B894" style={{ marginBottom: 8 }} />
+              <Text style={styles.submittedHeading}>Request sent successfully</Text>
+              <Text style={styles.submittedSub}>We'll check availability for you in {selectedCity}.</Text>
 
-              <TouchableOpacity
-                style={[styles.flowPrimaryBtn, { flex: 1.5 }]}
-                onPress={() => {
-                  setSelectedRequestDetail(newlyCreatedRequest);
-                  setCurrentView('RENTAL_REQUESTS');
-                }}
-              >
-                <Text style={styles.flowPrimaryBtnText}>View Request →</Text>
-              </TouchableOpacity>
+              <View style={styles.submittedInfoBox}>
+                <Text style={styles.submittedId}>Request ID: {newlyCreatedRequest.id}</Text>
+                <Text style={styles.submittedItem}>Equipment: {newlyCreatedRequest.equipmentName} ({newlyCreatedRequest.quantity} Unit)</Text>
+                <Text style={styles.submittedItem}>Required From: {newlyCreatedRequest.requiredFromDate}</Text>
+                <Text style={styles.submittedItem}>Address: {newlyCreatedRequest.deliveryAddress?.address}</Text>
+                <Text style={styles.submittedStatus}>Status: Request Sent</Text>
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 10, width: '100%', marginTop: 14 }}>
+                <TouchableOpacity
+                  style={[styles.btnOutline, { flex: 1, paddingVertical: 12 }]}
+                  onPress={() => setCurrentView('HOME')}
+                >
+                  <Text style={styles.btnOutlineText}>Browse More</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.submitBtn, { flex: 1.5, marginTop: 0 }]}
+                  onPress={() => setCurrentView('MY_RENTALS')}
+                >
+                  <Text style={styles.submitBtnText}>Track Status →</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        )}
+          )}
 
-        {isDesktopWeb && <WebFooter />}
-      </ScrollView>
+          {isDesktopWeb && <WebFooter />}
+        </ScrollView>
+      </KeyboardAvoidingView>
     );
   };
 
   // ==========================================================
-  // VIEW: 4. MY RENTALS SCREEN (Active, Completed, Extensions, Return)
+  // VIEW: 4. MY RENTALS (Clean Status & Tracking)
   // ==========================================================
   const renderMyRentalsView = () => {
-    const displayedRentals = activeRentals.filter((item) => {
-      if (myRentalsFilterTab === 'Active') return item.status === 'Active Rental' || item.status === 'Pickup Requested';
-      if (myRentalsFilterTab === 'Completed') return item.status === 'Rental Completed';
-      return true;
-    });
+    const listToDisplay = myRentalsTab === 'CURRENT' ? currentRentals : pastRentals;
 
     return (
       <ScrollView
         style={styles.scrollContainer}
-        contentContainerStyle={[
-          styles.scrollContent,
-          isDesktopWeb && styles.desktopContainer,
-        ]}
+        contentContainerStyle={[styles.scrollContent, isDesktopWeb && styles.desktopContainer]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Navigation Header */}
         <View style={styles.topHeaderBar}>
           <TouchableOpacity
             style={styles.headerBackBtn}
             onPress={() => setCurrentView('HOME')}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="arrow-back" size={22} color="#0F172A" />
+            <Ionicons name="arrow-back" size={20} color="#0F172A" />
           </TouchableOpacity>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.mainScreenTitle}>My Rentals</Text>
-            <Text style={styles.mainScreenSubtitle}>Manage active equipment, extensions, and pickups</Text>
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={styles.screenHeaderTitle}>My Rentals</Text>
+            <Text style={styles.screenHeaderSubtitle}>Track your equipment requests</Text>
           </View>
         </View>
 
-        {/* Filter Tabs */}
-        <View style={styles.tabFiltersRow}>
-          {['Active', 'Pending', 'Completed'].map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tabFilterBtn, myRentalsFilterTab === tab && styles.tabFilterBtnActive]}
-              onPress={() => setMyRentalsFilterTab(tab)}
-            >
-              <Text style={[styles.tabFilterText, myRentalsFilterTab === tab && styles.tabFilterTextActive]}>
-                {tab} Rentals
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* List of Rentals */}
-        {displayedRentals.length === 0 ? (
-          <View style={styles.emptyStateBox}>
-            <Ionicons name="cube-outline" size={54} color="#94A3B8" />
-            <Text style={styles.emptyStateTitle}>No Active Rentals</Text>
-            <Text style={styles.emptyStateDesc}>You don't have any active equipment rentals currently.</Text>
-            <TouchableOpacity style={styles.emptyStateBtn} onPress={() => setCurrentView('HOME')}>
-              <Text style={styles.emptyStateBtnText}>Browse Equipment</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          displayedRentals.map((rental) => (
-            <View key={rental.id} style={styles.rentalActiveCard}>
-              <View style={styles.rentalActiveHeader}>
-                <Image source={{ uri: rental.equipmentImage }} style={styles.rentalActiveImg} />
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <View style={styles.rentalStatusBadge}>
-                    <Text style={styles.rentalStatusBadgeText}>{rental.status}</Text>
-                  </View>
-                  <Text style={styles.rentalActiveTitle}>{rental.equipmentName}</Text>
-                  <Text style={styles.rentalActiveId}>Rental ID: {rental.rentalId}</Text>
-                </View>
-              </View>
-
-              <View style={styles.rentalDetailsGrid}>
-                <View style={styles.rentalGridItem}>
-                  <Text style={styles.rentalGridLabel}>Started</Text>
-                  <Text style={styles.rentalGridVal}>{rental.startDate}</Text>
-                </View>
-                <View style={styles.rentalGridItem}>
-                  <Text style={styles.rentalGridLabel}>Expected End</Text>
-                  <Text style={styles.rentalGridVal}>{rental.expectedEndDate}</Text>
-                </View>
-                <View style={styles.rentalGridItem}>
-                  <Text style={styles.rentalGridLabel}>Monthly Rent</Text>
-                  <Text style={styles.rentalGridVal}>₹{rental.monthlyRent.toLocaleString()}</Text>
-                </View>
-                <View style={styles.rentalGridItem}>
-                  <Text style={styles.rentalGridLabel}>Deposit Held</Text>
-                  <Text style={styles.rentalGridVal}>₹{rental.deposit.toLocaleString()}</Text>
-                </View>
-              </View>
-
-              {/* Extension Notification if requested */}
-              {rental.isExtensionRequested && (
-                <View style={styles.extensionInfoNotice}>
-                  <Ionicons name="time" size={16} color="#D97706" style={{ marginRight: 6 }} />
-                  <Text style={styles.extensionInfoText}>
-                    Extension Requested: +{rental.extensionDetails?.requestedDuration} (Pending Coordinator Review)
-                  </Text>
-                </View>
-              )}
-
-              {/* Return / Pickup Timeline if requested (Section 21) */}
-              {rental.isPickupRequested && rental.pickupDetails && (
-                <View style={styles.returnTimelineCard}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                    <Ionicons name="swap-horizontal" size={16} color="#0284C7" style={{ marginRight: 6 }} />
-                    <Text style={styles.returnTimelineTitle}>Return / Pickup Status</Text>
-                  </View>
-                  {rental.pickupDetails.returnTimeline.map((step, idx) => (
-                    <View key={idx} style={styles.timelineRowItem}>
-                      <View style={[styles.timelineNode, step.completed && styles.timelineNodeDone]}>
-                        <Ionicons
-                          name={step.completed ? 'checkmark' : 'ellipse'}
-                          size={10}
-                          color={step.completed ? '#FFFFFF' : '#94A3B8'}
-                        />
-                      </View>
-                      <View style={{ marginLeft: 10, flex: 1 }}>
-                        <Text style={[styles.timelineStageName, step.completed && styles.timelineStageNameDone]}>
-                          {step.stage}
-                        </Text>
-                        <Text style={styles.timelineStageTime}>{step.timestamp}</Text>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              {/* Interactive Actions: Extend Rental & Request Pickup (Section 19 & 20) */}
-              {!rental.isPickupRequested && (
-                <View style={styles.rentalActionsRow}>
-                  <TouchableOpacity
-                    style={styles.rentalExtendBtn}
-                    onPress={() => handleOpenExtendModal(rental)}
-                  >
-                    <Ionicons name="add-circle-outline" size={15} color="#00B894" style={{ marginRight: 4 }} />
-                    <Text style={styles.rentalExtendBtnText}>Extend Rental</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.rentalPickupBtn}
-                    onPress={() => handleOpenPickupModal(rental)}
-                  >
-                    <Ionicons name="arrow-undo-outline" size={15} color="#FF7F50" style={{ marginRight: 4 }} />
-                    <Text style={styles.rentalPickupBtnText}>Request Pickup</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          ))
-        )}
-
-        {isDesktopWeb && <WebFooter />}
-      </ScrollView>
-    );
-  };
-
-  // ==========================================================
-  // VIEW: 5. RENTAL REQUESTS SCREEN & TIMELINE (Section 23 & 16)
-  // ==========================================================
-  const renderRentalRequestsView = () => {
-    const displayedRequests = rentalRequests.filter((req) => {
-      if (rentalRequestsFilterTab === 'In Progress') return req.status === 'Request Received' || req.status === 'Availability Confirmed';
-      if (rentalRequestsFilterTab === 'Confirmed') return req.status === 'Rental Confirmed' || req.status === 'Delivery Scheduled';
-      if (rentalRequestsFilterTab === 'Completed') return req.status === 'Delivered' || req.status === 'Active Rental';
-      return true;
-    });
-
-    return (
-      <ScrollView
-        style={styles.scrollContainer}
-        contentContainerStyle={[
-          styles.scrollContent,
-          isDesktopWeb && styles.desktopContainer,
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Navigation Header */}
-        <View style={styles.topHeaderBar}>
+        {/* Sub Tabs: Current vs Past */}
+        <View style={styles.historyTabsRow}>
           <TouchableOpacity
-            style={styles.headerBackBtn}
-            onPress={() => setCurrentView('HOME')}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={[styles.historyTab, myRentalsTab === 'CURRENT' && styles.historyTabActive]}
+            onPress={() => setMyRentalsTab('CURRENT')}
           >
-            <Ionicons name="arrow-back" size={22} color="#0F172A" />
+            <Text style={[styles.historyTabText, myRentalsTab === 'CURRENT' && styles.historyTabTextActive]}>
+              Current ({currentRentals.length})
+            </Text>
           </TouchableOpacity>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.mainScreenTitle}>Rental Requests</Text>
-            <Text style={styles.mainScreenSubtitle}>Track real-time coordination with equipment partners</Text>
-          </View>
+
+          <TouchableOpacity
+            style={[styles.historyTab, myRentalsTab === 'PAST' && styles.historyTabActive]}
+            onPress={() => setMyRentalsTab('PAST')}
+          >
+            <Text style={[styles.historyTabText, myRentalsTab === 'PAST' && styles.historyTabTextActive]}>
+              Past ({pastRentals.length})
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Filter Tabs */}
-        <View style={styles.tabFiltersRow}>
-          {['All', 'In Progress', 'Confirmed', 'Completed'].map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tabFilterBtn, rentalRequestsFilterTab === tab && styles.tabFilterBtnActive]}
-              onPress={() => setRentalRequestsFilterTab(tab)}
-            >
-              <Text style={[styles.tabFilterText, rentalRequestsFilterTab === tab && styles.tabFilterTextActive]}>
-                {tab}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Request Cards List */}
-        {displayedRequests.length === 0 ? (
-          <View style={styles.emptyStateBox}>
-            <Ionicons name="clipboard-outline" size={54} color="#94A3B8" />
-            <Text style={styles.emptyStateTitle}>No Rental Requests</Text>
-            <Text style={styles.emptyStateDesc}>You don't have any equipment rental requests in this status.</Text>
-            <TouchableOpacity style={styles.emptyStateBtn} onPress={() => setCurrentView('HOME')}>
-              <Text style={styles.emptyStateBtnText}>Browse Equipment</Text>
+        {listToDisplay.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <Ionicons name="clipboard-outline" size={40} color="#94A3B8" />
+            <Text style={styles.emptyTitle}>No {myRentalsTab === 'CURRENT' ? 'current' : 'past'} rentals</Text>
+            <TouchableOpacity style={styles.btnSolid} onPress={() => setCurrentView('HOME')}>
+              <Text style={styles.btnSolidText}>Find Equipment</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          displayedRequests.map((req) => (
-            <View key={req.id} style={styles.requestTrackingCard}>
-              <View style={styles.requestCardHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.requestIdText}>ID: {req.id}</Text>
-                  <Text style={styles.requestDateText}>Submitted: {req.requestDate}</Text>
-                </View>
-                <View
-                  style={[
-                    styles.statusBadgeUniversal,
-                    req.status === 'Availability Confirmed' && styles.statusBadgeOffer,
-                    req.status === 'Delivery Scheduled' && styles.statusBadgeDelivery,
-                  ]}
-                >
-                  <Text style={styles.statusBadgeUniversalText}>{req.status}</Text>
-                </View>
-              </View>
+          <View style={{ paddingHorizontal: 16, gap: 12 }}>
+            {listToDisplay.map((req) => {
+              const isUnavailable = req.status === 'Equipment Unavailable';
+              const isDelivered = req.status === 'Delivered';
+              const stageIdx = getEquipmentStatusStageIndex(req.status);
 
-              <View style={styles.requestSnippetBody}>
-                <Image source={{ uri: req.equipmentImage }} style={styles.requestSnippetImg} />
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.requestSnippetTitle}>{req.equipmentName}</Text>
-                  <Text style={styles.requestSnippetSub}>
-                    Quantity: {req.quantity} • Duration: {req.durationLabel}
-                  </Text>
-                  <Text style={styles.requestSnippetTotal}>Total: ₹{req.estimatedTotal?.toLocaleString()}</Text>
-                </View>
-              </View>
-
-              {/* Care coordinator note */}
-              {req.careTeamNote && (
-                <View style={styles.requestCareNoteBox}>
-                  <Ionicons name="information-circle" size={15} color="#0284C7" style={{ marginRight: 6 }} />
-                  <Text style={styles.requestCareNoteText}>{req.careTeamNote}</Text>
-                </View>
-              )}
-
-              {/* Action for Rental Offer / Availability Confirmed (Section 14) */}
-              {req.status === 'Availability Confirmed' && (
-                <View style={styles.offerActionBanner}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.offerActionTitle}>Equipment Available & Ready!</Text>
-                    <Text style={styles.offerActionSub}>Verified partner has reserved this item for you.</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.offerConfirmBtn}
-                    onPress={() => handleOpenRentalOffer(req)}
-                  >
-                    <Text style={styles.offerConfirmBtnText}>Review Offer →</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Delivery Scheduled Details (Section 17) */}
-              {req.status === 'Delivery Scheduled' && req.deliveryDetails && (
-                <View style={styles.deliveryScheduledCard}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                    <Ionicons name="car" size={18} color="#059669" style={{ marginRight: 6 }} />
-                    <Text style={styles.deliveryScheduledTitle}>Delivery Scheduled</Text>
-                  </View>
-                  <Text style={styles.deliveryScheduledDate}>
-                    Scheduled Date: <Text style={{ fontWeight: '700' }}>{req.deliveryDetails.scheduledDate}</Text>
-                  </Text>
-                  <Text style={styles.deliveryScheduledWindow}>
-                    Window: {req.deliveryDetails.scheduledWindow}
-                  </Text>
-                  <Text style={styles.deliveryAgentSnippet}>
-                    Agent: {req.deliveryDetails.deliveryAgent} • {req.deliveryDetails.installationStatus}
-                  </Text>
-                </View>
-              )}
-
-              {/* Status Tracking Timeline (Section 16) */}
-              <View style={styles.timelineContainer}>
-                <Text style={styles.timelineHeading}>Rental Lifecycle</Text>
-                {req.timeline?.map((stg, i) => (
-                  <View key={i} style={styles.timelineStepRow}>
-                    <View style={[styles.timelineBullet, stg.completed && styles.timelineBulletDone]}>
-                      {stg.completed ? (
-                        <Ionicons name="checkmark" size={11} color="#FFFFFF" />
-                      ) : (
-                        <View style={styles.timelineBulletInactive} />
-                      )}
+              return (
+                <View key={req.id} style={styles.rentalItemCard}>
+                  <View style={styles.rentalItemTop}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.rentalItemId}>{req.id}</Text>
+                      <Text style={styles.rentalItemName}>{req.equipmentName}</Text>
+                      <Text style={styles.rentalItemCity}>{req.deliveryAddress?.city || selectedCity}</Text>
                     </View>
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={[styles.timelineStageTitle, stg.completed && styles.timelineStageTitleDone]}>
-                        {stg.stage}
+
+                    <View style={[styles.statusTag, isUnavailable && styles.statusTagUnavailable, isDelivered && styles.statusTagDelivered]}>
+                      <Text style={[styles.statusTagText, isUnavailable && { color: '#DC2626' }, isDelivered && { color: '#059669' }]}>
+                        {req.status}
                       </Text>
-                      <Text style={styles.timelineStageNote}>{stg.timestamp}</Text>
                     </View>
                   </View>
-                ))}
-              </View>
-            </View>
-          ))
+
+                  {/* Compact Status Indicator */}
+                  {!isUnavailable ? (
+                    <View style={styles.stepperContainer}>
+                      <View style={styles.stepperDotsRow}>
+                        {EQUIPMENT_WORKFLOW_STEPS.map((step, idx) => {
+                          const isDone = stageIdx >= idx;
+                          return (
+                            <View key={step} style={styles.stepperSegment}>
+                              <View style={[styles.stepDot, isDone && styles.stepDotDone]} />
+                              {idx < EQUIPMENT_WORKFLOW_STEPS.length - 1 && (
+                                <View style={[styles.stepLine, stageIdx > idx && styles.stepLineDone]} />
+                              )}
+                            </View>
+                          );
+                        })}
+                      </View>
+                      <Text style={styles.stepperStatusText}>Status: {req.status}</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.unavailableBox}>
+                      <Text style={styles.unavailableTitle}>✕ Equipment Unavailable</Text>
+                      <Text style={styles.unavailableReason}>Reason: {req.unavailableReason || 'Out of stock in your area.'}</Text>
+                    </View>
+                  )}
+
+                  {/* Actions */}
+                  <View style={styles.rentalActionRow}>
+                    <TouchableOpacity
+                      style={styles.btnOutlineSmall}
+                      onPress={() => {
+                        setSelectedRequestForModal(req);
+                        setRequestDetailModalVisible(true);
+                      }}
+                    >
+                      <Text style={styles.btnOutlineSmallText}>View Details →</Text>
+                    </TouchableOpacity>
+
+                    {isDelivered && (
+                      <TouchableOpacity
+                        style={styles.btnReturnSmall}
+                        onPress={() => handleUserReturn(req)}
+                      >
+                        <Text style={styles.btnReturnSmallText}>Schedule Return</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
         )}
 
         {isDesktopWeb && <WebFooter />}
@@ -2097,296 +1054,55 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
     );
   };
 
-  // ==========================================================
-  // MODALS: Filters, Rental Offer, Extension, Pickup
-  // ==========================================================
-
-  // 1. FILTERS MODAL (Section 5)
-  const renderFilterModal = () => (
-    <Modal
-      visible={filterModalVisible}
-      animationType="slide"
-      transparent
-      onRequestClose={() => setFilterModalVisible(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.filterModalCard}>
-          <View style={styles.modalHeaderRow}>
-            <Text style={styles.modalTitle}>Filter Equipment</Text>
-            <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
-              <Ionicons name="close" size={24} color="#0F172A" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={{ maxHeight: 450 }} showsVerticalScrollIndicator={false}>
-            {/* Category Filter */}
-            <Text style={styles.filterSectionTitle}>Category</Text>
-            <View style={styles.filterChipsRow}>
-              {equipmentCategories.map((c) => (
-                <TouchableOpacity
-                  key={c.id}
-                  style={[styles.filterChip, selectedCategory === c.id && styles.filterChipActive]}
-                  onPress={() => setSelectedCategory(c.id)}
-                >
-                  <Text style={[styles.filterChipText, selectedCategory === c.id && styles.filterChipTextActive]}>
-                    {c.emoji} {c.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Rental Duration Filter */}
-            <Text style={styles.filterSectionTitle}>Rental Duration</Text>
-            <View style={styles.filterChipsRow}>
-              {['all', 'Daily', 'Weekly', 'Monthly'].map((d) => (
-                <TouchableOpacity
-                  key={d}
-                  style={[styles.filterChip, filterDuration === d && styles.filterChipActive]}
-                  onPress={() => setFilterDuration(d)}
-                >
-                  <Text style={[styles.filterChipText, filterDuration === d && styles.filterChipTextActive]}>
-                    {d === 'all' ? 'All Durations' : d}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Location / Service Area */}
-            <Text style={styles.filterSectionTitle}>Service Area</Text>
-            <View style={styles.filterChipsRow}>
-              {['all', 'Mysuru', 'Bengaluru'].map((loc) => (
-                <TouchableOpacity
-                  key={loc}
-                  style={[styles.filterChip, filterServiceArea === loc && styles.filterChipActive]}
-                  onPress={() => setFilterServiceArea(loc)}
-                >
-                  <Text style={[styles.filterChipText, filterServiceArea === loc && styles.filterChipTextActive]}>
-                    {loc === 'all' ? 'All Areas' : loc}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Installation Toggle */}
-            <Text style={styles.filterSectionTitle}>Equipment Services</Text>
-            <TouchableOpacity
-              style={styles.filterToggleRow}
-              onPress={() => setFilterInstallationOnly(!filterInstallationOnly)}
-            >
-              <Ionicons
-                name={filterInstallationOnly ? 'checkbox' : 'square-outline'}
-                size={20}
-                color={filterInstallationOnly ? '#00B894' : '#64748B'}
-              />
-              <Text style={styles.filterToggleText}>Free Technician Installation Included</Text>
-            </TouchableOpacity>
-          </ScrollView>
-
-          <View style={styles.filterActionButtonsRow}>
-            <TouchableOpacity style={styles.filterClearBtn} onPress={handleResetFilters}>
-              <Text style={styles.filterClearBtnText}>Clear Filters</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.filterApplyBtn}
-              onPress={() => setFilterModalVisible(false)}
-            >
-              <Text style={styles.filterApplyBtnText}>Apply Filters ({filteredEquipment.length})</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-
-  // 2. RENTAL OFFER MODAL (Section 14)
-  const renderOfferModal = () => {
-    if (!activeOfferRequest) return null;
-    const req = activeOfferRequest;
+  const renderDetailsModal = () => {
+    if (!selectedRequestForModal) return null;
+    const req = selectedRequestForModal;
 
     return (
-      <Modal
-        visible={offerModalVisible}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setOfferModalVisible(false)}
-      >
+      <Modal visible={requestDetailModalVisible} transparent animationType="slide" onRequestClose={() => setRequestDetailModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.offerModalCard}>
-            <View style={styles.modalHeaderRow}>
-              <View>
-                <Text style={styles.modalTitle}>Rental Offer Available</Text>
-                <Text style={styles.modalSubTitle}>ID: {req.id}</Text>
-              </View>
-              <TouchableOpacity onPress={() => setOfferModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#0F172A" />
-              </TouchableOpacity>
-            </View>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Request Details</Text>
+            <Text style={styles.modalSub}>{req.id} • {req.equipmentName}</Text>
 
-            <View style={styles.offerPartnerBanner}>
-              <Ionicons name="shield-checkmark" size={24} color="#00B894" />
-              <View style={{ marginLeft: 10 }}>
-                <Text style={styles.offerPartnerName}>{req.verifiedPartner?.name}</Text>
-                <Text style={styles.offerPartnerSub}>{req.verifiedPartner?.rating}/5 • Verified MediUnify Partner</Text>
+            <View style={styles.reviewList}>
+              <View style={styles.reviewRow}>
+                <Text style={styles.reviewLabel}>Quantity</Text>
+                <Text style={styles.reviewValue}>{req.quantity}</Text>
               </View>
-            </View>
-
-            <View style={styles.offerSummaryGrid}>
-              <View style={styles.offerRow}>
-                <Text style={styles.offerLabel}>Equipment</Text>
-                <Text style={styles.offerVal}>{req.equipmentName}</Text>
+              <View style={styles.reviewRow}>
+                <Text style={styles.reviewLabel}>Patient</Text>
+                <Text style={styles.reviewValue}>{req.patientName}</Text>
               </View>
-              <View style={styles.offerRow}>
-                <Text style={styles.offerLabel}>Rental Duration</Text>
-                <Text style={styles.offerVal}>{req.durationLabel}</Text>
+              <View style={styles.reviewRow}>
+                <Text style={styles.reviewLabel}>Address</Text>
+                <Text style={styles.reviewValue}>{req.deliveryAddress?.address}</Text>
               </View>
-              <View style={styles.offerRow}>
-                <Text style={styles.offerLabel}>Rental Rate</Text>
-                <Text style={styles.offerVal}>₹{req.rentalPrice?.toLocaleString()}</Text>
-              </View>
-              <View style={styles.offerRow}>
-                <Text style={styles.offerLabel}>Refundable Deposit</Text>
-                <Text style={styles.offerVal}>₹{req.deposit?.toLocaleString()}</Text>
-              </View>
-              <View style={styles.offerRow}>
-                <Text style={styles.offerLabel}>Delivery & Setup</Text>
-                <Text style={styles.offerVal}>₹{req.deliveryCharge} (Installation Included)</Text>
-              </View>
-              <View style={styles.dividerThin} />
-              <View style={styles.offerRowTotal}>
-                <Text style={styles.offerTotalLabel}>Total Initial Payable</Text>
-                <Text style={styles.offerTotalVal}>₹{req.estimatedTotal?.toLocaleString()}</Text>
+              <View style={styles.reviewRow}>
+                <Text style={styles.reviewLabel}>Status</Text>
+                <Text style={[styles.reviewValue, { color: '#007D69', fontWeight: '700' }]}>{req.status}</Text>
               </View>
             </View>
 
-            <View style={styles.offerActionsRow}>
-              <TouchableOpacity style={styles.offerDeclineBtn} onPress={handleDeclineOffer}>
-                <Text style={styles.offerDeclineBtnText}>Decline / Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.offerAcceptBtn} onPress={handleConfirmRentalOffer}>
-                <Text style={styles.offerAcceptBtnText}>Confirm Rental</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity style={styles.submitBtn} onPress={() => setRequestDetailModalVisible(false)}>
+              <Text style={styles.submitBtnText}>Close</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
     );
   };
 
-  // 3. EXTEND RENTAL MODAL (Section 19)
-  const renderExtendModal = () => (
-    <Modal
-      visible={extendModalVisible}
-      animationType="slide"
-      transparent
-      onRequestClose={() => setExtendModalVisible(false)}
-    >
+  const renderAddressValidationModal = () => (
+    <Modal visible={addressValidationModalVisible} transparent animationType="fade" onRequestClose={() => setAddressValidationModalVisible(false)}>
       <View style={styles.modalOverlay}>
-        <View style={styles.actionModalCard}>
-          <View style={styles.modalHeaderRow}>
-            <Text style={styles.modalTitle}>Extend Rental Duration</Text>
-            <TouchableOpacity onPress={() => setExtendModalVisible(false)}>
-              <Ionicons name="close" size={24} color="#0F172A" />
-            </TouchableOpacity>
-          </View>
-
-          <Text style={styles.modalBodyDesc}>
-            Select the additional duration you wish to extend for {targetRentalForExtend?.equipmentName}.
-          </Text>
-
-          <View style={styles.extendDurationChoices}>
-            {['1 Week', '1 Month', 'Custom'].map((dur) => (
-              <TouchableOpacity
-                key={dur}
-                style={[styles.extendChoiceBtn, extendDuration === dur && styles.extendChoiceBtnActive]}
-                onPress={() => setExtendDuration(dur)}
-              >
-                <Text style={[styles.extendChoiceText, extendDuration === dur && styles.extendChoiceTextActive]}>
-                  {dur}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={styles.inputLabel}>Additional Message (Optional)</Text>
-          <TextInput
-            style={styles.formInput}
-            value={extendNote}
-            onChangeText={setExtendNote}
-            placeholder="e.g. Doctor advised continuing bed rest for 2 more weeks"
-          />
-
-          <View style={styles.modalActionButtons}>
-            <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setExtendModalVisible(false)}>
-              <Text style={styles.modalCancelBtnText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleSubmitExtensionRequest}>
-              <Text style={styles.modalSubmitBtnText}>Request Extension</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-
-  // 4. PICKUP / RETURN REQUEST MODAL (Section 20)
-  const renderPickupModal = () => (
-    <Modal
-      visible={pickupModalVisible}
-      animationType="slide"
-      transparent
-      onRequestClose={() => setPickupModalVisible(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.actionModalCard}>
-          <View style={styles.modalHeaderRow}>
-            <Text style={styles.modalTitle}>Request Equipment Pickup</Text>
-            <TouchableOpacity onPress={() => setPickupModalVisible(false)}>
-              <Ionicons name="close" size={24} color="#0F172A" />
-            </TouchableOpacity>
-          </View>
-
-          <Text style={styles.modalBodyDesc}>
-            MediUnify will coordinate doorstep equipment pickup with our partner logistics team.
-          </Text>
-
-          <View style={styles.pickupAddressPreview}>
-            <Ionicons name="location" size={16} color="#00B894" style={{ marginRight: 6 }} />
-            <Text style={styles.pickupAddressText}>
-              Pickup Address: {targetRentalForPickup?.deliveryAddress}
-            </Text>
-          </View>
-
-          <Text style={styles.inputLabel}>Preferred Pickup Window</Text>
-          <View style={styles.extendDurationChoices}>
-            {['Morning (10 AM - 1 PM)', 'Afternoon (2 PM - 5 PM)', 'Flexible Timing'].map((w) => (
-              <TouchableOpacity
-                key={w}
-                style={[styles.extendChoiceBtn, pickupPreferredWindow === w && styles.extendChoiceBtnActive]}
-                onPress={() => setPickupPreferredWindow(w)}
-              >
-                <Text style={[styles.extendChoiceText, pickupPreferredWindow === w && styles.extendChoiceTextActive]}>
-                  {w}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={styles.inputLabel}>Special Instructions</Text>
-          <TextInput
-            style={styles.formInput}
-            value={pickupInstructions}
-            onChangeText={setPickupInstructions}
-            placeholder="e.g. Please ring bell, equipment is in ground floor living room"
-          />
-
-          <View style={styles.modalActionButtons}>
-            <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setPickupModalVisible(false)}>
-              <Text style={styles.modalCancelBtnText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.modalSubmitBtn, { backgroundColor: '#FF7F50' }]} onPress={handleSubmitPickupRequest}>
-              <Text style={styles.modalSubmitBtnText}>Request Pickup</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.modalBox}>
+          <Ionicons name="location-outline" size={40} color="#FF7F50" style={{ alignSelf: 'center', marginBottom: 6 }} />
+          <Text style={[styles.modalTitle, { textAlign: 'center' }]}>Location Rule</Text>
+          <Text style={[styles.modalSub, { textAlign: 'center' }]}>{addressValidationMsg}</Text>
+          <TouchableOpacity style={[styles.submitBtn, { marginTop: 12 }]} onPress={() => setAddressValidationModalVisible(false)}>
+            <Text style={styles.submitBtnText}>Update Address</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
@@ -2396,711 +1112,41 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeContainer}>
       {currentView === 'HOME' && renderHomeView()}
       {currentView === 'DETAILS' && renderDetailsView()}
-      {currentView === 'REQUEST_FLOW' && renderRequestFlowView()}
+      {currentView === 'REQUEST_FORM' && renderRequestFormView()}
       {currentView === 'MY_RENTALS' && renderMyRentalsView()}
-      {currentView === 'RENTAL_REQUESTS' && renderRentalRequestsView()}
 
-      {/* Global Modals */}
-      {renderFilterModal()}
-      {renderOfferModal()}
-      {renderExtendModal()}
-      {renderPickupModal()}
-
-      {/* ============================================================
-          EQUIPMENT NEED MODAL
-      ============================================================ */}
-      <Modal
-        visible={equipmentNeedModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setEquipmentNeedModalVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalBackdrop}
-          activeOpacity={1}
-          onPress={() => setEquipmentNeedModalVisible(false)}
-        >
-          <View style={styles.modalContentCard} onStartShouldSetResponder={() => true}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Equipment</Text>
-              <TouchableOpacity onPress={() => setEquipmentNeedModalVisible(false)}>
-                <Ionicons name="close" size={22} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={true}>
-              {EQUIPMENT_CARE_NEEDS.map((item, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={[
-                    styles.modalListItem,
-                    selectedEquipmentNeed === item && styles.modalListItemSelected,
-                  ]}
-                  onPress={() => {
-                    setSelectedEquipmentNeed(item);
-                    setEquipmentNeedModalVisible(false);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.modalListItemText,
-                      selectedEquipmentNeed === item && styles.modalListItemTextSelected,
-                    ]}
-                  >
-                    {item}
-                  </Text>
-                  {selectedEquipmentNeed === item && (
-                    <Ionicons name="checkmark-circle" size={18} color="#007D69" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* ============================================================
-          DATE SELECTION MODAL
-      ============================================================ */}
-      <Modal
-        visible={dateModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setDateModalVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalBackdrop}
-          activeOpacity={1}
-          onPress={() => setDateModalVisible(false)}
-        >
-          <View style={styles.modalContentCard} onStartShouldSetResponder={() => true}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Delivery Date</Text>
-              <TouchableOpacity onPress={() => setDateModalVisible(false)}>
-                <Ionicons name="close" size={22} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-            <View style={{ paddingVertical: 8 }}>
-              {[
-                'Today (Immediate)',
-                'Tomorrow',
-                'In 2 Days',
-                'Next Week',
-              ].map((dStr, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={[
-                    styles.modalListItem,
-                    quickDate === dStr && styles.modalListItemSelected,
-                  ]}
-                  onPress={() => {
-                    setQuickDate(dStr);
-                    setDateModalVisible(false);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.modalListItemText,
-                      quickDate === dStr && styles.modalListItemTextSelected,
-                    ]}
-                  >
-                    {dStr}
-                  </Text>
-                  {quickDate === dStr && (
-                    <Ionicons name="checkmark-circle" size={18} color="#007D69" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      {renderDetailsModal()}
+      {renderAddressValidationModal()}
     </SafeAreaView>
   );
 };
 
-// ==========================================================
-// STYLES
-// ==========================================================
+// ============================================================================
+// STYLESHEET (MediUnify Standard Theme - Responsive Reference Card Design)
+// ============================================================================
 const styles = StyleSheet.create({
-  // CITY LOCATION PILL
-  cityLocationPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E0F7F4',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    gap: 4,
-  },
-  cityLocationText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#007D69',
-  },
-  liveVerifiedPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  livePulseDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#059669',
-  },
-  liveVerifiedPillText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#047857',
-  },
-  helplineBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDFA',
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#99F6E4',
-    gap: 4,
-  },
-  helplineBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#0D9488',
-  },
-
-  // HERO BANNER CARD
-  heroBannerCard: {
-    backgroundColor: '#0F172A',
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#1E293B',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    elevation: 6,
-  },
-  heroBadgePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(94, 234, 212, 0.12)',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 9,
-    paddingVertical: 3.5,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(94, 234, 212, 0.25)',
-    gap: 5,
-    marginBottom: 12,
-  },
-  heroBadgePillText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#5EEAD4',
-  },
-  heroHeadline: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    lineHeight: 28,
-    letterSpacing: -0.4,
-    marginBottom: 8,
-  },
-  heroHeadlineAccent: {
-    color: '#2DD4BF',
-  },
-  heroSubheadline: {
-    fontSize: 13,
-    color: '#CBD5E1',
-    lineHeight: 19,
-    marginBottom: 16,
-  },
-  heroValuePropsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 18,
-  },
-  heroValueItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  heroValueText: {
-    fontSize: 11,
-    color: '#E2E8F0',
-    fontWeight: '600',
-  },
-  heroActionsRow: {
-    flexDirection: 'column',
-    gap: 10,
-    marginTop: 16,
-    marginBottom: 16,
-  },
-  heroPrimaryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#00B894',
-    paddingVertical: 13,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    shadowColor: '#00B894',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  heroPrimaryBtnText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  heroSecondaryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.18)',
-  },
-  heroSecondaryBtnText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#E2E8F0',
-  },
-
-  // Quick Match Box inside Hero
-  quickMatchCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-  },
-  quickMatchHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  quickMatchTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  quickMatchSub: {
-    fontSize: 11,
-    color: '#94A3B8',
-  },
-  quickMatchChipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 7,
-  },
-  quickChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(13, 148, 136, 0.22)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(45, 212, 191, 0.35)',
-    gap: 5,
-  },
-  quickChipText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#5EEAD4',
-  },
-
-  // Stats Grid (2x2 on Mobile with clean card items)
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 24,
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  statBox: {
-    width: '48%',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#00B894',
-    letterSpacing: -0.5,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
-    marginTop: 3,
-    textAlign: 'center',
-  },
-
-  // QUICK FORM CARD
-  quickFormCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    marginVertical: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  quickFormTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 4,
-  },
-  quickFormSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    marginBottom: 14,
-    lineHeight: 16,
-  },
-  dropdownField: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    marginBottom: 10,
-  },
-  dropdownFieldText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-  placeholderText: {
-    color: '#94A3B8',
-    fontWeight: '400',
-  },
-  quickInputField: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    marginBottom: 10,
-  },
-  quickTextInput: {
-    fontSize: 13,
-    color: '#0F172A',
-    padding: 0,
-  },
-  quickSubmitBtn: {
-    backgroundColor: '#007D69',
-    borderRadius: 12,
-    paddingVertical: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
-    shadowColor: '#007D69',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  quickSubmitBtnText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  quickContactRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  quickContactBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#F8FAFC',
-  },
-  quickContactBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#007D69',
-  },
-
-  // FAMILY MEMBERS PILLS
-  familyPillsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginVertical: 6,
-  },
-  familyMemberPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  familyMemberPillActive: {
-    backgroundColor: '#007D69',
-    borderColor: '#007D69',
-  },
-  familyMemberPillText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
-  },
-  familyMemberPillTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-
-  // MODAL STYLES
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
-  modalContentCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    width: '100%',
-    maxWidth: 420,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    marginBottom: 8,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  modalListItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-  },
-  modalListItemSelected: {
-    backgroundColor: '#E0F7F4',
-  },
-  modalListItemText: {
-    fontSize: 14,
-    color: '#334155',
-  },
-  cityBadgePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#86EFAC',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  cityBadgePillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#00B894',
-  },
-  addressErrorCard: {
-    marginTop: 8,
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-    borderRadius: 10,
-    padding: 10,
-  },
-  addressErrorCardText: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#B91C1C',
-    lineHeight: 17,
-  },
-  addressErrorActionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 8,
-    justifyContent: 'flex-end',
-  },
-  changeLocBtnSmall: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#DC2626',
-    borderRadius: 7,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  changeLocBtnSmallText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  editAddrBtnSmall: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 7,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  editAddrBtnSmallText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-  alertIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#FEE2E2',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  alertModalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
-    textAlign: 'center',
-  },
-  alertModalMessage: {
-    fontSize: 14,
-    color: '#475569',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 20,
-    paddingHorizontal: 4,
-  },
-  alertModalActionsRow: {
-    flexDirection: 'column',
-    gap: 10,
-  },
-  alertChangeLocBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#DC2626',
-    borderRadius: 10,
-    paddingVertical: 12,
-  },
-  alertChangeLocBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  alertEditAddrBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#F1F5F9',
-    borderRadius: 10,
-    paddingVertical: 12,
-  },
-  alertEditAddrBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#334155',
-  },
-  modalListItemTextSelected: {
-    fontWeight: '700',
-    color: '#007D69',
-  },
-
   safeContainer: {
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
   scrollContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   scrollContent: {
-    paddingBottom: Platform.OS === 'ios' ? 95 : 85,
+    paddingBottom: 110,
   },
   desktopContainer: {
-    maxWidth: 1100,
+    maxWidth: 960,
     width: '100%',
     alignSelf: 'center',
-    paddingHorizontal: 20,
   },
 
-  // Header Bar
+  // Header
   topHeaderBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
@@ -3110,2002 +1156,762 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 17,
     backgroundColor: '#F1F5F9',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
   },
-  mainScreenTitle: {
-    fontSize: 17,
+  screenHeaderTitle: {
+    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
-    letterSpacing: -0.3,
   },
-  mainScreenSubtitle: {
-    fontSize: 13,
+  screenHeaderSubtitle: {
+    fontSize: 11,
     color: '#64748B',
-    marginTop: 2,
+  },
+  locationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E6F4F1',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 3,
+  },
+  locationBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#007D69',
   },
 
-  // Segment Navigation
-  segmentNavContainer: {
+  // Nav Tabs
+  topNavTabs: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
-    gap: 6,
+    gap: 8,
   },
-  segmentBtn: {
+  navTabBtn: {
     flex: 1,
-    flexDirection: 'row',
+    paddingVertical: 8,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 9,
-    paddingHorizontal: 6,
-    borderRadius: 10,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
-  segmentBtnActive: {
-    backgroundColor: '#E6F9F4',
-    borderColor: '#00B894',
+  navTabBtnActive: {
+    backgroundColor: '#007D69',
   },
-  segmentBtnText: {
+  navTabText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#64748B',
-    marginLeft: 4,
   },
-  segmentBtnTextActive: {
-    color: '#00B894',
-    fontWeight: '700',
+  navTabTextActive: {
+    color: '#FFFFFF',
   },
 
-  // Marketplace Banner
-  marketplaceBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-    marginHorizontal: 16,
-    marginTop: 14,
-    padding: 12,
-    borderRadius: 10,
-  },
-  marketplaceIconWrap: {
-    marginTop: 2,
-  },
-  marketplaceTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#166534',
-  },
-  marketplaceDesc: {
-    fontSize: 12,
-    color: '#15803D',
-    marginTop: 2,
-    lineHeight: 17,
-  },
-
-  // Search & Filter Row
-  searchFilterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    marginTop: 14,
-    gap: 10,
-  },
-  searchInputContainer: {
-    flex: 1,
+  // Search
+  searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#CBD5E1',
-    borderRadius: 10,
-    height: 44,
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
   searchInput: {
     flex: 1,
     fontSize: 13,
     color: '#0F172A',
-    paddingHorizontal: 10,
   },
-  filterTriggerBtn: {
+
+  // Categories
+  categoriesScroll: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  categoryPill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 10,
-    height: 44,
-    paddingHorizontal: 12,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
-  filterTriggerBtnActive: {
-    backgroundColor: '#00B894',
-    borderColor: '#00B894',
+  categoryPillActive: {
+    backgroundColor: '#007D69',
+    borderColor: '#007D69',
   },
-  filterTriggerText: {
-    fontSize: 13,
+  categoryPillText: {
+    fontSize: 12,
     fontWeight: '600',
-    color: '#0F172A',
-    marginLeft: 6,
+    color: '#334155',
   },
-  filterTriggerTextActive: {
+  categoryPillTextActive: {
     color: '#FFFFFF',
   },
 
-  // Section Headers
+  // Sections
+  sectionWrapper: {
+    marginTop: 8,
+    paddingHorizontal: 16,
+  },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    paddingHorizontal: 16,
-    marginTop: 20,
-    marginBottom: 8,
+    alignItems: 'center',
+    marginBottom: 10,
   },
-  sectionTitle: {
-    fontSize: 17,
+  sectionHeading: {
+    fontSize: 15,
     fontWeight: '800',
     color: '#0F172A',
-    letterSpacing: -0.2,
   },
-  sectionSub: {
+  pageIndicatorText: {
     fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  clearFilterLink: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#00B894',
+    fontWeight: '700',
+    color: '#007D69',
   },
 
-  // Category Cards Grid (All Categories Visible)
-  categoryCardsGrid: {
+  // Responsive Grid
+  gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 16,
     gap: 10,
-    marginTop: 10,
   },
-  categoryCardTile: {
+  gridCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 12,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: '#E2E8F0',
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    position: 'relative',
+    overflow: 'hidden',
+    marginBottom: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
   },
-  categoryCardTileDesktop: {
-    width: '18.8%', // 5 per row with 10px gap
+  cardCol4: {
+    width: '23.6%',
   },
-  categoryCardTileTablet: {
-    width: '31%', // 3 per row
+  cardCol3: {
+    width: '31.6%',
   },
-  categoryCardTileMobile: {
-    width: '48%', // 2 per row
+  cardCol2: {
+    width: '48.5%',
   },
-  categoryCardTileActive: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#00B894',
-  },
-  categoryCardIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#F8FAFC',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  categoryCardIconBoxActive: {
-    backgroundColor: '#DCFCE7',
-  },
-  categoryCardEmoji: {
-    fontSize: 20,
-  },
-  categoryCardTextBox: {
+  cardCol1: {
     width: '100%',
   },
-  categoryCardTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
-    lineHeight: 17,
-  },
-  categoryCardTitleActive: {
-    color: '#15803D',
-  },
-  categoryCardCount: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 3,
-    fontWeight: '500',
-  },
-  categoryCardCountActive: {
-    color: '#00B894',
-    fontWeight: '700',
-  },
-  categoryActiveCheck: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-  },
-  activeCategoryBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#E6F9F4',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginHorizontal: 16,
-    borderRadius: 10,
-    marginTop: 14,
-  },
-  activeCategoryBannerText: {
-    fontSize: 13,
-    color: '#065F46',
-  },
-  clearCategoryPillBtn: {
-    backgroundColor: '#00B894',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-  },
-  clearCategoryPillBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-
-  // Popular Section
-  popularSectionWrap: {
-    marginTop: 10,
-  },
-  popularCardItem: {
-    width: 200,
-    height: 230,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    overflow: 'hidden',
-  },
-  popularCardImg: {
+  gridCardImg: {
     width: '100%',
     height: 110,
+    backgroundColor: '#F1F5F9',
   },
-  popularCardBadge: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF7ED',
-    borderWidth: 1,
-    borderColor: '#FFEDD5',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
+  gridCardBody: {
+    padding: 10,
   },
-  popularCardBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FF7F50',
-    marginLeft: 3,
-  },
-  popularCardCategory: {
-    fontSize: 11,
-    color: '#00B894',
-    fontWeight: '600',
-  },
-  popularCardName: {
+  gridCardTitle: {
     fontSize: 13,
     fontWeight: '700',
     color: '#0F172A',
-    marginTop: 2,
+    marginBottom: 2,
   },
-  popularCardPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 6,
-  },
-  popularPriceVal: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  popularPriceUnit: {
-    fontSize: 10,
+  gridCardDesc: {
+    fontSize: 11,
     color: '#64748B',
+    lineHeight: 15,
+    marginBottom: 6,
   },
-  popularViewBtn: {
-    backgroundColor: '#E6F9F4',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+  gridCardAvail: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#059669',
+    marginBottom: 8,
+  },
+  gridCardBtn: {
+    backgroundColor: '#007D69',
+    paddingVertical: 7,
     borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  popularViewBtnText: {
-    fontSize: 12,
+  gridCardBtnText: {
+    fontSize: 11,
     fontWeight: '700',
-    color: '#00B894',
+    color: '#FFFFFF',
   },
 
-  // Equipment Listing Cards
-  equipmentListMobile: {
-    paddingHorizontal: 16,
-    gap: 14,
-  },
-  equipmentGridWeb: {
-    paddingHorizontal: 16,
+  // Pagination Controls
+  paginationRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 14,
+    marginBottom: 14,
+    gap: 8,
   },
-  equipmentCardMobile: {
+  pageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#007D69',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 2,
+  },
+  pageBtnDisabled: {
+    borderColor: '#CBD5E1',
+    backgroundColor: '#F8FAFC',
+  },
+  pageBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#007D69',
+  },
+  pageBtnTextDisabled: {
+    color: '#94A3B8',
+  },
+  pageNumbersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  pageNumberChip: {
+    width: 30,
+    height: 30,
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pageNumberChipActive: {
+    backgroundColor: '#007D69',
+    borderColor: '#007D69',
+  },
+  pageNumberText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  pageNumberTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // Details View
+  detailsCard: {
+    margin: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    overflow: 'hidden',
   },
-  equipmentCardWeb: {
-    width: '48.5%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    overflow: 'hidden',
-  },
-  cardImageWrap: {
-    position: 'relative',
+  detailsImg: {
     width: '100%',
     height: 180,
-  },
-  cardImg: {
-    width: '100%',
-    height: '100%',
-  },
-  verifiedPartnerBadge: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-  },
-  verifiedPartnerBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#059669',
-    marginLeft: 4,
-  },
-  availabilityTag: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.8)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  availDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#22C55E',
-    marginRight: 5,
-  },
-  availabilityTagText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  cardBody: {
-    padding: 14,
-  },
-  cardCategoryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  cardCategoryText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#00B894',
-  },
-  cardDeliverySpeed: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-    lineHeight: 21,
-  },
-  cardDesc: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 4,
-    lineHeight: 17,
-  },
-  cardPricingBox: {
-    backgroundColor: '#F8FAFC',
     borderRadius: 8,
-    padding: 10,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-  },
-  priceRowItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-  },
-  rentalPriceLabel: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  rentalPriceVal: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  rentalPriceUnit: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#64748B',
-  },
-  depositLabel: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  depositVal: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0284C7',
-  },
-  deliveryMetaRow: {
-    marginTop: 4,
-  },
-  deliveryMetaText: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  partnerSnippetRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  partnerSnippetText: {
-    fontSize: 12,
-    color: '#64748B',
-    marginLeft: 4,
-  },
-  cardActionRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
-  },
-  cardViewDetailsBtn: {
-    flex: 1,
-    height: 38,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardViewDetailsText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  cardRequestBtn: {
-    flex: 1.3,
-    height: 38,
-    borderRadius: 8,
-    backgroundColor: '#00B894',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardRequestBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-
-  // Details Screen
-  detailsHeroImageContainer: {
-    width: '100%',
-    height: 240,
-    position: 'relative',
-  },
-  detailsHeroImg: {
-    width: '100%',
-    height: '100%',
-  },
-  detailsVerifiedBadge: {
-    position: 'absolute',
-    bottom: 12,
-    left: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-  },
-  detailsVerifiedText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginLeft: 5,
-  },
-  detailsHeaderCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  detailsCategoryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  detailsCategoryPill: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#00B894',
-  },
-  detailsAvailabilityBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  detailsAvailabilityText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-  detailsMainTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0F172A',
-    lineHeight: 26,
-  },
-  detailsShortDesc: {
-    fontSize: 13,
-    color: '#475569',
-    marginTop: 8,
-    lineHeight: 19,
-  },
-  detailsPricingCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    marginTop: 10,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  detailsSectionHeading: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 12,
-  },
-  pricingOptionRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  pricingTierBox: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    alignItems: 'center',
-  },
-  pricingTierHighlight: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#86EFAC',
-  },
-  pricingTierTitle: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  pricingTierPrice: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginVertical: 4,
-  },
-  pricingTierSub: {
-    fontSize: 11,
-    color: '#00B894',
-    fontWeight: '700',
-  },
-  pricingMetaGrid: {
-    marginTop: 14,
-    gap: 10,
-  },
-  pricingMetaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  pricingMetaLabel: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  pricingMetaVal: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-
-  // Vendor Information Card
-  vendorInfoCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    marginTop: 10,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  vendorInfoHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  vendorAvatarCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#EFF6FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  vendorName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  vendorSub: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  vendorBadgesRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 10,
-  },
-  vendorBadgeChip: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  vendorBadgeChipText: {
-    fontSize: 11,
-    color: '#334155',
-    fontWeight: '600',
-  },
-  partnerModelNotice: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#F0F9FF',
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-    borderRadius: 8,
-    padding: 10,
-    marginTop: 12,
-  },
-  partnerModelNoticeText: {
-    fontSize: 12,
-    color: '#0369A1',
-    flex: 1,
-    lineHeight: 17,
-  },
-
-  // Details Content Blocks
-  detailsContentBlock: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    marginTop: 10,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  featureBulletRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  featureBulletText: {
-    fontSize: 13,
-    color: '#334155',
-    flex: 1,
-    lineHeight: 18,
-  },
-  specTableRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  specTableKey: {
-    fontSize: 12,
-    color: '#64748B',
-    flex: 1,
-  },
-  specTableVal: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#0F172A',
-    flex: 1.2,
-    textAlign: 'right',
-  },
-  termItemRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 6,
-  },
-  termItemText: {
-    fontSize: 12,
-    color: '#475569',
-    flex: 1,
-    lineHeight: 17,
-  },
-  detailsStickyFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    marginTop: 10,
-  },
-  footerPriceLabel: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  footerPriceVal: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  footerPrimaryBtn: {
-    backgroundColor: '#00B894',
-    paddingHorizontal: 22,
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  footerPrimaryBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-
-  // Request Flow
-  stepProgressRow: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    gap: 6,
-  },
-  stepPillBox: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    minWidth: 0,
-  },
-  stepPillBoxActive: {
-    backgroundColor: '#E6F9F4',
-    borderColor: '#00B894',
-  },
-  stepPillNum: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
     backgroundColor: '#E2E8F0',
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 18,
-    marginRight: 4,
-  },
-  stepPillNumActive: {
-    backgroundColor: '#00B894',
-    color: '#FFFFFF',
-  },
-  stepPillLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
-    flexShrink: 1,
-  },
-  stepPillLabelActive: {
-    color: '#00B894',
-    fontWeight: '700',
-  },
-  cardHeaderSnippet: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  snippetImg: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-  },
-  snippetTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  snippetPartner: {
-    fontSize: 11,
-    color: '#00B894',
-    marginTop: 2,
-  },
-  formCardBox: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    marginTop: 10,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  formCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  formCardTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginLeft: 6,
-  },
-  formCardDesc: {
-    fontSize: 12,
-    color: '#64748B',
-    marginBottom: 12,
-    lineHeight: 17,
-  },
-  durationOptionsGrid: {
-    gap: 8,
-  },
-  durationCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  durationCardActive: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#00B894',
-  },
-  durationRadioCircle: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: '#00B894',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  durationRadioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#00B894',
-  },
-  durationCardLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  durationCardLabelActive: {
-    color: '#0F172A',
-  },
-  durationCardPrice: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#00B894',
-    marginTop: 2,
-  },
-  customDurationSubBox: {
-    marginTop: 12,
-    backgroundColor: '#F8FAFC',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  inputFieldLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
-    marginBottom: 6,
-  },
-  quantityStepperRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 10,
-  },
-  stepperBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-  },
-  stepperBtnDisabled: {
-    opacity: 0.4,
-  },
-  stepperCountBox: {
-    paddingHorizontal: 24,
-    alignItems: 'center',
-  },
-  stepperCountText: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  stepperCountUnit: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  estimatedPricingBox: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    marginTop: 10,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  estimatedPricingTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0F172A',
     marginBottom: 10,
   },
-  pricingSummaryLine: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  pricingSummaryLabel: {
-    fontSize: 13,
-    color: '#475569',
-  },
-  pricingSummaryVal: {
-    fontSize: 13,
-    fontWeight: '600',
+  detailsTitle: {
+    fontSize: 16,
+    fontWeight: '800',
     color: '#0F172A',
+    marginBottom: 4,
   },
-  dividerThin: {
-    height: 1,
-    backgroundColor: '#E2E8F0',
-    marginVertical: 8,
+  detailsDesc: {
+    fontSize: 12,
+    color: '#475569',
+    lineHeight: 18,
+    marginBottom: 10,
   },
-  pricingSummaryLineTotal: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-  },
-  totalPriceLabel: {
-    fontSize: 14,
+  detailsSectionTitle: {
+    fontSize: 13,
     fontWeight: '700',
     color: '#0F172A',
+    marginBottom: 6,
   },
-  totalPriceVal: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#00B894',
+  bulletRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 4,
   },
-  flowPrimaryBtn: {
-    backgroundColor: '#00B894',
-    paddingVertical: 14,
-    borderRadius: 10,
+  bulletText: {
+    fontSize: 12,
+    color: '#334155',
+    flex: 1,
+  },
+  noticeCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 16,
-    marginTop: 14,
+    backgroundColor: '#F0F9FF',
+    borderRadius: 8,
+    padding: 10,
+    marginVertical: 12,
   },
-  flowPrimaryBtnText: {
-    fontSize: 15,
+  noticeCardText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0369A1',
+    flex: 1,
+  },
+  detailsRequestBtn: {
+    backgroundColor: '#007D69',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  detailsRequestBtnText: {
+    fontSize: 13,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  flowSecondaryBtn: {
-    backgroundColor: '#F1F5F9',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    marginLeft: 16,
-    marginTop: 14,
-  },
-  flowSecondaryBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#334155',
-  },
 
-  // Form Inputs
-  inputGroup: {
-    marginBottom: 12,
+  // Form Box
+  formBox: {
+    margin: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  formEquipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 10,
+  },
+  formEquipImg: {
+    width: 44,
+    height: 44,
+    borderRadius: 6,
+  },
+  formEquipName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  formEquipCity: {
+    fontSize: 11,
+    color: '#64748B',
   },
   inputLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#334155',
+    marginTop: 8,
     marginBottom: 4,
   },
-  formInput: {
+  qtyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 6,
+  },
+  qtyButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  qtyValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  pillSelectRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 6,
+  },
+  selectPill: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  selectPillActive: {
+    backgroundColor: '#007D69',
+  },
+  selectPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  selectPillTextActive: {
+    color: '#FFFFFF',
+  },
+  textInput: {
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#CBD5E1',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: 13,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 12,
     color: '#0F172A',
+    marginBottom: 6,
   },
-  formInputError: {
-    borderColor: '#FF7F50',
+  textInputError: {
+    borderColor: '#EF4444',
   },
-  errorText: {
-    fontSize: 11,
-    color: '#FF7F50',
-    marginTop: 3,
-  },
-
-  // Review Card
-  reviewCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    marginTop: 10,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
+  addressSection: {
+    backgroundColor: '#F8FAFC',
+    padding: 10,
+    borderRadius: 8,
+    marginVertical: 8,
+    borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  reviewHeader: {
-    marginBottom: 12,
-  },
-  reviewMainTitle: {
-    fontSize: 18,
+  addressSectionHeading: {
+    fontSize: 13,
     fontWeight: '800',
     color: '#0F172A',
   },
-  reviewSubTitle: {
-    fontSize: 12,
+  addressHelperText: {
+    fontSize: 11,
     color: '#64748B',
+    marginBottom: 6,
+  },
+  errorMsgText: {
+    fontSize: 11,
+    color: '#DC2626',
+    fontWeight: '600',
     marginTop: 2,
   },
-  reviewSectionBlock: {
-    backgroundColor: '#F8FAFC',
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 12,
+  submitBtn: {
+    backgroundColor: '#007D69',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
   },
-  reviewSectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  reviewSectionTitle: {
+  submitBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#FFFFFF',
   },
-  reviewEditLink: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#00B894',
+
+  // Review
+  reviewHeader: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 10,
+  },
+  reviewList: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 8,
   },
   reviewRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
   reviewLabel: {
     fontSize: 12,
     color: '#64748B',
-    flex: 1,
   },
-  reviewVal: {
+  reviewValue: {
     fontSize: 12,
     fontWeight: '600',
     color: '#0F172A',
-    flex: 1.5,
+    maxWidth: '65%',
     textAlign: 'right',
   },
-  reviewRowTotal: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-  },
-  reviewTotalLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  reviewTotalVal: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#00B894',
-  },
-  coordinationNoticeBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#F0FDF4',
-    padding: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-  },
-  coordinationNoticeText: {
-    fontSize: 12,
-    color: '#15803D',
-    flex: 1,
-    lineHeight: 17,
-  },
 
-  // Submitted Card
-  submittedCard: {
+  // Confirmation
+  submittedBox: {
+    margin: 16,
     backgroundColor: '#FFFFFF',
+    borderRadius: 12,
     padding: 20,
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 14,
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    alignItems: 'center',
   },
-  submittedCheckCircle: {
-    marginVertical: 10,
-  },
-  submittedTitle: {
-    fontSize: 20,
+  submittedHeading: {
+    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
   },
-  submittedDesc: {
-    fontSize: 13,
-    color: '#475569',
-    textAlign: 'center',
-    marginVertical: 8,
-    lineHeight: 19,
+  submittedSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+    marginBottom: 12,
   },
-  submittedDetailsBox: {
+  submittedInfoBox: {
     width: '100%',
     backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 10,
+    gap: 4,
+  },
+  submittedId: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#007D69',
+  },
+  submittedItem: {
+    fontSize: 11,
+    color: '#334155',
+  },
+  submittedStatus: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0284C7',
+    marginTop: 2,
+  },
+
+  // History & Tracking
+  historyTabsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  historyTab: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+  },
+  historyTabActive: {
+    backgroundColor: '#E6F4F1',
+    borderWidth: 1,
+    borderColor: '#007D69',
+  },
+  historyTabText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  historyTabTextActive: {
+    color: '#007D69',
+  },
+  rentalItemCard: {
+    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     padding: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginTop: 8,
   },
-  submittedRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
-  },
-  submittedLabel: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  submittedValId: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#1E3A8A',
-  },
-  submittedVal: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-  statusBadgeReceived: {
-    backgroundColor: '#E0F2FE',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  statusBadgeReceivedText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0284C7',
-  },
-
-  // My Rentals Screen
-  tabFiltersRow: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    gap: 8,
-  },
-  tabFilterBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: '#F1F5F9',
-  },
-  tabFilterBtnActive: {
-    backgroundColor: '#00B894',
-  },
-  tabFilterText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  tabFilterTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  rentalActiveCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 14,
-    marginHorizontal: 16,
-    marginTop: 12,
-  },
-  rentalActiveHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  rentalActiveImg: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-  },
-  rentalStatusBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginBottom: 4,
-  },
-  rentalStatusBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#15803D',
-  },
-  rentalActiveTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  rentalActiveId: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  rentalDetailsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    padding: 10,
-    marginTop: 10,
-    gap: 10,
-  },
-  rentalGridItem: {
-    width: '45%',
-  },
-  rentalGridLabel: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  rentalGridVal: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  extensionInfoNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    padding: 8,
-    borderRadius: 6,
-    marginTop: 8,
-  },
-  extensionInfoText: {
-    fontSize: 11,
-    color: '#B45309',
-    fontWeight: '600',
-    flex: 1,
-  },
-  returnTimelineCard: {
-    backgroundColor: '#F0F9FF',
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-  },
-  returnTimelineTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0369A1',
-  },
-  timelineRowItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 6,
-  },
-  timelineNode: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#CBD5E1',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
-  },
-  timelineNodeDone: {
-    backgroundColor: '#0284C7',
-  },
-  timelineStageName: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  timelineStageNameDone: {
-    color: '#0F172A',
-    fontWeight: '700',
-  },
-  timelineStageTime: {
-    fontSize: 10,
-    color: '#94A3B8',
-  },
-  rentalActionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
-  },
-  rentalExtendBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#E6F9F4',
-    borderWidth: 1,
-    borderColor: '#00B894',
-  },
-  rentalExtendBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#00B894',
-  },
-  rentalPickupBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#FFF2ED',
-    borderWidth: 1,
-    borderColor: '#FFD7C7',
-  },
-  rentalPickupBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FF7F50',
-  },
-
-  // Rental Requests Tracking Screen
-  requestTrackingCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 14,
-    marginHorizontal: 16,
-    marginTop: 12,
-  },
-  requestCardHeader: {
+  rentalItemTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    paddingBottom: 8,
   },
-  requestIdText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#1E3A8A',
-  },
-  requestDateText: {
+  rentalItemId: {
     fontSize: 11,
     color: '#64748B',
   },
-  statusBadgeUniversal: {
+  rentalItemName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  rentalItemCity: {
+    fontSize: 11,
+    color: '#007D69',
+    fontWeight: '600',
+  },
+  statusTag: {
     backgroundColor: '#E0F2FE',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
-  statusBadgeOffer: {
-    backgroundColor: '#FEF3C7',
+  statusTagUnavailable: {
+    backgroundColor: '#FEE2E2',
   },
-  statusBadgeDelivery: {
-    backgroundColor: '#DCFCE7',
+  statusTagDelivered: {
+    backgroundColor: '#D1FAE5',
   },
-  statusBadgeUniversalText: {
+  statusTagText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#0284C7',
   },
-  requestSnippetBody: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  requestSnippetImg: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-  },
-  requestSnippetTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  requestSnippetSub: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  requestSnippetTotal: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#00B894',
-    marginTop: 2,
-  },
-  requestCareNoteBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#F0F9FF',
+  stepperContainer: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 6,
     padding: 8,
-    borderRadius: 6,
-    marginTop: 10,
+    marginVertical: 8,
   },
-  requestCareNoteText: {
-    fontSize: 11,
-    color: '#0369A1',
-    flex: 1,
-    lineHeight: 15,
-  },
-  offerActionBanner: {
+  stepperDotsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 10,
+    marginBottom: 4,
   },
-  offerActionTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#92400E',
-  },
-  offerActionSub: {
-    fontSize: 11,
-    color: '#B45309',
-  },
-  offerConfirmBtn: {
-    backgroundColor: '#D97706',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  offerConfirmBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  deliveryScheduledCard: {
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 10,
-  },
-  deliveryScheduledTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#166534',
-  },
-  deliveryScheduledDate: {
-    fontSize: 12,
-    color: '#15803D',
-  },
-  deliveryScheduledWindow: {
-    fontSize: 11,
-    color: '#15803D',
-  },
-  deliveryAgentSnippet: {
-    fontSize: 11,
-    color: '#4B5563',
-    marginTop: 2,
-  },
-  timelineContainer: {
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  timelineHeading: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 8,
-  },
-  timelineStepRow: {
+  stepperSegment: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 6,
+    alignItems: 'center',
+    flex: 1,
   },
-  timelineBullet: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+  stepDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#CBD5E1',
+  },
+  stepDotDone: {
+    backgroundColor: '#00B894',
+  },
+  stepLine: {
+    flex: 1,
+    height: 2,
     backgroundColor: '#E2E8F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
   },
-  timelineBulletDone: {
+  stepLineDone: {
     backgroundColor: '#00B894',
   },
-  timelineBulletInactive: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#94A3B8',
-  },
-  timelineStageTitle: {
+  stepperStatusText: {
     fontSize: 11,
-    color: '#64748B',
-  },
-  timelineStageTitleDone: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  timelineStageNote: {
-    fontSize: 10,
-    color: '#94A3B8',
-  },
-
-  // Support Card
-  supportContactCard: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    padding: 14,
-    marginHorizontal: 16,
-    marginTop: 20,
-  },
-  supportTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  supportDesc: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  supportActionRow: {
-    marginTop: 10,
-  },
-  supportCallBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#1E3A8A',
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  supportCallText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-
-  // Empty State
-  emptyStateBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 20,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  emptyStateTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginTop: 12,
-  },
-  emptyStateDesc: {
-    fontSize: 12,
-    color: '#64748B',
-    textAlign: 'center',
-    marginTop: 4,
-    lineHeight: 17,
-  },
-  emptyStateBtn: {
-    backgroundColor: '#00B894',
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginTop: 14,
-  },
-  emptyStateBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-
-  // Modals Styling
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  filterModalCard: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: '85%',
-  },
-  offerModalCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginHorizontal: 16,
-    alignSelf: 'center',
-    width: '90%',
-    maxWidth: 500,
-    marginBottom: 'auto',
-    marginTop: 'auto',
-  },
-  actionModalCard: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-  },
-  modalHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  modalSubTitle: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  modalBodyDesc: {
-    fontSize: 12,
-    color: '#64748B',
-    marginBottom: 12,
-    lineHeight: 17,
-  },
-  filterSectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginTop: 12,
-    marginBottom: 6,
-  },
-  filterChipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  filterChip: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  filterChipActive: {
-    backgroundColor: '#00B894',
-    borderColor: '#00B894',
-  },
-  filterChipText: {
-    fontSize: 12,
     color: '#334155',
     fontWeight: '600',
   },
-  filterChipTextActive: {
-    color: '#FFFFFF',
+  unavailableBox: {
+    backgroundColor: '#FEF2F2',
+    padding: 8,
+    borderRadius: 6,
+    marginVertical: 8,
   },
-  filterToggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  filterToggleText: {
-    fontSize: 13,
-    color: '#0F172A',
-    marginLeft: 8,
-  },
-  filterActionButtonsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-  },
-  filterClearBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-  },
-  filterClearBtnText: {
-    fontSize: 13,
+  unavailableTitle: {
+    fontSize: 12,
     fontWeight: '700',
-    color: '#475569',
+    color: '#DC2626',
   },
-  filterApplyBtn: {
-    flex: 2,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#00B894',
-    alignItems: 'center',
-  },
-  filterApplyBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-
-  // Offer Modal Items
-  offerPartnerBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDF4',
-    padding: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-    marginBottom: 12,
-  },
-  offerPartnerName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#166534',
-  },
-  offerPartnerSub: {
+  unavailableReason: {
     fontSize: 11,
-    color: '#15803D',
+    color: '#991B1B',
   },
-  offerSummaryGrid: {
-    backgroundColor: '#F8FAFC',
-    padding: 12,
-    borderRadius: 8,
+  rentalActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 4,
+  },
+  btnOutlineSmall: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#007D69',
   },
-  offerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  offerLabel: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  offerVal: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-  offerRowTotal: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-  },
-  offerTotalLabel: {
-    fontSize: 13,
+  btnOutlineSmallText: {
+    fontSize: 11,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#007D69',
   },
-  offerTotalVal: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#00B894',
+  btnReturnSmall: {
+    backgroundColor: '#FF7F50',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
   },
-  offerActionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 16,
-  },
-  offerDeclineBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-  },
-  offerDeclineBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  offerAcceptBtn: {
-    flex: 1.5,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#00B894',
-    alignItems: 'center',
-  },
-  offerAcceptBtnText: {
-    fontSize: 13,
+  btnReturnSmallText: {
+    fontSize: 11,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-
-  // Extend Duration Choices
-  extendDurationChoices: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  extendChoiceBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#F8FAFC',
+  btnOutline: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: '#CBD5E1',
     alignItems: 'center',
   },
-  extendChoiceBtnActive: {
-    backgroundColor: '#E6F9F4',
-    borderColor: '#00B894',
-  },
-  extendChoiceText: {
-    fontSize: 12,
-    fontWeight: '600',
+  btnOutlineText: {
+    fontSize: 11,
+    fontWeight: '700',
     color: '#334155',
   },
-  extendChoiceTextActive: {
-    color: '#00B894',
-    fontWeight: '700',
-  },
-  pickupAddressPreview: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDF4',
-    padding: 8,
+  btnSolid: {
+    backgroundColor: '#007D69',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 6,
-    marginBottom: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  pickupAddressText: {
+  btnSolidText: {
     fontSize: 11,
-    color: '#15803D',
-    flex: 1,
-  },
-  modalActionButtons: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 16,
-  },
-  modalCancelBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-  },
-  modalCancelBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  modalSubmitBtn: {
-    flex: 1.5,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#00B894',
-    alignItems: 'center',
-  },
-  modalSubmitBtnText: {
-    fontSize: 13,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+
+  // Modals
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalBox: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+  },
+  modalTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  modalSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 10,
+  },
+
+  // Empty State
+  emptyBox: {
+    padding: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginTop: 8,
+  },
+  emptySub: {
+    fontSize: 11,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 2,
+    marginBottom: 10,
   },
 });
 

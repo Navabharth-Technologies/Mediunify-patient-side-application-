@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,73 +9,73 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import colors from '../../theme/colors';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const NOTIFICATIONS_DATA = [
   {
     id: 'notif-1',
     category: 'Bookings',
     title: 'Doctor Appointment Confirmed',
-    message: 'Dr. Ananya Rao (Senior Cardiologist) has confirmed your physical consultation for today at 04:30 PM. Location: MediUnify Heart Clinic, Mysuru.',
+    infoLines: ['Today • 4:30 PM', 'MediUnify Heart Clinic'],
     time: '12m ago',
     unread: true,
-    icon: 'calendar',
+    icon: 'calendar-outline',
     iconColor: '#00B894',
     iconBg: '#E6F9F4',
     route: 'MyAppointments',
-    ctaText: 'View Appointment',
+    ctaText: 'View Appointment →',
   },
   {
     id: 'notif-2',
     category: 'Pharmacy',
-    title: 'Jan Aushadhi Medicine Order Dispatched',
-    message: 'Order #MU-8842 with 3 items has been dispatched from Apollo Care Center. Live tracking shows delivery within 30 minutes.',
+    title: 'Medicine Order Dispatched',
+    infoLines: ['Order #MU-8842 • 3 items', 'Delivery within 30 min'],
     time: '45m ago',
     unread: true,
-    icon: 'cart',
+    icon: 'cart-outline',
     iconColor: '#3B82F6',
     iconBg: '#EFF6FF',
     route: 'Pharmacy',
-    ctaText: 'Track Order',
+    ctaText: 'Track Order →',
   },
   {
     id: 'notif-3',
     category: 'Lab Reports',
-    title: 'NABL Certified Diagnostic Report Ready',
-    message: 'Your Full Body Health Checkup (68 Vital Parameters) digital pathology report is ready for download with certified doctor remarks.',
-    time: '2 hours ago',
+    title: 'Lab Report Ready',
+    infoLines: ['Full Body Health Checkup', 'Report is ready to view'],
+    time: '2h ago',
     unread: true,
-    icon: 'document-text',
+    icon: 'document-text-outline',
     iconColor: '#0EA5E9',
     iconBg: '#F0F9FF',
     route: 'LabTests',
-    ctaText: 'View Report',
+    ctaText: 'View Report →',
   },
   {
     id: 'notif-4',
     category: 'Wallet',
     title: '₹150 MediCoins Credited',
-    message: 'You earned 150 MediCoins reward points on your recent teleconsultation booking. They have been credited to your MediUnify Care Wallet.',
+    infoLines: ['Earned on recent teleconsultation', 'Credited to Care Wallet'],
     time: 'Yesterday',
     unread: false,
-    icon: 'wallet',
+    icon: 'wallet-outline',
     iconColor: '#00B894',
     iconBg: '#E6F8F5',
     route: 'Wallet',
-    ctaText: 'View Wallet',
+    ctaText: 'View Wallet →',
   },
   {
     id: 'notif-5',
     category: 'Bookings',
-    title: 'Upcoming Video Follow-Up Reminder',
-    message: 'Follow-up video consultation with Dr. Arvind Menon (General Physician) is scheduled for tomorrow at 11:00 AM.',
-    time: '2 days ago',
+    title: 'Video Consultation Scheduled',
+    infoLines: ['Dr. Arvind Menon • Tomorrow, 11:00 AM', 'General Medicine follow-up'],
+    time: '2d ago',
     unread: false,
-    icon: 'videocam',
+    icon: 'videocam-outline',
     iconColor: '#7BC96F',
     iconBg: '#F2FAF0',
     route: 'MyAppointments',
-    ctaText: 'Consultation Details',
+    ctaText: 'View Details →',
   },
 ];
 
@@ -84,6 +84,32 @@ const TABS = ['All', 'Unread', 'Bookings', 'Pharmacy', 'Lab Reports', 'Wallet'];
 const NotificationsScreen = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('All');
   const [notifications, setNotifications] = useState(NOTIFICATIONS_DATA);
+
+  useEffect(() => {
+    loadDynamicNotifications();
+    const unsub = navigation?.addListener ? navigation.addListener('focus', loadDynamicNotifications) : null;
+    return unsub;
+  }, [navigation]);
+
+  const loadDynamicNotifications = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('@mediunify_user_notifications');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const merged = [...parsed];
+          NOTIFICATIONS_DATA.forEach((def) => {
+            if (!merged.some((m) => m.id === def.id)) {
+              merged.push(def);
+            }
+          });
+          setNotifications(merged);
+        }
+      }
+    } catch (e) {
+      console.log('Error loading dynamic notifications:', e);
+    }
+  };
 
   const unreadCount = notifications.filter((n) => n.unread).length;
 
@@ -106,31 +132,35 @@ const NotificationsScreen = ({ navigation }) => {
     }
   };
 
+  const getTabLabel = (tab) => {
+    if (tab === 'All') return `All (${notifications.length})`;
+    if (tab === 'Unread') return `Unread (${unreadCount})`;
+    const count = notifications.filter((n) => n.category === tab).length;
+    return count > 0 ? `${tab} (${count})` : tab;
+  };
+
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <View style={styles.contentWrap}>
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.headerLeft}>
+          <View style={styles.headerTitleRow}>
             <TouchableOpacity
               style={styles.backBtn}
               onPress={() => navigation?.goBack()}
               activeOpacity={0.7}
+              accessibilityLabel="Back"
             >
               <Ionicons name="arrow-back" size={20} color="#0F172A" />
             </TouchableOpacity>
-            <View>
-              <View style={styles.titleRow}>
-                <Text style={styles.title}>Notifications</Text>
-                {unreadCount > 0 && (
-                  <View style={styles.unreadBadge}>
-                    <Text style={styles.unreadBadgeText}>{unreadCount} New</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.subtitle}>
-                Stay updated with your appointments, medicines, lab tests and health wallet
-              </Text>
+
+            <View style={styles.titleWithBadge}>
+              <Text style={styles.title}>Notifications</Text>
+              {unreadCount > 0 && (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadBadgeText}>{unreadCount} New</Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -140,8 +170,8 @@ const NotificationsScreen = ({ navigation }) => {
               onPress={markAllAsRead}
               activeOpacity={0.7}
             >
-              <Ionicons name="checkmark-done" size={16} color="#00B894" />
-              <Text style={styles.markAllText}>Mark all as read</Text>
+              <Ionicons name="checkmark-outline" size={14} color="#00B894" />
+              <Text style={styles.markAllText}>Mark all read</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -155,13 +185,6 @@ const NotificationsScreen = ({ navigation }) => {
           >
             {TABS.map((tab) => {
               const isActive = activeTab === tab;
-              const count =
-                tab === 'All'
-                  ? notifications.length
-                  : tab === 'Unread'
-                  ? unreadCount
-                  : notifications.filter((n) => n.category === tab).length;
-
               return (
                 <TouchableOpacity
                   key={tab}
@@ -170,25 +193,8 @@ const NotificationsScreen = ({ navigation }) => {
                   activeOpacity={0.75}
                 >
                   <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
-                    {tab}
+                    {getTabLabel(tab)}
                   </Text>
-                  {count > 0 && (
-                    <View
-                      style={[
-                        styles.tabCountPill,
-                        isActive && styles.tabCountPillActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.tabCountText,
-                          isActive && styles.tabCountTextActive,
-                        ]}
-                      >
-                        {count}
-                      </Text>
-                    </View>
-                  )}
                 </TouchableOpacity>
               );
             })}
@@ -204,12 +210,10 @@ const NotificationsScreen = ({ navigation }) => {
           {filteredNotifications.length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIconCircle}>
-                <Ionicons name="notifications-off-outline" size={38} color="#94A3B8" />
+                <Ionicons name="notifications-outline" size={32} color="#94A3B8" />
               </View>
-              <Text style={styles.emptyTitle}>No notifications here</Text>
-              <Text style={styles.emptySubtitle}>
-                You are all caught up! New updates on your healthcare activity will appear here.
-              </Text>
+              <Text style={styles.emptyTitle}>No new notifications</Text>
+              <Text style={styles.emptySubtitle}>You're all caught up.</Text>
             </View>
           ) : (
             filteredNotifications.map((notif) => (
@@ -217,35 +221,46 @@ const NotificationsScreen = ({ navigation }) => {
                 key={notif.id}
                 style={[styles.card, notif.unread && styles.cardUnread]}
                 onPress={() => markAsRead(notif.id, notif.route)}
-                activeOpacity={0.88}
+                activeOpacity={0.85}
               >
-                <View style={[styles.cardIconBox, { backgroundColor: notif.iconBg }]}>
-                  <Ionicons name={notif.icon} size={22} color={notif.iconColor} />
-                </View>
-
-                <View style={styles.cardBody}>
-                  <View style={styles.cardTopRow}>
-                    <View style={styles.badgeRow}>
-                      <View style={styles.categoryPill}>
-                        <Text style={styles.categoryPillText}>{notif.category}</Text>
-                      </View>
-                      {notif.unread && <View style={styles.cardUnreadDot} />}
+                {/* Header Row: Category, Icon, Unread Dot & Time */}
+                <View style={styles.cardHeaderRow}>
+                  <View style={styles.categoryWrap}>
+                    <View style={[styles.iconBox, { backgroundColor: notif.iconBg }]}>
+                      <Ionicons name={notif.icon || 'notifications-outline'} size={15} color={notif.iconColor} />
                     </View>
-                    <Text style={styles.cardTime}>{notif.time}</Text>
+                    <Text style={styles.categoryText}>{notif.category}</Text>
+                    {notif.unread && <View style={styles.unreadDot} />}
                   </View>
-
-                  <Text style={styles.cardTitle}>{notif.title}</Text>
-                  <Text style={styles.cardMessage}>{notif.message}</Text>
-
-                  {notif.ctaText && (
-                    <View style={styles.cardFooter}>
-                      <View style={styles.ctaBtn}>
-                        <Text style={styles.ctaText}>{notif.ctaText}</Text>
-                        <Ionicons name="arrow-forward" size={13} color="#00B894" />
-                      </View>
-                    </View>
-                  )}
+                  <Text style={styles.timeText}>{notif.time}</Text>
                 </View>
+
+                {/* Title */}
+                <Text style={[styles.cardTitle, notif.unread && styles.cardTitleUnread]}>
+                  {notif.title}
+                </Text>
+
+                {/* Supporting Info */}
+                <View style={styles.infoBlock}>
+                  {Array.isArray(notif.infoLines) && notif.infoLines.length > 0 ? (
+                    notif.infoLines.map((line, idx) => (
+                      <Text key={idx} style={styles.infoLine} numberOfLines={1}>
+                        {line}
+                      </Text>
+                    ))
+                  ) : notif.message ? (
+                    <Text style={styles.infoLine} numberOfLines={2}>
+                      {notif.message}
+                    </Text>
+                  ) : null}
+                </View>
+
+                {/* Action CTA */}
+                {notif.ctaText && (
+                  <View style={styles.actionRow}>
+                    <Text style={styles.actionText}>{notif.ctaText}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             ))
           )}
@@ -263,100 +278,93 @@ const styles = StyleSheet.create({
   contentWrap: {
     flex: 1,
     width: '100%',
-    maxWidth: 900,
+    maxWidth: 800,
     alignSelf: 'center',
   },
+
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 12,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#F1F5F9',
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  headerLeft: {
+  headerTitleRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 14,
-    flex: 1,
+    alignItems: 'center',
+    gap: 12,
   },
   backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  titleRow: {
+  titleWithBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   title: {
-    fontSize: 22,
-    fontWeight: '900',
+    fontSize: 20,
+    fontWeight: '800',
     color: '#0F172A',
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
   unreadBadge: {
     backgroundColor: '#00B894',
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     paddingVertical: 2,
-    borderRadius: 12,
+    borderRadius: 10,
   },
   unreadBadgeText: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#FFFFFF',
-  },
-  subtitle: {
-    fontSize: 12.5,
-    color: '#64748B',
-    marginTop: 3,
   },
   markAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 6,
     backgroundColor: '#F0FDF4',
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: '#DCFCE7',
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   markAllText: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '700',
     color: '#00B894',
   },
 
-  // Tabs
+  // Filter Tabs
   tabsRow: {
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    borderBottomColor: '#F1F5F9',
+    paddingVertical: 8,
   },
   tabsScrollContent: {
-    flexDirection: 'row',
+    paddingHorizontal: 16,
     gap: 8,
   },
   tabBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
     paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    borderRadius: 16,
     backgroundColor: '#F1F5F9',
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
@@ -364,156 +372,136 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F172A',
   },
   tabText: {
-    fontSize: 12.5,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '600',
     color: '#64748B',
   },
   tabTextActive: {
     color: '#FFFFFF',
-  },
-  tabCountPill: {
-    backgroundColor: '#E2E8F0',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 10,
-  },
-  tabCountPillActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-  },
-  tabCountText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#475569',
-  },
-  tabCountTextActive: {
-    color: '#FFFFFF',
+    fontWeight: '700',
   },
 
-  // Scroll List
+  // List
   scrollList: {
     flex: 1,
   },
   scrollContent: {
-    padding: 18,
-    gap: 12,
+    padding: 14,
+    paddingBottom: 110,
+    gap: 10,
   },
+
+  // Notification Card
   card: {
-    flexDirection: 'row',
-    padding: 16,
-    borderRadius: 14,
     backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    gap: 14,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer', transition: 'all 0.18s ease' } : {}),
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', transition: 'all 0.15s ease' } : {}),
   },
   cardUnread: {
-    backgroundColor: '#F8FDFA',
+    backgroundColor: '#FFFFFF',
     borderColor: '#A7F3D0',
     shadowColor: '#00B894',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  cardIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  cardBody: {
-    flex: 1,
-  },
-  cardTopRow: {
+
+  cardHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 6,
   },
-  badgeRow: {
+  categoryWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  categoryPill: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+  iconBox: {
+    width: 24,
+    height: 24,
     borderRadius: 6,
-    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  categoryPillText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#475569',
+  categoryText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#64748B',
   },
-  cardUnreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  unreadDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: '#00B894',
   },
-  cardTime: {
-    fontSize: 11.5,
+  timeText: {
+    fontSize: 11,
     color: '#94A3B8',
     fontWeight: '500',
   },
+
   cardTitle: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E293B',
     marginBottom: 4,
   },
-  cardMessage: {
-    fontSize: 13,
+  cardTitleUnread: {
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+
+  infoBlock: {
+    marginBottom: 6,
+    gap: 2,
+  },
+  infoLine: {
+    fontSize: 12.5,
     color: '#475569',
-    lineHeight: 18,
+    lineHeight: 17,
   },
-  cardFooter: {
-    marginTop: 10,
-    flexDirection: 'row',
-  },
-  ctaBtn: {
+
+  actionRow: {
+    marginTop: 2,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
   },
-  ctaText: {
-    fontSize: 12.5,
+  actionText: {
+    fontSize: 12,
     fontWeight: '700',
     color: '#00B894',
   },
 
-  // Empty state
+  // Empty State
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 60,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
   },
   emptyIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '700',
     color: '#0F172A',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   emptySubtitle: {
     fontSize: 13,
     color: '#64748B',
-    textAlign: 'center',
-    maxWidth: 380,
-    lineHeight: 19,
   },
 });
 

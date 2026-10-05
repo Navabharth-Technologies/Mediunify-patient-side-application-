@@ -339,6 +339,7 @@ const LoginScreen = ({ navigation }) => {
 
       // 4. Save login status
       await AsyncStorage.setItem('isLoggedIn', 'true');
+      await AsyncStorage.setItem('@unnathi_is_guest', 'false');
 
       // Background push to Central Sync Server
       try {
@@ -353,6 +354,22 @@ const LoginScreen = ({ navigation }) => {
       setErrorMessage('Something went wrong while logging in. Please check your connection and try again.');
       showAlert('Login Error', 'Something went wrong while logging in.');
     }
+  };
+
+  const handleContinueAsGuest = async () => {
+    try {
+      await AsyncStorage.setItem('isLoggedIn', 'false');
+      await AsyncStorage.setItem('@unnathi_is_guest', 'true');
+      await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('userName');
+      await AsyncStorage.removeItem('userEmail');
+      await AsyncStorage.removeItem('userPhone');
+      await AsyncStorage.removeItem('@unnathi_primary_user');
+      await AsyncStorage.removeItem('@mediunify_membership');
+      await AsyncStorage.removeItem('@unnathi_active_patient');
+    } catch (e) {}
+    await safeNavigateToMain(navigation);
   };
 
   return (
@@ -382,11 +399,11 @@ const LoginScreen = ({ navigation }) => {
 
         <TouchableOpacity
           style={styles.guestLink}
-          onPress={() => safeNavigateToMain(navigation)}
+          onPress={handleContinueAsGuest}
           activeOpacity={0.7}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Text style={styles.guestLinkText}>Skip</Text>
+          <Text style={styles.guestLinkText}>Continue as Guest</Text>
           <Ionicons name="chevron-forward" size={14} color="#007D69" />
         </TouchableOpacity>
       </View>

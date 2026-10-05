@@ -22,6 +22,7 @@ import { pushAppointment } from '../../services/dataSyncService';
 import { getAvailableDates, getSlotsForDate } from '../../utils/appointmentSlotHelper';
 import { validateAndBookSlot, subscribeToSlotChanges } from '../../services/slotBookingService';
 import { useAuthGuard } from '../../context/AuthGuardContext';
+import { isGuestUser, promptLoginRequired } from '../../utils/authHelper';
 
 const DoctorBookingModal = ({
   visible,
@@ -118,6 +119,12 @@ const DoctorBookingModal = ({
 
   const loadUserData = async () => {
     try {
+      const guest = await isGuestUser();
+      if (guest) {
+        setPatientName('');
+        setPatientPhone('');
+        return;
+      }
       const storedName = await AsyncStorage.getItem('userName');
       if (storedName && storedName.trim()) {
         const clean = storedName.trim().replace(/\s*\(Self\)$/i, '');
@@ -223,8 +230,14 @@ const DoctorBookingModal = ({
 
   const feeAmount = doctor?.fee || (isVideo ? 299 : 400);
 
-  const handleConfirm = () => {
-    requireLogin(() => _doConfirm(), 'You need to login first to book an appointment with the doctor.');
+  const handleConfirm = async () => {
+    const isGuest = await isGuestUser();
+    if (isGuest) {
+      if (onClose) onClose();
+      promptLoginRequired(navigation, { service: isVideo ? 'videocall' : 'doctor' });
+      return;
+    }
+    requireLogin(() => _doConfirm(), isVideo ? 'Please login to continue with video consultation.' : 'Please login to continue with this booking.');
   };
 
   const _doConfirm = async () => {

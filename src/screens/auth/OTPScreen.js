@@ -267,6 +267,7 @@ const OTPScreen = ({ navigation, route }) => {
 
       // 6. Set logged-in state & auth token
       await AsyncStorage.setItem('isLoggedIn', 'true');
+      await AsyncStorage.setItem('@unnathi_is_guest', 'false');
       await AsyncStorage.setItem('userToken', `auth_token_${Date.now()}`);
 
       setVerifying(false);

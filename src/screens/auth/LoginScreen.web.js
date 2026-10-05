@@ -675,8 +675,19 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
     const inputPassword = password.trim();
     setErrorMessage('');
 
-    if (!inputVal || !inputPassword) {
-      setErrorMessage('Please enter your email/phone and password.');
+    if (!inputVal) {
+      setErrorMessage('Enter a valid email or 10-digit mobile number.');
+      return;
+    }
+    const cleanPhone = inputVal.replace(/[^0-9]/g, '');
+    const isEmail = inputVal.includes('@') && inputVal.includes('.');
+    const isPhone = cleanPhone.length === 10;
+    if (!isEmail && !isPhone) {
+      setErrorMessage('Enter a valid email or 10-digit mobile number.');
+      return;
+    }
+    if (!inputPassword) {
+      setErrorMessage('Password is required.');
       return;
     }
 
@@ -688,6 +699,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
         const syncRes = await syncLogin(inputVal, inputPassword);
         if (syncRes.success && syncRes.user) {
           await AsyncStorage.setItem('isLoggedIn', 'true');
+          await AsyncStorage.setItem('@unnathi_is_guest', 'false');
           setShowAuthModal(false);
           safeNavigateToMain(navigation);
           return;
@@ -740,6 +752,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
       await AsyncStorage.setItem('userName', userData.name);
       await AsyncStorage.setItem('userEmail', userData.email);
       await AsyncStorage.setItem('isLoggedIn', 'true');
+      await AsyncStorage.setItem('@unnathi_is_guest', 'false');
 
       try { syncRegister(userData, inputPassword); } catch (e) { }
 
@@ -859,6 +872,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
         await AsyncStorage.setItem('@unnathi_user_referral_code', myReferralCode);
       }
       await AsyncStorage.setItem('isLoggedIn', 'true');
+      await AsyncStorage.setItem('@unnathi_is_guest', 'false');
 
       // If user entered a friend's referral code, credit ₹250 welcome bonus into wallet!
       if (enteredReferral) {
@@ -1684,7 +1698,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                 <Text style={styles.inputLabel}>Email or Mobile Number</Text>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="name@gmail.com or 9xxxxxxx07"
+                  placeholder="Enter email or 10-digit mobile number"
                   placeholderTextColor="#94A3B8"
                   value={email}
                   onChangeText={(val) => {
@@ -1741,7 +1755,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   disabled={isSubmitting}
                 >
                   <Text style={styles.submitBtnText}>
-                    {isSubmitting ? 'Logging In...' : 'Login'}
+                    {isSubmitting ? 'Signing in...' : 'Login'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -2055,15 +2069,19 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
               </View>
             )}
 
-            {/* Quick Guest Skip */}
+            {/* Quick Guest Continue */}
             <TouchableOpacity
-              onPress={() => {
+              onPress={async () => {
+                try {
+                  await AsyncStorage.setItem('isLoggedIn', 'false');
+                  await AsyncStorage.setItem('@unnathi_is_guest', 'true');
+                } catch (e) {}
                 setShowAuthModal(false);
                 safeNavigateToMain(navigation);
               }}
               style={styles.skipGuestModalBtn}
             >
-              <Text style={styles.skipGuestModalText}>Skip login & explore as Guest →</Text>
+              <Text style={styles.skipGuestModalText}>Continue as Guest →</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -3410,6 +3428,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     width: '100%',
     maxWidth: 440,
+    maxHeight: '92%',
     padding: 28,
     borderWidth: 1,
     borderColor: '#DCE7EC',
@@ -3418,6 +3437,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 32,
     elevation: 8,
+    ...(Platform.OS === 'web' ? { overflowY: 'auto' } : {}),
   },
   modalHeader: {
     flexDirection: 'row',

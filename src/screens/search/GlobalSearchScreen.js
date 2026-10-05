@@ -1138,6 +1138,7 @@ const styles = StyleSheet.create({
   mobileScrollContent: {
     paddingHorizontal: 16,
     paddingTop: 12,
+    paddingBottom: 110,
   },
   searchLoadingRow: {
     flexDirection: 'row',

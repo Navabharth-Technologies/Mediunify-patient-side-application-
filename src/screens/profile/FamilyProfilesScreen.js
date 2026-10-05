@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import colors from '../../theme/colors';
+import { isGuestUser, promptLoginRequired } from '../../utils/authHelper';
 import {
   syncSaveFamilyMembers,
   syncFetchFamilyMembers,
@@ -48,6 +49,7 @@ const FamilyProfilesScreen = ({ navigation }) => {
   }, []);
 
   const [members, setMembers] = useState([]);
+  const [isGuestMode, setIsGuestMode] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeMemberId, setActiveMemberId] = useState('self');
   const [currentUserKey, setCurrentUserKey] = useState('default');
@@ -71,6 +73,13 @@ const FamilyProfilesScreen = ({ navigation }) => {
 
   const loadMembers = async () => {
     try {
+      const isGuest = await isGuestUser();
+      if (isGuest) {
+        setIsGuestMode(true);
+        setMembers([]);
+        return;
+      }
+      setIsGuestMode(false);
       // 1. Get Primary Account Holder Info
       const storedPrimary = await AsyncStorage.getItem('@unnathi_primary_user');
       const storedUser = await AsyncStorage.getItem('user');
@@ -360,7 +369,14 @@ const FamilyProfilesScreen = ({ navigation }) => {
 
         <TouchableOpacity
           style={styles.addHeaderBtn}
-          onPress={() => setShowAddModal(true)}
+          onPress={async () => {
+            const isGuest = await isGuestUser();
+            if (isGuest) {
+              promptLoginRequired(navigation, { service: 'family' });
+              return;
+            }
+            setShowAddModal(true);
+          }}
           activeOpacity={0.85}
         >
           <Ionicons name="add" size={16} color="#FFFFFF" />
@@ -393,7 +409,29 @@ const FamilyProfilesScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {members.map((member) => {
+        {isGuestMode ? (
+          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 16, padding: 32, alignItems: 'center', marginTop: 14, borderWidth: 1, borderColor: '#E2E8F0' }}>
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#E6F8F4', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+              <Ionicons name="people-outline" size={32} color="#00B894" />
+            </View>
+            <Text style={{ fontSize: 17, fontWeight: '800', color: '#1E3A8A', marginBottom: 6 }}>Login Required</Text>
+            <Text style={{ fontSize: 13, color: '#64748B', textAlign: 'center', marginBottom: 20, lineHeight: 19 }}>
+              Please login to manage family members.
+            </Text>
+            <TouchableOpacity
+              style={{ backgroundColor: '#00B894', paddingHorizontal: 32, paddingVertical: 12, borderRadius: 10 }}
+              onPress={() => {
+                if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('open-auth-modal'));
+                }
+                navigation?.navigate('Login', { openAuthModal: true });
+              }}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 14 }}>Login</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          members.map((member) => {
           const isActive = activeMemberId === member.id;
           return (
             <TouchableOpacity
@@ -474,17 +512,26 @@ const FamilyProfilesScreen = ({ navigation }) => {
               </View>
             </TouchableOpacity>
           );
-        })}
+        }))}
 
         {/* ADD MEMBER BUTTON */}
-        <TouchableOpacity
-          style={styles.addBtnLarge}
-          activeOpacity={0.88}
-          onPress={() => setShowAddModal(true)}
-        >
-          <Ionicons name="add-circle" size={19} color="#FFFFFF" />
-          <Text style={styles.addBtnLargeText}>Add Family Member</Text>
-        </TouchableOpacity>
+        {!isGuestMode && (
+          <TouchableOpacity
+            style={styles.addBtnLarge}
+            activeOpacity={0.88}
+            onPress={async () => {
+              const isGuest = await isGuestUser();
+              if (isGuest) {
+                promptLoginRequired(navigation, { service: 'family' });
+                return;
+              }
+              setShowAddModal(true);
+            }}
+          >
+            <Ionicons name="add-circle" size={19} color="#FFFFFF" />
+            <Text style={styles.addBtnLargeText}>Add Family Member</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={{ height: 30 }} />
       </ScrollView>

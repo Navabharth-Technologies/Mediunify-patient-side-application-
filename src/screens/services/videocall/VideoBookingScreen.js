@@ -21,10 +21,10 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { pushAppointment } from '../../../services/dataSyncService';
 import { saveTransaction } from '../../../services/transactionService';
-import WebFooter from '../../../components/web/WebFooter';
 import { getAvailableDates, getSlotsForDate } from '../../../utils/appointmentSlotHelper';
 import { validateAndBookSlot, subscribeToSlotChanges } from '../../../services/slotBookingService';
 import { useAuthGuard } from '../../../context/AuthGuardContext';
+import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
 
 const VideoBookingScreen = ({ route, navigation }) => {
   const { width } = useWindowDimensions();
@@ -102,6 +102,13 @@ const VideoBookingScreen = ({ route, navigation }) => {
 
   const loadUserData = async () => {
     try {
+      const guest = await isGuestUser();
+      if (guest) {
+        setPatientName('');
+        setPatientPhone('');
+        setWalletBalance(0);
+        return;
+      }
       const storedName = await AsyncStorage.getItem('userName');
       if (storedName && storedName.trim()) {
         const clean = storedName.trim().replace(/\s*\(Self\)$/i, '');
@@ -239,8 +246,13 @@ const VideoBookingScreen = ({ route, navigation }) => {
 
   const fee = doctor.fee || 450;
 
-  const handleConfirmAndPay = () => {
-    requireLogin(() => _doConfirmAndPay(), 'You need to login first to book an appointment with the doctor.');
+  const handleConfirmAndPay = async () => {
+    const isGuest = await isGuestUser();
+    if (isGuest) {
+      promptLoginRequired(navigation, { service: 'videocall' });
+      return;
+    }
+    requireLogin(() => _doConfirmAndPay(), 'Please login to continue with video consultation.');
   };
 
   const _doConfirmAndPay = async () => {

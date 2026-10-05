@@ -1,14 +1,12 @@
 import React from 'react';
-
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
 } from 'react-native';
-
 import { Ionicons } from '@expo/vector-icons';
+import OptimizedImage from './common/OptimizedImage';
 
 const DoctorCard = ({
   doctor,
@@ -20,20 +18,20 @@ const DoctorCard = ({
       activeOpacity={0.8}
       onPress={onPress}
     >
-
       <View style={styles.topRow}>
-
         {doctor.image ? (
-          <Image
+          <OptimizedImage
             source={{ uri: doctor.image }}
             style={styles.doctorImage}
+            fallbackIcon="person-outline"
+            fallbackColor="#007D69"
           />
         ) : (
           <View style={styles.imagePlaceholder}>
             <Ionicons
               name="person-outline"
               size={32}
-              color="#2E7D32"
+              color="#007D69"
             />
           </View>
         )}

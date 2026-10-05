@@ -12,19 +12,24 @@ import {
   useWindowDimensions,
   Modal,
   Linking,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showAlert } from '../../../utils/alert';
+import { saveTransaction } from '../../../services/transactionService';
 import {
   availableNursingServices,
   howItWorksSteps,
   careTimelineStages,
+  NURSING_WORKFLOW_STAGES,
+  getNursingStageIndex,
   assignedNursesData,
   initialNursingRequests,
 } from '../../../data/homeNursingData';
 import { useAuthGuard } from '../../../context/AuthGuardContext';
+import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
 
 const ASYNC_KEY_NURSING_REQUESTS = '@unnathi_home_nursing_requests';
 const NURSING_CARE_NEEDS = [
@@ -206,10 +211,52 @@ const NurseBookingScreen = ({ navigation, route }) => {
   const [selectedCareNeed, setSelectedCareNeed] = useState('');
   const [quickName, setQuickName] = useState('');
   const [quickMobile, setQuickMobile] = useState('');
+  const [quickAddress, setQuickAddress] = useState('No. 44, 2nd Cross, Saraswathipuram, Mysuru, Karnataka - 570009');
+  const [quickAddressError, setQuickAddressError] = useState(null);
   const [quickBookingLoading, setQuickBookingLoading] = useState(false);
   const [careNeedModalVisible, setCareNeedModalVisible] = useState(false);
   const [quickDate, setQuickDate] = useState('Today (Immediate)');
   const [dateModalVisible, setDateModalVisible] = useState(false);
+
+  // Active Role / View Mode: 'PATIENT' | 'ADMIN'
+  // Role Switcher & Filter Tabs
+  const [activeRoleMode, setActiveRoleMode] = useState('PATIENT');
+  const [adminFilterTab, setAdminFilterTab] = useState('All');
+  const [requestsHistoryTab, setRequestsHistoryTab] = useState('CURRENT'); // 'CURRENT' | 'PAST'
+  const [requestsCurrentPage, setRequestsCurrentPage] = useState(1);
+
+  // Admin Enquiry Modal State
+  const [enquiryModalVisible, setEnquiryModalVisible] = useState(false);
+  const [selectedEnquiryReq, setSelectedEnquiryReq] = useState(null);
+  const [enquiryForm, setEnquiryForm] = useState({
+    service: '',
+    visits: '1 Visit',
+    duration: '45 mins',
+    specialReqs: '',
+    agreedDateTime: '',
+    charges: '349',
+    adminInternalNotes: '',
+    userNotes: '',
+  });
+
+  // Admin Do Not Confirm / Reject Modal State
+  const [rejectModalVisible, setRejectModalVisible] = useState(false);
+  const [selectedRejectReq, setSelectedRejectReq] = useState(null);
+  const [rejectReason, setRejectReason] = useState('Nurse unavailable on selected date');
+  const [rejectReasonPreset, setRejectReasonPreset] = useState('Nurse unavailable on selected date');
+
+  // User Payment Modal State
+  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+  const [selectedPaymentReq, setSelectedPaymentReq] = useState(null);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('upi');
+
+  // Confirmation Modal State
+  const [confirmationModalVisible, setConfirmationModalVisible] = useState(false);
+  const [submittedBookingDetail, setSubmittedBookingDetail] = useState(null);
+
+  // In-App Notification Toast State
+  const [inAppToast, setInAppToast] = useState({ visible: false, title: '', message: '' });
 
   // Family Members & Active Patient selection
   const [familyMembers, setFamilyMembers] = useState([]);
@@ -267,13 +314,142 @@ const NurseBookingScreen = ({ navigation, route }) => {
   };
 
   
+  // Requests Data List
+  const [requestsList, setRequestsList] = useState(initialNursingRequests);
+  const [requestsTabFilter, setRequestsTabFilter] = useState('All');
+  const [selectedRequestDetail, setSelectedRequestDetail] = useState(null);
+  const [newlyCreatedRequest, setNewlyCreatedRequest] = useState(null);
+
+  // Dynamic Pricing Details that vary as careDays or services change
+  const pricingDetails = useMemo(() => {
+    let dailyRate = 0;
+    if (selectedServices && selectedServices.length > 0) {
+      selectedServices.forEach((srvName) => {
+        dailyRate += getServicePriceByName(srvName);
+      });
+    } else {
+      dailyRate = 299;
+    }
+
+    if (shiftDuration === '4-Hour Care Shift') {
+      dailyRate = Math.max(dailyRate, 699);
+    } else if (shiftDuration === '12-Hour Day Shift') {
+      dailyRate = Math.max(dailyRate, 1299);
+    } else if (shiftDuration === '24-Hour Live-in Care') {
+      dailyRate = Math.max(dailyRate, 2499);
+    }
+
+    const days = Math.max(1, parseInt(careDays, 10) || 1);
+    const grossTotal = dailyRate * days;
+    let discountPercent = 0;
+    if (days >= 30) {
+      discountPercent = 15;
+    } else if (days >= 15) {
+      discountPercent = 10;
+    } else if (days >= 7) {
+      discountPercent = 5;
+    }
+
+    const discountAmount = Math.round((grossTotal * discountPercent) / 100);
+    const finalTotal = grossTotal - discountAmount;
+
+    return {
+      dailyRate,
+      days,
+      grossTotal,
+      discountPercent,
+      discountAmount,
+      finalTotal,
+    };
+  }, [selectedServices, shiftDuration, careDays]);
+
+  // Load stored requests from AsyncStorage on mount
+  useEffect(() => {
+    const loadStoredRequests = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(ASYNC_KEY_NURSING_REQUESTS);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const merged = [...parsed];
+            initialNursingRequests.forEach((initialItem) => {
+              if (!merged.some((m) => m.id === initialItem.id)) {
+                merged.push(initialItem);
+              }
+            });
+            setRequestsList(merged);
+          }
+        }
+      } catch (err) {
+        console.log('Error reading stored nursing requests:', err);
+      }
+    };
+    loadStoredRequests();
+  }, []);
+
+  const saveRequests = async (updated, singleNewReq = null) => {
+    try {
+      await AsyncStorage.setItem(ASYNC_KEY_NURSING_REQUESTS, JSON.stringify(updated));
+
+      if (singleNewReq) {
+        try {
+          const rawNurseBookings = await AsyncStorage.getItem('@unnathi_nurse_bookings');
+          const nurseBookings = rawNurseBookings ? JSON.parse(rawNurseBookings) : [];
+          const updatedNurseBookings = [
+            singleNewReq,
+            ...(Array.isArray(nurseBookings) ? nurseBookings.filter((b) => b.id !== singleNewReq.id) : [])
+          ];
+          await AsyncStorage.setItem('@unnathi_nurse_bookings', JSON.stringify(updatedNurseBookings));
+        } catch (e1) {
+          console.log('Error syncing to @unnathi_nurse_bookings:', e1);
+        }
+
+        try {
+          const rawAppts = await AsyncStorage.getItem('@unnathi_appointments');
+          const appts = rawAppts ? JSON.parse(rawAppts) : [];
+          const updatedAppts = [
+            singleNewReq,
+            ...(Array.isArray(appts) ? appts.filter((a) => a.id !== singleNewReq.id) : [])
+          ];
+          await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updatedAppts));
+        } catch (e2) {
+          console.log('Error syncing to @unnathi_appointments:', e2);
+        }
+      }
+    } catch (e) {
+      console.log('Error writing nursing requests:', e);
+    }
+  };
+
   useEffect(() => {
     loadUserAndLocationContext();
-    const unsub = navigation.addListener('focus', () => {
-      loadUserAndLocationContext();
-    });
-    return unsub;
+    if (navigation && typeof navigation.addListener === 'function') {
+      const unsub = navigation.addListener('focus', () => {
+        loadUserAndLocationContext();
+      });
+      return unsub;
+    }
   }, [navigation]);
+
+  // Handle route params
+  useEffect(() => {
+    if (route?.params?.view) {
+      setCurrentView(route.params.view);
+    }
+    if (route?.params?.service) {
+      setSelectedServices([route.params.service]);
+      setShowAllServices(false);
+      setFlowStep(1);
+      setCurrentView('REQUEST_FLOW');
+    }
+    if (route?.params?.reqId && requestsList && requestsList.length > 0) {
+      const found = requestsList.find((r) => r.id === route.params.reqId);
+      if (found) {
+        setSelectedRequestDetail(found);
+        setCurrentView('REQUEST_DETAILS');
+      }
+    }
+  }, [route?.params]);
 
   const loadUserAndLocationContext = async () => {
     try {
@@ -326,10 +502,43 @@ const NurseBookingScreen = ({ navigation, route }) => {
       }
 
       if (activeCity) {
-        setAddress((prev) => prev ? prev.replace(/Mysuru|Bengaluru|Hassan/gi, activeCity) : `No. 44, 2nd Cross, Saraswathipuram, ${activeCity}`);
+        setAddress((prev) => prev ? prev.replace(/Mysuru|Bengaluru|Hassan/gi, activeCity) : `No. 44, 2nd Cross, Saraswathipuram, ${activeCity}, Karnataka - 570009`);
+        setQuickAddress((prev) => prev ? prev.replace(/Mysuru|Bengaluru|Hassan/gi, activeCity) : `No. 44, 2nd Cross, Saraswathipuram, ${activeCity}, Karnataka - 570009`);
       }
     } catch (e) {
       console.log('Error loading context in NurseBookingScreen:', e);
+    }
+  };
+
+  const sendInAppNotification = async (title, message, category = 'Bookings', reqId = null) => {
+    try {
+      const notifItem = {
+        id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        category: 'Bookings',
+        title,
+        message,
+        time: 'Just now',
+        unread: true,
+        icon: 'heart',
+        iconColor: '#00B894',
+        iconBg: '#E6F8F5',
+        route: 'NurseBooking',
+        ctaText: 'View Request',
+        reqId,
+        createdAt: new Date().toISOString(),
+      };
+
+      const stored = await AsyncStorage.getItem('@mediunify_user_notifications');
+      const existing = stored ? JSON.parse(stored) : [];
+      const updated = [notifItem, ...(Array.isArray(existing) ? existing : [])];
+      await AsyncStorage.setItem('@mediunify_user_notifications', JSON.stringify(updated));
+
+      setInAppToast({ visible: true, title, message });
+      setTimeout(() => {
+        setInAppToast((prev) => ({ ...prev, visible: false }));
+      }, 5000);
+    } catch (e) {
+      console.log('Error saving in-app notification:', e);
     }
   };
 
@@ -349,8 +558,13 @@ const NurseBookingScreen = ({ navigation, route }) => {
     if (member.phone) setContactNumber(member.phone);
   };
 
-  const handleQuickBookNurse = () => {
-    requireLogin(() => _doQuickBookNurse());
+  const handleQuickBookNurse = async () => {
+    const isGuest = await isGuestUser();
+    if (isGuest) {
+      promptLoginRequired(navigation, { service: 'nursing' });
+      return;
+    }
+    requireLogin(() => _doQuickBookNurse(), 'Please login to submit your care request.');
   };
 
   const _doQuickBookNurse = async () => {
@@ -363,16 +577,35 @@ const NurseBookingScreen = ({ navigation, route }) => {
       return;
     }
 
+    if (!quickAddress.trim() || quickAddress.trim().length < 5) {
+      const msg = 'Please enter complete service address (House/Flat No, Street/Area, City, State, Pincode).';
+      setQuickAddressError(msg);
+      showAlert('Address Required', msg);
+      return;
+    }
+
+    // Location rule: service address city must match Home Screen city
+    const validation = validateAddressMatchesCity(quickAddress, selectedCity);
+    if (!validation.isValid) {
+      setQuickAddressError(validation.errorMessage);
+      setAddressValidationMsg(validation.errorMessage);
+      setAddressValidationModalVisible(true);
+      return;
+    }
+
+    setQuickAddressError(null);
     setQuickBookingLoading(true);
     try {
       const careNeed = selectedCareNeed || 'General Nursing Consultation';
       const cleanPhone = quickMobile.trim();
       const chosenDate = quickDate || 'Today (Immediate)';
-      const newId = `NR-${Date.now().toString().slice(-6)}`;
+      const newId = `MU-NUR-${Math.floor(1000 + Math.random() * 9000)}`;
+      const price = getServicePriceByName(careNeed);
 
       const newRequest = {
         id: newId,
         bookingId: newId,
+        tokenNumber: newId,
         type: 'Home Nurse Care',
         serviceType: 'nurse',
         serviceName: careNeed,
@@ -381,25 +614,33 @@ const NurseBookingScreen = ({ navigation, route }) => {
         patientName: quickName.trim(),
         contactNumber: cleanPhone,
         phone: cleanPhone,
-        address: `${selectedCity} (Home Visit)`,
+        address: quickAddress.trim(),
         city: selectedCity,
+        homeCity: selectedCity,
         shiftDuration: 'General Visit',
-        preferredTimeSlot: 'Within 2-4 Hours',
+        preferredTimeSlot: 'Morning (08:00 AM - 11:00 AM)',
         startDate: chosenDate,
         requiredDate: chosenDate,
         date: new Date().toISOString().split('T')[0],
-        time: 'Within 2-4 Hours',
+        time: 'Morning (08:00 AM - 11:00 AM)',
         careDays: 1,
-        totalPrice: '₹349',
-        fee: 349,
-        paidAmount: 349,
-        status: 'Care Team Will Call You',
+        totalPrice: `₹${price}`,
+        fee: price,
+        paidAmount: 0,
+        paymentStatus: 'Pending',
+        status: 'Request Submitted',
+        currentStageIndex: 0,
+        assignedNurse: null,
         createdAt: new Date().toISOString(),
+        requestDate: 'Just now',
         timeline: [
-          { stage: 'Request Placed', completed: true, timestamp: 'Just now' },
-          { stage: 'Coordinator Connecting', completed: false, timestamp: 'Within 15 mins' },
-          { stage: 'Nurse Assigned', completed: false, timestamp: 'Pending qualification match' },
-          { stage: 'Visit Completed', completed: false, timestamp: 'Pending visit' },
+          { stage: 'Request Submitted', completed: true, timestamp: 'Just now' },
+          { stage: 'Admin Contacting', completed: false, timestamp: 'Pending call from Care Coordinator' },
+          { stage: 'Enquiry Completed', completed: false, timestamp: 'Awaiting coordinator enquiry' },
+          { stage: 'Payment Pending', completed: false, timestamp: 'Pending payment link generation' },
+          { stage: 'Booking Confirmed', completed: false, timestamp: 'Pending payment' },
+          { stage: 'Service In Progress', completed: false, timestamp: 'Nurse visit pending' },
+          { stage: 'Completed', completed: false, timestamp: 'Visit pending' },
         ],
       };
 
@@ -408,14 +649,400 @@ const NurseBookingScreen = ({ navigation, route }) => {
       await saveRequests(updated, newRequest);
 
       setQuickBookingLoading(false);
-      showAlert(
-        'Consultation Booked Successfully',
-        `Thank you ${quickName.trim()}! Your request for ${careNeed} on ${chosenDate} in ${selectedCity} has been received. Our dedicated Clinical Coordinator will call ${cleanPhone} within 15 minutes.`,
-        [{ text: 'OK', style: 'default' }]
+      setSubmittedBookingDetail(newRequest);
+      setConfirmationModalVisible(true);
+
+      // Send in-app notification
+      sendInAppNotification(
+        `Home Nursing Request #${newId}`,
+        'Your request has been submitted successfully. Our coordinator will contact you shortly.',
+        'Bookings',
+        newId
       );
     } catch (e) {
       setQuickBookingLoading(false);
-      showAlert('Request Received', 'Thank you! Our nursing care coordinator will call you shortly.');
+      showAlert('Request Error', 'Unable to submit request. Please try again.');
+    }
+  };
+
+  // =========================================================================
+  // ADMIN / COORDINATOR WORKFLOW HANDLERS
+  // =========================================================================
+  const handleAdminStartContacting = async (req) => {
+    try {
+      const nowStr = new Date().toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const updatedList = requestsList.map((r) => {
+        if (r.id === req.id) {
+          return {
+            ...r,
+            status: 'Request Sent',
+            currentStageIndex: 0,
+          };
+        }
+        return r;
+      });
+      setRequestsList(updatedList);
+      await saveRequests(updatedList);
+
+      sendInAppNotification(
+        `Home Nursing Request #${req.id}`,
+        'Care coordinator is reviewing your request and will contact you shortly.',
+        'Bookings',
+        req.id
+      );
+      showAlert('Status Updated', `Request #${req.id} is active under coordinator review.`);
+    } catch (e) {
+      console.log('Error updating admin contacting:', e);
+    }
+  };
+
+  const handleOpenEnquiryModal = (req) => {
+    setSelectedEnquiryReq(req);
+    setEnquiryForm({
+      service: req.serviceName || (Array.isArray(req.selectedServices) ? req.selectedServices.join(', ') : 'Wound Dressing'),
+      visits: '1 Visit',
+      duration: '45 mins',
+      specialReqs: req.careInformation || 'Sterile clinical procedure kit included',
+      agreedDateTime: req.confirmedVisitDate ? `${req.confirmedVisitDate} at ${req.confirmedVisitTime || '10:00 AM'}` : 'Tomorrow at 10:30 AM',
+      charges: String(req.fee || 349),
+      adminInternalNotes: 'Prescription verified; coordinator confirmed patient availability.',
+      userNotes: 'Care plan confirmed with nurse assignment. Please complete payment to confirm your booking.',
+    });
+    setEnquiryModalVisible(true);
+  };
+
+  const handleSaveEnquiryAndSendPaymentLink = async () => {
+    if (!selectedEnquiryReq) return;
+    try {
+      const nowStr = new Date().toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const parsedFee = Number(enquiryForm.charges) || selectedEnquiryReq.fee || 349;
+      const updatedList = requestsList.map((r) => {
+        if (r.id === selectedEnquiryReq.id) {
+          const updatedTimeline = [
+            { stage: 'Request Sent', completed: true, timestamp: r.requestDate || 'Request Submitted' },
+            { stage: 'Payment Done', completed: false, isPending: true, timestamp: `Payment Link Generated (₹${parsedFee})` },
+            { stage: 'Booking Confirmed', completed: false, timestamp: 'Pending payment & confirmation' },
+            { stage: 'Service Completed', completed: false, timestamp: 'Scheduled visit pending' },
+          ];
+          return {
+            ...r,
+            status: 'Payment Pending',
+            currentStageIndex: 0.5,
+            fee: parsedFee,
+            totalPrice: `₹${parsedFee}`,
+            enquiryNotes: { ...enquiryForm },
+            timeline: updatedTimeline,
+          };
+        }
+        return r;
+      });
+
+      setRequestsList(updatedList);
+      await saveRequests(updatedList);
+      setEnquiryModalVisible(false);
+
+      sendInAppNotification(
+        `Home Nursing Request #${selectedEnquiryReq.id}`,
+        `Your Home Nursing request is reviewed. Payment link for ₹${parsedFee} is generated. Click to Pay Now.`,
+        'Bookings',
+        selectedEnquiryReq.id
+      );
+
+      showAlert(
+        'Payment Link Sent',
+        `Payment link for ₹${parsedFee} generated and sent to ${selectedEnquiryReq.patientName}. Request status is now "Payment Pending".`
+      );
+    } catch (e) {
+      console.log('Error sending payment link:', e);
+    }
+  };
+
+  // 1. Confirm Booking Action
+  const handleAdminConfirmBooking = async (req) => {
+    try {
+      const nowStr = new Date().toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const parsedFee = req.fee || 349;
+      const updatedList = requestsList.map((r) => {
+        if (r.id === req.id) {
+          const updatedTimeline = [
+            { stage: 'Request Sent', completed: true, timestamp: r.requestDate || 'Initial Request' },
+            { stage: 'Payment Done', completed: true, timestamp: nowStr },
+            { stage: 'Booking Confirmed', completed: true, timestamp: nowStr },
+            { stage: 'Service Completed', completed: false, timestamp: 'Assigned nurse visit scheduled' },
+          ];
+          return {
+            ...r,
+            status: 'Booking Confirmed',
+            currentStageIndex: 2,
+            paymentStatus: 'Paid',
+            paidAmount: parsedFee,
+            timeline: updatedTimeline,
+          };
+        }
+        return r;
+      });
+
+      setRequestsList(updatedList);
+      await saveRequests(updatedList);
+
+      // Save transaction
+      await saveTransaction({
+        refId: req.id,
+        service: 'Home Nursing Care',
+        serviceType: 'nursing',
+        title: req.serviceName || (Array.isArray(req.selectedServices) ? req.selectedServices.join(', ') : 'Nursing Visit'),
+        amount: parsedFee,
+        status: 'Paid',
+        paymentMode: 'Online Payment (Verified)',
+      });
+
+      sendInAppNotification(
+        `Home Nursing Request #${req.id}`,
+        'Your Home Nursing booking has been confirmed.',
+        'Bookings',
+        req.id
+      );
+
+      showAlert('Booking Confirmed', `Booking #${req.id} has been confirmed successfully.`);
+    } catch (e) {
+      console.log('Error confirming booking:', e);
+    }
+  };
+
+  // 2. Open Do Not Confirm Modal
+  const handleAdminOpenRejectModal = (req) => {
+    setSelectedRejectReq(req);
+    setRejectReason('Nurse unavailable on selected date');
+    setRejectReasonPreset('Nurse unavailable on selected date');
+    setRejectModalVisible(true);
+  };
+
+  // 3. Submit Do Not Confirm with Mandatory Reason
+  const handleAdminSubmitRejectBooking = async () => {
+    if (!selectedRejectReq) return;
+    const trimmed = (rejectReason || '').trim();
+    if (!trimmed) {
+      showAlert('Reason Required', 'Please enter or select a mandatory reason for not confirming this booking.');
+      return;
+    }
+
+    try {
+      const nowStr = new Date().toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const updatedList = requestsList.map((r) => {
+        if (r.id === selectedRejectReq.id) {
+          const updatedTimeline = [
+            { stage: 'Request Sent', completed: true, timestamp: r.requestDate || 'Initial Request' },
+            { stage: 'Payment Done', completed: r.paymentStatus === 'Paid' || r.paidAmount > 0, timestamp: nowStr },
+            { stage: 'Booking Not Confirmed', completed: false, isRejected: true, timestamp: nowStr, reason: trimmed },
+          ];
+          return {
+            ...r,
+            status: 'Booking Not Confirmed',
+            rejectionReason: trimmed,
+            currentStageIndex: 2,
+            timeline: updatedTimeline,
+          };
+        }
+        return r;
+      });
+
+      setRequestsList(updatedList);
+      await saveRequests(updatedList);
+      setRejectModalVisible(false);
+
+      sendInAppNotification(
+        `Home Nursing Request #${selectedRejectReq.id}`,
+        `Your Home Nursing booking could not be confirmed. Reason: ${trimmed}`,
+        'Bookings',
+        selectedRejectReq.id
+      );
+
+      showAlert('Booking Not Confirmed', `Booking #${selectedRejectReq.id} has been marked as Not Confirmed.`);
+    } catch (e) {
+      console.log('Error not confirming booking:', e);
+    }
+  };
+
+  const handleAdminStartService = async (req) => {
+    try {
+      const nowStr = new Date().toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const updatedList = requestsList.map((r) => {
+        if (r.id === req.id) {
+          const updatedTimeline = [
+            { stage: 'Request Sent', completed: true, timestamp: r.requestDate || 'Initial Request' },
+            { stage: 'Payment Done', completed: true, timestamp: 'Paid' },
+            { stage: 'Booking Confirmed', completed: true, timestamp: 'Confirmed' },
+            { stage: 'Service Completed', completed: false, timestamp: `Service In Progress (${nowStr})` },
+          ];
+          return {
+            ...r,
+            status: 'Service In Progress',
+            currentStageIndex: 2.5,
+            timeline: updatedTimeline,
+          };
+        }
+        return r;
+      });
+
+      setRequestsList(updatedList);
+      await saveRequests(updatedList);
+
+      sendInAppNotification(
+        `Home Nursing Request #${req.id}`,
+        'Your Home Nursing service is currently in progress.',
+        'Bookings',
+        req.id
+      );
+
+      showAlert('Status Updated', `Request #${req.id} is now "Service In Progress".`);
+    } catch (e) {
+      console.log('Error starting service:', e);
+    }
+  };
+
+  // 4. Mark as Completed Action
+  const handleAdminMarkCompleted = async (req) => {
+    try {
+      const nowStr = new Date().toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const updatedList = requestsList.map((r) => {
+        if (r.id === req.id) {
+          const updatedTimeline = [
+            { stage: 'Request Sent', completed: true, timestamp: r.requestDate || 'Initial Request' },
+            { stage: 'Payment Done', completed: true, timestamp: 'Paid' },
+            { stage: 'Booking Confirmed', completed: true, timestamp: 'Confirmed' },
+            { stage: 'Service Completed', completed: true, timestamp: nowStr },
+          ];
+          return {
+            ...r,
+            status: 'Service Completed',
+            currentStageIndex: 3,
+            completedDate: nowStr,
+            serviceCompletedDate: nowStr,
+            timeline: updatedTimeline,
+          };
+        }
+        return r;
+      });
+
+      setRequestsList(updatedList);
+      await saveRequests(updatedList);
+
+      sendInAppNotification(
+        `Home Nursing Request #${req.id}`,
+        'Your Home Nursing service has been completed.',
+        'Bookings',
+        req.id
+      );
+
+      showAlert('Service Completed', `Request #${req.id} marked as Completed.`);
+    } catch (e) {
+      console.log('Error marking completed:', e);
+    }
+  };
+
+  const handleAdminCancelRequest = async (req) => {
+    handleAdminOpenRejectModal(req);
+  };
+
+  const handleAdminVerifyPayment = async (req) => {
+    handleAdminConfirmBooking(req);
+  };
+
+  // =========================================================================
+  // PATIENT PAYMENT HANDLERS
+  // =========================================================================
+  const handleInitiatePayment = (req) => {
+    setSelectedPaymentReq(req);
+    setPaymentModalVisible(true);
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!selectedPaymentReq) return;
+    setPaymentProcessing(true);
+    try {
+      const req = selectedPaymentReq;
+      const updatedList = requestsList.map((r) => {
+        if (r.id === req.id) {
+          const updatedTimeline = (r.timeline || []).map((t, idx) => {
+            if (idx <= 4) return { ...t, completed: true, timestamp: t.timestamp || 'Just now' };
+            return t;
+          });
+          return {
+            ...r,
+            status: 'Booking Confirmed',
+            currentStageIndex: 4,
+            paymentStatus: 'Paid',
+            paidAmount: r.fee || 349,
+            timeline: updatedTimeline,
+          };
+        }
+        return r;
+      });
+
+      setRequestsList(updatedList);
+      await saveRequests(updatedList);
+
+      // Save transaction record for payment history
+      await saveTransaction({
+        refId: req.id,
+        service: 'Home Nursing Care',
+        serviceType: 'nursing',
+        title: req.serviceName || (Array.isArray(req.selectedServices) ? req.selectedServices.join(', ') : 'Nursing Visit'),
+        amount: req.fee || 349,
+        status: 'Paid',
+        paymentMode: selectedPaymentMethod === 'upi' ? 'UPI (Google Pay)' : selectedPaymentMethod === 'card' ? 'Credit Card' : 'Net Banking',
+      });
+
+      sendInAppNotification(
+        `Home Nursing Request #${req.id}`,
+        'Your Home Nursing booking has been confirmed successfully.',
+        'Bookings',
+        req.id
+      );
+
+      setPaymentProcessing(false);
+      setPaymentModalVisible(false);
+
+      showAlert(
+        'Payment Successful!',
+        `Your payment of ₹${req.fee || 349} for Request #${req.id} was successful. Your Home Nursing booking is now Confirmed.`
+      );
+    } catch (e) {
+      setPaymentProcessing(false);
+      showAlert('Payment Error', 'Unable to process payment. Please try again.');
     }
   };
 
@@ -468,117 +1095,6 @@ const NurseBookingScreen = ({ navigation, route }) => {
 
     return cells;
   }, [calYear, calMonth, selectedCalDate]);
-
-  // Confirmed Request after submission
-  const [newlyCreatedRequest, setNewlyCreatedRequest] = useState(null);
-
-  // Dynamic Pricing Details that vary as careDays or services change
-  const pricingDetails = useMemo(() => {
-    let dailyRate = 0;
-    if (selectedServices && selectedServices.length > 0) {
-      selectedServices.forEach((srvName) => {
-        dailyRate += getServicePriceByName(srvName);
-      });
-    } else {
-      dailyRate = 299;
-    }
-
-    if (shiftDuration === '4-Hour Care Shift') {
-      dailyRate = Math.max(dailyRate, 699);
-    } else if (shiftDuration === '12-Hour Day Shift') {
-      dailyRate = Math.max(dailyRate, 1299);
-    } else if (shiftDuration === '24-Hour Live-in Care') {
-      dailyRate = Math.max(dailyRate, 2499);
-    }
-
-    const days = Math.max(1, parseInt(careDays, 10) || 1);
-    const grossTotal = dailyRate * days;
-    let discountPercent = 0;
-    if (days >= 30) {
-      discountPercent = 15;
-    } else if (days >= 15) {
-      discountPercent = 10;
-    } else if (days >= 7) {
-      discountPercent = 5;
-    }
-
-    const discountAmount = Math.round((grossTotal * discountPercent) / 100);
-    const finalTotal = grossTotal - discountAmount;
-
-    return {
-      dailyRate,
-      days,
-      grossTotal,
-      discountPercent,
-      discountAmount,
-      finalTotal,
-    };
-  }, [selectedServices, shiftDuration, careDays]);
-
-  // Requests Data List
-  const [requestsList, setRequestsList] = useState(initialNursingRequests);
-  const [requestsTabFilter, setRequestsTabFilter] = useState('All');
-  const [selectedRequestDetail, setSelectedRequestDetail] = useState(null);
-
-  // Load stored requests from AsyncStorage on mount
-  useEffect(() => {
-    const loadStoredRequests = async () => {
-      try {
-        const stored = await AsyncStorage.getItem(ASYNC_KEY_NURSING_REQUESTS);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const merged = [...parsed];
-            initialNursingRequests.forEach((initialItem) => {
-              if (!merged.some((m) => m.id === initialItem.id)) {
-                merged.push(initialItem);
-              }
-            });
-            setRequestsList(merged);
-          }
-        }
-      } catch (err) {
-        console.log('Error reading stored nursing requests:', err);
-      }
-    };
-    loadStoredRequests();
-  }, []);
-
-  const saveRequests = async (updated, singleNewReq = null) => {
-    try {
-      await AsyncStorage.setItem(ASYNC_KEY_NURSING_REQUESTS, JSON.stringify(updated));
-
-      if (singleNewReq) {
-        // Also sync to @unnathi_nurse_bookings
-        try {
-          const rawNurseBookings = await AsyncStorage.getItem('@unnathi_nurse_bookings');
-          const nurseBookings = rawNurseBookings ? JSON.parse(rawNurseBookings) : [];
-          const updatedNurseBookings = [
-            singleNewReq,
-            ...(Array.isArray(nurseBookings) ? nurseBookings.filter((b) => b.id !== singleNewReq.id) : [])
-          ];
-          await AsyncStorage.setItem('@unnathi_nurse_bookings', JSON.stringify(updatedNurseBookings));
-        } catch (e1) {
-          console.log('Error syncing to @unnathi_nurse_bookings:', e1);
-        }
-
-        // Also sync to central @unnathi_appointments
-        try {
-          const rawAppts = await AsyncStorage.getItem('@unnathi_appointments');
-          const appts = rawAppts ? JSON.parse(rawAppts) : [];
-          const updatedAppts = [
-            singleNewReq,
-            ...(Array.isArray(appts) ? appts.filter((a) => a.id !== singleNewReq.id) : [])
-          ];
-          await AsyncStorage.setItem('@unnathi_appointments', JSON.stringify(updatedAppts));
-        } catch (e2) {
-          console.log('Error syncing to @unnathi_appointments:', e2);
-        }
-      }
-    } catch (e) {
-      console.log('Error writing nursing requests:', e);
-    }
-  };
 
   // Toggle service selection
   const handleToggleService = (serviceName) => {
@@ -695,8 +1211,13 @@ const NurseBookingScreen = ({ navigation, route }) => {
   };
 
   // Submit Care Request
-  const handleSubmitCareRequest = () => {
-    requireLogin(() => _doSubmitCareRequest());
+  const handleSubmitCareRequest = async () => {
+    const isGuest = await isGuestUser();
+    if (isGuest) {
+      promptLoginRequired(navigation, { service: 'nursing' });
+      return;
+    }
+    requireLogin(() => _doSubmitCareRequest(), 'Please login to submit your care request.');
   };
 
   const _doSubmitCareRequest = async () => {
@@ -710,7 +1231,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
       return;
     }
 
-    const newId = `HN-2026-${Math.floor(10000 + Math.random() * 90000).toString().slice(0, 5)}`;
+    const newId = `MU-NUR-${Math.floor(1000 + Math.random() * 9000)}`;
     const nowStr = 'Just now';
 
     const startDt = startDateOption === 'Custom' ? (customStartDate.trim() || 'Custom Date') : startDateOption;
@@ -731,9 +1252,10 @@ const NurseBookingScreen = ({ navigation, route }) => {
       doctorName: 'Licensed Home Nurse',
       specialty: 'Home Nursing & Clinical Care',
       date: formattedDate,
-      time: preferredTimeSlot || 'Morning (8 AM - 12 PM)',
+      time: preferredTimeSlot || 'Morning (08:00 AM - 11:00 AM)',
       fee: pricingDetails.finalTotal,
-      paidAmount: pricingDetails.finalTotal,
+      paidAmount: 0,
+      paymentStatus: 'Pending',
       hospitalName: 'MediUnify Home Care Network',
       requestDate: nowStr,
       patientName,
@@ -743,6 +1265,8 @@ const NurseBookingScreen = ({ navigation, route }) => {
       contactNumber,
       phone: contactNumber,
       address,
+      city: selectedCity,
+      homeCity: selectedCity,
       selectedServices: [...selectedServices],
       careInformation: careInfo || 'None specified',
       uploadedDoc: uploadedDoc ? uploadedDoc.name : null,
@@ -758,20 +1282,20 @@ const NurseBookingScreen = ({ navigation, route }) => {
         languagePreference,
         continuityPreference,
       },
-      status: 'Care Team Will Call You',
+      status: 'Request Submitted',
       currentStageIndex: 0,
       assignedNurse: null,
       confirmedVisitDate: null,
       confirmedVisitTime: null,
       isRecurring: shiftDuration.includes('Shift') || shiftDuration.includes('Live-in'),
       timeline: [
-        { stage: 'Request Received', completed: true, timestamp: 'Just now' },
-        { stage: 'Care Team Contacted', completed: false, timestamp: 'Pending call from Care Coordinator' },
-        { stage: 'Requirement Confirmed', completed: false, timestamp: 'Awaiting coordination' },
-        { stage: 'Nurse Assigned', completed: false, timestamp: 'Pending qualification match' },
-        { stage: 'Visit Confirmed', completed: false, timestamp: 'Care team will confirm timing' },
-        { stage: 'Nursing Visit', completed: false, timestamp: 'Scheduled post confirmation' },
-        { stage: 'Visit Completed', completed: false, timestamp: 'Pending visit' },
+        { stage: 'Request Submitted', completed: true, timestamp: 'Just now' },
+        { stage: 'Admin Contacting', completed: false, timestamp: 'Pending call from Care Coordinator' },
+        { stage: 'Enquiry Completed', completed: false, timestamp: 'Awaiting coordinator enquiry' },
+        { stage: 'Payment Pending', completed: false, timestamp: 'Pending payment link generation' },
+        { stage: 'Booking Confirmed', completed: false, timestamp: 'Pending payment' },
+        { stage: 'Service In Progress', completed: false, timestamp: 'Nurse visit pending' },
+        { stage: 'Completed', completed: false, timestamp: 'Visit pending' },
       ],
     };
 
@@ -779,6 +1303,15 @@ const NurseBookingScreen = ({ navigation, route }) => {
     setRequestsList(updated);
     saveRequests(updated, newReq);
     setNewlyCreatedRequest(newReq);
+    setSubmittedBookingDetail(newReq);
+    setConfirmationModalVisible(true);
+
+    sendInAppNotification(
+      `Home Nursing Request #${newId}`,
+      'Your request has been submitted successfully. Our coordinator will contact you shortly.',
+      'Bookings',
+      newId
+    );
     setFlowStep(5);
   };
 
@@ -825,250 +1358,348 @@ const NurseBookingScreen = ({ navigation, route }) => {
   }, [requestsList, requestsTabFilter]);
 
   // =========================================================================
-  // VIEW 1: PREMIUM MOBILE LANDING PAGE
+  // VIEW 1: SIMPLE, CLEAN HOME NURSING LANDING PAGE
   // =========================================================================
-  const renderLandingView = () => (
-    <ScrollView
-      style={styles.scrollContainer}
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Top Header Bar */}
-      <View style={styles.topBarRow}>
-        <View style={styles.headerLeftGroup}>
-          <TouchableOpacity
-            style={styles.backCircleBtn}
-            onPress={() => {
-              if (navigation?.canGoBack && navigation.canGoBack()) {
-                navigation.goBack();
-              } else {
-                navigation?.navigate('Home');
-              }
-            }}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={20} color="#0F172A" />
-          </TouchableOpacity>
+  const renderLandingView = () => {
+    const isPastStatus = (st) => {
+      if (!st) return false;
+      const s = st.toLowerCase();
+      return s.includes('completed') || s.includes('not confirmed') || s.includes('cancelled') || s.includes('rejected') || s.includes('concluded');
+    };
+    const activeRequests = requestsList.filter((r) => !isPastStatus(r.status));
+    const relevantRequests = activeRequests.length > 0 ? activeRequests : requestsList;
+    const displayRequests = relevantRequests.slice(0, 2);
 
-          <View style={styles.headerTitleWrap}>
-            <Text style={styles.headerTitle} numberOfLines={1}>Home Care & Nursing</Text>
-            <View style={styles.cityLocationPill}>
-              <Ionicons name="location-sharp" size={11} color="#0D9488" />
-              <Text style={styles.cityLocationText}>{selectedCity || 'Mysuru'}</Text>
-            </View>
-            <View style={styles.liveVerifiedPill}>
-              <View style={styles.livePulseDot} />
-              <Text style={styles.liveVerifiedPillText}>24/7 Verified Care</Text>
-            </View>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={styles.helplineBtn}
-          onPress={() => showAlert('Care Helpline', 'Connecting to 24/7 Clinical Support: 1800-425-0099')}
-          activeOpacity={0.8}
+    return (
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+      >
+        <ScrollView
+          style={styles.scrollContainer}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 60 }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <Ionicons name="call" size={12} color="#0D9488" />
-          <Text style={styles.helplineBtnText}>1800-425-0099</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Hero Banner Card */}
-      <View style={styles.heroBannerCard}>
-        <View style={styles.heroBadgePill}>
-          <Ionicons name="shield-checkmark" size={13} color="#5EEAD4" />
-          <Text style={styles.heroBadgePillText}>NABH & KNC Certified Nurses</Text>
-        </View>
-
-        <Text style={styles.heroHeadline}>
-          Hospital-Grade Nursing Care, <Text style={styles.heroHeadlineAccent}>In Your Home</Text>
-        </Text>
-
-        <Text style={styles.heroSubheadline}>
-          Post-surgical recovery, sterile wound dressing, IV therapy, geriatric care, and vitals monitoring by verified nursing professionals.
-        </Text>
-
-        {/* Guarantees */}
-        <View style={styles.heroValuePropsRow}>
-          <View style={styles.heroValueItem}>
-            <Ionicons name="checkmark-circle" size={14} color="#00B894" />
-            <Text style={styles.heroValueText}>100% Background Verified</Text>
-          </View>
-          <View style={styles.heroValueItem}>
-            <Ionicons name="checkmark-circle" size={14} color="#00B894" />
-            <Text style={styles.heroValueText}>Sterile Care Kits Included</Text>
-          </View>
-          <View style={styles.heroValueItem}>
-            <Ionicons name="checkmark-circle" size={14} color="#00B894" />
-            <Text style={styles.heroValueText}>24/7 Coordinator Support</Text>
-          </View>
-        </View>
-
-        {/* Hero Actions (Stacked for clear mobile readability and touch targets) */}
-        
-        {/* Quick Consultation Form (Matching Web Source of Truth) */}
-        <View style={styles.quickFormCard}>
-          <Text style={styles.quickFormTitle}>Book Consultation / Home Visit</Text>
-          <Text style={styles.quickFormSubtitle}>
-            Our clinical coordinator calls within 15 minutes to confirm qualification and timing
-          </Text>
-
-          {/* Care Need Dropdown */}
-          <TouchableOpacity
-            style={styles.dropdownField}
-            onPress={() => setCareNeedModalVisible(true)}
-            activeOpacity={0.8}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
-              <Ionicons name="medkit-outline" size={17} color="#00B894" />
-              <Text
-                style={[
-                  styles.dropdownFieldText,
-                  !selectedCareNeed && styles.placeholderText,
-                ]}
-                numberOfLines={1}
-              >
-                {selectedCareNeed || 'Select Nursing Service / Requirement'}
-              </Text>
-            </View>
-            <Ionicons name="chevron-down" size={18} color="#64748B" />
-          </TouchableOpacity>
-
-          {/* Date Selector */}
-          <TouchableOpacity
-            style={styles.dropdownField}
-            onPress={() => setDateModalVisible(true)}
-            activeOpacity={0.8}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
-              <Ionicons name="calendar-outline" size={17} color="#00B894" />
-              <Text style={styles.dropdownFieldText} numberOfLines={1}>
-                {quickDate ? `Service Date: ${quickDate}` : 'Select Preferred Date'}
-              </Text>
-            </View>
-            <Ionicons name="chevron-down" size={18} color="#64748B" />
-          </TouchableOpacity>
-
-          {/* Full Name */}
-          <View style={styles.quickInputField}>
-            <TextInput
-              style={styles.quickTextInput}
-              placeholder="Patient Full Name"
-              placeholderTextColor="#94A3B8"
-              value={quickName}
-              onChangeText={setQuickName}
-            />
-          </View>
-
-          {/* Mobile Number */}
-          <View style={styles.quickInputField}>
-            <TextInput
-              style={styles.quickTextInput}
-              placeholder="Contact Mobile Number (10 digits)"
-              placeholderTextColor="#94A3B8"
-              value={quickMobile}
-              onChangeText={setQuickMobile}
-              keyboardType="phone-pad"
-              maxLength={15}
-            />
-          </View>
-
-          {/* Submit Quick Request */}
-          <TouchableOpacity
-            style={styles.quickSubmitBtn}
-            onPress={handleQuickBookNurse}
-            activeOpacity={0.9}
-            disabled={quickBookingLoading}
-          >
-            <Text style={styles.quickSubmitBtnText}>
-              {quickBookingLoading ? 'Submitting Request...' : 'Book Free Consultation Callback'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Direct Assistance Desk */}
-          <View style={styles.quickContactRow}>
-            <TouchableOpacity style={styles.quickContactBtn} onPress={handleCallHelpline} activeOpacity={0.8}>
-              <Ionicons name="call" size={13} color="#0D9488" />
-              <Text style={styles.quickContactBtnText}>Call Helpline</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.quickContactBtn} onPress={handleWhatsAppCare} activeOpacity={0.8}>
-              <Ionicons name="logo-whatsapp" size={13} color="#16A34A" />
-              <Text style={[styles.quickContactBtnText, { color: '#16A34A' }]}>WhatsApp Desk</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.heroActionsRow}>
-          <TouchableOpacity
-            style={styles.heroPrimaryBtn}
-            onPress={() => {
-              setShowAllServices(false);
-              setFlowStep(1);
-              setCurrentView('REQUEST_FLOW');
-            }}
-            activeOpacity={0.88}
-          >
-            <Ionicons name="calendar" size={17} color="#FFFFFF" style={{ marginRight: 8 }} />
-            <Text style={styles.heroPrimaryBtnText}>Request Home Nursing</Text>
-            <Ionicons name="arrow-forward" size={15} color="#FFFFFF" style={{ marginLeft: 'auto' }} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.heroSecondaryBtn}
-            onPress={() => setCurrentView('MY_REQUESTS')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="time-outline" size={16} color="#CBD5E1" style={{ marginRight: 8 }} />
-            <Text style={styles.heroSecondaryBtnText}>Track Existing Requests ({requestsList.length})</Text>
-            <Ionicons name="chevron-forward" size={14} color="#94A3B8" style={{ marginLeft: 'auto' }} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Quick Match Floating Chips Box */}
-        <View style={styles.quickMatchCard}>
-          <View style={styles.quickMatchHeader}>
-            <Ionicons name="flash" size={15} color="#F59E0B" />
-            <Text style={styles.quickMatchTitle}>Need Quick Nursing?</Text>
-            <Text style={styles.quickMatchSub}>• Coordinator calls in 15 mins</Text>
-          </View>
-
-          <View style={styles.quickMatchChipsRow}>
-            {['Wound Dressing', 'Injection Administration', 'Vital Monitoring', 'Elderly Care'].map((srvName) => (
+          {/* Top Header Bar */}
+          <View style={styles.topBarRow}>
+            <View style={styles.headerLeftGroup}>
               <TouchableOpacity
-                key={srvName}
-                style={styles.quickChip}
-                onPress={() => handleStartBookingWithService(srvName)}
-                activeOpacity={0.75}
+                style={styles.backCircleBtn}
+                onPress={() => {
+                  if (navigation?.canGoBack && navigation.canGoBack()) {
+                    navigation.goBack();
+                  } else {
+                    navigation?.navigate('Home');
+                  }
+                }}
+                activeOpacity={0.7}
               >
-                <Text style={styles.quickChipText}>{srvName}</Text>
-                <Ionicons name="arrow-forward" size={11} color="#0D9488" />
+                <Ionicons name="arrow-back" size={20} color="#0F172A" />
               </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      </View>
 
-      {/* Trust & Stats Grid */}
-      <View style={styles.statsGrid}>
-        <View style={styles.statBox}>
-          <Text style={styles.statValue}>15,000+</Text>
-          <Text style={styles.statLabel}>Visits Completed</Text>
-        </View>
-        <View style={styles.statBox}>
-          <Text style={styles.statValue}>4.9/5</Text>
-          <Text style={styles.statLabel}>Family Rating</Text>
-        </View>
-        <View style={styles.statBox}>
-          <Text style={styles.statValue}>100%</Text>
-          <Text style={styles.statLabel}>KNC Verified Nurses</Text>
-        </View>
-        <View style={styles.statBox}>
-          <Text style={styles.statValue}>&lt; 15m</Text>
-          <Text style={styles.statLabel}>Coordinator Callback</Text>
-        </View>
-      </View>
-    </ScrollView>
-  );
+              <View style={styles.headerTitleWrap}>
+                <Text style={styles.headerTitle} numberOfLines={1}>Home Nursing Care</Text>
+                <View style={styles.cityLocationPill}>
+                  <Ionicons name="location-sharp" size={11} color="#0D9488" />
+                  <Text style={styles.cityLocationText}>{selectedCity || 'Mysuru'}</Text>
+                </View>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.helplineBtn}
+              onPress={() => showAlert('Care Helpline', 'Connecting to 24/7 Support: 1800-425-0099')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="call" size={12} color="#0D9488" />
+              <Text style={styles.helplineBtnText}>1800-425-0099</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 1. REDUCED HERO SECTION */}
+          <View style={styles.simpleHeroSection}>
+            <Text style={styles.simpleHeroTitle}>Home Nursing Care</Text>
+            <Text style={styles.simpleHeroSubtitle}>Professional nursing care at home.</Text>
+
+            {/* Small Compact Trust Points */}
+            <View style={styles.compactTrustRow}>
+              <View style={styles.compactTrustBadge}>
+                <Ionicons name="checkmark" size={13} color="#0D9488" />
+                <Text style={styles.compactTrustText}>Verified Nurses</Text>
+              </View>
+              <View style={styles.compactTrustBadge}>
+                <Ionicons name="checkmark" size={13} color="#0D9488" />
+                <Text style={styles.compactTrustText}>24/7 Support</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* 2. REQUEST NURSING CARE FORM */}
+          <View style={styles.simpleFormCard}>
+            <Text style={styles.simpleFormHeading}>Request Nursing Care</Text>
+            <Text style={styles.simpleFormSubheading}>Request a nursing service</Text>
+
+            {/* Field 1: Nursing Service */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Nursing Service</Text>
+              <TouchableOpacity
+                style={styles.fieldPickerBtn}
+                onPress={() => setCareNeedModalVisible(true)}
+                activeOpacity={0.8}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                  <Ionicons name="medkit-outline" size={18} color="#0D9488" />
+                  <Text style={[styles.pickerBtnText, !selectedCareNeed && styles.placeholderText]} numberOfLines={1}>
+                    {selectedCareNeed || 'Select service'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-down" size={18} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Field 2: Patient Name */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Patient Name</Text>
+              <TextInput
+                style={styles.simpleTextInput}
+                placeholder="Enter name"
+                placeholderTextColor="#94A3B8"
+                value={quickName}
+                onChangeText={setQuickName}
+              />
+            </View>
+
+            {/* Field 3: Phone Number */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Phone Number</Text>
+              <TextInput
+                style={styles.simpleTextInput}
+                placeholder="Enter phone number"
+                placeholderTextColor="#94A3B8"
+                value={quickMobile}
+                onChangeText={setQuickMobile}
+                keyboardType="phone-pad"
+                maxLength={15}
+              />
+            </View>
+
+            {/* Field 4: Service Address */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Service Address</Text>
+              <TextInput
+                ref={addressInputRef}
+                style={[styles.simpleTextInput, styles.simpleAddressInput]}
+                placeholder="Enter your full address"
+                placeholderTextColor="#94A3B8"
+                value={quickAddress}
+                onChangeText={(t) => {
+                  setQuickAddress(t);
+                  if (quickAddressError) setQuickAddressError(null);
+                }}
+                multiline={true}
+                numberOfLines={2}
+              />
+              {quickAddressError ? (
+                <View style={styles.fieldErrorRow}>
+                  <Ionicons name="alert-circle" size={13} color="#DC2626" />
+                  <Text style={styles.fieldErrorText}>{quickAddressError}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            {/* Field 5: Date */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Date</Text>
+              <TouchableOpacity
+                style={styles.fieldPickerBtn}
+                onPress={() => setDateModalVisible(true)}
+                activeOpacity={0.8}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                  <Ionicons name="calendar-outline" size={18} color="#0D9488" />
+                  <Text style={styles.pickerBtnText} numberOfLines={1}>
+                    {quickDate || 'Select date'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-down" size={18} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Submit Primary Button */}
+            <TouchableOpacity
+              style={styles.primaryRequestBtn}
+              onPress={handleQuickBookNurse}
+              activeOpacity={0.9}
+              disabled={quickBookingLoading}
+            >
+              <Text style={styles.primaryRequestBtnText}>
+                {quickBookingLoading ? 'Submitting...' : 'Request Nursing Care'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Compact Contact Options */}
+            <View style={styles.compactContactRow}>
+              <TouchableOpacity style={styles.compactContactBtn} onPress={handleCallHelpline} activeOpacity={0.8}>
+                <Ionicons name="call" size={14} color="#0D9488" />
+                <Text style={styles.compactContactBtnText}>Call Support</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.compactContactBtn} onPress={handleWhatsAppCare} activeOpacity={0.8}>
+                <Ionicons name="logo-whatsapp" size={14} color="#16A34A" />
+                <Text style={[styles.compactContactBtnText, { color: '#16A34A' }]}>WhatsApp</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* 3. QUICK SERVICES SECTION */}
+          <View style={styles.quickServicesSection}>
+            <Text style={styles.sectionHeaderTitle}>Quick Services</Text>
+            <View style={styles.quickChipsGrid}>
+              {[
+                { name: 'Wound Dressing', careNeed: 'Post-Surgical Wound Dressing', icon: 'cut-outline' },
+                { name: 'Injection', careNeed: 'Daily Injection Administration (IM/IV)', icon: 'bandage-outline' },
+                { name: 'Vital Monitoring', careNeed: 'Elderly Care & Vitals Monitoring', icon: 'pulse-outline' },
+                { name: 'Elderly Care', careNeed: 'Elderly Care & Vitals Monitoring', icon: 'heart-outline' },
+              ].map((s) => {
+                const isSelected = selectedCareNeed === s.careNeed || selectedCareNeed === s.name;
+                return (
+                  <TouchableOpacity
+                    key={s.name}
+                    style={[styles.quickServiceCard, isSelected && styles.quickServiceCardSelected]}
+                    onPress={() => setSelectedCareNeed(s.careNeed)}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons name={s.icon} size={18} color={isSelected ? '#0D9488' : '#64748B'} />
+                    <Text style={[styles.quickServiceCardText, isSelected && styles.quickServiceCardTextSelected]}>
+                      {s.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* 4. MY REQUESTS & STATUS TRACKING SECTION */}
+          <View style={styles.myRequestsSection}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionHeaderTitle}>My Requests</Text>
+              {requestsList.length > 0 && (
+                <TouchableOpacity onPress={() => setCurrentView('MY_REQUESTS')}>
+                  <Text style={styles.viewAllRequestsText}>View All ({requestsList.length}) →</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {requestsList.length === 0 ? (
+              <View style={styles.emptyInlineRequestsCard}>
+                <Ionicons name="document-text-outline" size={32} color="#94A3B8" />
+                <Text style={styles.emptyInlineRequestsText}>No requests submitted yet</Text>
+              </View>
+            ) : (
+              <View style={{ gap: 12 }}>
+                {displayRequests.map((req) => {
+                  const isRejected = req.status === 'Booking Not Confirmed' || req.status === 'Cancelled' || req.status === 'Rejected' || !!req.rejectionReason;
+                  const isServiceDone = ['Service Completed', 'Completed', 'Visit Completed'].includes(req.status);
+                  const isBookingDone = isServiceDone || ['Booking Confirmed', 'Service In Progress'].includes(req.status);
+                  const isPayDone = isBookingDone || isRejected || req.paymentStatus === 'Paid' || req.status === 'Payment Done';
+                  const isEnquiryDone = isPayDone || req.status === 'Payment Pending' || req.status === 'Admin Contacting' || req.status === 'Enquiry Completed';
+
+                  return (
+                    <TouchableOpacity
+                      key={req.id}
+                      style={styles.simpleReqCard}
+                      onPress={() => {
+                        setSelectedRequestDetail(req);
+                        setCurrentView('REQUEST_DETAILS');
+                      }}
+                      activeOpacity={0.88}
+                    >
+                      <View style={styles.simpleReqCardHeader}>
+                        <Text style={styles.simpleReqIdText}>Request #{req.id}</Text>
+                        <View
+                          style={[
+                            styles.simpleStatusBadge,
+                            isRejected && { backgroundColor: '#FEE2E2' },
+                            isServiceDone && { backgroundColor: '#F1F5F9' },
+                            isBookingDone && !isServiceDone && { backgroundColor: '#DCFCE7' },
+                            !isRejected && !isServiceDone && !isBookingDone && { backgroundColor: '#E0F2FE' },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.simpleStatusBadgeText,
+                              isRejected && { color: '#DC2626' },
+                              isServiceDone && { color: '#475569' },
+                              isBookingDone && !isServiceDone && { color: '#15803D' },
+                              !isRejected && !isServiceDone && !isBookingDone && { color: '#0369A1' },
+                            ]}
+                          >
+                            {isRejected ? 'Booking Not Confirmed' : isServiceDone ? 'Completed' : isBookingDone ? 'Booking Confirmed' : req.status === 'Payment Pending' ? 'Payment Pending' : 'Request Sent'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text style={styles.simpleReqDetailsText} numberOfLines={1}>
+                        {req.patientName} • {req.serviceName || (Array.isArray(req.selectedServices) ? req.selectedServices[0] : 'Home Nursing')}
+                      </Text>
+
+                      {/* 5-Step Simple Status Flow */}
+                      <View style={styles.simpleStatusFlowContainer}>
+                        <Text style={styles.simpleStatusFlowTitle}>Request Status</Text>
+
+                        {isRejected ? (
+                          <View style={styles.rejectedReasonBox}>
+                            <Text style={styles.rejectedTitleText}>Booking not confirmed</Text>
+                            <Text style={styles.rejectedReasonText}>
+                              Reason: {req.rejectionReason || 'Service unavailable for the selected date.'}
+                            </Text>
+                          </View>
+                        ) : (
+                          <View style={styles.statusStepsRow}>
+                            {[
+                              { label: 'Request Sent', done: true },
+                              { label: 'Admin Enquiry', done: isEnquiryDone },
+                              { label: 'Payment', done: isPayDone },
+                              { label: 'Booking Confirmed', done: isBookingDone },
+                              { label: 'Completed', done: isServiceDone },
+                            ].map((st, sIdx, arr) => (
+                              <React.Fragment key={st.label}>
+                                <View style={styles.statusStepNode}>
+                                  <View style={[styles.statusStepDot, st.done ? styles.statusStepDotDone : styles.statusStepDotPending]}>
+                                    {st.done ? (
+                                      <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                                    ) : (
+                                      <View style={styles.statusStepDotHollow} />
+                                    )}
+                                  </View>
+                                  <Text style={[styles.statusStepLabel, st.done ? styles.statusStepLabelDone : styles.statusStepLabelPending]}>
+                                    {st.label}
+                                  </Text>
+                                </View>
+                                {sIdx < arr.length - 1 && (
+                                  <Ionicons
+                                    name="arrow-forward"
+                                    size={12}
+                                    color={arr[sIdx + 1].done ? '#00B894' : '#CBD5E1'}
+                                    style={{ marginTop: -14 }}
+                                  />
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  };
 
   // =========================================================================
   // VIEW 2: STEP-BY-STEP CARE REQUEST FLOW
@@ -1328,6 +1959,18 @@ const NurseBookingScreen = ({ navigation, route }) => {
                       </TouchableOpacity>
                     );
                   })}
+                  {requestsList.length > 2 && (
+                    <TouchableOpacity
+                      style={styles.viewMoreOnNextPageBtn}
+                      onPress={() => setCurrentView('MY_REQUESTS')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.viewMoreOnNextPageText}>
+                        View other {requestsList.length - 2} requests on next page
+                      </Text>
+                      <Ionicons name="arrow-forward" size={15} color="#0D9488" />
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             )}
@@ -2230,168 +2873,683 @@ const NurseBookingScreen = ({ navigation, route }) => {
   // =========================================================================
   // VIEW 3: MY REQUESTS & LIVE TRACKING
   // =========================================================================
-  const renderMyRequestsView = () => (
-    <ScrollView
-      style={styles.scrollContainer}
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Top Header */}
-      <View style={styles.myRequestsHeaderRow}>
-        <TouchableOpacity
-          style={styles.flowBackBtn}
-          onPress={() => setCurrentView('LANDING')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={20} color="#0F172A" />
-        </TouchableOpacity>
+  const renderMyRequestsView = () => {
+    const isPastStatus = (st) => {
+      if (!st) return false;
+      const s = st.toLowerCase();
+      return s.includes('completed') || s.includes('not confirmed') || s.includes('cancelled') || s.includes('rejected') || s.includes('concluded');
+    };
+    const activeRequests = requestsList.filter((r) => !isPastStatus(r.status));
+    const pastRequests = requestsList.filter((r) => isPastStatus(r.status));
+    const currentList = requestsHistoryTab === 'CURRENT' ? activeRequests : pastRequests;
 
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.myRequestsMainTitle}>My Home Care Requests</Text>
-          <Text style={styles.myRequestsSub}>
-            Track coordinator status and assigned nurse credentials
-          </Text>
+    const REQUESTS_PER_PAGE = 2;
+    const totalPages = Math.ceil(currentList.length / REQUESTS_PER_PAGE) || 1;
+    const safeCurrentPage = Math.min(Math.max(1, requestsCurrentPage), totalPages);
+    const startIndex = (safeCurrentPage - 1) * REQUESTS_PER_PAGE;
+    const paginatedList = currentList.slice(startIndex, startIndex + REQUESTS_PER_PAGE);
+
+    return (
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Top Header - Note: "+ New Request" button is removed per requirements */}
+        <View style={styles.myRequestsHeaderRow}>
+          <TouchableOpacity
+            style={styles.flowBackBtn}
+            onPress={() => setCurrentView('LANDING')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={20} color="#0F172A" />
+          </TouchableOpacity>
+
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.myRequestsMainTitle}>My Home Care Requests</Text>
+            <Text style={styles.myRequestsSub}>
+              Track status, enquiry details, payments & nurse visits
+            </Text>
+          </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.newRequestBtn}
-          onPress={() => {
-            setShowAllServices(false);
-            setFlowStep(1);
-            setCurrentView('REQUEST_FLOW');
-          }}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="add" size={15} color="#FFFFFF" />
-          <Text style={styles.newRequestBtnText}>New Request</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Filter Tabs */}
-      <View style={styles.requestFilterTabsRow}>
-        {['All', 'In Progress', 'Confirmed', 'Completed'].map((tab) => {
-          const isSelected = requestsTabFilter === tab;
-          return (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.requestFilterTab, isSelected && styles.requestFilterTabActive]}
-              onPress={() => setRequestsTabFilter(tab)}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.requestFilterTabText, isSelected && styles.requestFilterTabTextActive]}>
-                {tab}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* Requests Cards List */}
-      {filteredRequests.length === 0 ? (
-        <View style={styles.emptyRequestsBox}>
-          <Ionicons name="clipboard-outline" size={44} color="#94A3B8" />
-          <Text style={styles.emptyRequestsTitle}>No requests found in "{requestsTabFilter}"</Text>
-          <Text style={styles.emptyRequestsSub}>
-            Need professional nursing care at home? Submit a new request in 2 minutes.
-          </Text>
+        {/* Primary Tab Toggle: CURRENT REQUESTS vs PAST REQUESTS */}
+        <View style={styles.historySegmentWrap}>
           <TouchableOpacity
-            style={styles.emptyStartBtn}
+            style={[styles.historySegmentBtn, requestsHistoryTab === 'CURRENT' && styles.historySegmentBtnActive]}
             onPress={() => {
-              setShowAllServices(false);
-              setFlowStep(1);
-              setCurrentView('REQUEST_FLOW');
+              setRequestsHistoryTab('CURRENT');
+              setRequestsCurrentPage(1);
             }}
+            activeOpacity={0.8}
           >
-            <Text style={styles.emptyStartBtnText}>Request a Nurse Now</Text>
+            <Ionicons name="pulse" size={14} color={requestsHistoryTab === 'CURRENT' ? '#00B894' : '#64748B'} />
+            <Text style={[styles.historySegmentText, requestsHistoryTab === 'CURRENT' && styles.historySegmentTextActive]}>
+              Current Requests ({activeRequests.length})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.historySegmentBtn, requestsHistoryTab === 'PAST' && styles.historySegmentBtnActive]}
+            onPress={() => {
+              setRequestsHistoryTab('PAST');
+              setRequestsCurrentPage(1);
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="checkmark-done-circle" size={14} color={requestsHistoryTab === 'PAST' ? '#00B894' : '#64748B'} />
+            <Text style={[styles.historySegmentText, requestsHistoryTab === 'PAST' && styles.historySegmentTextActive]}>
+              Past Requests ({pastRequests.length})
+            </Text>
           </TouchableOpacity>
         </View>
-      ) : (
-        <View style={styles.requestsCardsList}>
-          {filteredRequests.map((req) => (
-            <View key={req.id} style={styles.requestItemCard}>
-              <View style={styles.reqCardHeader}>
-                <View>
-                  <View style={styles.reqIdRow}>
-                    <Text style={styles.reqIdText}>{req.id}</Text>
-                    <View style={styles.reqStatusPill}>
-                      <Text style={styles.reqStatusText}>{req.status}</Text>
+
+        {/* Requests List */}
+        {currentList.length === 0 ? (
+          <View style={styles.emptyRequestsBox}>
+            <Ionicons name="clipboard-outline" size={44} color="#94A3B8" />
+            <Text style={styles.emptyRequestsTitle}>
+              {requestsHistoryTab === 'CURRENT' ? 'No Active Nursing Requests' : 'No Past Requests Found'}
+            </Text>
+            <Text style={styles.emptyRequestsSub}>
+              {requestsHistoryTab === 'CURRENT'
+                ? 'No ongoing care requests. View your previous history in the Past Requests tab.'
+                : 'Completed or concluded care requests will be listed here.'}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.requestsCardsList}>
+            {paginatedList.map((req) => {
+              const isRejected = req.status === 'Booking Not Confirmed' || req.status === 'Cancelled' || req.status === 'Rejected' || !!req.rejectionReason;
+              const isServiceDone = ['Service Completed', 'Completed', 'Visit Completed'].includes(req.status);
+              const isBookingDone = isServiceDone || ['Booking Confirmed', 'Service In Progress'].includes(req.status);
+              const isPayDone = isBookingDone || isRejected || req.paymentStatus === 'Paid' || req.status === 'Payment Done';
+              const isPayPending = req.status === 'Payment Pending' && !isPayDone;
+
+              return (
+                <View key={req.id} style={styles.requestItemCard}>
+                  {/* Card Top */}
+                  <View style={styles.reqCardHeader}>
+                    <View>
+                      <View style={styles.reqIdRow}>
+                        <Text style={styles.reqIdText}>{req.id}</Text>
+                        <View
+                          style={[
+                            styles.reqStatusPill,
+                            isRejected && { backgroundColor: '#FEE2E2' },
+                            isServiceDone && { backgroundColor: '#F1F5F9' },
+                            isBookingDone && !isServiceDone && { backgroundColor: '#DCFCE7' },
+                            isPayPending && { backgroundColor: '#FFEDD5' },
+                            !isRejected && !isServiceDone && !isBookingDone && !isPayPending && { backgroundColor: '#E0F2FE' },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.reqStatusText,
+                              isRejected && { color: '#DC2626' },
+                              isServiceDone && { color: '#475569' },
+                              isBookingDone && !isServiceDone && { color: '#15803D' },
+                              isPayPending && { color: '#C2410C' },
+                              !isRejected && !isServiceDone && !isBookingDone && !isPayPending && { color: '#0369A1' },
+                            ]}
+                          >
+                            {isRejected ? 'Booking Not Confirmed' : isServiceDone ? 'Service Completed' : isBookingDone ? 'Booking Confirmed' : isPayPending ? 'Payment Pending' : 'Request Sent'}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.reqDateText}>
+                        {isServiceDone && req.completedDate ? `Completed: ${req.completedDate}` : `Requested: ${req.requestDate || req.date}`}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.viewTimelineBtn}
+                      onPress={() => {
+                        setSelectedRequestDetail(req);
+                        setCurrentView('REQUEST_DETAILS');
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.viewTimelineBtnText}>Timeline →</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Patient Name */}
+                  <View style={styles.reqPatientRow}>
+                    <Ionicons name="person-outline" size={14} color="#64748B" />
+                    <Text style={styles.reqPatientText}>
+                      Patient: <Text style={{ fontWeight: '700', color: '#0F172A' }}>{req.patientName}</Text>
+                      {req.patientAge ? ` (${req.patientAge} yrs, ${req.patientGender || 'Self'})` : ''}
+                    </Text>
+                  </View>
+
+                  {/* Service Address */}
+                  <View style={styles.reqAddressRow}>
+                    <Ionicons name="location-outline" size={14} color="#00B894" />
+                    <Text style={styles.reqAddressText} numberOfLines={2}>
+                      {req.address}
+                    </Text>
+                  </View>
+
+                  {/* Services Chips */}
+                  <View style={styles.reqServicesRow}>
+                    {(req.selectedServices || [req.serviceName || 'Home Nursing']).map((s) => (
+                      <View key={s} style={styles.reqServiceChip}>
+                        <Text style={styles.reqServiceChipText}>{s}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* 4-Step Simplified Status Stepper */}
+                  <View style={styles.compactWorkflowBox}>
+                    <View style={styles.fourStepStepperRow}>
+                      {/* Step 1: Request Sent */}
+                      <View style={styles.fourStepItem}>
+                        <View style={[styles.fourStepDot, styles.fourStepDotDone]}>
+                          <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                        </View>
+                        <Text style={[styles.fourStepLabel, styles.fourStepLabelDone]}>Request Sent</Text>
+                      </View>
+
+                      <View style={[styles.fourStepLine, isPayDone ? styles.fourStepLineDone : styles.fourStepLinePending]} />
+
+                      {/* Step 2: Payment Done */}
+                      <View style={styles.fourStepItem}>
+                        <View
+                          style={[
+                            styles.fourStepDot,
+                            isPayDone && styles.fourStepDotDone,
+                            isPayPending && styles.fourStepDotPending,
+                            !isPayDone && !isPayPending && styles.fourStepDotTodo,
+                          ]}
+                        >
+                          {isPayDone ? (
+                            <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                          ) : isPayPending ? (
+                            <Ionicons name="time" size={10} color="#B45309" />
+                          ) : (
+                            <View style={styles.fourStepDotHollow} />
+                          )}
+                        </View>
+                        <Text
+                          style={[
+                            styles.fourStepLabel,
+                            isPayDone && styles.fourStepLabelDone,
+                            isPayPending && styles.fourStepLabelPending,
+                            !isPayDone && !isPayPending && styles.fourStepLabelTodo,
+                          ]}
+                        >
+                          {isPayPending ? 'Payment Pending' : 'Payment Done'}
+                        </Text>
+                      </View>
+
+                      <View style={[styles.fourStepLine, (isBookingDone || isRejected) ? (isRejected ? styles.fourStepLineRejected : styles.fourStepLineDone) : styles.fourStepLinePending]} />
+
+                      {/* Step 3: Booking Confirmed / Booking Not Confirmed */}
+                      <View style={styles.fourStepItem}>
+                        <View
+                          style={[
+                            styles.fourStepDot,
+                            isBookingDone && styles.fourStepDotDone,
+                            isRejected && styles.fourStepDotRejected,
+                            !isBookingDone && !isRejected && styles.fourStepDotTodo,
+                          ]}
+                        >
+                          {isBookingDone ? (
+                            <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                          ) : isRejected ? (
+                            <Ionicons name="close" size={11} color="#FFFFFF" />
+                          ) : (
+                            <View style={styles.fourStepDotHollow} />
+                          )}
+                        </View>
+                        <Text
+                          style={[
+                            styles.fourStepLabel,
+                            isBookingDone && styles.fourStepLabelDone,
+                            isRejected && styles.fourStepLabelRejected,
+                            !isBookingDone && !isRejected && styles.fourStepLabelTodo,
+                          ]}
+                        >
+                          {isRejected ? 'Booking Not Confirmed' : 'Booking Confirmed'}
+                        </Text>
+                      </View>
+
+                      {/* Step 4: Service Completed (Only shown if booking is not rejected) */}
+                      {!isRejected && (
+                        <>
+                          <View style={[styles.fourStepLine, isServiceDone ? styles.fourStepLineDone : styles.fourStepLinePending]} />
+                          <View style={styles.fourStepItem}>
+                            <View
+                              style={[
+                                styles.fourStepDot,
+                                isServiceDone && styles.fourStepDotDone,
+                                !isServiceDone && styles.fourStepDotTodo,
+                              ]}
+                            >
+                              {isServiceDone ? (
+                                <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                              ) : (
+                                <View style={styles.fourStepDotHollow} />
+                              )}
+                            </View>
+                            <Text
+                              style={[
+                                styles.fourStepLabel,
+                                isServiceDone && styles.fourStepLabelDone,
+                                !isServiceDone && styles.fourStepLabelTodo,
+                              ]}
+                            >
+                              Service Completed
+                            </Text>
+                          </View>
+                        </>
+                      )}
                     </View>
                   </View>
-                  <Text style={styles.reqDateText}>Requested: {req.requestDate}</Text>
+
+                  {/* Booking Not Confirmed Reason Card */}
+                  {isRejected && (
+                    <View style={styles.notConfirmedReasonCard}>
+                      <View style={styles.notConfirmedHead}>
+                        <Ionicons name="alert-circle" size={15} color="#DC2626" />
+                        <Text style={styles.notConfirmedTitle}>Booking Not Confirmed</Text>
+                      </View>
+                      <Text style={styles.notConfirmedReasonLabel}>Reason:</Text>
+                      <Text style={styles.notConfirmedReasonText}>
+                        {req.rejectionReason || req.rejectReason || 'The requested nursing service is not available on the selected date.'}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Payment Pending Action Banner */}
+                  {isPayPending && (
+                    <View style={styles.paymentActionBanner}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.paymentBannerTitle}>Enquiry Completed • Payment Required</Text>
+                        <Text style={styles.paymentBannerSub}>
+                          Amount: <Text style={{ fontWeight: '800', color: '#0F172A' }}>₹{req.fee || 349}</Text> • Click Pay Now to confirm booking
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.payNowBtn}
+                        onPress={() => handleInitiatePayment(req)}
+                        activeOpacity={0.88}
+                      >
+                        <Ionicons name="card" size={14} color="#FFFFFF" style={{ marginRight: 5 }} />
+                        <Text style={styles.payNowBtnText}>Pay Now</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  {/* Booking Confirmed / Active Nurse Note */}
+                  {isBookingDone && !isServiceDone && (
+                    <View style={styles.confirmedNoticeBox}>
+                      <Ionicons name="checkmark-circle" size={15} color="#16A34A" />
+                      <Text style={styles.confirmedNoticeText}>
+                        Booking Confirmed • Assigned nurse will visit as scheduled on {req.confirmedVisitDate || req.date || 'Scheduled Date'}
+                      </Text>
+                    </View>
+                  )}
                 </View>
+              );
+            })}
+          </View>
+        )}
 
-                <TouchableOpacity
-                  style={styles.viewTimelineBtn}
-                  onPress={() => {
-                    setSelectedRequestDetail(req);
-                    setCurrentView('REQUEST_DETAILS');
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.viewTimelineBtnText}>Timeline →</Text>
-                </TouchableOpacity>
-              </View>
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <View style={styles.paginationCard}>
+            <Text style={styles.paginationSummaryText}>
+              Showing <Text style={styles.paginationHighlightText}>{startIndex + 1} - {Math.min(startIndex + REQUESTS_PER_PAGE, currentList.length)}</Text> of <Text style={styles.paginationHighlightText}>{currentList.length}</Text> requests
+            </Text>
 
-              <View style={styles.reqPatientRow}>
-                <Ionicons name="person-outline" size={15} color="#64748B" />
-                <Text style={styles.reqPatientText}>
-                  Patient: <Text style={{ fontWeight: '700', color: '#0F172A' }}>{req.patientName}</Text> ({req.patientAge} yrs, {req.patientGender})
-                </Text>
-              </View>
+            <View style={styles.paginationNavRow}>
+              <TouchableOpacity
+                style={[styles.paginationArrowBtn, safeCurrentPage === 1 && styles.paginationBtnDisabled]}
+                onPress={() => setRequestsCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={safeCurrentPage === 1}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="chevron-back" size={15} color={safeCurrentPage === 1 ? '#94A3B8' : '#0D9488'} />
+                <Text style={[styles.paginationArrowText, safeCurrentPage === 1 && styles.paginationTextDisabled]}>Prev</Text>
+              </TouchableOpacity>
 
-              <View style={styles.reqAddressRow}>
-                <Ionicons name="location-outline" size={15} color="#64748B" />
-                <Text style={styles.reqAddressText} numberOfLines={1}>
-                  {req.address}
-                </Text>
-              </View>
-
-              {/* Services tags */}
-              <View style={styles.reqServicesRow}>
-                {req.selectedServices.map((s) => (
-                  <View key={s} style={styles.reqServiceChip}>
-                    <Text style={styles.reqServiceChipText}>{s}</Text>
-                  </View>
+              <View style={styles.paginationNumbersWrap}>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                  <TouchableOpacity
+                    key={`p-${pageNum}`}
+                    style={[styles.paginationNumBtn, safeCurrentPage === pageNum && styles.paginationNumBtnActive]}
+                    onPress={() => setRequestsCurrentPage(pageNum)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.paginationNumText, safeCurrentPage === pageNum && styles.paginationNumTextActive]}>
+                      {pageNum}
+                    </Text>
+                  </TouchableOpacity>
                 ))}
               </View>
 
-              {/* Assigned Nurse Preview if available */}
-              {req.assignedNurse && assignedNursesData[req.assignedNurse] && (
-                <View style={styles.assignedNurseMiniCard}>
-                  <Image
-                    source={{ uri: assignedNursesData[req.assignedNurse].photo }}
-                    style={styles.assignedNurseMiniPhoto}
-                  />
-                  <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={styles.assignedNurseMiniTitle}>
-                      Assigned: {assignedNursesData[req.assignedNurse].name} ({assignedNursesData[req.assignedNurse].qualification})
-                    </Text>
-                    <Text style={styles.assignedNurseMiniSub}>
-                      Visit: {req.confirmedVisitDate || 'Today'} at {req.confirmedVisitTime || '11:00 AM'}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.callNurseBtn}
-                    onPress={() => showAlert('Contact Coordinator', 'Call Care Desk at 1800-425-0099 to coordinate with your nurse.')}
-                  >
-                    <Ionicons name="call" size={14} color="#00B894" />
-                  </TouchableOpacity>
-                </View>
-              )}
+              <TouchableOpacity
+                style={[styles.paginationArrowBtn, safeCurrentPage === totalPages && styles.paginationBtnDisabled]}
+                onPress={() => setRequestsCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safeCurrentPage === totalPages}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.paginationArrowText, safeCurrentPage === totalPages && styles.paginationTextDisabled]}>Next</Text>
+                <Ionicons name="chevron-forward" size={15} color={safeCurrentPage === totalPages ? '#94A3B8' : '#0D9488'} />
+              </TouchableOpacity>
             </View>
-          ))}
-        </View>
-      )}
-    </ScrollView>
-  );
+          </View>
+        )}
+      </ScrollView>
+    );
+  };
 
   // =========================================================================
-  // VIEW 4: DETAILED REQUEST & STAGE TIMELINE
+  // VIEW 4: ADMIN / COORDINATOR MANAGEMENT VIEW
+  // =========================================================================
+  const renderAdminCoordinatorView = () => {
+    const totalCount = requestsList.length;
+    const submittedCount = requestsList.filter((r) => r.status === 'Request Sent' || r.status === 'Request Submitted').length;
+    const paymentPendingCount = requestsList.filter((r) => r.status === 'Payment Pending').length;
+    const confirmedCount = requestsList.filter((r) => r.status === 'Booking Confirmed').length;
+    const completedCount = requestsList.filter((r) => ['Service Completed', 'Completed', 'Visit Completed'].includes(r.status)).length;
+
+    const filteredAdminList = requestsList.filter((r) => {
+      if (adminFilterTab === 'All') return true;
+      if (adminFilterTab === 'New Requests') return r.status === 'Request Sent' || r.status === 'Request Submitted' || r.status === 'Admin Contacting';
+      if (adminFilterTab === 'Payment Pending') return r.status === 'Payment Pending';
+      if (adminFilterTab === 'Confirmed') return r.status === 'Booking Confirmed';
+      if (adminFilterTab === 'Not Confirmed') return r.status === 'Booking Not Confirmed' || r.status === 'Cancelled';
+      if (adminFilterTab === 'Completed') return ['Service Completed', 'Completed', 'Visit Completed'].includes(r.status);
+      return r.status === adminFilterTab;
+    });
+
+    return (
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Admin Header */}
+        <View style={styles.adminHeaderCard}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={styles.adminShieldIcon}>
+                <Ionicons name="shield-checkmark" size={18} color="#FFFFFF" />
+              </View>
+              <View>
+                <Text style={styles.adminHeaderTitle}>Nursing Coordinator Desk</Text>
+                <Text style={styles.adminHeaderSub}>MediUnify Care Operations • City: {selectedCity}</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.switchPatientViewBtn}
+              onPress={() => setActiveRoleMode('PATIENT')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="swap-horizontal" size={14} color="#0D9488" />
+              <Text style={styles.switchPatientViewBtnText}>Patient View</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Stats Grid */}
+          <View style={styles.adminStatsGrid}>
+            <View style={styles.adminStatItem}>
+              <Text style={styles.adminStatNumber}>{totalCount}</Text>
+              <Text style={styles.adminStatLabel}>Total Requests</Text>
+            </View>
+            <View style={styles.adminStatItem}>
+              <Text style={[styles.adminStatNumber, { color: '#0284C7' }]}>{submittedCount}</Text>
+              <Text style={styles.adminStatLabel}>New Received</Text>
+            </View>
+            <View style={styles.adminStatItem}>
+              <Text style={[styles.adminStatNumber, { color: '#EA580C' }]}>{paymentPendingCount}</Text>
+              <Text style={styles.adminStatLabel}>Pay Pending</Text>
+            </View>
+            <View style={styles.adminStatItem}>
+              <Text style={[styles.adminStatNumber, { color: '#16A34A' }]}>{confirmedCount}</Text>
+              <Text style={styles.adminStatLabel}>Confirmed</Text>
+            </View>
+            <View style={styles.adminStatItem}>
+              <Text style={[styles.adminStatNumber, { color: '#4F46E5' }]}>{completedCount}</Text>
+              <Text style={styles.adminStatLabel}>Completed</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Filter Chips */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.adminFilterScroll}
+        >
+          {['All', 'New Requests', 'Payment Pending', 'Confirmed', 'Not Confirmed', 'Completed'].map((tab) => {
+            const isSel = adminFilterTab === tab;
+            return (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.adminFilterChip, isSel && styles.adminFilterChipActive]}
+                onPress={() => setAdminFilterTab(tab)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.adminFilterChipText, isSel && styles.adminFilterChipTextActive]}>
+                  {tab}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* Admin Request Cards */}
+        {filteredAdminList.length === 0 ? (
+          <View style={styles.emptyRequestsBox}>
+            <Ionicons name="folder-open-outline" size={40} color="#94A3B8" />
+            <Text style={styles.emptyRequestsTitle}>No Requests in "{adminFilterTab}"</Text>
+          </View>
+        ) : (
+          <View style={{ gap: 12 }}>
+            {filteredAdminList.map((req) => {
+              const isCompleted = ['Service Completed', 'Completed', 'Visit Completed'].includes(req.status);
+              const isRejected = req.status === 'Booking Not Confirmed' || req.status === 'Cancelled' || !!req.rejectionReason;
+              const isConfirmed = req.status === 'Booking Confirmed' || req.status === 'Service In Progress';
+
+              return (
+                <View key={req.id} style={styles.adminReqCard}>
+                  {/* Card Header */}
+                  <View style={styles.adminReqCardHeader}>
+                    <View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.adminReqIdText}>{req.id}</Text>
+                        <View style={styles.adminCityTag}>
+                          <Text style={styles.adminCityTagText}>{req.city || req.homeCity || selectedCity}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.adminReqDateText}>Received: {req.requestDate || req.date}</Text>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.reqStatusPill,
+                        isRejected && { backgroundColor: '#FEE2E2' },
+                        isCompleted && { backgroundColor: '#F1F5F9' },
+                        isConfirmed && { backgroundColor: '#DCFCE7' },
+                        req.status === 'Payment Pending' && { backgroundColor: '#FFEDD5' },
+                        !isRejected && !isCompleted && !isConfirmed && req.status !== 'Payment Pending' && { backgroundColor: '#E0F2FE' },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.reqStatusText,
+                          isRejected && { color: '#DC2626' },
+                          isCompleted && { color: '#475569' },
+                          isConfirmed && { color: '#15803D' },
+                          req.status === 'Payment Pending' && { color: '#C2410C' },
+                          !isRejected && !isCompleted && !isConfirmed && req.status !== 'Payment Pending' && { color: '#0369A1' },
+                        ]}
+                      >
+                        {isRejected ? 'Booking Not Confirmed' : isCompleted ? 'Service Completed' : isConfirmed ? 'Booking Confirmed' : req.status}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Patient Info & Direct Contact */}
+                  <View style={styles.adminPatientRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.adminPatientName}>{req.patientName}</Text>
+                      <Text style={styles.adminPatientMeta}>
+                        Phone: {req.contactNumber || req.phone} • Age: {req.patientAge || '58'} yrs
+                      </Text>
+                    </View>
+
+                    <View style={styles.adminContactBtnsRow}>
+                      <TouchableOpacity
+                        style={styles.adminCallBtn}
+                        onPress={() => Linking.openURL(`tel:${req.contactNumber || req.phone}`).catch(() => showAlert('Call', `Dial ${req.contactNumber}`)) }
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="call" size={13} color="#FFFFFF" />
+                        <Text style={styles.adminCallBtnText}>Call</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.adminWhatsAppBtn}
+                        onPress={() => Linking.openURL(`https://wa.me/${(req.contactNumber || req.phone || '').replace(/[^0-9]/g, '')}`).catch(() => {}) }
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="logo-whatsapp" size={13} color="#FFFFFF" />
+                        <Text style={styles.adminCallBtnText}>Chat</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Service & Requested Date */}
+                  <View style={styles.adminDetailRow}>
+                    <Text style={styles.adminDetailLabel}>Service:</Text>
+                    <Text style={styles.adminDetailVal}>
+                      {req.serviceName || (Array.isArray(req.selectedServices) ? req.selectedServices.join(', ') : 'Home Nursing')}
+                    </Text>
+                  </View>
+
+                  <View style={styles.adminDetailRow}>
+                    <Text style={styles.adminDetailLabel}>Req Date:</Text>
+                    <Text style={styles.adminDetailVal}>{req.startDate || req.date || 'Immediate'}</Text>
+                  </View>
+
+                  {/* Full Service Address */}
+                  <View style={styles.adminDetailRow}>
+                    <Text style={styles.adminDetailLabel}>Address:</Text>
+                    <Text style={[styles.adminDetailVal, { flex: 1 }]}>{req.address}</Text>
+                  </View>
+
+                  {/* Rejection Note if not confirmed */}
+                  {isRejected && (
+                    <View style={[styles.adminEnquiryNotesBox, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
+                      <Text style={[styles.adminEnquiryNotesTitle, { color: '#B91C1C' }]}>Non-Confirmation Reason:</Text>
+                      <Text style={[styles.adminEnquiryNotesText, { color: '#991B1B' }]}>
+                        {req.rejectionReason || 'Nurse unavailable for the selected date.'}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Enquiry Notes if any */}
+                  {req.enquiryNotes && !isRejected && (
+                    <View style={styles.adminEnquiryNotesBox}>
+                      <Text style={styles.adminEnquiryNotesTitle}>Enquiry & Quote Summary:</Text>
+                      <Text style={styles.adminEnquiryNotesText}>
+                        • Visits: {req.enquiryNotes.visits} ({req.enquiryNotes.duration})
+                      </Text>
+                      <Text style={styles.adminEnquiryNotesText}>
+                        • Agreed Time: {req.enquiryNotes.agreedDateTime} • Fee: ₹{req.fee || 349}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* 4 Admin Actions: 1. Send Payment Link, 2. Confirm Booking, 3. Do Not Confirm Booking, 4. Mark Completed */}
+                  <View style={styles.adminActionButtonsGrid}>
+                    {/* Action 1: Send Payment Link */}
+                    {['Request Sent', 'Request Submitted', 'Admin Contacting', 'Enquiry Completed'].includes(req.status) && (
+                      <TouchableOpacity
+                        style={styles.adminEnquiryActionBtn}
+                        onPress={() => handleOpenEnquiryModal(req)}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="document-text-outline" size={14} color="#FFFFFF" />
+                        <Text style={styles.adminPrimaryActionBtnText}>Send Payment Link</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Action 2: Confirm Booking */}
+                    {['Request Sent', 'Request Submitted', 'Admin Contacting', 'Payment Pending', 'Enquiry Completed'].includes(req.status) && (
+                      <TouchableOpacity
+                        style={[styles.adminPrimaryActionBtn, { backgroundColor: '#0D9488' }]}
+                        onPress={() => handleAdminConfirmBooking(req)}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="checkmark-circle-outline" size={14} color="#FFFFFF" />
+                        <Text style={styles.adminPrimaryActionBtnText}>Confirm Booking</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Action 3: Do Not Confirm Booking (with mandatory reason modal) */}
+                    {!isCompleted && !isRejected && (
+                      <TouchableOpacity
+                        style={[styles.adminCancelBtn, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}
+                        onPress={() => handleAdminOpenRejectModal(req)}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="close-circle-outline" size={13} color="#DC2626" style={{ marginRight: 3 }} />
+                        <Text style={[styles.adminCancelBtnText, { color: '#DC2626', fontWeight: '800' }]}>Do Not Confirm</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Action 4: Mark Service Completed */}
+                    {isConfirmed && (
+                      <TouchableOpacity
+                        style={[styles.adminPrimaryActionBtn, { backgroundColor: '#16A34A' }]}
+                        onPress={() => handleAdminMarkCompleted(req)}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="checkmark-done-circle-outline" size={14} color="#FFFFFF" />
+                        <Text style={styles.adminPrimaryActionBtnText}>Mark Completed</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
+    );
+  };
+
+  // =========================================================================
+  // VIEW 5: DETAILED REQUEST & STAGE TIMELINE
   // =========================================================================
   const renderRequestDetailsView = () => {
     if (!selectedRequestDetail) return null;
-    const req = selectedRequestDetail;
-    const assignedNurse = req.assignedNurse ? assignedNursesData[req.assignedNurse] : null;
+    const req = requestsList.find((r) => r.id === selectedRequestDetail.id) || selectedRequestDetail;
+    const isRejected = req.status === 'Booking Not Confirmed' || req.status === 'Cancelled' || req.status === 'Rejected' || !!req.rejectionReason;
+    const isServiceDone = ['Service Completed', 'Completed', 'Visit Completed'].includes(req.status);
+    const isBookingDone = isServiceDone || ['Booking Confirmed', 'Service In Progress'].includes(req.status);
+    const isPayDone = isBookingDone || isRejected || req.paymentStatus === 'Paid' || req.status === 'Payment Done';
+    const isPayPending = req.status === 'Payment Pending' && !isPayDone;
+
+    const timelineItems = isRejected
+      ? [
+          { label: 'Request Sent', status: 'done', desc: 'Care request submitted by patient', timestamp: req.requestDate || 'Initial Request' },
+          { label: 'Payment Done', status: isPayDone ? 'done' : 'pending', desc: isPayDone ? 'Service payment confirmed' : 'Payment link sent', timestamp: req.paymentStatus === 'Paid' ? 'Paid' : 'Pending' },
+          { label: 'Booking Not Confirmed', status: 'rejected', desc: 'Booking could not be confirmed by coordinator', timestamp: req.completedDate || 'Recent', reason: req.rejectionReason || 'Nurse is unavailable for the selected date.' },
+        ]
+      : [
+          { label: 'Request Sent', status: 'done', desc: 'Care request submitted by patient', timestamp: req.requestDate || 'Initial Request' },
+          { label: 'Payment Done', status: isPayDone ? 'done' : isPayPending ? 'pending' : 'todo', desc: isPayDone ? 'Service payment confirmed' : isPayPending ? `Payment link active (₹${req.fee || 349})` : 'Awaiting quote & payment link', timestamp: isPayDone ? 'Payment Verified' : isPayPending ? 'Pending Payment' : '' },
+          { label: 'Booking Confirmed', status: isBookingDone ? 'done' : 'todo', desc: isBookingDone ? 'Nurse scheduled and booking confirmed' : 'Pending coordinator confirmation', timestamp: isBookingDone ? 'Confirmed' : '' },
+          { label: 'Service Completed', status: isServiceDone ? 'done' : 'todo', desc: isServiceDone ? 'Home nursing visit delivered successfully' : 'Visit pending as scheduled', timestamp: req.completedDate || '' },
+        ];
 
     return (
       <ScrollView
@@ -2409,70 +3567,159 @@ const NurseBookingScreen = ({ navigation, route }) => {
           </TouchableOpacity>
 
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.detailMainTitle}>Care Request Details</Text>
-            <Text style={styles.detailSub}>ID: {req.id} • {req.status}</Text>
+            <Text style={styles.detailMainTitle}>Home Care Request Details</Text>
+            <Text style={styles.detailSub}>ID: {req.id} • Status: {isRejected ? 'Booking Not Confirmed' : req.status}</Text>
           </View>
         </View>
 
         {/* Status Card */}
         <View style={styles.detailStatusCard}>
           <View style={styles.detailStatusTop}>
-            <View style={styles.detailPulseWrap}>
-              <View style={styles.detailLiveDot} />
+            <View style={[styles.detailPulseWrap, isRejected && { backgroundColor: '#FEE2E2' }]}>
+              <View style={[styles.detailLiveDot, isRejected && { backgroundColor: '#DC2626' }]} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.detailStatusTitle}>{req.status}</Text>
+              <Text style={[styles.detailStatusTitle, isRejected && { color: '#DC2626' }]}>
+                {isRejected ? 'Booking Not Confirmed' : req.status}
+              </Text>
               <Text style={styles.detailStatusDesc}>
-                {req.status === 'Care Team Will Call You' && 'A clinical care coordinator is reviewing your request and will call within 15 minutes.'}
-                {req.status === 'Visit Confirmed' && 'Visit timing confirmed. The assigned nurse will arrive with sterile supplies.'}
-                {req.status === 'Visit Completed' && 'Care delivery completed and signed off.'}
+                {isRejected && 'Your booking could not be confirmed. Please check the coordinator reason below.'}
+                {!isRejected && req.status === 'Request Sent' && 'Your request has been submitted. Clinical coordinator will review and contact you.'}
+                {!isRejected && req.status === 'Payment Pending' && `Coordinator has reviewed requirements. Please complete payment of ₹${req.fee || 349} to confirm booking.`}
+                {!isRejected && req.status === 'Booking Confirmed' && 'Booking Confirmed. Certified nurse is scheduled to visit with sterile care kits.'}
+                {!isRejected && req.status === 'Service Completed' && 'Home nursing service successfully delivered and concluded.'}
               </Text>
             </View>
           </View>
 
-          {/* Timeline Stages */}
-          <View style={styles.timelineList}>
-            {careTimelineStages.map((stage, idx) => {
-              const isPast = idx <= req.currentStageIndex;
-              const isCurrent = idx === req.currentStageIndex;
+          {/* Pay Now Button if pending */}
+          {isPayPending && (
+            <TouchableOpacity
+              style={[styles.payNowBtn, { width: '100%', marginTop: 8, paddingVertical: 12 }]}
+              onPress={() => handleInitiatePayment(req)}
+              activeOpacity={0.88}
+            >
+              <Ionicons name="card" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={[styles.payNowBtnText, { fontSize: 14 }]}>Pay ₹{req.fee || 349} Now to Confirm Booking</Text>
+            </TouchableOpacity>
+          )}
 
+          {/* 4-Stage Stepper List */}
+          <View style={styles.timelineList}>
+            {timelineItems.map((st, idx) => {
               return (
-                <View key={stage.id} style={styles.timelineRow}>
+                <View key={st.label} style={styles.timelineRow}>
                   <View style={styles.timelineLeftCol}>
                     <View
                       style={[
                         styles.timelineBullet,
-                        isPast && styles.timelineBulletPast,
-                        isCurrent && styles.timelineBulletCurrent,
+                        st.status === 'done' && styles.timelineBulletPast,
+                        st.status === 'rejected' && { backgroundColor: '#DC2626' },
+                        st.status === 'pending' && { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' },
                       ]}
                     >
-                      {isPast ? (
+                      {st.status === 'done' ? (
                         <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                      ) : st.status === 'rejected' ? (
+                        <Ionicons name="close" size={11} color="#FFFFFF" />
+                      ) : st.status === 'pending' ? (
+                        <Ionicons name="time" size={9} color="#B45309" />
                       ) : (
                         <View style={styles.timelineBulletFuture} />
                       )}
                     </View>
-                    {idx < careTimelineStages.length - 1 && (
+                    {idx < timelineItems.length - 1 && (
                       <View
                         style={[
                           styles.timelineConnectingLine,
-                          isPast && styles.timelineConnectingLinePast,
+                          (st.status === 'done' || st.status === 'rejected') && styles.timelineConnectingLinePast,
                         ]}
                       />
                     )}
                   </View>
 
                   <View style={styles.timelineContentCol}>
-                    <Text style={[styles.timelineStageLabel, (isPast || isCurrent) && styles.timelineStageLabelActive]}>
-                      {stage.label}
-                    </Text>
-                    <Text style={styles.timelineStageDesc}>{stage.description}</Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text
+                        style={[
+                          styles.timelineStageLabel,
+                          st.status === 'done' && styles.timelineStageLabelActive,
+                          st.status === 'rejected' && { color: '#DC2626', fontWeight: '800' },
+                        ]}
+                      >
+                        {st.label}
+                      </Text>
+                      {st.timestamp ? (
+                        <Text style={{ fontSize: 10.5, color: '#94A3B8', fontWeight: '600' }}>{st.timestamp}</Text>
+                      ) : null}
+                    </View>
+                    <Text style={styles.timelineStageDesc}>{st.desc}</Text>
+
+                    {st.reason && (
+                      <View style={[styles.notConfirmedReasonCard, { marginTop: 8 }]}>
+                        <View style={styles.notConfirmedHead}>
+                          <Ionicons name="alert-circle" size={14} color="#DC2626" />
+                          <Text style={styles.notConfirmedTitle}>Reason for non-confirmation:</Text>
+                        </View>
+                        <Text style={styles.notConfirmedReasonText}>{st.reason}</Text>
+                      </View>
+                    )}
                   </View>
                 </View>
               );
             })}
           </View>
         </View>
+
+        {/* Patient & Service Address Summary */}
+        <View style={styles.summaryInfoCard}>
+          <Text style={styles.summaryInfoCardHeader}>Patient & Service Information</Text>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Patient Name:</Text>
+            <Text style={styles.summaryValue}>{req.patientName}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Contact Number:</Text>
+            <Text style={styles.summaryValue}>{req.contactNumber || req.phone}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Service Address:</Text>
+            <Text style={[styles.summaryValue, { flex: 1, textAlign: 'right' }]}>{req.address}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Service City:</Text>
+            <Text style={styles.summaryValue}>{req.city || req.homeCity || selectedCity}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Selected Service:</Text>
+            <Text style={styles.summaryValue}>
+              {req.serviceName || (Array.isArray(req.selectedServices) ? req.selectedServices.join(', ') : 'Home Nursing')}
+            </Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Payment Status:</Text>
+            <Text style={[styles.summaryValue, { color: req.paymentStatus === 'Paid' ? '#16A34A' : '#EA580C', fontWeight: '800' }]}>
+              {req.paymentStatus || (req.paidAmount ? 'Paid' : 'Pending')} (₹{req.fee || 349})
+            </Text>
+          </View>
+        </View>
+
+        {/* Enquiry Notes if available */}
+        {req.enquiryNotes && (
+          <View style={[styles.summaryInfoCard, { borderColor: '#BBF7D0', backgroundColor: '#F0FDF4' }]}>
+            <Text style={[styles.summaryInfoCardHeader, { color: '#166534' }]}>Enquiry & Service Scope</Text>
+            <Text style={styles.enquiryUserNotesText}>{req.enquiryNotes.userNotes || 'Care plan confirmed with nurse assignment.'}</Text>
+            <View style={{ marginTop: 8, gap: 4 }}>
+              <Text style={styles.enquiryBullet}>• Number of Visits: {req.enquiryNotes.visits}</Text>
+              <Text style={styles.enquiryBullet}>• Duration per Visit: {req.enquiryNotes.duration}</Text>
+              <Text style={styles.enquiryBullet}>• Agreed Schedule: {req.enquiryNotes.agreedDateTime}</Text>
+              {req.enquiryNotes.specialReqs ? (
+                <Text style={styles.enquiryBullet}>• Special Scope: {req.enquiryNotes.specialReqs}</Text>
+              ) : null}
+            </View>
+          </View>
+        )}
 
         {/* Assigned Nurse Card if available */}
         {assignedNurse && (
@@ -2484,9 +3731,9 @@ const NurseBookingScreen = ({ navigation, route }) => {
                 <Text style={styles.assignedNameLarge}>{assignedNurse.name}</Text>
                 <Text style={styles.assignedQualLarge}>{assignedNurse.qualification} • {assignedNurse.experience} exp</Text>
                 <Text style={styles.assignedSpecLarge}>
-                  Specialty: {assignedNurse.specialization || (Array.isArray(assignedNurse.specialties) ? assignedNurse.specialties.join(', ') : 'General Nursing')}
+                  Specialty: {assignedNurse.specialization || 'General Clinical Nursing'}
                 </Text>
-                <Text style={styles.assignedRegLarge}>Council Reg: {assignedNurse.councilReg || assignedNurse.regNumber || 'KNC Verified'}</Text>
+                <Text style={styles.assignedRegLarge}>Council Reg: {assignedNurse.councilReg || 'KNC Verified'}</Text>
               </View>
             </View>
           </View>
@@ -2497,7 +3744,28 @@ const NurseBookingScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.rootContainer}>
-      {currentView === 'LANDING' && renderLandingView()}
+      {/* Floating In-App Toast Notification Banner */}
+      {inAppToast.visible && (
+        <View style={styles.floatingToastWrap}>
+          <View style={styles.floatingToastCard}>
+            <View style={styles.floatingToastIconWrap}>
+              <Ionicons name="notifications" size={16} color="#00B894" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.floatingToastTitle}>{inAppToast.title}</Text>
+              <Text style={styles.floatingToastMessage} numberOfLines={2}>{inAppToast.message}</Text>
+            </View>
+            <TouchableOpacity onPress={() => setInAppToast({ visible: false, title: '', message: '' })}>
+              <Ionicons name="close" size={16} color="#94A3B8" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Role-based Landing View or Admin View */}
+      {currentView === 'LANDING' && (
+        activeRoleMode === 'ADMIN' ? renderAdminCoordinatorView() : renderLandingView()
+      )}
       {currentView === 'REQUEST_FLOW' && renderRequestFlowView()}
       {currentView === 'MY_REQUESTS' && renderMyRequestsView()}
       {currentView === 'REQUEST_DETAILS' && renderRequestDetailsView()}
@@ -2606,6 +3874,413 @@ const NurseBookingScreen = ({ navigation, route }) => {
                   )}
                 </TouchableOpacity>
               ))}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ============================================================
+          CONFIRMATION MODAL (AFTER SUBMITTING REQUEST)
+      ============================================================ */}
+      <Modal
+        visible={confirmationModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setConfirmationModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setConfirmationModalVisible(false)}
+        >
+          <View style={[styles.modalContentCard, { maxWidth: 440 }]} onStartShouldSetResponder={() => true}>
+            <View style={styles.confirmModalHeader}>
+              <View style={styles.confirmSuccessCircle}>
+                <Ionicons name="checkmark-circle" size={36} color="#00B894" />
+              </View>
+              <Text style={styles.confirmModalTitle}>Request Submitted Successfully</Text>
+              <Text style={styles.confirmModalMsg}>
+                Your nursing request has been submitted successfully. Our coordinator will contact you shortly.
+              </Text>
+            </View>
+
+            {submittedBookingDetail && (
+              <View style={styles.confirmDetailsBox}>
+                <View style={styles.confirmDetailRow}>
+                  <Text style={styles.confirmLabel}>Request ID:</Text>
+                  <Text style={styles.confirmValueBold}>{submittedBookingDetail.id}</Text>
+                </View>
+                <View style={styles.confirmDetailRow}>
+                  <Text style={styles.confirmLabel}>Service:</Text>
+                  <Text style={styles.confirmValue}>
+                    {submittedBookingDetail.serviceName || (Array.isArray(submittedBookingDetail.selectedServices) ? submittedBookingDetail.selectedServices.join(', ') : 'Home Nursing')}
+                  </Text>
+                </View>
+                <View style={styles.confirmDetailRow}>
+                  <Text style={styles.confirmLabel}>Requested Date:</Text>
+                  <Text style={styles.confirmValue}>{submittedBookingDetail.startDate || submittedBookingDetail.date}</Text>
+                </View>
+                <View style={styles.confirmDetailRow}>
+                  <Text style={styles.confirmLabel}>Address:</Text>
+                  <Text style={[styles.confirmValue, { flex: 1, textAlign: 'right' }]} numberOfLines={2}>
+                    {submittedBookingDetail.address}
+                  </Text>
+                </View>
+                <View style={styles.confirmDetailRow}>
+                  <Text style={styles.confirmLabel}>Current Status:</Text>
+                  <View style={styles.confirmStatusPill}>
+                    <Text style={styles.confirmStatusText}>{submittedBookingDetail.status}</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            <View style={styles.confirmActionsRow}>
+              <TouchableOpacity
+                style={styles.confirmTrackBtn}
+                onPress={() => {
+                  setConfirmationModalVisible(false);
+                  setCurrentView('MY_REQUESTS');
+                }}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="receipt-outline" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.confirmTrackBtnText}>Track Request Status</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.confirmCloseBtn}
+                onPress={() => setConfirmationModalVisible(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.confirmCloseBtnText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ============================================================
+          ADMIN ENQUIRY & PAYMENT LINK MODAL
+      ============================================================ */}
+      <Modal
+        visible={enquiryModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setEnquiryModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setEnquiryModalVisible(false)}
+        >
+          <View style={[styles.modalContentCard, { maxWidth: 480, maxHeight: '88%' }]} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Coordinator Enquiry & Quote</Text>
+                <Text style={styles.modalSubtitle}>Request: {selectedEnquiryReq?.id} • {selectedEnquiryReq?.patientName}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setEnquiryModalVisible(false)}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ paddingVertical: 10 }} showsVerticalScrollIndicator={true}>
+              <View style={styles.enquiryFormField}>
+                <Text style={styles.enquiryFieldLabel}>Required Nursing Service *</Text>
+                <TextInput
+                  style={styles.enquiryInput}
+                  value={enquiryForm.service}
+                  onChangeText={(t) => setEnquiryForm({ ...enquiryForm, service: t })}
+                  placeholder="e.g. Wound Dressing & Vital Monitoring"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={[styles.enquiryFormField, { flex: 1 }]}>
+                  <Text style={styles.enquiryFieldLabel}>Number of Visits *</Text>
+                  <TextInput
+                    style={styles.enquiryInput}
+                    value={enquiryForm.visits}
+                    onChangeText={(t) => setEnquiryForm({ ...enquiryForm, visits: t })}
+                    placeholder="e.g. 1 Visit / 3 Visits"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+
+                <View style={[styles.enquiryFormField, { flex: 1 }]}>
+                  <Text style={styles.enquiryFieldLabel}>Duration *</Text>
+                  <TextInput
+                    style={styles.enquiryInput}
+                    value={enquiryForm.duration}
+                    onChangeText={(t) => setEnquiryForm({ ...enquiryForm, duration: t })}
+                    placeholder="e.g. 45 mins / 12 Hours"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.enquiryFormField}>
+                <Text style={styles.enquiryFieldLabel}>Agreed Visit Date & Time *</Text>
+                <TextInput
+                  style={styles.enquiryInput}
+                  value={enquiryForm.agreedDateTime}
+                  onChangeText={(t) => setEnquiryForm({ ...enquiryForm, agreedDateTime: t })}
+                  placeholder="e.g. Tomorrow at 10:30 AM"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
+
+              <View style={styles.enquiryFormField}>
+                <Text style={styles.enquiryFieldLabel}>Agreed Charges (₹ Amount to Pay) *</Text>
+                <TextInput
+                  style={styles.enquiryInput}
+                  value={enquiryForm.charges}
+                  onChangeText={(t) => setEnquiryForm({ ...enquiryForm, charges: t.replace(/[^0-9]/g, '') })}
+                  placeholder="349"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.enquiryFormField}>
+                <Text style={styles.enquiryFieldLabel}>Special Clinical Requirements</Text>
+                <TextInput
+                  style={[styles.enquiryInput, { height: 60, textAlignVertical: 'top' }]}
+                  value={enquiryForm.specialReqs}
+                  onChangeText={(t) => setEnquiryForm({ ...enquiryForm, specialReqs: t })}
+                  placeholder="e.g. Aseptic suture line care with hypoallergenic tape"
+                  placeholderTextColor="#94A3B8"
+                  multiline={true}
+                />
+              </View>
+
+              <View style={styles.enquiryFormField}>
+                <Text style={styles.enquiryFieldLabel}>Internal Coordinator Notes (Hidden from user)</Text>
+                <TextInput
+                  style={[styles.enquiryInput, { height: 50, textAlignVertical: 'top' }]}
+                  value={enquiryForm.adminInternalNotes}
+                  onChangeText={(t) => setEnquiryForm({ ...enquiryForm, adminInternalNotes: t })}
+                  placeholder="e.g. Patient is diabetic, verify vitals before injection."
+                  placeholderTextColor="#94A3B8"
+                  multiline={true}
+                />
+              </View>
+
+              <View style={styles.enquiryFormField}>
+                <Text style={styles.enquiryFieldLabel}>User-Facing Care Notes (Sent with Payment Link)</Text>
+                <TextInput
+                  style={[styles.enquiryInput, { height: 55, textAlignVertical: 'top' }]}
+                  value={enquiryForm.userNotes}
+                  onChangeText={(t) => setEnquiryForm({ ...enquiryForm, userNotes: t })}
+                  placeholder="e.g. Nurse assigned. Please complete payment of ₹349 to confirm visit."
+                  placeholderTextColor="#94A3B8"
+                  multiline={true}
+                />
+              </View>
+            </ScrollView>
+
+            <View style={styles.enquiryModalFooter}>
+              <TouchableOpacity
+                style={styles.sendPaymentLinkBtn}
+                onPress={handleSaveEnquiryAndSendPaymentLink}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="paper-plane" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.sendPaymentLinkBtnText}>Send Payment Link (₹{enquiryForm.charges || 349})</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ============================================================
+          PATIENT PAYMENT MODAL (PAY NOW FLOW)
+      ============================================================ */}
+      <Modal
+        visible={paymentModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => !paymentProcessing && setPaymentModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => !paymentProcessing && setPaymentModalVisible(false)}
+        >
+          <View style={[styles.modalContentCard, { maxWidth: 420 }]} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Confirm Home Nursing Payment</Text>
+                <Text style={styles.modalSubtitle}>Request #{selectedPaymentReq?.id}</Text>
+              </View>
+              <TouchableOpacity onPress={() => !paymentProcessing && setPaymentModalVisible(false)}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedPaymentReq && (
+              <View style={{ paddingVertical: 10 }}>
+                {/* Bill Amount Box */}
+                <View style={styles.paymentBillCard}>
+                  <Text style={styles.paymentBillLabel}>Total Payable Amount</Text>
+                  <Text style={styles.paymentBillAmount}>₹{selectedPaymentReq.fee || 349}</Text>
+                  <Text style={styles.paymentBillService}>
+                    For: {selectedPaymentReq.serviceName || (Array.isArray(selectedPaymentReq.selectedServices) ? selectedPaymentReq.selectedServices.join(', ') : 'Nursing Care')}
+                  </Text>
+                </View>
+
+                {/* Payment Methods */}
+                <Text style={styles.paymentMethodTitle}>Select Payment Method:</Text>
+                {[
+                  { id: 'upi', label: 'UPI / Google Pay / PhonePe / Paytm', icon: 'flash-outline', color: '#00B894' },
+                  { id: 'card', label: 'Credit / Debit Card (Visa, MC, RuPay)', icon: 'card-outline', color: '#1E3A8A' },
+                  { id: 'netbanking', label: 'Net Banking (All Major Banks)', icon: 'business-outline', color: '#00C2CB' },
+                ].map((pm) => {
+                  const isSel = selectedPaymentMethod === pm.id;
+                  return (
+                    <TouchableOpacity
+                      key={pm.id}
+                      style={[styles.paymentMethodOption, isSel && styles.paymentMethodOptionActive]}
+                      onPress={() => setSelectedPaymentMethod(pm.id)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name={pm.icon} size={18} color={pm.color} />
+                      <Text style={[styles.paymentMethodText, isSel && styles.paymentMethodTextActive]}>{pm.label}</Text>
+                      {isSel && <Ionicons name="checkmark-circle" size={18} color="#00B894" style={{ marginLeft: 'auto' }} />}
+                    </TouchableOpacity>
+                  );
+                })}
+
+                <TouchableOpacity
+                  style={styles.payConfirmSubmitBtn}
+                  onPress={handleConfirmPayment}
+                  activeOpacity={0.9}
+                  disabled={paymentProcessing}
+                >
+                  <Ionicons name="lock-closed" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.payConfirmSubmitBtnText}>
+                    {paymentProcessing ? 'Processing Secure Payment...' : `Pay ₹${selectedPaymentReq.fee || 349} & Confirm Booking`}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ============================================================
+          ADMIN DO NOT CONFIRM / REJECTION MODAL
+      ============================================================ */}
+      <Modal
+        visible={rejectModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setRejectModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setRejectModalVisible(false)}
+        >
+          <View style={[styles.modalContentCard, { maxWidth: 460 }]} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="alert-circle" size={20} color="#DC2626" />
+                </View>
+                <View>
+                  <Text style={[styles.modalTitle, { color: '#B91C1C' }]}>Booking Not Confirmed</Text>
+                  <Text style={styles.modalSubtitle}>Request #{selectedRejectReq?.id} • {selectedRejectReq?.patientName}</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={() => setRejectModalVisible(false)}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ paddingVertical: 12 }}>
+              <Text style={styles.enquiryFieldLabel}>Reason for not confirming * (Mandatory)</Text>
+              <Text style={{ fontSize: 11, color: '#64748B', marginBottom: 8 }}>
+                Select a standard reason or enter custom details below. This will be clearly shown to the patient.
+              </Text>
+
+              {/* Quick Preset Chips */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                {[
+                  'Service unavailable on selected date',
+                  'Nurse unavailable',
+                  'Address outside service area',
+                  'Required service not available',
+                  'Payment issue',
+                  'Patient requested cancellation',
+                  'Other',
+                ].map((preset) => {
+                  const isSel = rejectReasonPreset === preset;
+                  return (
+                    <TouchableOpacity
+                      key={preset}
+                      style={[
+                        styles.rejectReasonChip,
+                        isSel && styles.rejectReasonChipActive,
+                      ]}
+                      onPress={() => {
+                        setRejectReasonPreset(preset);
+                        if (preset === 'Other') {
+                          setRejectReason('');
+                        } else {
+                          setRejectReason(preset);
+                        }
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.rejectReasonChipText, isSel && styles.rejectReasonChipTextActive]}>
+                        {preset}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <TextInput
+                style={[styles.enquiryInput, { height: 80, textAlignVertical: 'top', borderColor: !rejectReason.trim() ? '#FCA5A5' : '#CBD5E1' }]}
+                value={rejectReason}
+                onChangeText={(t) => {
+                  setRejectReason(t);
+                  setRejectReasonPreset('');
+                }}
+                placeholder="Enter specific reason for not confirming this booking..."
+                placeholderTextColor="#94A3B8"
+                multiline={true}
+              />
+              {!rejectReason.trim() && (
+                <Text style={{ fontSize: 11, color: '#DC2626', marginTop: 4, fontWeight: '600' }}>
+                  * Reason is required to reject/not confirm booking.
+                </Text>
+              )}
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+              <TouchableOpacity
+                style={styles.rejectCancelBtn}
+                onPress={() => setRejectModalVisible(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.rejectCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.rejectConfirmBtn,
+                  !rejectReason.trim() && styles.rejectConfirmBtnDisabled,
+                ]}
+                onPress={handleAdminSubmitRejectBooking}
+                disabled={!rejectReason.trim()}
+                activeOpacity={0.88}
+              >
+                <Text style={styles.rejectConfirmBtnText}>Confirm Non-Confirmation</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </TouchableOpacity>
@@ -2984,7 +4659,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 95 : 85,
+    paddingBottom: 115,
   },
 
   // Top Bar Row
@@ -3064,7 +4739,384 @@ const styles = StyleSheet.create({
     color: '#0D9488',
   },
 
-  // Hero Banner Card
+  // Simplified Hero Section - Clean Mobile with No Banner Color
+  simpleHeroSection: {
+    backgroundColor: 'transparent',
+    padding: 0,
+    borderWidth: 0,
+    marginBottom: 14,
+  },
+  simpleHeroTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -0.5,
+    marginBottom: 4,
+  },
+  simpleHeroSubtitle: {
+    fontSize: 13.5,
+    color: '#475569',
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+  compactTrustRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  compactTrustBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 9,
+    paddingVertical: 4.5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 4,
+  },
+  compactTrustText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F766E',
+  },
+
+  // Simplified Form Card
+  simpleFormCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    marginBottom: 20,
+  },
+  simpleFormHeading: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  simpleFormSubheading: {
+    fontSize: 13,
+    color: '#64748B',
+    marginBottom: 16,
+  },
+  fieldGroup: {
+    marginBottom: 14,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 6,
+  },
+  fieldPickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    minHeight: 46,
+  },
+  pickerBtnText: {
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '600',
+  },
+  placeholderText: {
+    color: '#94A3B8',
+    fontWeight: '400',
+  },
+  simpleTextInput: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    fontSize: 14,
+    color: '#0F172A',
+    minHeight: 46,
+  },
+  simpleAddressInput: {
+    minHeight: 68,
+    textAlignVertical: 'top',
+    paddingTop: 10,
+  },
+  fieldErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  fieldErrorText: {
+    fontSize: 12,
+    color: '#DC2626',
+    fontWeight: '600',
+  },
+  primaryRequestBtn: {
+    backgroundColor: '#00B894',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+    marginBottom: 12,
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  primaryRequestBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  compactContactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  compactContactBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 10,
+    gap: 6,
+  },
+  compactContactBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0D9488',
+  },
+
+  // Quick Services Section
+  quickServicesSection: {
+    marginBottom: 22,
+  },
+  sectionHeaderTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 10,
+  },
+  quickChipsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  quickServiceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  quickServiceCardSelected: {
+    borderColor: '#00B894',
+    backgroundColor: '#F0FDFA',
+  },
+  quickServiceCardText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  quickServiceCardTextSelected: {
+    color: '#0D9488',
+    fontWeight: '800',
+  },
+
+  // My Requests Inline Section
+  myRequestsSection: {
+    marginBottom: 24,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  viewAllRequestsText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0D9488',
+  },
+  viewMoreOnNextPageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 4,
+  },
+  viewMoreOnNextPageText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0D9488',
+  },
+  emptyInlineRequestsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  emptyInlineRequestsText: {
+    fontSize: 13,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  simpleReqCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    elevation: 1,
+  },
+  simpleReqCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  simpleReqIdText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  simpleStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  simpleStatusBadgeText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  simpleReqDetailsText: {
+    fontSize: 12.5,
+    color: '#64748B',
+    marginBottom: 12,
+  },
+  simpleStatusFlowContainer: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  simpleStatusFlowTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  rejectedReasonBox: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 8,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+  },
+  rejectedTitleText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#DC2626',
+    marginBottom: 2,
+  },
+  rejectedReasonText: {
+    fontSize: 12,
+    color: '#B91C1C',
+    fontWeight: '500',
+  },
+  statusStepsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+  },
+  statusStepNode: {
+    alignItems: 'center',
+    maxWidth: 60,
+  },
+  statusStepDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  statusStepDotDone: {
+    backgroundColor: '#00B894',
+  },
+  statusStepDotPending: {
+    backgroundColor: '#E2E8F0',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  statusStepDotHollow: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#94A3B8',
+  },
+  statusStepLabel: {
+    fontSize: 9.5,
+    textAlign: 'center',
+    lineHeight: 12,
+  },
+  statusStepLabelDone: {
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  statusStepLabelPending: {
+    fontWeight: '500',
+    color: '#94A3B8',
+  },
+
+  // Legacy Hero Banner Card support (retained for backward compatibility)
   heroBannerCard: {
     backgroundColor: '#0F172A',
     borderRadius: 18,
@@ -3072,184 +5124,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderWidth: 1,
     borderColor: '#1E293B',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    elevation: 6,
-  },
-  heroBadgePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(94, 234, 212, 0.12)',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 9,
-    paddingVertical: 3.5,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(94, 234, 212, 0.25)',
-    gap: 5,
-    marginBottom: 12,
-  },
-  heroBadgePillText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#5EEAD4',
-  },
-  heroHeadline: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    lineHeight: 28,
-    letterSpacing: -0.4,
-    marginBottom: 8,
-  },
-  heroHeadlineAccent: {
-    color: '#2DD4BF',
-  },
-  heroSubheadline: {
-    fontSize: 13,
-    color: '#CBD5E1',
-    lineHeight: 19,
-    marginBottom: 16,
-  },
-  heroValuePropsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 18,
-  },
-  heroValueItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  heroValueText: {
-    fontSize: 11,
-    color: '#E2E8F0',
-    fontWeight: '600',
-  },
-  heroActionsRow: {
-    flexDirection: 'column',
-    gap: 10,
-    marginBottom: 16,
-  },
-  heroPrimaryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#00B894',
-    paddingVertical: 13,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    shadowColor: '#00B894',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  heroPrimaryBtnText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  heroSecondaryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.18)',
-  },
-  heroSecondaryBtnText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#E2E8F0',
-  },
-
-  // Quick Match Box inside Hero
-  quickMatchCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-  },
-  quickMatchHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  quickMatchTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  quickMatchSub: {
-    fontSize: 11,
-    color: '#94A3B8',
-  },
-  quickMatchChipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 7,
-  },
-  quickChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(13, 148, 136, 0.22)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(45, 212, 191, 0.35)',
-    gap: 5,
-  },
-  quickChipText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#5EEAD4',
-  },
-
-  // Stats Grid (2x2 on Mobile with clean card items)
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 24,
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  statBox: {
-    width: '48%',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#00B894',
-    letterSpacing: -0.5,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
-    marginTop: 3,
-    textAlign: 'center',
   },
 
   // Search & Filters
@@ -3865,7 +5739,7 @@ const styles = StyleSheet.create({
   },
   flowScrollContent: {
     padding: 16,
-    paddingBottom: Platform.OS === 'ios' ? 95 : 85,
+    paddingBottom: 115,
   },
   stepTitleBox: {
     marginBottom: 14,
@@ -4508,6 +6382,87 @@ const styles = StyleSheet.create({
   },
 
   // My Requests View
+  paginationCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 20,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  paginationSummaryText: {
+    fontSize: 12.5,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  paginationHighlightText: {
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  paginationNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  paginationArrowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+  },
+  paginationArrowText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#0D9488',
+  },
+  paginationNumbersWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  paginationNumBtn: {
+    minWidth: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 8,
+  },
+  paginationNumBtnActive: {
+    backgroundColor: '#0D9488',
+    borderColor: '#0D9488',
+  },
+  paginationNumText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  paginationNumTextActive: {
+    color: '#FFFFFF',
+  },
+  paginationBtnDisabled: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+    opacity: 0.6,
+  },
+  paginationTextDisabled: {
+    color: '#94A3B8',
+  },
   myRequestsHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -4713,15 +6668,178 @@ const styles = StyleSheet.create({
     color: '#14B8A6',
     marginTop: 1,
   },
-  callNurseBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#FFFFFF',
+  // 4-Step Simplified Workflow Stepper
+  compactWorkflowBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  fourStepStepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  fourStepItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  fourStepDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#E2E8F0',
+    marginBottom: 4,
+  },
+  fourStepDotDone: {
+    backgroundColor: '#00B894',
+  },
+  fourStepDotPending: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1.5,
+    borderColor: '#F59E0B',
+  },
+  fourStepDotRejected: {
+    backgroundColor: '#DC2626',
+  },
+  fourStepDotTodo: {
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+  },
+  fourStepDotHollow: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#94A3B8',
+  },
+  fourStepLabel: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    textAlign: 'center',
+    color: '#94A3B8',
+    lineHeight: 12,
+  },
+  fourStepLabelDone: {
+    color: '#0F766E',
+    fontWeight: '800',
+  },
+  fourStepLabelPending: {
+    color: '#B45309',
+    fontWeight: '800',
+  },
+  fourStepLabelRejected: {
+    color: '#DC2626',
+    fontWeight: '800',
+  },
+  fourStepLabelTodo: {
+    color: '#94A3B8',
+  },
+  fourStepLine: {
+    height: 2,
+    flex: 0.6,
+    backgroundColor: '#E2E8F0',
+    marginBottom: 16,
+  },
+  fourStepLineDone: {
+    backgroundColor: '#00B894',
+  },
+  fourStepLinePending: {
+    backgroundColor: '#CBD5E1',
+  },
+  fourStepLineRejected: {
+    backgroundColor: '#FCA5A5',
+  },
+
+  // Booking Not Confirmed Reason Card
+  notConfirmedReasonCard: {
+    backgroundColor: '#FEF2F2',
     borderWidth: 1,
-    borderColor: '#99F6E4',
+    borderColor: '#FECACA',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 10,
+  },
+  notConfirmedHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  notConfirmedTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#B91C1C',
+  },
+  notConfirmedReasonLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#991B1B',
+    marginBottom: 2,
+  },
+  notConfirmedReasonText: {
+    fontSize: 11.5,
+    color: '#7F1D1D',
+    lineHeight: 16,
+  },
+
+  // Reject Modal Styles
+  rejectReasonChip: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  rejectReasonChipActive: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#F87171',
+  },
+  rejectReasonChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  rejectReasonChipTextActive: {
+    color: '#B91C1C',
+    fontWeight: '800',
+  },
+  rejectCancelBtn: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  rejectCancelBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  rejectConfirmBtn: {
+    flex: 1.5,
+    paddingVertical: 11,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DC2626',
+  },
+  rejectConfirmBtnDisabled: {
+    backgroundColor: '#FCA5A5',
+  },
+  rejectConfirmBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 
   // Details & Timeline View
@@ -5291,6 +7409,539 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#00B894',
+  },
+
+  // Address Input & Error on Quick Form
+  quickInputFieldAddress: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minHeight: 56,
+  },
+  quickTextInputAddress: {
+    fontSize: 12.5,
+    color: '#0F172A',
+    lineHeight: 18,
+    textAlignVertical: 'top',
+  },
+  quickAddressErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    gap: 6,
+    marginTop: 2,
+  },
+  quickAddressErrorText: {
+    fontSize: 11,
+    color: '#DC2626',
+    fontWeight: '600',
+    flex: 1,
+    lineHeight: 15,
+  },
+
+  // Requests History Tabs (Current vs Past)
+  historySegmentWrap: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 14,
+    gap: 6,
+  },
+  historySegmentBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  historySegmentBtnActive: {
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#5EEAD4',
+  },
+  historySegmentText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  historySegmentTextActive: {
+    color: '#0D9488',
+    fontWeight: '800',
+  },
+
+  // Compact 7-Stage Status Stepper
+  compactStepperWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  compactStepItem: {
+    alignItems: 'center',
+    flex: 1,
+    position: 'relative',
+  },
+  compactStepDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactStepDotPast: {
+    backgroundColor: '#00B894',
+  },
+  compactStepDotCurrent: {
+    backgroundColor: '#0284C7',
+    borderWidth: 2,
+    borderColor: '#BAE6FD',
+  },
+  compactStepDotActive: {
+    backgroundColor: '#00B894',
+  },
+  compactStepDotLive: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+  },
+  compactStepDotFuture: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#CBD5E1',
+  },
+  compactStepLine: {
+    position: 'absolute',
+    top: 7,
+    left: '50%',
+    right: '-50%',
+    height: 2,
+    backgroundColor: '#E2E8F0',
+    zIndex: -1,
+  },
+  compactStepLinePast: {
+    backgroundColor: '#00B894',
+  },
+  compactStepLineActive: {
+    backgroundColor: '#00B894',
+  },
+  compactStepLabel: {
+    fontSize: 9,
+    color: '#94A3B8',
+    fontWeight: '600',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  compactStepLabelActive: {
+    color: '#0F172A',
+    fontWeight: '800',
+  },
+
+  // Payment Pending Banner & Button
+  paymentActionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 10,
+    gap: 8,
+  },
+  payNowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00B894',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+    gap: 4,
+  },
+  payNowBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  // Admin Coordinator View Styles
+  adminHeaderCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
+  },
+  adminStatsGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#334155',
+  },
+  adminStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  adminStatNumber: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#38BDF8',
+  },
+  adminStatLabel: {
+    fontSize: 10,
+    color: '#94A3B8',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  adminFilterScroll: {
+    gap: 8,
+    paddingBottom: 12,
+  },
+  adminFilterChip: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  adminFilterChipActive: {
+    backgroundColor: '#0F172A',
+    borderColor: '#0F172A',
+  },
+  adminFilterChipText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  adminFilterChipTextActive: {
+    color: '#FFFFFF',
+  },
+  adminReqCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  adminReqCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 8,
+    marginBottom: 8,
+  },
+  adminReqIdText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  adminCityTag: {
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  adminCityTagText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#0369A1',
+  },
+  adminReqDateText: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  adminPatientRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  adminPatientName: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  adminPatientMeta: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  adminContactBtnsRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  adminCallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0D9488',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 6,
+    gap: 4,
+  },
+  adminWhatsAppBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#16A34A',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 6,
+    gap: 4,
+  },
+  adminCallBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  adminDetailRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+    gap: 6,
+  },
+  adminDetailLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '700',
+    width: 60,
+  },
+  adminDetailVal: {
+    fontSize: 11,
+    color: '#1E293B',
+    fontWeight: '600',
+  },
+  adminEnquiryNotesBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 8,
+    marginVertical: 6,
+  },
+  adminEnquiryNotesTitle: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#334155',
+    marginBottom: 2,
+  },
+  adminEnquiryNotesText: {
+    fontSize: 10.5,
+    color: '#475569',
+  },
+  adminActionButtonsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  adminPrimaryActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+  },
+  adminPrimaryActionBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  adminEnquiryActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#00B894',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+  },
+  adminVerifyPayBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EA580C',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+  },
+  adminCancelBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  adminCancelBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+
+  // Modal Input Styles
+  enquiryInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    fontSize: 12.5,
+    color: '#0F172A',
+  },
+  paymentBillCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
+  },
+
+  // In-App Toast
+  floatingToastWrap: {
+    position: 'absolute',
+    top: 50,
+    left: 16,
+    right: 16,
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+    zIndex: 9999,
+  },
+  floatingToastContent: {
+    flex: 1,
+  },
+  floatingToastTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  floatingToastMessage: {
+    fontSize: 11,
+    color: '#CBD5E1',
+    marginTop: 1,
+  },
+
+  // Summary Card on Details
+  summaryInfoCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 14,
+  },
+  summaryInfoCardHeader: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 10,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  summaryLabel: {
+    fontSize: 11.5,
+    color: '#64748B',
+    fontWeight: '600',
+    width: 110,
+  },
+  summaryValue: {
+    fontSize: 11.5,
+    color: '#0F172A',
+    fontWeight: '700',
+    flex: 1,
+    textAlign: 'right',
+  },
+  enquiryUserNotesText: {
+    fontSize: 12,
+    color: '#15803D',
+    fontWeight: '600',
+  },
+  enquiryBullet: {
+    fontSize: 11.5,
+    color: '#166534',
+  },
+
+  // Stepper Timeline in Details View
+  timelineBulletLive: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+  },
+  timelineBulletFuture: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#CBD5E1',
+  },
+  timelineConnectingLine: {
+    width: 2,
+    flex: 1,
+    backgroundColor: '#E2E8F0',
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  timelineConnectingLinePast: {
+    backgroundColor: '#00B894',
+  },
+  timelineContentCol: {
+    flex: 1,
+    paddingBottom: 14,
+  },
+  timelineStageLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  timelineStageLabelActive: {
+    color: '#0F172A',
+    fontWeight: '800',
   },
 });
 

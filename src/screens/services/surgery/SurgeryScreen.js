@@ -257,10 +257,12 @@ const SurgeryScreen = ({ navigation }) => {
               <Text style={styles.cityLocationText}>{selectedCity || 'Bangalore'}</Text>
               <Ionicons name="chevron-down" size={10} color="#007D69" />
             </TouchableOpacity>
-            <View style={styles.liveVerifiedPill}>
-              <View style={styles.livePulseDot} />
-              <Text style={styles.liveVerifiedPillText}>24/7 Verified Care</Text>
-            </View>
+            {isDesktopWeb && (
+              <View style={styles.liveVerifiedPill}>
+                <View style={styles.livePulseDot} />
+                <Text style={styles.liveVerifiedPillText}>24/7 Verified Care</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -282,101 +284,105 @@ const SurgeryScreen = ({ navigation }) => {
           {activeTab === 'explore' ? (
             <View>
               {/* Hero Banner Card */}
-              <View style={styles.heroBannerCard}>
-                <View style={styles.heroBadgePill}>
-                  <Ionicons name="shield-checkmark" size={13} color="#5EEAD4" />
-                  <Text style={styles.heroBadgePillText}>NABH & JCI Accredited Network</Text>
-                </View>
-
+              <View style={[styles.heroBannerCard, !isDesktopWeb && styles.heroBannerCardMobile]}>
                 <Text style={styles.heroHeadline}>
-                  Hospital-Grade Surgical Care, <Text style={styles.heroHeadlineAccent}>In Your City</Text>
+                  Surgical Care, <Text style={styles.heroHeadlineAccent}>Near You</Text>
                 </Text>
 
-                <Text style={styles.heroSubheadline}>
-                  Transparent fixed-price packages, dedicated care coordinators, free second opinions, and full cashless insurance assistance.
-                </Text>
-
-                {/* Guarantees */}
+                {/* Trust Badges */}
                 <View style={styles.heroValuePropsRow}>
-                  <View style={styles.heroValueItem}>
-                    <Ionicons name="checkmark-circle" size={14} color="#00B894" />
-                    <Text style={styles.heroValueText}>100% Price Transparency</Text>
+                  <View style={[styles.heroValueItem, !isDesktopWeb && styles.heroValueItemMobile]}>
+                    <Ionicons name="shield-checkmark" size={12} color="#0D9488" />
+                    <Text style={styles.heroValueText}>NABH Accredited</Text>
                   </View>
-                  <View style={styles.heroValueItem}>
-                    <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+                  <View style={[styles.heroValueItem, !isDesktopWeb && styles.heroValueItemMobile]}>
+                    <Ionicons name="pricetag-outline" size={11} color="#0D9488" />
+                    <Text style={styles.heroValueText}>Fixed Prices</Text>
+                  </View>
+                  <View style={[styles.heroValueItem, !isDesktopWeb && styles.heroValueItemMobile]}>
+                    <Ionicons name="checkmark-circle" size={12} color="#0D9488" />
                     <Text style={styles.heroValueText}>Cashless Insurance</Text>
-                  </View>
-                  <View style={styles.heroValueItem}>
-                    <Ionicons name="checkmark-circle" size={14} color="#00B894" />
-                    <Text style={styles.heroValueText}>24/7 Coordinator Support</Text>
                   </View>
                 </View>
 
                 {/* Quick Consultation Form */}
-                <View style={styles.quickFormCard}>
-                  <Text style={styles.quickFormTitle}>Book Consultation / Surgery Callback</Text>
+                <View style={[styles.quickFormCard, !isDesktopWeb && styles.quickFormCardMobile]}>
+                  <Text style={styles.quickFormTitle}>Book a Free Callback</Text>
                   <Text style={styles.quickFormSubtitle}>
-                    Our surgical care coordinator calls within 15 minutes to guide hospital selection and estimates
+                    Free hospital & price advice in 15 mins.
                   </Text>
 
-                  {/* Surgery Selector */}
-                  <TouchableOpacity
-                    style={styles.dropdownField}
-                    onPress={() => setSurgeryModalVisible(true)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
-                      <Ionicons name="medkit-outline" size={17} color="#00B894" />
-                      <Text
-                        style={[
-                          styles.dropdownFieldText,
-                          !selectedSurgery && styles.placeholderText,
-                        ]}
-                        numberOfLines={1}
+                  {/* Form Fields Grid with Clean Gaps */}
+                  <View style={[styles.formFieldsGrid, isDesktopWeb && styles.formFieldsGridDesktop]}>
+                    {/* Surgery Selector */}
+                    <View style={[styles.formFieldItem, isDesktopWeb && styles.formFieldItemHalf]}>
+                      <TouchableOpacity
+                        style={styles.dropdownField}
+                        onPress={() => setSurgeryModalVisible(true)}
+                        activeOpacity={0.8}
                       >
-                        {selectedSurgery || 'Select Surgical Procedure / Requirement'}
-                      </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                          <Ionicons name="medkit-outline" size={17} color="#00B894" />
+                          <Text
+                            style={[
+                              styles.dropdownFieldText,
+                              !selectedSurgery && styles.placeholderText,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {selectedSurgery || 'Select Procedure'}
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-down" size={18} color="#64748B" />
+                      </TouchableOpacity>
                     </View>
-                    <Ionicons name="chevron-down" size={18} color="#64748B" />
-                  </TouchableOpacity>
 
-                  {/* City Selector */}
-                  <TouchableOpacity
-                    style={styles.dropdownField}
-                    onPress={() => setCityModalVisible(true)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
-                      <Ionicons name="location-outline" size={17} color="#00B894" />
-                      <Text style={styles.dropdownFieldText} numberOfLines={1}>
-                        {selectedCity ? `Hospital Location: ${selectedCity}` : 'Select Preferred City'}
-                      </Text>
+                    {/* City Selector */}
+                    <View style={[styles.formFieldItem, isDesktopWeb && styles.formFieldItemHalf]}>
+                      <TouchableOpacity
+                        style={styles.dropdownField}
+                        onPress={() => setCityModalVisible(true)}
+                        activeOpacity={0.8}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                          <Ionicons name="location-outline" size={17} color="#00B894" />
+                          <Text style={styles.dropdownFieldText} numberOfLines={1}>
+                            {selectedCity ? `City: ${selectedCity}` : 'Select City'}
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-down" size={18} color="#64748B" />
+                      </TouchableOpacity>
                     </View>
-                    <Ionicons name="chevron-down" size={18} color="#64748B" />
-                  </TouchableOpacity>
 
-                  {/* Full Name */}
-                  <View style={styles.quickInputField}>
-                    <TextInput
-                      style={styles.quickTextInput}
-                      placeholder="Patient Full Name"
-                      placeholderTextColor="#94A3B8"
-                      value={name}
-                      onChangeText={setName}
-                    />
-                  </View>
+                    {/* Full Name */}
+                    <View style={[styles.formFieldItem, isDesktopWeb && styles.formFieldItemHalf]}>
+                      <View style={styles.quickInputField}>
+                        <Ionicons name="person-outline" size={16} color="#00B894" style={{ marginRight: 8 }} />
+                        <TextInput
+                          style={styles.quickTextInput}
+                          placeholder="Patient Name"
+                          placeholderTextColor="#94A3B8"
+                          value={name}
+                          onChangeText={setName}
+                        />
+                      </View>
+                    </View>
 
-                  {/* Mobile Number */}
-                  <View style={styles.quickInputField}>
-                    <TextInput
-                      style={styles.quickTextInput}
-                      placeholder="Contact Mobile Number (10 digits)"
-                      placeholderTextColor="#94A3B8"
-                      value={mobileNumber}
-                      onChangeText={setMobileNumber}
-                      keyboardType="phone-pad"
-                      maxLength={15}
-                    />
+                    {/* Mobile Number */}
+                    <View style={[styles.formFieldItem, isDesktopWeb && styles.formFieldItemHalf]}>
+                      <View style={styles.quickInputField}>
+                        <Ionicons name="call-outline" size={16} color="#00B894" style={{ marginRight: 8 }} />
+                        <TextInput
+                          style={styles.quickTextInput}
+                          placeholder="Mobile Number"
+                          placeholderTextColor="#94A3B8"
+                          value={mobileNumber}
+                          onChangeText={setMobileNumber}
+                          keyboardType="phone-pad"
+                          maxLength={15}
+                        />
+                      </View>
+                    </View>
                   </View>
 
                   {/* Submit Quick Request */}
@@ -387,7 +393,7 @@ const SurgeryScreen = ({ navigation }) => {
                     disabled={loading}
                   >
                     <Text style={styles.quickSubmitBtnText}>
-                      {loading ? 'Submitting Request...' : 'Book Free Consultation Callback'}
+                      {loading ? 'Submitting...' : 'Get Free Callback'}
                     </Text>
                   </TouchableOpacity>
 
@@ -399,92 +405,32 @@ const SurgeryScreen = ({ navigation }) => {
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.quickContactBtn} onPress={handleWhatsApp} activeOpacity={0.8}>
                       <Ionicons name="logo-whatsapp" size={13} color="#16A34A" />
-                      <Text style={[styles.quickContactBtnText, { color: '#16A34A' }]}>WhatsApp Desk</Text>
+                      <Text style={[styles.quickContactBtnText, { color: '#16A34A' }]}>WhatsApp</Text>
                     </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Hero Actions */}
-                <View style={styles.heroActionsRow}>
-                  <TouchableOpacity
-                    style={styles.heroPrimaryBtn}
-                    onPress={() => {
-                      const defaultProc = filteredProcedures[0] || allProceduresWithHospitals[0];
-                      if (defaultProc) {
-                        navigation.navigate('SurgeryQuoteRequest', { hospital: defaultProc.hospital, surgery: defaultProc });
-                      } else {
-                        setSurgeryModalVisible(true);
-                      }
-                    }}
-                    activeOpacity={0.88}
-                  >
-                    <Ionicons name="calendar" size={17} color="#FFFFFF" style={{ marginRight: 8 }} />
-                    <Text style={styles.heroPrimaryBtnText}>Request Surgery Price Quote</Text>
-                    <Ionicons name="arrow-forward" size={15} color="#FFFFFF" style={{ marginLeft: 'auto' }} />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.heroSecondaryBtn}
-                    onPress={() => setActiveTab('quotes')}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="time-outline" size={16} color="#CBD5E1" style={{ marginRight: 8 }} />
-                    <Text style={styles.heroSecondaryBtnText}>Track Existing Quotes ({surgeryRequests.length})</Text>
-                    <Ionicons name="chevron-forward" size={14} color="#94A3B8" style={{ marginLeft: 'auto' }} />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Quick Match Floating Chips Box */}
-                <View style={styles.quickMatchCard}>
-                  <View style={styles.quickMatchHeader}>
-                    <Ionicons name="flash" size={15} color="#F59E0B" />
-                    <Text style={styles.quickMatchTitle}>Need Quick Estimate?</Text>
-                    <Text style={styles.quickMatchSub}>• Coordinator calls in 15 mins</Text>
-                  </View>
-
-                  <View style={styles.quickMatchChipsRow}>
-                    {[
-                      { label: 'Cataract Surgery', term: 'cataract' },
-                      { label: 'Laparoscopic Hernia', term: 'hernia' },
-                      { label: 'Knee Replacement', term: 'knee' },
-                      { label: 'Gallbladder Removal', term: 'gall' },
-                    ].map((item) => (
-                      <TouchableOpacity
-                        key={item.label}
-                        style={styles.quickChip}
-                        onPress={() => {
-                          const match = allProceduresWithHospitals.find(p => p.name.toLowerCase().includes(item.term)) || allProceduresWithHospitals[0];
-                          if (match) {
-                            navigation.navigate('SurgeryQuoteRequest', { hospital: match.hospital, surgery: match });
-                          }
-                        }}
-                        activeOpacity={0.75}
-                      >
-                        <Text style={styles.quickChipText}>{item.label}</Text>
-                        <Ionicons name="arrow-forward" size={11} color="#0D9488" />
-                      </TouchableOpacity>
-                    ))}
                   </View>
                 </View>
               </View>
 
-              {/* Trust & Stats Grid */}
+              {/* Trust & Stats Strip */}
               <View style={styles.statsGrid}>
                 <View style={styles.statBox}>
-                  <Text style={styles.statValue}>2,00,000+</Text>
-                  <Text style={styles.statLabel}>Surgeries Guided</Text>
+                  <Text style={styles.statValue}>2L+</Text>
+                  <Text style={styles.statLabel}>Surgeries</Text>
                 </View>
+                <View style={styles.statDivider} />
                 <View style={styles.statBox}>
-                  <Text style={styles.statValue}>4.9/5</Text>
-                  <Text style={styles.statLabel}>Patient Rating</Text>
+                  <Text style={styles.statValue}>4.9★</Text>
+                  <Text style={styles.statLabel}>Rating</Text>
                 </View>
+                <View style={styles.statDivider} />
                 <View style={styles.statBox}>
                   <Text style={styles.statValue}>1,000+</Text>
-                  <Text style={styles.statLabel}>Accredited Hospitals</Text>
+                  <Text style={styles.statLabel}>Hospitals</Text>
                 </View>
+                <View style={styles.statDivider} />
                 <View style={styles.statBox}>
-                  <Text style={styles.statValue}>&lt; 15m</Text>
-                  <Text style={styles.statLabel}>Coordinator Callback</Text>
+                  <Text style={styles.statValue}>15 min</Text>
+                  <Text style={styles.statLabel}>Callback</Text>
                 </View>
               </View>
             </View>
@@ -501,18 +447,18 @@ const SurgeryScreen = ({ navigation }) => {
                     Back to Surgery Care
                   </Text>
                 </TouchableOpacity>
-                <Text style={styles.sectionMainTitle}>My Surgery Quote Requests</Text>
+                <Text style={styles.sectionMainTitle}>My Quotes</Text>
                 <Text style={styles.sectionSubtitle}>
-                  Track your requested surgical cost estimates and care team review
+                  Track your surgery cost estimates
                 </Text>
               </View>
 
               {surgeryRequests.length === 0 ? (
                 <View style={styles.emptyQuotesCard}>
                   <Ionicons name="clipboard-outline" size={44} color="#94A3B8" />
-                  <Text style={styles.emptyQuotesTitle}>No Surgery Requests Yet</Text>
+                  <Text style={styles.emptyQuotesTitle}>No Quotes Yet</Text>
                   <Text style={styles.emptyQuotesSubtitle}>
-                    Explore surgical procedures above and request a free hospital price quote with zero obligations.
+                    Request a free price quote with no obligations.
                   </Text>
                   <TouchableOpacity
                     style={styles.exploreNowBtn}
@@ -548,8 +494,8 @@ const SurgeryScreen = ({ navigation }) => {
                       </View>
 
                       <View style={styles.quoteEstimateBox}>
-                        <Text style={styles.quoteEstimateLabel}>Estimated Surgery Cost</Text>
-                        <Text style={styles.quoteEstimateVal}>{req.indicativeEstimate || 'Quote Pending Review'}</Text>
+                        <Text style={styles.quoteEstimateLabel}>Estimated Cost</Text>
+                        <Text style={styles.quoteEstimateVal}>{req.indicativeEstimate || 'Pending Review'}</Text>
                       </View>
 
                       <View style={styles.quoteActionsRow}>
@@ -768,83 +714,113 @@ const styles = StyleSheet.create({
     color: '#0D9488',
   },
 
-  // HERO BANNER CARD
+  // HERO BANNER CARD - Modern Healthcare Light Banner
   heroBannerCard: {
-    backgroundColor: '#0F172A',
-    borderRadius: 18,
-    padding: 18,
+    backgroundColor: '#E6F8F5',
+    backgroundImage: Platform.OS === 'web' ? 'linear-gradient(180deg, #E6F8F5 0%, #F0FDFA 100%)' : undefined,
+    borderRadius: 20,
+    padding: 20,
     marginBottom: 20,
+    borderWidth: 1.5,
+    borderColor: '#99F6E4',
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  heroBannerCardMobile: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    padding: 0,
+    marginBottom: 12,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  heroValueItemMobile: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+  },
+  quickFormCardMobile: {
+    marginTop: 8,
     borderWidth: 1,
-    borderColor: '#1E293B',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    elevation: 6,
+    borderColor: '#E2E8F0',
+    padding: 16,
   },
   heroBadgePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(94, 234, 212, 0.12)',
+    backgroundColor: '#FFFFFF',
     alignSelf: 'flex-start',
     paddingHorizontal: 9,
     paddingVertical: 3.5,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(94, 234, 212, 0.25)',
+    borderColor: '#99F6E4',
     gap: 5,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   heroBadgePillText: {
     fontSize: 10.5,
     fontWeight: '800',
-    color: '#5EEAD4',
+    color: '#0D9488',
   },
   heroHeadline: {
     fontSize: 22,
     fontWeight: '900',
-    color: '#FFFFFF',
+    color: '#0F172A',
     lineHeight: 28,
     letterSpacing: -0.4,
     marginBottom: 8,
   },
   heroHeadlineAccent: {
-    color: '#2DD4BF',
+    color: '#0D9488',
   },
   heroSubheadline: {
-    fontSize: 13,
-    color: '#CBD5E1',
-    lineHeight: 19,
-    marginBottom: 16,
+    fontSize: 12.5,
+    color: '#475569',
+    lineHeight: 18,
+    marginBottom: 12,
   },
   heroValuePropsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 18,
+    gap: 8,
+    marginBottom: 14,
   },
   heroValueItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    paddingHorizontal: 10,
+    paddingVertical: 4.5,
+    borderRadius: 16,
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
   heroValueText: {
     fontSize: 11,
-    color: '#E2E8F0',
-    fontWeight: '600',
+    color: '#0F766E',
+    fontWeight: '700',
   },
   quickFormCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 16,
+    padding: 20,
     marginTop: 6,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
+    borderColor: '#CCFBF1',
+    shadowColor: '#0D9488',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
     shadowRadius: 12,
-    elevation: 3,
+    elevation: 2,
   },
   quickFormTitle: {
     fontSize: 16,
@@ -853,40 +829,61 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   quickFormSubtitle: {
-    fontSize: 12,
+    fontSize: 12.5,
     color: '#64748B',
-    marginBottom: 14,
-    lineHeight: 16,
+    marginBottom: 18,
+    lineHeight: 17,
+  },
+  formFieldsGrid: {
+    flexDirection: 'column',
+    gap: 12,
+    marginBottom: 16,
+  },
+  formFieldsGridDesktop: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 14,
+  },
+  formFieldItem: {
+    width: '100%',
+  },
+  formFieldItemHalf: {
+    width: '48.8%',
   },
   quickInputField: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#CBD5E1',
     borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    marginBottom: 10,
+    paddingHorizontal: 14,
+    height: 48,
   },
   quickTextInput: {
-    fontSize: 13,
+    flex: 1,
+    fontSize: 13.5,
     color: '#0F172A',
+    height: '100%',
     padding: 0,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
   },
   quickSubmitBtn: {
     backgroundColor: '#007D69',
     borderRadius: 12,
-    paddingVertical: 13,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 4,
     shadowColor: '#007D69',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 3,
+    marginTop: 2,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   quickSubmitBtnText: {
-    fontSize: 14,
+    fontSize: 14.5,
     fontWeight: '800',
     color: '#FFFFFF',
   },
@@ -894,9 +891,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
-    marginTop: 10,
-    paddingTop: 10,
+    gap: 12,
+    marginTop: 14,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
   },
@@ -906,9 +903,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingVertical: 10,
+    borderRadius: 10,
     backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   quickContactBtnText: {
     fontSize: 12,
@@ -1001,37 +1001,37 @@ const styles = StyleSheet.create({
   },
   statsGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-around',
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 24,
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  statBox: {
-    width: '48%',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
+    borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 8,
-    alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+    marginBottom: 20,
+  },
+  statBox: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statDivider: {
+    width: 1,
+    height: 26,
+    backgroundColor: '#E2E8F0',
   },
   statValue: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '900',
     color: '#00B894',
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 10.5,
     color: '#64748B',
     fontWeight: '600',
-    marginTop: 3,
+    marginTop: 2,
     textAlign: 'center',
   },
 
@@ -1525,7 +1525,7 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 40,
+    paddingBottom: 80,
   },
   desktopContainer: {
     maxWidth: 1240,
@@ -1908,17 +1908,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#CBD5E1',
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 14,
-    height: 46,
+    height: 48,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   dropdownFieldText: {
-    fontSize: 14,
+    fontSize: 13.5,
     color: '#0F172A',
-    fontWeight: '500',
+    fontWeight: '600',
     flex: 1,
   },
   placeholderText: {

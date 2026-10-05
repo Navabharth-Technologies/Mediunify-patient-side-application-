@@ -80,18 +80,23 @@ export default function ImagingScreenWeb({ navigation, route }) {
     historyStackRef.current.push(snapshot);
   }, []);
 
-  // Responsive card dimension calculators
+  // Responsive card dimension calculators (2 cards per row on Tablet, 3 on Desktop, 1 on Mobile)
   const getCategoryCardWidth = () => {
-    if (width < 420) return '100%';
-    if (width < 768) return '47%';
-    if (width < 1024) return '31%';
-    return '23.5%';
+    if (width < 600) return '100%';
+    if (width < 1024) return '48%'; // Exactly 2 cards per row on Tablet
+    return '31.5%'; // 3 cards per row on Desktop
   };
 
   const getTestCardWidth = () => {
     if (width < 600) return '100%';
-    if (width < 1024) return '48%';
-    return '31.5%';
+    if (width < 1024) return '48%'; // Exactly 2 cards per row on Tablet
+    return '31.5%'; // 3 cards per row on Desktop
+  };
+
+  const getProviderCardWidth = () => {
+    if (width < 768) return '100%';
+    if (width < 1200) return '48%'; // 2 cards per row on Tablet
+    return '48%';
   };
   const [selectedCity, setSelectedCity] = useState('Mysuru');
   const [globalSearch, setGlobalSearch] = useState('');
@@ -1257,59 +1262,77 @@ export default function ImagingScreenWeb({ navigation, route }) {
                 </Text>
               </View>
 
-              {/* Categories Grid (Responsive 4/3/2/1 cols) */}
+              {/* Categories Grid (Responsive 2 cols on tablet, 3 on desktop, 1 on mobile) */}
               <View style={styles.categoriesGrid}>
                 {displayedCategories.map((cat) => (
-                  <TouchableOpacity
+                  <View
                     key={cat.id}
                     style={[
                       styles.categoryCard,
                       {
                         borderColor: cat.border || '#E2E8F0',
+                        width: getCategoryCardWidth(),
                       },
                     ]}
-                    onPress={() => handleSelectCategory(cat)}
-                    activeOpacity={0.88}
                   >
-                    {/* Top Row: 3D Rendered Icon & Badge */}
-                    <View style={styles.catCardTopRow}>
-                      <View style={[styles.catIconWrap, { backgroundColor: cat.bg }]}>
-                        {RADIOLOGY_3D_ICONS[cat.id] ? (
-                          <Image
-                            source={RADIOLOGY_3D_ICONS[cat.id]}
-                            style={styles.cat3DIconImage}
-                            resizeMode="cover"
-                          />
-                        ) : (
-                          <Ionicons name={cat.icon} size={28} color={cat.color} />
-                        )}
-                      </View>
-                      <View style={[styles.catBadgePill, { backgroundColor: cat.bg }]}>
+                    {/* 1. Top Fixed Image Container */}
+                    <View style={[styles.cardImageContainer, { backgroundColor: cat.bg || '#F1F5F9' }]}>
+                      {RADIOLOGY_3D_ICONS[cat.id] ? (
+                        <Image
+                          source={RADIOLOGY_3D_ICONS[cat.id]}
+                          style={styles.cardImage}
+                          resizeMode="contain"
+                        />
+                      ) : (
+                        <Ionicons name={cat.icon} size={30} color={cat.color} />
+                      )}
+                      <View style={[styles.catBadgePill, { backgroundColor: cat.bg || '#E0F7FA' }]}>
                         <Text style={[styles.catBadgeText, { color: cat.color }]}>
                           {cat.badge}
                         </Text>
                       </View>
                     </View>
 
-                    {/* Category Title & Tagline */}
-                    <Text style={styles.catCardTitle}>{cat.name}</Text>
-                    <Text style={styles.catCardTagline}>{cat.tagline}</Text>
-                    <Text style={styles.catCardDescription} numberOfLines={3}>
-                      {cat.description}
-                    </Text>
+                    {/* 2. Card Body Content */}
+                    <View style={styles.cardBody}>
+                      <Text style={styles.catCardTitle} numberOfLines={1}>
+                        {cat.name}
+                      </Text>
+                      <Text style={styles.catCardTagline} numberOfLines={1}>
+                        {cat.tagline}
+                      </Text>
+                      <Text style={styles.catCardDescription} numberOfLines={2}>
+                        {cat.description}
+                      </Text>
 
-                    {/* Bottom Row: Test Count & CTA */}
-                    <View style={styles.catCardBottomRow}>
-                      <View style={styles.catCountBadge}>
-                        <Ionicons name="list-outline" size={14} color="#64748B" />
-                        <Text style={styles.catCountText}>{cat.testCount} Tests</Text>
-                      </View>
-                      <View style={styles.catExploreBtn}>
-                        <Text style={styles.catExploreBtnText}>View Tests</Text>
-                        <Ionicons name="arrow-forward" size={14} color="#00B894" />
+                      {/* 3. Availability Row */}
+                      <View style={styles.cardAvailabilityRow}>
+                        <Ionicons name="checkmark-circle" size={13} color="#00B894" />
+                        <Text style={styles.cardAvailabilityText}>Available in {selectedCity}</Text>
+                        <Text style={styles.cardTestCountText}>• {cat.testCount} Tests</Text>
                       </View>
                     </View>
-                  </TouchableOpacity>
+
+                    {/* 4. Action Buttons */}
+                    <View style={styles.cardActionsRow}>
+                      <TouchableOpacity
+                        style={styles.cardSecondaryBtn}
+                        onPress={() => handleSelectCategory(cat)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.cardSecondaryBtnText}>View Details</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.cardPrimaryBtn}
+                        onPress={() => handleSelectCategory(cat)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.cardPrimaryBtnText}>Explore Scans</Text>
+                        <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 ))}
               </View>
 
@@ -1408,94 +1431,97 @@ export default function ImagingScreenWeb({ navigation, route }) {
               <View style={styles.testsGrid}>
                 {displayedTests.map((test) => (
                   <View key={test.id} style={[styles.testCard, { width: getTestCardWidth() }]}>
-                    {/* Top Row: Name and Fasting Badge */}
-                    <View style={styles.testCardTopRow}>
-                      <View style={styles.testCategoryTag}>
-                        {RADIOLOGY_3D_ICONS[selectedCategory.id] && (
-                          <Image
-                            source={RADIOLOGY_3D_ICONS[selectedCategory.id]}
-                            style={styles.testCardMini3DIcon}
-                            resizeMode="cover"
-                          />
-                        )}
-                        <Text style={styles.testCategoryTagText}>{selectedCategory.name}</Text>
-                      </View>
-                      <View
-                        style={[
-                          styles.fastingPill,
-                          test.fastingRequired ? styles.fastingPillActive : styles.fastingPillNone,
-                        ]}
-                      >
-                        <Ionicons
-                          name={test.fastingRequired ? 'restaurant-outline' : 'checkmark-circle-outline'}
-                          size={12}
-                          color={test.fastingRequired ? '#D97706' : '#059669'}
-                        />
-                        <Text
+                    {/* 1. Top Fixed Image Container */}
+                    <View style={[styles.cardImageContainer, { backgroundColor: selectedCategory.bg || '#F1F5F9' }]}>
+                      <Image
+                        source={RADIOLOGY_3D_ICONS[selectedCategory.id] || RADIOLOGY_3D_ICONS.mri}
+                        style={styles.cardImage}
+                        resizeMode="contain"
+                      />
+                      <View style={styles.testCardBadgeRow}>
+                        <View style={styles.testCategoryTag}>
+                          <Text style={styles.testCategoryTagText}>{selectedCategory.name}</Text>
+                        </View>
+                        <View
                           style={[
-                            styles.fastingPillText,
-                            test.fastingRequired ? styles.fastingPillTextActive : styles.fastingPillTextNone,
+                            styles.fastingPill,
+                            test.fastingRequired ? styles.fastingPillActive : styles.fastingPillNone,
                           ]}
                         >
-                          {test.fastingRequired ? `Fasting (${test.fastingHours}h)` : 'No Fasting'}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <Text style={styles.testCardName}>{test.name}</Text>
-                    <Text style={styles.testCardSummary} numberOfLines={2}>
-                      {test.summary}
-                    </Text>
-
-                    {/* Clinical Details Row */}
-                    <View style={styles.testKeyParamsRow}>
-                      <View style={styles.testParamItem}>
-                        <Ionicons name="time-outline" size={13} color="#64748B" />
-                        <Text style={styles.testParamText}>{test.duration}</Text>
-                      </View>
-                      <View style={styles.testParamItem}>
-                        <Ionicons name="document-text-outline" size={13} color="#64748B" />
-                        <Text style={styles.testParamText}>{test.reportTime}</Text>
-                      </View>
-                      {test.contrastUsed && (
-                        <View style={styles.contrastTag}>
-                          <Text style={styles.contrastTagText}>Contrast</Text>
-                        </View>
-                      )}
-                    </View>
-
-                    {/* Price and Action Row */}
-                    <View style={styles.testCardPriceRow}>
-                      <View style={styles.testPriceCol}>
-                        <Text style={styles.startsAtLabel}>Starts at</Text>
-                        <View style={styles.priceNumbersRow}>
-                          <Text style={styles.discountedPrice}>
-                            ₹{test.typicalPrice.toLocaleString('en-IN')}
+                          <Ionicons
+                            name={test.fastingRequired ? 'restaurant-outline' : 'checkmark-circle-outline'}
+                            size={11}
+                            color={test.fastingRequired ? '#D97706' : '#059669'}
+                          />
+                          <Text
+                            style={[
+                              styles.fastingPillText,
+                              test.fastingRequired ? styles.fastingPillTextActive : styles.fastingPillTextNone,
+                            ]}
+                          >
+                            {test.fastingRequired ? `Fasting (${test.fastingHours || '4-6h'})` : 'No Fasting'}
                           </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* 2. Card Body Content */}
+                    <View style={styles.cardBody}>
+                      <Text style={styles.testCardName} numberOfLines={1}>
+                        {test.name}
+                      </Text>
+                      <Text style={styles.testCardSummary} numberOfLines={2}>
+                        {test.summary || test.description}
+                      </Text>
+
+                      {/* Specs Row */}
+                      <View style={styles.testKeyParamsRow}>
+                        <View style={styles.testParamItem}>
+                          <Ionicons name="time-outline" size={12} color="#64748B" />
+                          <Text style={styles.testParamText}>{test.duration}</Text>
+                        </View>
+                        <View style={styles.testParamItem}>
+                          <Ionicons name="document-text-outline" size={12} color="#64748B" />
+                          <Text style={styles.testParamText}>{test.reportTime}</Text>
+                        </View>
+                        <View style={styles.testParamItem}>
+                          <Ionicons name="checkmark-circle-outline" size={12} color="#00B894" />
+                          <Text style={[styles.testParamText, { color: '#00B894', fontWeight: '700' }]}>Available</Text>
+                        </View>
+                      </View>
+
+                      {/* Price Row */}
+                      <View style={styles.testPriceRow}>
+                        <Text style={styles.startsAtLabel}>Starts from </Text>
+                        <Text style={styles.discountedPrice}>
+                          ₹{test.typicalPrice.toLocaleString('en-IN')}
+                        </Text>
+                        {test.mrp && (
                           <Text style={styles.mrpPrice}>
                             ₹{test.mrp.toLocaleString('en-IN')}
                           </Text>
-                        </View>
+                        )}
                       </View>
+                    </View>
 
-                      <View style={styles.testCardActions}>
-                        <TouchableOpacity
-                          style={styles.viewDetailsBtn}
-                          onPress={() => setTestDetailsModal(test)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.viewDetailsBtnText}>Details</Text>
-                        </TouchableOpacity>
+                    {/* 3. Action Buttons */}
+                    <View style={styles.cardActionsRow}>
+                      <TouchableOpacity
+                        style={styles.cardSecondaryBtn}
+                        onPress={() => setTestDetailsModal(test)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.cardSecondaryBtnText}>View Details</Text>
+                      </TouchableOpacity>
 
-                        <TouchableOpacity
-                          style={styles.compareCentresBtn}
-                          onPress={() => handleSelectTest(test)}
-                          activeOpacity={0.8}
-                        >
-                          <Text style={styles.compareCentresBtnText}>Select Centre</Text>
-                          <Ionicons name="chevron-forward" size={14} color="#FFFFFF" />
-                        </TouchableOpacity>
-                      </View>
+                      <TouchableOpacity
+                        style={styles.cardPrimaryBtn}
+                        onPress={() => handleSelectTest(test)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.cardPrimaryBtnText}>Select Centre</Text>
+                        <Ionicons name="chevron-forward" size={13} color="#FFFFFF" />
+                      </TouchableOpacity>
                     </View>
                   </View>
                 ))}
@@ -1691,7 +1717,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
               ) : (
                 <View style={styles.providersList}>
                   {displayedProviders.map((provider) => (
-                    <View key={provider.id} style={styles.providerCard}>
+                    <View key={provider.id} style={[styles.providerCard, { width: getProviderCardWidth() }]}>
                       <TouchableOpacity activeOpacity={0.9} onPress={() => handleOpenCentreDetails(provider)}>
                       {/* Provider Header: Name, Location, Distance, Rating */}
                       <View style={styles.providerCardHeader}>
@@ -3704,7 +3730,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 40,
+    paddingBottom: 100,
   },
 
   // Pinned Top App Bar (iOS, Android, Tablet)
@@ -4299,102 +4325,139 @@ const styles = StyleSheet.create({
   categoriesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -8,
+    justifyContent: 'space-between',
+    marginHorizontal: -4,
   },
   categoryCard: {
-    flexGrow: 0,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 18,
-    margin: 8,
     borderWidth: 1.5,
-    shadowColor: '#64748B',
-    shadowOpacity: 0.06,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+    marginBottom: 16,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.05,
     shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+    display: 'flex',
+    flexDirection: 'column',
     justifyContent: 'space-between',
   },
-  catCardTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  catIconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 16,
+  cardImageContainer: {
+    width: '100%',
+    height: 92,
+    backgroundColor: '#F8FAFC',
+    position: 'relative',
+    overflow: 'hidden',
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    paddingVertical: 8,
+    paddingHorizontal: 16,
   },
-  cat3DIconImage: {
+  cardImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 14,
+    maxHeight: 76,
   },
   catBadgePill: {
-    paddingHorizontal: 8,
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    paddingHorizontal: 7,
     paddingVertical: 3,
-    borderRadius: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.7)',
   },
   catBadgeText: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '800',
     textTransform: 'uppercase',
   },
+  cardBody: {
+    padding: 14,
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+  },
   catCardTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
-    color: '#1E293B',
-    marginBottom: 3,
+    color: '#0F172A',
+    marginBottom: 2,
   },
   catCardTagline: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '700',
     color: '#0369A1',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   catCardDescription: {
     fontSize: 12,
     color: '#64748B',
-    lineHeight: 18,
-    marginBottom: 16,
+    lineHeight: 17,
+    marginBottom: 10,
+    flex: 1,
   },
-  catCardBottomRow: {
+  cardAvailabilityRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 12,
+    gap: 5,
+    marginTop: 'auto',
+    paddingTop: 6,
+  },
+  cardAvailabilityText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  cardTestCountText: {
+    fontSize: 11.5,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  cardActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
   },
-  catCountBadge: {
-    flexDirection: 'row',
+  cardSecondaryBtn: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'center',
   },
-  catCountText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  catExploreBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  catExploreBtnText: {
+  cardSecondaryBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#00B894',
+    color: '#334155',
+  },
+  cardPrimaryBtn: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: 8,
+    backgroundColor: '#00B894',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  cardPrimaryBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 
   // Trust Pillars Section
@@ -4531,60 +4594,59 @@ const styles = StyleSheet.create({
   testsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -8,
+    justifyContent: 'space-between',
+    marginHorizontal: -4,
   },
   testCard: {
-    flexGrow: 0,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 18,
-    margin: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    shadowColor: '#64748B',
+    overflow: 'hidden',
+    marginBottom: 16,
+    shadowColor: '#0F172A',
     shadowOpacity: 0.05,
-    shadowRadius: 6,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+    display: 'flex',
+    flexDirection: 'column',
     justifyContent: 'space-between',
   },
-  testCardTopRow: {
+  testCardBadgeRow: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    right: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
   },
   testCategoryTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
-  },
-  testCardMini3DIcon: {
-    width: 16,
-    height: 16,
-    borderRadius: 4,
-    marginRight: 5,
-  },
-  heroModalityMini3DIcon: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    marginRight: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
   },
   testCategoryTagText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#475569',
+    color: '#334155',
   },
   fastingPill: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 10,
+    borderRadius: 8,
     gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
   },
   fastingPillActive: {
     backgroundColor: '#FEF3C7',
@@ -4603,68 +4665,56 @@ const styles = StyleSheet.create({
     color: '#059669',
   },
   testCardName: {
-    fontSize: 16,
+    fontSize: 15.5,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#0F172A',
     marginBottom: 4,
   },
   testCardSummary: {
     fontSize: 12,
     color: '#64748B',
     lineHeight: 17,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   testKeyParamsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
+    gap: 6,
+    marginBottom: 10,
     flexWrap: 'wrap',
   },
   testParamItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   testParamText: {
     fontSize: 11,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  contrastTag: {
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  contrastTagText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#4F46E5',
-  },
-  testCardPriceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  testPriceCol: {},
-  startsAtLabel: {
-    fontSize: 10,
-    color: '#94A3B8',
+    color: '#475569',
     fontWeight: '600',
   },
-  priceNumbersRow: {
+  testPriceRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 6,
+    marginTop: 'auto',
+    paddingTop: 4,
+  },
+  startsAtLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
   },
   discountedPrice: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
-    color: '#00B894',
+    color: '#0F172A',
   },
   mrpPrice: {
     fontSize: 12,
@@ -4902,18 +4952,25 @@ const styles = StyleSheet.create({
 
   // Provider Card
   providersList: {
-    gap: 14,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginHorizontal: -4,
   },
   providerCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 18,
+    padding: 16,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     shadowColor: '#64748B',
     shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
   },
   providerCardHeader: {
     flexDirection: 'row',

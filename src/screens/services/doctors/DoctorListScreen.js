@@ -33,6 +33,7 @@ import doctors, { doctorSpecialties, SPECIALIZATION_CATEGORIES } from '../../../
 import colors from '../../../theme/colors';
 import WebFooter from '../../../components/web/WebFooter';
 import DoctorBookingModal from '../../../components/booking/DoctorBookingModal';
+import Pagination from '../../../components/common/Pagination';
 
 export const POPULAR_LOCALITIES = [
   { id: '1', name: 'Kuvempunagar', city: 'Mysore', full: 'Kuvempunagar, Mysore', latitude: 12.2858, longitude: 76.6341 },
@@ -1211,62 +1212,14 @@ const DoctorListScreen = ({ navigation, route }) => {
 
                 {/* PAGINATION (5 DOCTORS PER PAGE) */}
                 {totalPages > 1 && (
-                  <View style={styles.paginationContainer}>
-                    <TouchableOpacity
-                      style={[styles.pageNavBtn, safeCurrentPage === 1 && styles.pageNavBtnDisabled]}
-                      onPress={() => {
-                        if (safeCurrentPage > 1) {
-                          setCurrentPage(safeCurrentPage - 1);
-                          scrollViewRef.current?.scrollTo({ y: isDesktopWeb ? 90 : 140, animated: true });
-                        }
-                      }}
-                      disabled={safeCurrentPage === 1}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="chevron-back" size={16} color={safeCurrentPage === 1 ? '#94A3B8' : '#0F172A'} />
-                      <Text style={[styles.pageNavBtnText, safeCurrentPage === 1 && styles.pageNavBtnTextDisabled]}>
-                        Previous
-                      </Text>
-                    </TouchableOpacity>
-
-                    <View style={styles.pageNumbersWrap}>
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
-                        const isActive = pageNum === safeCurrentPage;
-                        return (
-                          <TouchableOpacity
-                            key={`page-${pageNum}`}
-                            style={[styles.pageNumberBtn, isActive && styles.pageNumberBtnActive]}
-                            onPress={() => {
-                              setCurrentPage(pageNum);
-                              scrollViewRef.current?.scrollTo({ y: isDesktopWeb ? 90 : 140, animated: true });
-                            }}
-                            activeOpacity={0.8}
-                          >
-                            <Text style={[styles.pageNumberText, isActive && styles.pageNumberTextActive]}>
-                              {pageNum}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-
-                    <TouchableOpacity
-                      style={[styles.pageNavBtn, safeCurrentPage === totalPages && styles.pageNavBtnDisabled]}
-                      onPress={() => {
-                        if (safeCurrentPage < totalPages) {
-                          setCurrentPage(safeCurrentPage + 1);
-                          scrollViewRef.current?.scrollTo({ y: isDesktopWeb ? 90 : 140, animated: true });
-                        }
-                      }}
-                      disabled={safeCurrentPage === totalPages}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.pageNavBtnText, safeCurrentPage === totalPages && styles.pageNavBtnTextDisabled]}>
-                        Next
-                      </Text>
-                      <Ionicons name="chevron-forward" size={16} color={safeCurrentPage === totalPages ? '#94A3B8' : '#0F172A'} />
-                    </TouchableOpacity>
-                  </View>
+                  <Pagination
+                    currentPage={safeCurrentPage}
+                    totalPages={totalPages}
+                    onPageChange={(pageNum) => {
+                      setCurrentPage(pageNum);
+                      scrollViewRef.current?.scrollTo({ y: isDesktopWeb ? 90 : 140, animated: true });
+                    }}
+                  />
                 )}
               </>
             )}
@@ -1930,7 +1883,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: Platform.OS === 'ios' ? 95 : 85,
+    paddingBottom: 115,
   },
   doctorsCardsList: {
     width: '100%',
@@ -2988,12 +2941,7 @@ const styles = StyleSheet.create({
   // LIST & CARD
   list: {
     paddingHorizontal: 16,
-    paddingBottom: 40,
-  },
-  // LIST & CARD
-  list: {
-    paddingHorizontal: 16,
-    paddingBottom: 40,
+    paddingBottom: 110,
   },
   card: {
     backgroundColor: '#FFFFFF',

@@ -30,6 +30,7 @@ import {
 } from '../../../data/labTestData';
 import { getSlotStatus, validateAndBookSlot, subscribeToSlotChanges } from '../../../services/slotBookingService';
 import WebFooter from '../../../components/web/WebFooter';
+import Pagination from '../../../components/common/Pagination';
 import { showAlert } from '../../../utils/alert';
 import {
   NOVUS_POPULAR_PACKAGES,
@@ -1394,64 +1395,14 @@ const LabTestsScreenWeb = (props) => {
 
                   {/* Pagination Controls */}
                   {totalPages > 1 && (
-                    <View style={styles.webPaginationBar}>
-                      <TouchableOpacity
-                        disabled={currentPage === 1}
-                        style={[
-                          styles.webPageNavBtn,
-                          { flexDirection: 'row', alignItems: 'center' },
-                          currentPage === 1 && styles.webPageNavBtnDisabled,
-                        ]}
-                        onPress={() => {
-                          setCurrentPage((prev) => Math.max(prev - 1, 1));
-                          mainScrollRef.current?.scrollTo({ y: 0, animated: true });
-                        }}
-                      >
-                        <Ionicons name="chevron-back" size={16} color={currentPage === 1 ? '#94A3B8' : '#0F172A'} style={{ marginRight: 4 }} />
-                        <Text style={[styles.webPageNavBtnText, currentPage === 1 && styles.webPageNavBtnTextDisabled]}>
-                          Previous
-                        </Text>
-                      </TouchableOpacity>
-
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        {Array.from({ length: totalPages }).map((_, i) => {
-                          const pageNum = i + 1;
-                          const isCurrent = currentPage === pageNum;
-                          return (
-                            <TouchableOpacity
-                              key={pageNum}
-                              style={[styles.webPageNumBtn, isCurrent && styles.webPageNumBtnActive]}
-                              onPress={() => {
-                                setCurrentPage(pageNum);
-                                mainScrollRef.current?.scrollTo({ y: 0, animated: true });
-                              }}
-                            >
-                              <Text style={[styles.webPageNumText, isCurrent && styles.webPageNumTextActive]}>
-                                {pageNum}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-
-                      <TouchableOpacity
-                        disabled={currentPage === totalPages}
-                        style={[
-                          styles.webPageNavBtn,
-                          { flexDirection: 'row', alignItems: 'center' },
-                          currentPage === totalPages && styles.webPageNavBtnDisabled,
-                        ]}
-                        onPress={() => {
-                          setCurrentPage((prev) => Math.min(prev + 1, totalPages));
-                          mainScrollRef.current?.scrollTo({ y: 0, animated: true });
-                        }}
-                      >
-                        <Text style={[styles.webPageNavBtnText, currentPage === totalPages && styles.webPageNavBtnTextDisabled, { marginRight: 4 }]}>
-                          Next
-                        </Text>
-                        <Ionicons name="chevron-forward" size={16} color={currentPage === totalPages ? '#94A3B8' : '#0F172A'} />
-                      </TouchableOpacity>
-                    </View>
+                    <Pagination
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      onPageChange={(pageNum) => {
+                        setCurrentPage(pageNum);
+                        mainScrollRef.current?.scrollTo({ y: 0, animated: true });
+                      }}
+                    />
                   )}
                 </>
               )}

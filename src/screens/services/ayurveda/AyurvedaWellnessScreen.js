@@ -3198,7 +3198,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 95 : 85,
+    paddingBottom: 115,
   },
 
   // Top Nav Bar

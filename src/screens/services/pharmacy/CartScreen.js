@@ -3811,6 +3811,7 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     backgroundColor: '#FFFFFF',
+    paddingBottom: 80,
   },
 
   // BREADCRUMB

@@ -598,26 +598,35 @@ const HomeScreen = ({ navigation, route }) => {
 
   const loadUserData = async () => {
     try {
-      const savedActive = await AsyncStorage.getItem('@unnathi_active_patient');
-      let foundName = '';
-      if (savedActive) {
-        try {
-          const parsedActive = JSON.parse(savedActive);
-          if (parsedActive && (parsedActive.displayName || parsedActive.name)) {
-            const raw = (parsedActive.displayName || parsedActive.name).trim();
-            foundName = raw.replace(/\s*\([Ss]elf\)/g, '').split(' ')[0] || raw;
-          }
-        } catch (e) {
-          console.log('Error parsing active patient:', e);
-        }
-      }
+      const storedIsLoggedIn = await AsyncStorage.getItem('isLoggedIn');
+      const storedIsGuest = await AsyncStorage.getItem('@unnathi_is_guest');
+      const isGuest = storedIsGuest === 'true' || storedIsLoggedIn !== 'true';
 
-      if (foundName) {
-        setUserName(foundName);
+      if (isGuest) {
+        setUserName('Guest');
+        setActiveMembership(null);
       } else {
-        const storedName = await AsyncStorage.getItem('userName');
-        if (storedName && storedName.trim()) {
-          setUserName(storedName.trim());
+        const savedActive = await AsyncStorage.getItem('@unnathi_active_patient');
+        let foundName = '';
+        if (savedActive) {
+          try {
+            const parsedActive = JSON.parse(savedActive);
+            if (parsedActive && (parsedActive.displayName || parsedActive.name)) {
+              const raw = (parsedActive.displayName || parsedActive.name).trim();
+              foundName = raw.replace(/\s*\([Ss]elf\)/g, '').split(' ')[0] || raw;
+            }
+          } catch (e) {
+            console.log('Error parsing active patient:', e);
+          }
+        }
+
+        if (foundName) {
+          setUserName(foundName);
+        } else {
+          const storedName = await AsyncStorage.getItem('userName');
+          if (storedName && storedName.trim()) {
+            setUserName(storedName.trim());
+          }
         }
       }
 
@@ -767,14 +776,95 @@ const HomeScreen = ({ navigation, route }) => {
           <Ionicons name="chevron-down" size={13} color="#64748B" />
         </TouchableOpacity>
 
-        {/* Right: User Avatar */}
+        {/* Right: User Avatar with Dynamic Initial & Membership Ring */}
         <TouchableOpacity
           style={styles.avatarButton}
           activeOpacity={0.85}
           onPress={() => navigation.navigate('Profile')}
         >
-          <View style={styles.avatarCircle}>
-            <Ionicons name="person" size={20} color="#64748B" />
+          <View
+            style={[
+              styles.avatarCircle,
+              activeMembership && activeMembership.status === 'active'
+                ? {
+                    borderColor: activeMembership.tierId?.includes('gold')
+                      ? '#F59E0B'
+                      : activeMembership.tierId?.includes('plat')
+                      ? '#2563EB'
+                      : activeMembership.tierId?.includes('silver')
+                      ? '#94A3B8'
+                      : '#007D69',
+                    borderWidth: 2.5,
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: 20,
+                  }
+                : {
+                    borderColor: '#007D69',
+                    borderWidth: 0,
+                    backgroundColor: '#007D69',
+                    borderRadius: 20,
+                  },
+            ]}
+          >
+            <View
+              style={[
+                styles.avatarInnerCircle,
+                activeMembership && activeMembership.status === 'active'
+                  ? {
+                      backgroundColor: activeMembership.tierId?.includes('gold')
+                        ? '#FEF3C7'
+                        : activeMembership.tierId?.includes('plat')
+                        ? '#EFF6FF'
+                        : activeMembership.tierId?.includes('silver')
+                        ? '#F1F5F9'
+                        : '#CCFBF1',
+                      borderRadius: 15,
+                    }
+                  : {
+                      backgroundColor: '#007D69',
+                      borderRadius: 15,
+                    },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.avatarInitialText,
+                  activeMembership && activeMembership.status === 'active'
+                    ? {
+                        color: activeMembership.tierId?.includes('gold')
+                          ? '#D97706'
+                          : activeMembership.tierId?.includes('plat')
+                          ? '#1D4ED8'
+                          : activeMembership.tierId?.includes('silver')
+                          ? '#475569'
+                          : '#007D69',
+                      }
+                    : { color: '#FFFFFF' },
+                ]}
+              >
+                {userName?.trim() ? userName.trim().charAt(0).toUpperCase() : 'U'}
+              </Text>
+            </View>
+
+            {activeMembership && activeMembership.status === 'active' && (
+              <View
+                style={[
+                  styles.homeMembershipCrownBadge,
+                  {
+                    backgroundColor: activeMembership.tierId?.includes('gold')
+                      ? '#D97706'
+                      : activeMembership.tierId?.includes('plat')
+                      ? '#1D4ED8'
+                      : activeMembership.tierId?.includes('silver')
+                      ? '#64748B'
+                      : '#007D69',
+                    borderRadius: 7,
+                  },
+                ]}
+              >
+                <Ionicons name="star" size={7.5} color="#FFFFFF" />
+              </View>
+            )}
           </View>
         </TouchableOpacity>
       </View>
@@ -1403,7 +1493,7 @@ const HomeScreen = ({ navigation, route }) => {
         )}
 
         {/* Extra Bottom Spacing for Bottom Navigation Bar */}
-        <View style={{ height: isTablet ? 0 : 85 }} />
+        <View style={{ height: 95 }} />
       </ScrollView>
 
       {/* ============================================================
@@ -1676,16 +1766,47 @@ const styles = StyleSheet.create({
     maxWidth: 120,
   },
   avatarButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#E2E8F0',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    overflow: 'visible',
+  },
+  avatarInnerCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarInitialText: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+  homeMembershipCrownBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    elevation: 3,
   },
 
   // ============================================================

@@ -9,6 +9,7 @@ import {
   Platform,
   Image,
   Animated,
+  Keyboard,
 } from 'react-native';
 
 import WebHeader from '../components/web/WebHeader';
@@ -407,6 +408,20 @@ const MainNavigator = ({
     currentParams,
     setCurrentParams,
   ] = React.useState({});
+  const [isKeyboardVisible, setIsKeyboardVisible] = React.useState(false);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, () => setIsKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setIsKeyboardVisible(false));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const cartCtx = useCart();
   const radiologyCartCount = cartCtx?.radiologyCartCount || 0;
@@ -961,10 +976,10 @@ const MainNavigator = ({
 
 
       {/* ==================================================
-          BOTTOM NAVIGATION (ONLY ON MAIN TAB SCREENS)
+          BOTTOM NAVIGATION (ONLY ON MAIN TAB SCREENS & HIDDEN WHEN KEYBOARD OPEN)
       ================================================== */}
 
-      {!isDesktopWeb && ['Home', 'DoctorList', 'VideoConsultation', 'Bookings', 'MyTests', 'MyAppointments', 'HealthRecords', 'Profile', 'AllServices', 'GlobalSearch', 'Notifications', 'Chatbot'].includes(currentRoute) && (
+      {!isDesktopWeb && !isKeyboardVisible && ['Home', 'DoctorList', 'VideoConsultation', 'Bookings', 'MyTests', 'MyAppointments', 'HealthRecords', 'Profile', 'AllServices', 'GlobalSearch', 'Notifications', 'Chatbot'].includes(currentRoute) && (
         <BottomNavigation
           navigation={navigation}
           currentRoute={currentRoute}

@@ -1870,7 +1870,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 80,
     maxWidth: 1100,
     width: '100%',
     alignSelf: 'center',

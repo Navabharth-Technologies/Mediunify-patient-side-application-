@@ -26,6 +26,8 @@ import {
   normalizePharmacyCity,
 } from '../../../data/pharmacyStores';
 import { showAlert } from '../../../utils/alert';
+import OptimizedImage from '../../../components/common/OptimizedImage';
+import Pagination from '../../../components/common/Pagination';
 
 // ==================================================
 // 1. HERO ADS SLIDES (Exact Web Standard)
@@ -1442,7 +1444,13 @@ const PharmacyScreen = ({ navigation, route }) => {
                         activeOpacity={0.9}
                         style={styles.pharmacyCardImgWrap}
                       >
-                        <Image source={{ uri: prodImg }} style={styles.pharmacyCardImg} resizeMode="contain" />
+                        <OptimizedImage
+                          source={{ uri: prodImg }}
+                          style={styles.pharmacyCardImg}
+                          resizeMode="contain"
+                          fallbackIcon="medkit-outline"
+                          fallbackColor="#007D69"
+                        />
                       </TouchableOpacity>
 
                       {/* Card Content */}
@@ -1518,92 +1526,14 @@ const PharmacyScreen = ({ navigation, route }) => {
 
               {/* Pagination Controls Bar */}
               {totalPages > 1 && (
-                <View style={styles.paginationRow}>
-                  <TouchableOpacity
-                    style={[styles.pageNavBtn, currentPage === 1 && styles.pageNavBtnDisabled]}
-                    onPress={() => {
-                      if (currentPage > 1) {
-                        setCurrentPage((prev) => prev - 1);
-                        scrollToProducts();
-                      }
-                    }}
-                    disabled={currentPage === 1}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name="chevron-back"
-                      size={15}
-                      color={currentPage === 1 ? '#94A3B8' : '#1E3A8A'}
-                    />
-                    <Text
-                      style={[
-                        styles.pageNavBtnText,
-                        currentPage === 1 && styles.pageNavBtnTextDisabled,
-                      ]}
-                    >
-                      Previous
-                    </Text>
-                  </TouchableOpacity>
-
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.pageNumbersTrack}
-                  >
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
-                      const isActive = pageNum === currentPage;
-                      return (
-                        <TouchableOpacity
-                          key={pageNum}
-                          style={[styles.pageNumberChip, isActive && styles.pageNumberChipActive]}
-                          onPress={() => {
-                            setCurrentPage(pageNum);
-                            scrollToProducts();
-                          }}
-                          activeOpacity={0.8}
-                        >
-                          <Text
-                            style={[
-                              styles.pageNumberText,
-                              isActive && styles.pageNumberTextActive,
-                            ]}
-                          >
-                            {pageNum}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.pageNavBtn,
-                      currentPage === totalPages && styles.pageNavBtnDisabled,
-                    ]}
-                    onPress={() => {
-                      if (currentPage < totalPages) {
-                        setCurrentPage((prev) => prev + 1);
-                        scrollToProducts();
-                      }
-                    }}
-                    disabled={currentPage === totalPages}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[
-                        styles.pageNavBtnText,
-                        currentPage === totalPages && styles.pageNavBtnTextDisabled,
-                      ]}
-                    >
-                      Next
-                    </Text>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={15}
-                      color={currentPage === totalPages ? '#94A3B8' : '#1E3A8A'}
-                    />
-                  </TouchableOpacity>
-                </View>
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={(pageNum) => {
+                    setCurrentPage(pageNum);
+                    scrollToProducts();
+                  }}
+                />
               )}
             </>
           )}
@@ -1840,7 +1770,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: 110,
   },
   tabletContainerWidth: {
     maxWidth: 1040,

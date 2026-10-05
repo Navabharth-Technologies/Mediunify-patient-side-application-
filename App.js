@@ -50,7 +50,13 @@ class GlobalErrorBoundary extends React.Component {
   }
 }
 
+import { preloadCriticalAssets } from './src/utils/assetManager';
+
 export default function App() {
+  React.useEffect(() => {
+    preloadCriticalAssets();
+  }, []);
+
   return (
     <GlobalErrorBoundary>
       <SafeAreaProvider>

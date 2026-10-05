@@ -10,8 +10,9 @@ import {
   Platform,
   Image,
   ActivityIndicator,
-  Alert,
   ScrollView,
+  Keyboard,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { showAlert } from '../../utils/alert';
@@ -23,19 +24,25 @@ import doctors from '../../data/doctors';
 import { radiologyLabs } from '../../data/radiologyLabsData';
 import { useCart } from '../../context/CartContext';
 
-// Quick prompt suggestions
+// Horizontally scrollable quick prompt chips
 const QUICK_SUGGESTIONS = [
-  ' I have fever & body pain',
-  'Best Cardiologist for Chest Pain',
-  ' Scan My Prescription',
-  ' Suggest nearby Lab for Blood Test',
-  ' Can I buy Paracetamol?',
-  ' Knee & Joint pain specialist',
-  ' Update Blood Sugar & BP',
-  ' How do I return a medicine?',
-  ' Ayurveda & Panchakarma Therapies',
-  '🏥 Surgeries & Hospital Care',
-  ' Rent Hospital Bed & Oxygen Concentrator',
+  { icon: 'fitness-outline', text: 'I have fever & body pain' },
+  { icon: 'person-outline', text: 'Find a doctor' },
+  { icon: 'flask-outline', text: 'Book a blood test' },
+  { icon: 'medkit-outline', text: 'Order medicines' },
+  { icon: 'home-outline', text: 'Home care' },
+  { icon: 'heart-outline', text: 'Best Cardiologist' },
+  { icon: 'body-outline', text: 'Knee & joint pain' },
+  { icon: 'document-text-outline', text: 'Scan prescription' },
+];
+
+// Compact "Try asking" suggestions for initial welcome card
+const COMPACT_TRY_ASKING = [
+  { id: '1', icon: 'heart-outline', color: '#EF4444', bg: '#FEE2E2', title: 'Fever & body pain', query: 'I have fever and body pain' },
+  { id: '2', icon: 'person-outline', color: '#007D69', bg: '#E6F4F1', title: 'Find a doctor', query: 'Find best doctor for consultation' },
+  { id: '3', icon: 'flask-outline', color: '#0284C7', bg: '#E0F2FE', title: 'Book a blood test', query: 'Book a blood test at home' },
+  { id: '4', icon: 'medkit-outline', color: '#10B981', bg: '#D1FAE5', title: 'Order medicines', query: 'Order my medicines from pharmacy' },
+  { id: '5', icon: 'home-outline', color: '#F97316', bg: '#FFEDD5', title: 'Post-surgery home care', query: 'Post-surgery home care and equipment' },
 ];
 
 // Sample prescription knowledge base for OCR analysis
@@ -53,48 +60,20 @@ const PRESCRIPTION_SAMPLES = [
       {
         name: 'Paracetamol 650mg',
         type: 'Antipyretic & Analgesic',
-        use: 'Reduces high body temperature (fever) and relieves body ache / headache.',
+        use: 'Reduces fever and relieves body ache / headache.',
         timing: '1 tablet every 6-8 hours as needed (after food)',
         caution: 'Do not exceed 3000mg per day to protect liver.',
       },
       {
         name: 'Pantoprazole 40mg',
         type: 'Antacid / PPI',
-        use: 'Prevents stomach acidity, heartburn, and gastritis from antibiotics.',
+        use: 'Prevents stomach acidity and gastritis.',
         timing: '1 tablet daily before breakfast on empty stomach',
         caution: 'Swallow whole with a glass of water.',
       },
     ],
     doctorSpecialty: 'General Physician',
-    doctorSuggestionId: '1', // Dr. Ananya Rao
-  },
-  {
-    name: 'Cardio & Hypertension Rx',
-    medicines: [
-      {
-        name: 'Telmisartan 40mg',
-        type: 'Antihypertensive',
-        use: 'Controls high blood pressure and protects heart/kidneys.',
-        timing: 'Once daily in the morning',
-        caution: 'Monitor BP regularly. Do not stop abruptly.',
-      },
-      {
-        name: 'Atorvastatin 10mg',
-        type: 'Cholesterol Lowering Statin',
-        use: 'Lowers LDL bad cholesterol and reduces risk of heart stroke.',
-        timing: '1 tablet at bedtime',
-        caution: 'Avoid grapefruit juice while taking this medication.',
-      },
-      {
-        name: 'Ecosprin 75mg',
-        type: 'Blood Thinner / Antiplatelet',
-        use: 'Prevents blood clots and improves cardiac arterial circulation.',
-        timing: 'Once daily after lunch',
-        caution: 'Inform doctor before any dental procedure or surgery.',
-      },
-    ],
-    doctorSpecialty: 'Cardiologist',
-    doctorSuggestionId: '2', // Dr. Rahul Sharma
+    doctorSuggestionId: '1',
   },
 ];
 
@@ -102,28 +81,52 @@ const INITIAL_MESSAGES = [
   {
     id: 'msg-1',
     sender: 'bot',
-    text: "Hi! I'm MediUnify AI.\nHow can I help you today?\n\nI can help you with health information, guide you to the right care, and connect you with our trusted doctors, labs, pharmacies and more.",
-    quickPrompts: [
-      { icon: 'fitness-outline', color: '#1E3A8A', bg: '#EFF6FF', text: 'I have fever and body pain' },
-      { icon: 'person-outline', color: '#7BC96F', bg: '#F2FAF0', text: 'Find best doctor for my child' },
-      { icon: 'flask-outline', color: '#00C2CB', bg: '#E0F7FA', text: 'Book a blood test at home' },
-      { icon: 'medkit-outline', color: '#00B894', bg: '#E6F8F5', text: 'Order my medicines' },
-      { icon: 'home-outline', color: '#FF7F50', bg: '#FFF2ED', text: 'Post-surgery home care' },
-    ],
+    isWelcome: true,
+    text: "Hi! I'm MediUnify AI 👋\nHow can I help you today?",
+    subText: 'Ask me about symptoms, doctors, tests, medicines, or care.',
+    quickPrompts: COMPACT_TRY_ASKING,
   },
 ];
 
 const ChatbotScreen = ({ navigation }) => {
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 600;
+
   const { addToCart } = useCart();
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [scanningPrescription, setScanningPrescription] = useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const flatListRef = useRef(null);
 
+  // Keyboard listener to dynamically handle bottom navigation clearance
   useEffect(() => {
-    // Scroll to bottom when new messages arrive
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        setIsKeyboardVisible(true);
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+    );
+
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setIsKeyboardVisible(false);
+      }
+    );
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  useEffect(() => {
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 150);
@@ -133,6 +136,11 @@ const ChatbotScreen = ({ navigation }) => {
   const handleSend = (customText = null) => {
     const textToSend = (customText || inputText).trim();
     if (!textToSend) return;
+
+    if (textToSend.toLowerCase().includes('scan prescription')) {
+      handleScanPrescription();
+      return;
+    }
 
     const userMsg = {
       id: `user-${Date.now()}`,
@@ -147,7 +155,7 @@ const ChatbotScreen = ({ navigation }) => {
     setTimeout(() => {
       processHealthQuery(textToSend);
       setIsTyping(false);
-    }, 800);
+    }, 600);
   };
 
   // ==========================================
@@ -156,19 +164,19 @@ const ChatbotScreen = ({ navigation }) => {
   const handleScanPrescription = async () => {
     try {
       showAlert(
-        'Upload Prescription to Scan',
-        'Choose how you would like to provide your doctor prescription photo:',
+        'Scan Prescription',
+        'Choose how you would like to provide your prescription photo:',
         [
           {
-            text: ' Take Photo',
+            text: '📷 Take Photo',
             onPress: () => launchImagePicker(true),
           },
           {
-            text: 'Choose from Gallery',
+            text: '🖼️ Choose from Gallery',
             onPress: () => launchImagePicker(false),
           },
           {
-            text: ' Use Sample Rx',
+            text: '📄 Use Sample Rx',
             onPress: () => analyzePrescriptionData(PRESCRIPTION_SAMPLES[0]),
           },
           { text: 'Cancel', style: 'cancel' },
@@ -199,149 +207,124 @@ const ChatbotScreen = ({ navigation }) => {
           return;
         }
         result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
           quality: 0.8,
           allowsEditing: true,
         });
       }
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const imageUri = result.assets[0].uri;
-
-        // Add User image message
+        const asset = result.assets[0];
         const userImgMsg = {
           id: `user-img-${Date.now()}`,
           sender: 'user',
-          text: 'Uploaded doctor prescription for scanning ',
-          image: imageUri,
+          text: '📄 Uploaded Prescription for AI OCR Analysis',
+          image: asset.uri,
         };
         setMessages((prev) => [...prev, userImgMsg]);
-
-        // Trigger AI Scanning animation
-        setScanningPrescription(true);
-        setIsTyping(true);
-
-        setTimeout(() => {
-          setScanningPrescription(false);
-          setIsTyping(false);
-          analyzePrescriptionData(PRESCRIPTION_SAMPLES[0], imageUri);
-        }, 2000);
+        analyzePrescriptionData(PRESCRIPTION_SAMPLES[0]);
       }
-    } catch (e) {
-      setScanningPrescription(false);
-      setIsTyping(false);
-      console.log('Image picker error:', e);
+    } catch (err) {
+      showAlert('Scan Error', 'Could not open camera or gallery.');
     }
   };
 
-  // Analyze & parse prescription details
-  const analyzePrescriptionData = (sampleRx, imageUri = null) => {
-    const suggestedDoctor = doctors.find((d) => d.id === sampleRx.doctorSuggestionId) || doctors[0];
+  const analyzePrescriptionData = (sampleRx) => {
+    setIsTyping(true);
+    setScanningPrescription(true);
 
-    const botMsg = {
-      id: `bot-rx-${Date.now()}`,
-      sender: 'bot',
-      text: ` **Prescription Scanned & Analyzed Successfully!**\n\nI have detected **${sampleRx.medicines.length} medicines** from your prescription with their clinical uses and dosage instructions:`,
-      prescriptionAnalysis: {
-        medicines: sampleRx.medicines,
-        suggestedDoctor,
-      },
-      actionButtons: [
-        {
-          title: ' Order Medicines from Pharmacy',
-          icon: 'cart',
-          action: () => {
-            sampleRx.medicines.forEach((med, idx) => {
-              addToCart(
-                {
-                  id: `rx-item-${idx}-${Date.now()}`,
+    setTimeout(() => {
+      setIsTyping(false);
+      setScanningPrescription(false);
+
+      const matchedDoctor = doctors.find((d) => d.id === sampleRx.doctorSuggestionId) || doctors[0];
+
+      const analysisMsg = {
+        id: `bot-rx-${Date.now()}`,
+        sender: 'bot',
+        text: `✅ **Prescription Scanned & Verified**\n\nIdentified **${sampleRx.medicines.length} prescribed medications** for ${sampleRx.name}:`,
+        prescriptionAnalysis: sampleRx,
+        suggestedDoctor: matchedDoctor,
+        actionButtons: [
+          {
+            title: '💊 Add Prescribed Medicines to Cart',
+            icon: 'cart-outline',
+            action: () => {
+              sampleRx.medicines.forEach((med, i) => {
+                addToCart({
+                  id: `rx-med-${Date.now()}-${i}`,
                   name: med.name,
-                  category: 'Medicines',
-                  price: 45 + idx * 30,
-                  dosage: med.type,
-                },
-                1,
-                'pharmacy'
-              );
-            });
-            showAlert(
-              'Medicines Added! ',
-              'Prescription tablets have been added to your Pharmacy Cart.',
-              [
-                { text: 'Keep Chatting', style: 'cancel' },
-                { text: 'View Cart', onPress: () => navigation.navigate('Cart', { initialTab: 'pharmacy' }) },
-              ]
-            );
+                  price: 85 + i * 40,
+                  category: 'Prescription Medicine',
+                  image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400',
+                  storeName: 'Apollo Pharmacy (Mysuru)',
+                });
+              });
+              showAlert('Medicines Added', 'All prescribed medications added to your Cart.');
+              navigation.navigate('Cart');
+            },
           },
-        },
-        {
-          title: ` Consult ${suggestedDoctor.name}`,
-          icon: 'calendar',
-          action: () => navigation.navigate('DoctorDetails', { doctor: suggestedDoctor }),
-        },
-      ],
-    };
+          {
+            title: `👨‍⚕️ Book Follow-up with ${matchedDoctor.name}`,
+            icon: 'calendar-outline',
+            action: () => navigation.navigate('DoctorDetails', { doctor: matchedDoctor }),
+          },
+        ],
+      };
 
-    setMessages((prev) => [...prev, botMsg]);
+      setMessages((prev) => [...prev, analysisMsg]);
+    }, 1200);
   };
 
   // ==========================================
-  // NATURAL LANGUAGE QUERY PROCESSOR
+  // NATURAL HEALTH QUERY NLP PROCESSOR
   // ==========================================
   const processHealthQuery = (query) => {
     const q = query.toLowerCase();
 
-    // 1. PRESCRIPTION SCAN TRIGGER
-    if (q.includes('scan') || q.includes('prescription') || q.includes('upload rx') || q.includes('tablet is used for')) {
-      handleScanPrescription();
-      return;
-    }
-
-    // 2. HEALTH MONITORING & VITALS
-    if (
-      q.includes('sugar') ||
-      q.includes('glucose') ||
-      q.includes('bp') ||
-      q.includes('blood pressure') ||
-      q.includes('vitals') ||
-      q.includes('health monitor') ||
-      q.includes('spo2') ||
-      q.includes('bmi') ||
-      q.includes('weight')
-    ) {
+    // 1. FEVER / COLD / COUGH / PAIN
+    if (q.includes('fever') || q.includes('cold') || q.includes('cough') || q.includes('body pain') || q.includes('headache') || q.includes('flu')) {
       const physician = doctors.find((d) => d.specialtyKey === 'general') || doctors[0];
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: ' **Health Monitor & Vitals Tracking**\n\nYou can log and monitor your **Blood Glucose (Sugar)**, **Blood Pressure (BP)**, **Oxygen (SpO2)**, **Temperature**, and **BMI** directly in the app with automatic color-coded safety indicators!',
+        text: "🌡️ **Fever & Body Ache Guidance**\n\nFever and body ache are common signs that your immune system is responding to a viral or bacterial condition.\n\n• Stay well hydrated with warm water and electrolytes.\n• Get adequate rest.\n• Avoid strenuous physical activities.\n\nFor clinical assessment and safe prescription, we recommend consulting our verified General Physician:",
         suggestedDoctor: physician,
         actionButtons: [
           {
-            title: ' Open Health Monitor',
-            icon: 'pulse',
-            action: () => navigation.navigate('HealthMonitor'),
-          },
-          {
-            title: ` Consult ${physician.name}`,
-            icon: 'calendar',
+            title: `Book ${physician.name} (${physician.fee})`,
+            icon: 'calendar-outline',
             action: () => navigation.navigate('DoctorDetails', { doctor: physician }),
           },
+          {
+            title: '🧪 Complete Blood Count (CBC) at Home',
+            icon: 'flask-outline',
+            action: () => navigation.navigate('LabTests'),
+          },
         ],
       };
       setMessages((prev) => [...prev, botResponse]);
       return;
     }
 
-    // 3. PRODUCT RETURN / ORDERS
-    if (q.includes('return') || q.includes('refund') || q.includes('replace') || q.includes('damaged') || q.includes('wrong medicine')) {
+    // 2. CHILD / PEDIATRIC
+    if (q.includes('child') || q.includes('baby') || q.includes('kid') || q.includes('pediatric')) {
+      const pediatrician = doctors.find((d) => d.specialtyKey === 'pediatric') || doctors[0];
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: ' **Pharmacy Product Return Policy**\n\nYou can easily return delivered pharmacy medicines within our hassle-free return window.\n\n• Go to **My Orders** → Tap **Return Order**.\n• Select the items and provide the issue details (damaged seal, wrong medicine, expired date, doctor changed Rx).\n• Choose instant **MediUnnathi Wallet refund** or Bank source.\n• Free doorstep pickup will be arranged within 24-48 hours.',
+        text: '👶 **Child Health & Pediatric Care**\n\nFor infant or child care, accurate weight-adjusted dosing and specialist pediatric examination is essential for gentle recovery.',
+        suggestedDoctor: pediatrician,
         actionButtons: [
           {
-            title: ' View Orders & Return',
-            icon: 'receipt',
-            action: () => navigation.navigate('MyMedicineOrders'),
+            title: `Consult ${pediatrician.name}`,
+            icon: 'person-outline',
+            action: () => navigation.navigate('DoctorDetails', { doctor: pediatrician }),
+          },
+          {
+            title: 'Find More Pediatricians',
+            icon: 'search-outline',
+            action: () => navigation.navigate('DoctorList', { specialty: 'pediatric' }),
           },
         ],
       };
@@ -349,129 +332,25 @@ const ChatbotScreen = ({ navigation }) => {
       return;
     }
 
-    // 3.5. AYURVEDA & PANCHAKARMA
-    if (
-      q.includes('ayurved') ||
-      q.includes('panchakarma') ||
-      q.includes('vaidya') ||
-      q.includes('nadi') ||
-      q.includes('dosha') ||
-      q.includes('shirodhara') ||
-      q.includes('abhyanga') ||
-      q.includes('shilajit') ||
-      q.includes('ashwagandha') ||
-      q.includes('triphala')
-    ) {
-      const botResponse = {
-        id: `bot-${Date.now()}`,
-        sender: 'bot',
-        text: ' **Ayurveda & Panchakarma Healing Sanctuary**\n\nMediUnify provides direct access to senior AYUSH-certified Vaidyas for:\n\n• **Nadi Pariksha (Pulse Diagnosis)** & Dosha (Vata-Pitta-Kapha) assessment.\n• **Classical Panchakarma Therapies**: Abhyanga full-body warm oil massage, Shirodhara stress relief, Janu Basti for knee joints, and 7-Day Detox.\n• **Authentic Classical Herbal Store**: Shilajit resin, KSM-66 Ashwagandha, Chyawanprash, and Kumkumadi facial oils with express doorstep delivery.',
-        actionButtons: [
-          {
-            title: ' Open Ayurveda & Wellness',
-            icon: 'leaf',
-            action: () => navigation.navigate('AyurvedaWellness'),
-          },
-          {
-            title: 'Book Ayurvedic Vaidya (₹400)',
-            icon: 'calendar',
-            action: () => navigation.navigate('AyurvedaWellness'),
-          },
-        ],
-      };
-      setMessages((prev) => [...prev, botResponse]);
-      return;
-    }
-
-    // 3.6. SURGERY & HOSPITAL CARE
-    if (
-      q.includes('surgery') ||
-      q.includes('hospital') ||
-      q.includes('operation') ||
-      q.includes('cataract') ||
-      q.includes('knee replacement') ||
-      q.includes('kidney stone') ||
-      q.includes('gallbladder') ||
-      q.includes('hernia') ||
-      q.includes('laparoscopic')
-    ) {
-      const botResponse = {
-        id: `bot-${Date.now()}`,
-        sender: 'bot',
-        text: '🏥 **Hospital & Surgery Care Desk**\n\nWe provide seamless surgical assistance with top NABH accredited partner hospitals:\n\n• **10,000+ Verified Surgeons** & modular operation theatres.\n• **Zero Out-of-Pocket Stress**: 100% Cashless TPA insurance approval assistance.\n• **Dedicated Care Buddy**: Handholding from admission to discharge and post-op care.\n• **Free Second Opinion & Price Quotes**.',
-        actionButtons: [
-          {
-            title: '🏥 Explore Surgeries',
-            icon: 'business',
-            action: () => navigation.navigate('HospitalCare'),
-          },
-          {
-            title: '📞 Request Care Callback',
-            icon: 'call',
-            action: () => navigation.navigate('HospitalCare'),
-          },
-        ],
-      };
-      setMessages((prev) => [...prev, botResponse]);
-      return;
-    }
-
-    // 3.7. MEDICAL EQUIPMENT RENTAL
-    if (
-      q.includes('equipment') ||
-      q.includes('wheelchair') ||
-      q.includes('oxygen concentrator') ||
-      q.includes('hospital bed') ||
-      q.includes('bipap') ||
-      q.includes('cpap') ||
-      q.includes('rent cot') ||
-      q.includes('rent bed') ||
-      q.includes('patient monitor') ||
-      q.includes('walker') ||
-      q.includes('rent')
-    ) {
-      const botResponse = {
-        id: `bot-${Date.now()}`,
-        sender: 'bot',
-        text: ' **Home Medical Equipment Rental Service**\n\nRent certified, hospital-grade equipment with express delivery and free technician installation:\n\n• **Hospital Beds**: 5-Function electric motorized ICU beds with remote control.\n• **Respiratory Care**: 10L medical oxygen concentrators (93% purity) & Auto-BiPAP/CPAP.\n• **Mobility Aids**: Motorized smart electric wheelchairs & standard foldable wheelchairs.\n• **Patient Monitors**: 12.1" ICU multi-parameter ECG, SpO2, and NIBP screens.\n• **Fast & Safe**: Delivered within 2-4 hours, with 100% refundable security deposit.',
-        actionButtons: [
-          {
-            title: ' Browse Equipment Rental',
-            icon: 'fitness',
-            action: () => navigation.navigate('EquipmentRental'),
-          },
-        ],
-      };
-      setMessages((prev) => [...prev, botResponse]);
-      return;
-    }
-
-    // 4. HEART / CHEST PAIN / CARDIOLOGY
-    if (
-      q.includes('chest pain') ||
-      q.includes('heart') ||
-      q.includes('cardio') ||
-      q.includes('palpitation') ||
-      q.includes('breathless')
-    ) {
+    // 3. CARDIOLOGY / CHEST PAIN / HEART
+    if (q.includes('chest pain') || q.includes('heart') || q.includes('cardio') || q.includes('palpitation') || q.includes('breathless')) {
       const cardiologist = doctors.find((d) => d.specialtyKey === 'cardio') || doctors[1];
       const nearbyLab = radiologyLabs[0];
 
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: ' **Chest Pain & Cardiac Health Advisory**\n\nIf you are experiencing severe crushing chest pain, radiating pain to the left arm or jaw, or extreme shortness of breath, please **seek emergency care immediately**.\n\nFor clinical evaluation, ECG, and echocardiography, we recommend consulting our senior Cardiologist:',
+        text: '❤️ **Cardiac & Chest Health Advisory**\n\n*If you are experiencing severe crushing chest pain or left arm numbness, please visit the emergency room immediately.*\n\nFor clinical evaluation, ECG, and 2D Echo, consult our senior Cardiologist:',
         suggestedDoctor: cardiologist,
-        suggestedLab: nearbyLab,
         actionButtons: [
           {
             title: `Book ${cardiologist.name} (${cardiologist.fee})`,
-            icon: 'heart',
+            icon: 'heart-outline',
             action: () => navigation.navigate('DoctorDetails', { doctor: cardiologist }),
           },
           {
-            title: `ECG / Echo at ${nearbyLab.name}`,
-            icon: 'flask',
+            title: `ECG / 2D Echo at ${nearbyLab.name}`,
+            icon: 'flask-outline',
             action: () => navigation.navigate('RadiologyLabDetails', { labId: nearbyLab.id }),
           },
         ],
@@ -480,102 +359,23 @@ const ChatbotScreen = ({ navigation }) => {
       return;
     }
 
-    // 5. SKIN / RASH / ACNE / HAIR / DERMATOLOGY
-    if (
-      q.includes('skin') ||
-      q.includes('rash') ||
-      q.includes('acne') ||
-      q.includes('itching') ||
-      q.includes('hair') ||
-      q.includes('dandruff') ||
-      q.includes('eczema')
-    ) {
-      const dermatologist = doctors.find((d) => d.specialtyKey === 'derma') || doctors[2];
-      const botResponse = {
-        id: `bot-${Date.now()}`,
-        sender: 'bot',
-        text: ' **Skin & Dermatology Guidance**\n\nSkin irritations, allergic rashes, persistent acne, or acute hair loss require specialized dermatological assessment to identify the root cause.',
-        suggestedDoctor: dermatologist,
-        actionButtons: [
-          {
-            title: `Consult ${dermatologist.name} (${dermatologist.fee})`,
-            icon: 'calendar',
-            action: () => navigation.navigate('DoctorDetails', { doctor: dermatologist }),
-          },
-          {
-            title: ' Skin Care in Pharmacy',
-            icon: 'medkit',
-            action: () => navigation.navigate('Pharmacy'),
-          },
-        ],
-      };
-      setMessages((prev) => [...prev, botResponse]);
-      return;
-    }
-
-    // 6. BONE / JOINT / BACK PAIN / ORTHOPEDIC
-    if (
-      q.includes('bone') ||
-      q.includes('joint') ||
-      q.includes('knee') ||
-      q.includes('back pain') ||
-      q.includes('fracture') ||
-      q.includes('ortho') ||
-      q.includes('arthritis')
-    ) {
-      const orthoDoctor = doctors.find((d) => d.specialtyKey === 'ortho') || doctors[3];
-      const nearbyLab = radiologyLabs[0];
-
-      const botResponse = {
-        id: `bot-${Date.now()}`,
-        sender: 'bot',
-        text: ' **Orthopedic & Joint Care**\n\nFor joint stiffness, knee pain, ligament sprains, or chronic back pain, resting the joint and obtaining an X-Ray or MRI scan helps accurate diagnosis.',
-        suggestedDoctor: orthoDoctor,
-        suggestedLab: nearbyLab,
-        actionButtons: [
-          {
-            title: `Book ${orthoDoctor.name}`,
-            icon: 'calendar',
-            action: () => navigation.navigate('DoctorDetails', { doctor: orthoDoctor }),
-          },
-          {
-            title: `Digital X-Ray & MRI at ${nearbyLab.name}`,
-            icon: 'flask',
-            action: () => navigation.navigate('RadiologyLabDetails', { labId: nearbyLab.id }),
-          },
-        ],
-      };
-      setMessages((prev) => [...prev, botResponse]);
-      return;
-    }
-
-    // 7. LAB TESTS / SCANS / MRI / CT SCAN / BLOOD TEST
-    if (
-      q.includes('lab') ||
-      q.includes('test') ||
-      q.includes('blood test') ||
-      q.includes('mri') ||
-      q.includes('ct scan') ||
-      q.includes('x-ray') ||
-      q.includes('ultrasound') ||
-      q.includes('thyroid') ||
-      q.includes('lipid')
-    ) {
+    // 4. LAB TESTS / BLOOD TEST
+    if (q.includes('lab') || q.includes('test') || q.includes('blood') || q.includes('scan') || q.includes('mri') || q.includes('x-ray')) {
       const topLab = radiologyLabs[0];
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: ` **Certified Diagnostic Labs & Imaging Centers**\n\nWe have partnered with NABH & NABL accredited diagnostic centers in Mysore for 100% verified digital reports.\n\n• **Blood Tests**: Home Sample Collection (Free) or Center Visit.\n• **Radiology Scans (MRI, CT, X-Ray, Ultrasound)**: Conducted on-site at the hospital with fast-track appointment tokens.`,
+        text: '🧪 **Diagnostic Labs & Health Checkups**\n\nWe provide verified diagnostic testing across accredited laboratories in Mysuru with **Free Home Sample Collection** and fast digital reports.',
         suggestedLab: topLab,
         actionButtons: [
           {
-            title: `View Tests at ${topLab.name}`,
-            icon: 'flask',
-            action: () => navigation.navigate('RadiologyLabDetails', { labId: topLab.id }),
+            title: 'Book Blood Tests at Home',
+            icon: 'flask-outline',
+            action: () => navigation.navigate('LabTests'),
           },
           {
-            title: ' All Diagnostic Centers',
-            icon: 'business',
+            title: 'View Diagnostic Centers & Scans',
+            icon: 'business-outline',
             action: () => navigation.navigate('RadiologyLabs'),
           },
         ],
@@ -584,33 +384,22 @@ const ChatbotScreen = ({ navigation }) => {
       return;
     }
 
-    // 8. MEDICINE ADVICE / DRUG INQUIRY
-    if (
-      q.includes('medicine') ||
-      q.includes('tablet') ||
-      q.includes('drug') ||
-      q.includes('syrup') ||
-      q.includes('paracetamol') ||
-      q.includes('antibiotic') ||
-      q.includes('dose') ||
-      q.includes('take')
-    ) {
-      const generalDoctor = doctors.find((d) => d.specialtyKey === 'general') || doctors[0];
+    // 5. MEDICINES / PHARMACY
+    if (q.includes('medicine') || q.includes('tablet') || q.includes('pharmacy') || q.includes('order') || q.includes('paracetamol')) {
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: ` **Medicine Inquiry & Clinical Safety Guidance**\n\nWhile OTC medications like **Paracetamol (for fever/pain)** and **Antacid (for mild acidity)** offer temporary relief, **prescription drugs, antibiotics, and exact dosages must be prescribed by a certified doctor** based on your medical history.\n\n **Medical Safety Notice**: Self-medication can mask underlying health issues or lead to drug interactions. Please consult a doctor for tailored prescription guidance.`,
-        suggestedDoctor: generalDoctor,
+        text: '💊 **Online Pharmacy & Doorstep Delivery**\n\nOrder genuine medicines and healthcare essentials from verified local pharmacies with swift doorstep delivery.',
         actionButtons: [
           {
-            title: ` Consult ${generalDoctor.name} (${generalDoctor.fee})`,
-            icon: 'calendar',
-            action: () => navigation.navigate('DoctorDetails', { doctor: generalDoctor }),
+            title: 'Open MediUnify Pharmacy',
+            icon: 'medkit-outline',
+            action: () => navigation.navigate('Pharmacy'),
           },
           {
-            title: ' Browse Unnathi Pharmacy',
-            icon: 'cart',
-            action: () => navigation.navigate('Pharmacy'),
+            title: '📷 Scan Prescription for Auto-Order',
+            icon: 'document-text-outline',
+            action: () => handleScanPrescription(),
           },
         ],
       };
@@ -618,33 +407,22 @@ const ChatbotScreen = ({ navigation }) => {
       return;
     }
 
-    // 9. FEVER / COLD / COUGH / HEADACHE / GENERAL ILLNESS
-    if (
-      q.includes('fever') ||
-      q.includes('cold') ||
-      q.includes('cough') ||
-      q.includes('headache') ||
-      q.includes('vomit') ||
-      q.includes('stomach') ||
-      q.includes('sick') ||
-      q.includes('infection')
-    ) {
-      const physician = doctors.find((d) => d.specialtyKey === 'general') || doctors[0];
+    // 6. HOME CARE / NURSE / EQUIPMENT RENTAL
+    if (q.includes('home care') || q.includes('nurse') || q.includes('equipment') || q.includes('bed') || q.includes('wheelchair') || q.includes('oxygen')) {
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: ` **Symptom Evaluation & Care Guidance**\n\nFor fever, cold, or acute body ache:\n• Stay hydrated with plenty of warm fluids and ORS.\n• Get adequate rest and monitor temperature.\n• Avoid unprescribed heavy antibiotics.\n\nWe recommend booking a consultation with our verified General Physician:`,
-        suggestedDoctor: physician,
+        text: '🏠 **Home Healthcare & Equipment Rental**\n\nAccess professional nursing care, elderly assistance, and hospital-grade medical equipment for recovery at home.',
         actionButtons: [
           {
-            title: `Book ${physician.name} (${physician.fee})`,
-            icon: 'calendar',
-            action: () => navigation.navigate('DoctorDetails', { doctor: physician }),
+            title: 'Rent Hospital Bed & Oxygen',
+            icon: 'bed-outline',
+            action: () => navigation.navigate('EquipmentRental'),
           },
           {
-            title: ' Order Fever Medicines',
-            icon: 'cart',
-            action: () => navigation.navigate('Pharmacy'),
+            title: 'Book Home Care Nursing',
+            icon: 'bandage-outline',
+            action: () => navigation.navigate('NurseBooking'),
           },
         ],
       };
@@ -652,43 +430,52 @@ const ChatbotScreen = ({ navigation }) => {
       return;
     }
 
-    // DEFAULT FALLBACK WITH APP NAVIGATION OPTIONS
+    // 7. FIND DOCTORS
+    if (q.includes('doctor') || q.includes('consult') || q.includes('appointment')) {
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: '👨‍⚕️ **Find Trusted Doctors**\n\nConsult highly qualified doctors across 20+ specialties for clinic visits or instant video consultations.',
+        actionButtons: [
+          {
+            title: 'Search Doctors by Specialty',
+            icon: 'search-outline',
+            action: () => navigation.navigate('FindDoctors'),
+          },
+          {
+            title: 'Instant Video Consultation',
+            icon: 'videocam-outline',
+            action: () => navigation.navigate('VideoConsultation'),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // DEFAULT FALLBACK
     const defaultDoctor = doctors[0];
-    const topLab = radiologyLabs[0];
-
-    const botResponse = {
+    const fallbackResponse = {
       id: `bot-${Date.now()}`,
       sender: 'bot',
-      text: ` **MediUnify Health Assistant**\n\nI can assist you with:\n1. **Doctor Consultations**: Find top specialists for any medical problem.\n2. **Prescription Scanner**: Upload your Rx photo to explain tablet uses and timings.\n3. **Pharmacy Delivery & Returns**: Order genuine medicines or schedule returns.\n4. **Diagnostic Labs & Scans**: Book certified blood tests, MRI, and CT scans.\n5. **Health Monitor**: Log Blood Sugar, Blood Pressure, and Vitals.\n\nWhat would you like to explore?`,
-      suggestedDoctor: defaultDoctor,
-      suggestedLab: topLab,
+      text: `I understand you are asking about "${query}".\n\nMediUnify connects you with certified healthcare professionals, diagnostic tests, medicines, and home care. How would you like to proceed?`,
       actionButtons: [
         {
-          title: ' Find Specialists',
-          icon: 'people',
-          action: () => navigation.navigate('DoctorList'),
+          title: `Consult ${defaultDoctor.name}`,
+          icon: 'calendar-outline',
+          action: () => navigation.navigate('DoctorDetails', { doctor: defaultDoctor }),
         },
         {
-          title: ' Scan Prescription',
-          icon: 'camera',
-          action: handleScanPrescription,
-        },
-        {
-          title: ' Pharmacy Store',
-          icon: 'medkit',
-          action: () => navigation.navigate('Pharmacy'),
-        },
-        {
-          title: ' Book Lab Tests',
-          icon: 'flask',
-          action: () => navigation.navigate('RadiologyLabs'),
+          title: 'Explore All Healthcare Services',
+          icon: 'grid-outline',
+          action: () => navigation.navigate('AllServices'),
         },
       ],
     };
-    setMessages((prev) => [...prev, botResponse]);
+    setMessages((prev) => [...prev, fallbackResponse]);
   };
 
-  // Render Doctor Card
+  // Render Doctor Suggestion Card
   const renderDoctorCard = (doc) => {
     if (!doc) return null;
     return (
@@ -697,18 +484,18 @@ const ChatbotScreen = ({ navigation }) => {
           <Image source={{ uri: doc.image }} style={styles.cardAvatar} />
           <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={styles.cardDoctorName}>{doc.name}</Text>
-            <Text style={styles.cardDoctorSpec}>{doc.specialty}</Text>
+            <Text style={styles.cardDoctorSpec}>{doc.specialty} • {doc.experience || '12+ yrs exp'}</Text>
             <View style={styles.cardRatingRow}>
-              <Ionicons name="star" size={13} color="#F59E0B" />
-              <Text style={styles.cardRatingText}>{doc.rating} • {doc.experience}</Text>
+              <Ionicons name="star" size={12} color="#F59E0B" />
+              <Text style={styles.cardRatingText}>{doc.rating || '4.8'} ({doc.reviews || '120+'})</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.cardFooterRow}>
           <View>
-            <Text style={styles.cardFeeLabel}>Consultation Fee</Text>
-            <Text style={styles.cardFeeVal}>₹{doc.fee}</Text>
+            <Text style={styles.cardFeeLabel}>Consultation</Text>
+            <Text style={styles.cardFeeVal}>{doc.fee || '₹500'}</Text>
           </View>
 
           <TouchableOpacity
@@ -716,43 +503,42 @@ const ChatbotScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('DoctorDetails', { doctor: doc })}
             activeOpacity={0.85}
           >
-            <Ionicons name="calendar-outline" size={14} color="#FFFFFF" />
-            <Text style={styles.cardActionBtnText}>Book Appointment</Text>
+            <Ionicons name="calendar-outline" size={13} color="#FFFFFF" />
+            <Text style={styles.cardActionBtnText}>Book Visit</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   };
 
-  // Render Lab Card
+  // Render Lab Suggestion Card
   const renderLabCard = (lab) => {
     if (!lab) return null;
     return (
       <View style={styles.cardContainer}>
         <View style={styles.cardHeaderRow}>
           <View style={styles.labIconCircle}>
-            <Ionicons name="business" size={22} color={colors.primary} />
+            <Ionicons name="flask" size={20} color="#007D69" />
           </View>
           <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={styles.cardDoctorName} numberOfLines={1}>{lab.name}</Text>
-            <Text style={styles.cardDoctorSpec}>{lab.area} • {lab.distance}</Text>
+            <Text style={styles.cardDoctorName}>{lab.name}</Text>
+            <Text style={styles.cardDoctorSpec}>{lab.area || 'Mysuru'} • NABL Accredited</Text>
             <View style={styles.cardRatingRow}>
-              <Ionicons name="star" size={13} color="#F59E0B" />
-              <Text style={styles.cardRatingText}>{lab.rating} ({lab.reviewCount || 120}+ reviews)</Text>
+              <Ionicons name="shield-checkmark" size={12} color="#00B894" />
+              <Text style={[styles.cardRatingText, { color: '#059669' }]}>Free Home Sample Collection</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.cardFooterRow}>
-          <Text style={styles.labTimingText}> {lab.openHours || 'Open Today • Fast-track reports'}</Text>
-
+          <Text style={styles.labTimingText}>Reports in 6-12 hrs</Text>
           <TouchableOpacity
-            style={[styles.cardActionBtn, { backgroundColor: colors.secondary }]}
+            style={[styles.cardActionBtn, { backgroundColor: '#0284C7' }]}
             onPress={() => navigation.navigate('RadiologyLabDetails', { labId: lab.id })}
             activeOpacity={0.85}
           >
-            <Ionicons name="flask-outline" size={14} color="#FFFFFF" />
-            <Text style={styles.cardActionBtnText}>View Lab Tests</Text>
+            <Ionicons name="flask-outline" size={13} color="#FFFFFF" />
+            <Text style={styles.cardActionBtnText}>View Tests</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -765,8 +551,8 @@ const ChatbotScreen = ({ navigation }) => {
     return (
       <View style={styles.rxAnalysisBox}>
         <View style={styles.rxAnalysisHeader}>
-          <Ionicons name="document-text" size={18} color="#0284C7" />
-          <Text style={styles.rxAnalysisHeaderTitle}>Detected Tablets & Clinical Uses</Text>
+          <Ionicons name="document-text" size={16} color="#0284C7" />
+          <Text style={styles.rxAnalysisHeaderTitle}>Detected Tablets & Usage</Text>
         </View>
 
         {analysis.medicines.map((med, idx) => (
@@ -775,15 +561,11 @@ const ChatbotScreen = ({ navigation }) => {
               <Text style={styles.rxMedName}>{med.name}</Text>
               <Text style={styles.rxMedType}>{med.type}</Text>
             </View>
-            <Text style={styles.rxMedUse}>
-              <Text style={{ fontWeight: '700', color: '#1E293B' }}>Used for: </Text>
-              {med.use}
-            </Text>
+            <Text style={styles.rxMedUse}>{med.use}</Text>
             <View style={styles.rxMedTimingRow}>
-              <Ionicons name="time-outline" size={13} color="#059669" />
+              <Ionicons name="time-outline" size={12} color="#059669" />
               <Text style={styles.rxMedTimingText}>{med.timing}</Text>
             </View>
-            <Text style={styles.rxMedCaution}> {med.caution}</Text>
           </View>
         ))}
       </View>
@@ -803,7 +585,11 @@ const ChatbotScreen = ({ navigation }) => {
       >
         {!isUser && (
           <View style={styles.botAvatar}>
-            <Ionicons name="shield-checkmark" size={18} color="#FFFFFF" />
+            <Image
+              source={require('../../../assets/ai-bot-avatar.png')}
+              style={styles.messageBotImg}
+              resizeMode="contain"
+            />
           </View>
         )}
 
@@ -814,7 +600,7 @@ const ChatbotScreen = ({ navigation }) => {
           ]}
         >
           {item.image && (
-            <Image source={{ uri: item.image }} style={styles.userUploadedImage} />
+            <Image source={{ uri: item.image }} style={styles.userUploadedImage} resizeMode="cover" />
           )}
 
           <Text
@@ -825,6 +611,10 @@ const ChatbotScreen = ({ navigation }) => {
           >
             {item.text}
           </Text>
+
+          {item.subText && (
+            <Text style={styles.messageSubText}>{item.subText}</Text>
+          )}
 
           {/* PRESCRIPTION SCAN ANALYSIS */}
           {item.prescriptionAnalysis && renderPrescriptionBlock(item.prescriptionAnalysis)}
@@ -845,44 +635,29 @@ const ChatbotScreen = ({ navigation }) => {
                   onPress={btn.action}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name={btn.icon || 'arrow-forward'} size={16} color={colors.primary} />
+                  <Ionicons name={btn.icon || 'arrow-forward'} size={15} color="#007D69" />
                   <Text style={styles.chatActionBtnText}>{btn.title}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           )}
 
-          {/* YOU CAN ASK ME ABOUT (MOCKUP 2 PROMPTS LIST) */}
+          {/* COMPACT "TRY ASKING" CARDS */}
           {item.quickPrompts && (
-            <View style={styles.mockupPromptsContainer}>
-              <Text style={styles.mockupPromptsHeading}>You can ask me about:</Text>
-              {item.quickPrompts.map((prompt, pIdx) => (
+            <View style={styles.tryAskingContainer}>
+              <Text style={styles.tryAskingHeading}>Try asking</Text>
+              {item.quickPrompts.map((prompt) => (
                 <TouchableOpacity
-                  key={pIdx}
-                  style={styles.mockupPromptCard}
-                  onPress={() => handleSend(prompt.text)}
+                  key={prompt.id}
+                  style={styles.tryAskingCard}
+                  onPress={() => handleSend(prompt.query)}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.mockupPromptIconCircle, { backgroundColor: prompt.bg }]}>
-                    <Ionicons name={prompt.icon} size={16} color={prompt.color} />
+                  <View style={[styles.tryAskingIconCircle, { backgroundColor: prompt.bg }]}>
+                    <Ionicons name={prompt.icon} size={15} color={prompt.color} />
                   </View>
-                  <Text style={styles.mockupPromptCardText}>{prompt.text}</Text>
+                  <Text style={styles.tryAskingCardTitle}>{prompt.title}</Text>
                   <Ionicons name="chevron-forward" size={15} color="#94A3B8" />
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          {/* QUICK REPLIES */}
-          {item.quickReplies && (
-            <View style={styles.quickRepliesWrap}>
-              {item.quickReplies.map((reply, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.quickReplyChip}
-                  onPress={() => handleSend(reply)}
-                >
-                  <Text style={styles.quickReplyText}>{reply}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -893,224 +668,298 @@ const ChatbotScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
-      {/* HEADER (MOCKUP 2 STYLE) */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="chevron-back" size={24} color="#1E293B" />
-        </TouchableOpacity>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeContainer}>
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : (Platform.OS === 'android' ? 'height' : undefined)}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <View style={styles.mainLayout}>
+          {/* 1. FIXED HEADER (FULL WIDTH) */}
+          <View style={[styles.header, isTablet && styles.tabletHeader]}>
+            <View style={[styles.headerInner, isTablet && styles.tabletInnerConstraint]}>
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={() => {
+                  if (navigation?.canGoBack()) navigation.goBack();
+                  else navigation?.navigate('Home');
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="chevron-back" size={22} color="#0F172A" />
+              </TouchableOpacity>
 
-        <View style={styles.mockupRobotHeaderWrap}>
-          <View style={styles.mockupRobotHeaderCircle}>
-            <Ionicons name="chatbubble-ellipses" size={20} color="#0D9488" />
-          </View>
-        </View>
-
-        <View style={styles.headerTitleCol}>
-          <Text style={styles.mockupHeaderTitle}>MediUnify AI</Text>
-          <Text style={styles.mockupHeaderSubtitle}>Your personal health assistant</Text>
-        </View>
-
-        <TouchableOpacity
-          style={styles.scanHeaderBtn}
-          onPress={handleScanPrescription}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="ellipsis-vertical" size={20} color="#64748B" />
-        </TouchableOpacity>
-      </View>
-
-      {/* QUICK SUGGESTIONS SCROLL */}
-      <View style={styles.suggestionsContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 8 }}>
-          {QUICK_SUGGESTIONS.map((sug, i) => (
-            <TouchableOpacity
-              key={i}
-              style={styles.suggestionChip}
-              onPress={() => handleSend(sug)}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.suggestionChipText}>{sug}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* CHAT MESSAGES LIST */}
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={renderMessageItem}
-        contentContainerStyle={styles.messageList}
-        showsVerticalScrollIndicator={false}
-        ListFooterComponent={
-          isTyping ? (
-            <View style={styles.typingContainer}>
-              <View style={styles.botAvatar}>
-                <Ionicons name="shield-checkmark" size={16} color="#FFFFFF" />
+              <View style={styles.headerAvatarWrap}>
+                <Image
+                  source={require('../../../assets/ai-bot-avatar.png')}
+                  style={styles.headerBotImg}
+                  resizeMode="contain"
+                />
               </View>
-              <View style={styles.typingBubble}>
-                {scanningPrescription ? (
-                  <View style={styles.scanningRow}>
-                    <ActivityIndicator size="small" color={colors.primary} />
-                    <Text style={styles.typingText}>Scanning Prescription OCR & Analyzing Tablets...</Text>
+
+              <View style={styles.headerTitleCol}>
+                <Text style={styles.headerTitle}>MediUnify AI</Text>
+                <Text style={styles.headerSubtitle}>Your personal health assistant</Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.headerMenuBtn}
+                onPress={handleScanPrescription}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="ellipsis-vertical" size={18} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* 2. HORIZONTAL QUICK SUGGESTIONS BAR (FULL WIDTH) */}
+          <View style={[styles.suggestionsContainer, isTablet && styles.tabletSuggestions]}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={[styles.suggestionsContent, isTablet && styles.tabletSuggestionsContent]}
+            >
+              {QUICK_SUGGESTIONS.map((sug, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={styles.suggestionChip}
+                  onPress={() => handleSend(sug.text)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name={sug.icon} size={13} color="#007D69" style={{ marginRight: 4 }} />
+                  <Text style={styles.suggestionChipText}>{sug.text}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* 3. SCROLLABLE CHAT MESSAGES LIST (flex: 1) */}
+          <View style={styles.chatListWrapper}>
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              keyExtractor={(item) => item.id}
+              renderItem={renderMessageItem}
+              style={styles.flatList}
+              contentContainerStyle={[styles.messageList, isTablet && styles.tabletMessageList]}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              ListFooterComponent={
+                isTyping ? (
+                  <View style={styles.typingContainer}>
+                    <View style={styles.botAvatar}>
+                      <Image
+                        source={require('../../../assets/ai-bot-avatar.png')}
+                        style={styles.messageBotImg}
+                        resizeMode="contain"
+                      />
+                    </View>
+                    <View style={styles.typingBubble}>
+                      {scanningPrescription ? (
+                        <View style={styles.scanningRow}>
+                          <ActivityIndicator size="small" color="#007D69" />
+                          <Text style={styles.typingText}>Scanning Prescription OCR...</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.scanningRow}>
+                          <ActivityIndicator size="small" color="#007D69" />
+                          <Text style={styles.typingText}>MediUnify AI is typing...</Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
+                ) : null
+              }
+            />
+          </View>
+
+          {/* 4. CHAT INPUT & MEDICAL DISCLAIMER (ALWAYS VISIBLE & FULL WIDTH RESPONSIVE) */}
+          <View
+            style={[
+              styles.bottomDockContainer,
+              !isKeyboardVisible && styles.bottomDockWithNavSpacer,
+              isTablet && styles.tabletBottomDock,
+            ]}
+          >
+            <View style={[styles.bottomDockInner, isTablet && styles.tabletInnerConstraint]}>
+              {/* Input Bar */}
+              <View style={styles.inputContainer}>
+                <TouchableOpacity
+                  style={styles.attachBtn}
+                  onPress={handleScanPrescription}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="add" size={20} color="#007D69" />
+                </TouchableOpacity>
+
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Ask MediUnify AI..."
+                  placeholderTextColor="#94A3B8"
+                  value={inputText}
+                  onChangeText={setInputText}
+                  onSubmitEditing={() => handleSend()}
+                  returnKeyType="send"
+                  blurOnSubmit={false}
+                  autoCapitalize="sentences"
+                  autoCorrect={true}
+                  textAlignVertical="center"
+                  includeFontPadding={false}
+                  underlineColorAndroid="transparent"
+                />
+
+                {inputText.trim().length > 0 ? (
+                  <TouchableOpacity
+                    style={styles.sendBtnActive}
+                    onPress={() => handleSend()}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="arrow-up" size={18} color="#FFFFFF" />
+                  </TouchableOpacity>
                 ) : (
-                  <View style={styles.scanningRow}>
-                    <ActivityIndicator size="small" color={colors.primary} />
-                    <Text style={styles.typingText}>MediUnify AI is typing...</Text>
-                  </View>
+                  <TouchableOpacity
+                    style={styles.micBtn}
+                    onPress={() => showAlert('Voice Search', 'Speak your symptom or question clearly.')}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="mic-outline" size={20} color="#007D69" />
+                  </TouchableOpacity>
                 )}
               </View>
+
+              {/* Compact Medical Disclaimer */}
+              <View style={styles.disclaimerRow}>
+                <Ionicons name="information-circle-outline" size={12} color="#64748B" />
+                <Text style={styles.disclaimerText}>
+                  AI guidance is not a substitute for professional medical advice.
+                </Text>
+              </View>
             </View>
-          ) : null
-        }
-      />
-
-      {/* INPUT BAR (MOCKUP 2 STYLE) */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.mockupTextInput}
-            placeholder="Type your message..."
-            placeholderTextColor="#94A3B8"
-            value={inputText}
-            onChangeText={setInputText}
-            onSubmitEditing={() => handleSend()}
-            returnKeyType="send"
-          />
-
-          {/* SPEECH / MIC BUTTON */}
-          <TouchableOpacity
-            style={styles.mockupMicBtn}
-            onPress={() => showAlert('Voice Search', 'Speak your symptom or question clearly.')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="mic" size={20} color="#0D9488" />
-          </TouchableOpacity>
-
-          {/* TEAL SEND BUTTON WITH ARROW-UP */}
-          <TouchableOpacity
-            style={[
-              styles.mockupSendBtn,
-              !inputText.trim() && { backgroundColor: '#0D9488', opacity: 0.7 },
-            ]}
-            onPress={() => handleSend()}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-
-        {/* DISCLAIMER FOOTER */}
-        <View style={styles.mockupDisclaimerRow}>
-          <Ionicons name="warning-outline" size={13} color="#64748B" />
-          <Text style={styles.mockupDisclaimerText}>
-            Important: MediUnify AI provides general health guidance. It is not a substitute for professional medical advice.
-          </Text>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
 
+// ============================================================================
+// STYLESHEET (Clean, Simple, Responsive Healthcare Aesthetic)
+// ============================================================================
 const styles = StyleSheet.create({
-  container: {
+  safeContainer: {
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
+  keyboardContainer: {
+    flex: 1,
+  },
+  mainLayout: {
+    flex: 1,
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    backgroundColor: '#F8FAFC',
+  },
+
+  // 1. Header
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    width: '100%',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
+  tabletHeader: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  headerInner: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tabletInnerConstraint: {
+    maxWidth: 920,
+    width: '100%',
+    alignSelf: 'center',
+  },
   backButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  headerAvatarWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E8F6F6',
+    borderWidth: 1.2,
+    borderColor: '#C0ECE9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 10,
+    marginRight: 10,
+  },
+  headerBotImg: {
+    width: 26,
+    height: 26,
+  },
   headerTitleCol: {
     flex: 1,
-    marginLeft: 12,
-  },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
   },
   headerTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#1E293B',
-  },
-  onlineBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    gap: 4,
-  },
-  onlineDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-  },
-  onlineText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#059669',
+    color: '#0F172A',
   },
   headerSubtitle: {
     fontSize: 11,
     color: '#64748B',
-    marginTop: 1,
+    fontWeight: '500',
   },
-  scanHeaderBtn: {
-    flexDirection: 'row',
+  headerMenuBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
-    backgroundColor: colors.lightTeal,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    gap: 4,
-  },
-  scanHeaderBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primary,
+    justifyContent: 'center',
   },
 
+  // 2. Suggestions Bar
   suggestionsContainer: {
+    width: '100%',
     backgroundColor: '#FFFFFF',
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
+  tabletSuggestions: {
+    paddingVertical: 10,
+  },
+  suggestionsContent: {
+    paddingHorizontal: 14,
+    gap: 8,
+  },
+  tabletSuggestionsContent: {
+    paddingHorizontal: 24,
+    gap: 10,
+    maxWidth: 920,
+    alignSelf: 'center',
+  },
   suggestionChip: {
-    backgroundColor: '#F1F5F9',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#CBD5E1',
   },
   suggestionChipText: {
     fontSize: 12,
@@ -1118,13 +967,27 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
+  // 3. Message List Area
+  chatListWrapper: {
+    flex: 1,
+  },
+  flatList: {
+    flex: 1,
+  },
   messageList: {
-    padding: 16,
-    paddingBottom: 20,
+    padding: 14,
+    paddingBottom: 16,
+  },
+  tabletMessageList: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    maxWidth: 920,
+    width: '100%',
+    alignSelf: 'center',
   },
   messageRow: {
     flexDirection: 'row',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   messageRowBot: {
     justifyContent: 'flex-start',
@@ -1133,53 +996,110 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   botAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#E8F6F6',
+    borderWidth: 1.2,
+    borderColor: '#C0ECE9',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
     marginTop: 4,
   },
+  messageBotImg: {
+    width: 20,
+    height: 20,
+  },
   messageBubble: {
     maxWidth: '85%',
-    borderRadius: 18,
-    padding: 14,
+    borderRadius: 16,
+    padding: 12,
   },
   bubbleBot: {
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 4,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
   },
   bubbleUser: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#007D69',
     borderTopRightRadius: 4,
   },
   messageText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13.5,
+    lineHeight: 19,
+  },
+  messageSubText: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 4,
+    lineHeight: 16,
   },
   textBot: {
-    color: '#1E293B',
+    color: '#0F172A',
   },
   textUser: {
     color: '#FFFFFF',
+    fontWeight: '500',
   },
   userUploadedImage: {
-    width: 180,
-    height: 120,
-    borderRadius: 10,
-    marginBottom: 8,
+    width: 170,
+    height: 110,
+    borderRadius: 8,
+    marginBottom: 6,
   },
 
-  // CARDS INSIDE BOT BUBBLE
+  // 4. "Try asking" Compact Cards
+  tryAskingContainer: {
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  tryAskingHeading: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#334155',
+    marginBottom: 6,
+  },
+  tryAskingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 6,
+    gap: 8,
+  },
+  tryAskingIconCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tryAskingCardTitle: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+
+  // Doctor & Lab Cards
   cardContainer: {
     backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    padding: 12,
-    marginTop: 10,
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
@@ -1188,37 +1108,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    width: 42,
+    height: 42,
+    borderRadius: 10,
     backgroundColor: '#E2E8F0',
   },
   labIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: colors.lightTeal,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#E6F4F1',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardDoctorName: {
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: '800',
-    color: '#1E293B',
+    color: '#0F172A',
   },
   cardDoctorSpec: {
-    fontSize: 11.5,
+    fontSize: 11,
     color: '#64748B',
     marginTop: 1,
   },
   cardRatingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginTop: 3,
+    gap: 3,
+    marginTop: 2,
   },
   cardRatingText: {
-    fontSize: 11,
+    fontSize: 10.5,
     color: '#475569',
     fontWeight: '600',
   },
@@ -1226,8 +1146,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 10,
-    paddingTop: 8,
+    marginTop: 8,
+    paddingTop: 6,
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
   },
@@ -1236,320 +1156,213 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   cardFeeVal: {
-    fontSize: 13.5,
+    fontSize: 12.5,
     fontWeight: '800',
-    color: colors.primary,
+    color: '#007D69',
   },
   labTimingText: {
     fontSize: 10.5,
     color: '#64748B',
-    flex: 1,
-    marginRight: 6,
   },
   cardActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    gap: 4,
+    backgroundColor: '#007D69',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    gap: 3,
   },
   cardActionBtnText: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '700',
     color: '#FFFFFF',
   },
 
-  // PRESCRIPTION ANALYSIS
+  // Prescription Block
   rxAnalysisBox: {
-    backgroundColor: '#EFF6FF',
-    borderRadius: 14,
-    padding: 12,
-    marginTop: 10,
+    backgroundColor: '#F0F9FF',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 8,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: '#BAE6FD',
   },
   rxAnalysisHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
+    gap: 5,
+    marginBottom: 6,
   },
   rxAnalysisHeaderTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
-    color: '#1E40AF',
+    color: '#0369A1',
   },
   rxMedCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 8,
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 6,
     borderWidth: 1,
-    borderColor: '#DBEAFE',
+    borderColor: '#E0F2FE',
   },
   rxMedTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   rxMedName: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
-    color: '#1E293B',
+    color: '#0F172A',
   },
   rxMedType: {
-    fontSize: 10.5,
+    fontSize: 10,
     color: '#0284C7',
     fontWeight: '700',
-    backgroundColor: '#E0F2FE',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
   },
   rxMedUse: {
-    fontSize: 11.5,
+    fontSize: 11,
     color: '#475569',
-    lineHeight: 16,
-    marginBottom: 4,
+    marginBottom: 3,
   },
   rxMedTimingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginBottom: 2,
+    gap: 3,
   },
   rxMedTimingText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#7BC96F',
-  },
-  rxMedCaution: {
     fontSize: 10.5,
-    color: '#FF7F50',
-    marginTop: 2,
+    fontWeight: '700',
+    color: '#059669',
   },
 
-  // ACTION BUTTONS
+  // Action Buttons
   actionButtonsCol: {
     gap: 6,
-    marginTop: 10,
+    marginTop: 8,
   },
   chatActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.lightTeal,
+    backgroundColor: '#E6F4F1',
     borderWidth: 1,
-    borderColor: '#99F6E4',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    gap: 8,
+    borderColor: '#B2E2D8',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    gap: 6,
   },
   chatActionBtnText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
-    color: colors.primary,
+    color: '#007D69',
   },
 
-  // QUICK REPLIES
-  quickRepliesRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 10,
-  },
-  quickReplyChip: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-  },
-  quickReplyText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#475569',
-  },
-
-  // TYPING LOADER
+  // Typing Loader
   typingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   typingBubble: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
   scanningRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   typingText: {
-    fontSize: 12,
+    fontSize: 11.5,
     color: '#64748B',
     fontWeight: '600',
   },
 
-  // INPUT
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+  // 4. Bottom Input & Disclaimer Dock
+  bottomDockContainer: {
+    width: '100%',
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
-    gap: 8,
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    paddingBottom: 6,
+    zIndex: 20,
+    elevation: 5,
   },
-  cameraBtn: {
+  tabletBottomDock: {
+    paddingHorizontal: 24,
+    paddingTop: 10,
+  },
+  bottomDockInner: {
+    width: '100%',
+  },
+  bottomDockWithNavSpacer: {
+    paddingBottom: Platform.OS === 'ios' ? 95 : 88,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  attachBtn: {
     width: 40,
     height: 40,
-    borderRadius: 12,
-    backgroundColor: colors.lightTeal,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
   textInput: {
     flex: 1,
+    minHeight: 44,
+    height: 44,
     backgroundColor: '#F8FAFC',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#CBD5E1',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    fontSize: 13,
-    color: '#1E293B',
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 6,
+    fontSize: 14,
+    color: '#0F172A',
   },
-  sendBtn: {
+  micBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.primary,
+    backgroundColor: '#E6F4F1',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendBtnDisabled: {
-    backgroundColor: '#94A3B8',
-  },
-
-  // MOCKUP SCREEN 2 STYLES
-  mockupRobotHeaderWrap: {
-    marginRight: 10,
-  },
-  mockupRobotHeaderCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#CCFBF1',
+  sendBtnActive: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#007D69',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#99F6E4',
   },
-  mockupHeaderTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  mockupHeaderSubtitle: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  mockupPromptsContainer: {
-    marginTop: 14,
-    paddingTop: 10,
-  },
-  mockupPromptsHeading: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#334155',
-    marginBottom: 8,
-  },
-  mockupPromptCard: {
+  disclaimerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 8,
-    gap: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  mockupPromptIconCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
     justifyContent: 'center',
+    gap: 4,
+    paddingTop: 2,
+    paddingBottom: 2,
   },
-  mockupPromptCardText: {
-    flex: 1,
-    fontSize: 12.5,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  mockupTextInput: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 22,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    fontSize: 13,
-    color: '#0F172A',
-  },
-  mockupMicBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#F0FDFA',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mockupSendBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#0D9488',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mockupDisclaimerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingBottom: 8,
-    backgroundColor: '#FFFFFF',
-  },
-  mockupDisclaimerText: {
-    flex: 1,
+  disclaimerText: {
     fontSize: 10,
     color: '#64748B',
-    lineHeight: 13,
-  },
-  quickRepliesWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 10,
+    textAlign: 'center',
   },
 });
 

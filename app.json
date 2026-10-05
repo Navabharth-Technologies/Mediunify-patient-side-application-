@@ -14,7 +14,6 @@
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#FFFFFF"
       },
-      "supportsTablet": true,
       "softwareKeyboardLayoutMode": "resize"
     },
     "web": { "favicon": "./assets/logo.png", "baseUrl": "/Mediunify-patient-side-application-" },

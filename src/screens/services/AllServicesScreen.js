@@ -9,139 +9,154 @@ import {
   StatusBar,
   useWindowDimensions,
   Platform,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // All currently active & available MediUnify Mobile services
-// Strictly excludes any deleted, placeholder, or disabled flows
+// Strictly reusing the exact icon set, labels/names, libraries, and colors from Mobile Home Screen
 const ALL_SERVICES = [
   {
     id: 'chatbot',
     title: 'AI Chat Bot',
-    icon: 'chatbubbles',
-    iconColor: '#0D9488',
-    iconBg: '#F0FDFA',
+    iconFamily: 'Image',
+    image: require('../../../assets/ai-bot-avatar.png'),
+    iconColor: '#007D69',
+    iconBg: '#E8F6F6',
     route: 'Chatbot',
-    keywords: 'ai chatbot bot assistant symptom health advice 24/7',
+    keywords: 'ai chatbot bot assistant symptom health advice 24/7 ask bot mediunify ai',
   },
   {
     id: 'videocall',
-    title: 'Video Consultation',
-    icon: 'videocam',
-    iconColor: '#2563EB',
-    iconBg: '#EFF6FF',
+    title: 'Video Call Consultation',
+    iconFamily: 'Ionicons',
+    icon: 'videocam-outline',
+    iconColor: '#007D69',
+    iconBg: '#E8F6F6',
     route: 'VideoConsultation',
-    keywords: 'video call consultation teleconsult online doctor hd call',
+    keywords: 'video call consultation teleconsult online doctor hd call instant care',
   },
   {
     id: 'pharmacy',
-    title: 'Pharmacy',
-    icon: 'medkit',
-    iconColor: '#00B894',
-    iconBg: '#E6F8F5',
+    title: 'Order Medicine',
+    iconFamily: 'MaterialCommunityIcons',
+    icon: 'pill',
+    iconColor: '#007D69',
+    iconBg: '#E8F6F6',
     route: 'Pharmacy',
     keywords: 'order medicine pharmacy prescription pills generic drugs medicines',
   },
   {
     id: 'lab',
     title: 'Lab Tests',
-    icon: 'flask',
-    iconColor: '#00C2CB',
-    iconBg: '#E0F7FA',
+    iconFamily: 'Ionicons',
+    icon: 'flask-outline',
+    iconColor: '#007D69',
+    iconBg: '#E8F6F6',
     route: 'LabTests',
     keywords: 'lab tests blood test diagnostics health checkup urine sample collection',
   },
   {
     id: 'radiology',
-    title: 'Scan & X-Ray',
-    icon: 'scan',
-    iconColor: '#0284C7',
-    iconBg: '#E0F2FE',
+    title: 'Scans & X-Ray',
+    iconFamily: 'Ionicons',
+    icon: 'scan-outline',
+    iconColor: '#007D69',
+    iconBg: '#E8F6F6',
     route: 'RadiologyLabs',
-    keywords: 'scan x-ray radiology mri ct scan ultrasound 2d echo ecg cardiology',
+    keywords: 'scans scan x-ray radiology mri ct scan ultrasound 2d echo ecg cardiology',
   },
   {
     id: 'doctors',
-    title: 'Doctor Visit',
-    icon: 'person',
-    iconColor: '#0D9488',
-    iconBg: '#CCFBF1',
+    title: 'In-Clinic Visit',
+    iconFamily: 'MaterialCommunityIcons',
+    icon: 'hospital-building',
+    iconColor: '#007D69',
+    iconBg: '#E8F6F6',
     route: 'DoctorList',
-    keywords: 'doctor visit in-clinic appointment clinic specialist consultation',
+    keywords: 'in-clinic visit in clinic doctor visit appointment specialist consultation clinic',
   },
   {
     id: 'nurse',
-    title: 'Home Nursing',
-    icon: 'home',
-    iconColor: '#10B981',
-    iconBg: '#ECFDF5',
+    title: 'Home Nursing & Caregiver',
+    iconFamily: 'MaterialCommunityIcons',
+    icon: 'home-heart',
+    iconColor: '#007D69',
+    iconBg: '#E8F6F6',
     route: 'NurseBooking',
     keywords: 'home nursing caregiver attendant elderly care injections post-op',
   },
   {
     id: 'surgery',
-    title: 'Surgery Care',
-    icon: 'business',
-    iconColor: '#1E3A8A',
-    iconBg: '#EFF6FF',
+    title: 'Hospital & Surgery',
+    iconFamily: 'MaterialCommunityIcons',
+    icon: 'domain',
+    iconColor: '#007D69',
+    iconBg: '#E8F6F6',
     route: 'HospitalCare',
-    keywords: 'surgery care hospital admission nabh cashless operation procedure',
+    keywords: 'hospital surgery surgery care hospital admission nabh cashless operation procedure',
   },
   {
     id: 'equipment',
     title: 'Equipment Rental',
-    icon: 'fitness',
-    iconColor: '#0D9488',
-    iconBg: '#F0FDFA',
+    iconFamily: 'MaterialCommunityIcons',
+    icon: 'wheelchair-accessibility',
+    iconColor: '#007D69',
+    iconBg: '#E8F6F6',
     route: 'EquipmentRental',
-    keywords: 'medical equipment rental hospital bed oxygen concentrator wheelchair bipap',
+    keywords: 'medical equipment rental hospital bed oxygen concentrator wheelchair bipap icu',
   },
   {
     id: 'ayurveda',
     title: 'Ayurveda & Wellness',
-    icon: 'leaf',
-    iconColor: '#16A34A',
-    iconBg: '#DCFCE7',
+    iconFamily: 'Ionicons',
+    icon: 'leaf-outline',
+    iconColor: '#007D69',
+    iconBg: '#E8F6F6',
     route: 'AyurvedaWellness',
-    keywords: 'ayurveda wellness herbal natural therapy panchakarma holistic',
+    keywords: 'ayurveda wellness herbal natural therapy panchakarma holistic nadi',
   },
   {
     id: 'insurance',
     title: 'Health Insurance',
-    icon: 'shield-checkmark',
-    iconColor: '#3B82F6',
-    iconBg: '#EFF6FF',
+    iconFamily: 'Ionicons',
+    icon: 'shield-checkmark-outline',
+    iconColor: '#007D69',
+    iconBg: '#E8F6F6',
     route: 'HealthInsurance',
-    keywords: 'health insurance policy claim cashless hospitalization medical cover',
+    keywords: 'health insurance policy claim cashless hospitalization medical cover tpa',
   },
   {
     id: 'healthmonitor',
     title: 'Health Monitor',
-    icon: 'pulse',
-    iconColor: '#D97706',
-    iconBg: '#FEF3C7',
+    iconFamily: 'MaterialCommunityIcons',
+    icon: 'heart-pulse',
+    iconColor: '#007D69',
+    iconBg: '#E8F6F6',
     route: 'HealthMonitor',
     keywords: 'health monitor vitals blood pressure sugar heart rate bmi tracker',
   },
   {
     id: 'emergency',
     title: 'Emergency SOS',
-    icon: 'warning',
-    iconColor: '#EF4444',
+    iconFamily: 'MaterialCommunityIcons',
+    icon: 'ambulance',
+    iconColor: '#DC2626',
     iconBg: '#FEE2E2',
     route: 'Emergency',
-    keywords: 'emergency ambulance sos 24x7 urgent helpline critical dispatch',
+    keywords: 'emergency ambulance sos 24x7 urgent helpline critical dispatch 108',
   },
   {
     id: 'healthrecords',
     title: 'Health Records',
-    icon: 'folder-open',
-    iconColor: '#6366F1',
-    iconBg: '#EEF2FF',
+    iconFamily: 'Ionicons',
+    icon: 'documents-outline',
+    iconColor: '#007D69',
+    iconBg: '#E8F6F6',
     route: 'HealthRecords',
-    keywords: 'health records prescriptions medical reports history documents',
+    keywords: 'health records prescriptions medical reports history documents vault',
   },
 ];
 
@@ -307,19 +322,36 @@ const AllServicesScreen = ({ navigation, route }) => {
                 onPress={() => handleServicePress(service)}
                 activeOpacity={0.72}
               >
-                {/* Clean Icon Container */}
+                {/* Clean Home Screen Style Icon Container */}
                 <View
                   style={[
                     styles.iconBox,
-                    { backgroundColor: service.iconBg },
+                    { backgroundColor: service.iconBg || '#E8F6F6' },
                     isTablet && styles.iconBoxTablet,
                   ]}
                 >
-                  <Ionicons
-                    name={service.icon}
-                    size={isTablet ? 30 : 26}
-                    color={service.iconColor}
-                  />
+                  {service.iconFamily === 'Image' ? (
+                    <Image
+                      source={service.image}
+                      style={[
+                        styles.serviceIconImg,
+                        isTablet && styles.serviceIconImgTablet,
+                      ]}
+                      resizeMode="contain"
+                    />
+                  ) : service.iconFamily === 'MaterialCommunityIcons' ? (
+                    <MaterialCommunityIcons
+                      name={service.icon}
+                      size={isTablet ? 28 : 25}
+                      color={service.iconColor || '#007D69'}
+                    />
+                  ) : (
+                    <Ionicons
+                      name={service.icon}
+                      size={isTablet ? 28 : 25}
+                      color={service.iconColor || '#007D69'}
+                    />
+                  )}
                 </View>
 
                 {/* Short Service Name */}
@@ -337,7 +369,8 @@ const AllServicesScreen = ({ navigation, route }) => {
           </View>
         )}
 
-        <View style={{ height: Platform.OS === 'ios' ? 40 : 30 }} />
+        {/* Bottom spacer to guarantee final service cards are 100% visible above floating bottom navigation */}
+        <View style={{ height: Platform.OS === 'ios' ? 96 : 84 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -418,7 +451,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingTop: 14,
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
   countRow: {
     flexDirection: 'row',
@@ -444,8 +477,8 @@ const styles = StyleSheet.create({
   serviceCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    paddingVertical: 18,
-    paddingHorizontal: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -455,36 +488,52 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 4,
     elevation: 1.5,
-    minHeight: 116,
+    minHeight: 126,
   },
   serviceCardTablet: {
-    paddingVertical: 24,
+    paddingVertical: 22,
     paddingHorizontal: 16,
-    minHeight: 136,
+    minHeight: 142,
   },
   iconBox: {
     width: 52,
     height: 52,
-    borderRadius: 16,
+    borderRadius: 26,
+    backgroundColor: '#E8F6F6',
+    borderWidth: 1.2,
+    borderColor: '#C0ECE9',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
+    shadowColor: '#007D69',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
   },
   iconBoxTablet: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
     marginBottom: 12,
   },
+  serviceIconImg: {
+    width: 32,
+    height: 32,
+  },
+  serviceIconImgTablet: {
+    width: 38,
+    height: 38,
+  },
   serviceName: {
-    fontSize: 13.5,
+    fontSize: 12.5,
     fontWeight: '700',
     color: '#0F172A',
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 17,
   },
   serviceNameTablet: {
-    fontSize: 15,
+    fontSize: 14.5,
     lineHeight: 20,
   },
   emptyContainer: {

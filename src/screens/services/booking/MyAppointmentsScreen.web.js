@@ -20,6 +20,7 @@ import WebFooter from '../../../components/web/WebFooter';
 import PaginationBar from '../../../components/web/PaginationBar';
 import PatientPageBanner from '../../../components/web/PatientPageBanner';
 import { showAlert } from '../../../utils/alert';
+import { isGuestUser } from '../../../utils/authHelper';
 import {
   getActivePatient,
   getPatientFamilyMembers,
@@ -100,6 +101,7 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
   const [familyMembers, setFamilyMembers] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isGuestMode, setIsGuestMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
@@ -573,7 +575,30 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
           </View>
 
           {/* Appointments List */}
-          {loading ? (
+          {isGuestMode ? (
+            <View style={styles.emptyCard}>
+              <View style={[styles.emptyIconCircle, { backgroundColor: '#E6F8F4' }]}>
+                <Ionicons name="calendar-outline" size={42} color="#00B894" />
+              </View>
+              <Text style={styles.emptyTitle}>Login to view your appointments</Text>
+              <Text style={styles.emptyDesc}>
+                Please sign in to access your upcoming consultations, in-clinic visits, and medical prescriptions.
+              </Text>
+              <TouchableOpacity
+                style={[styles.bookDoctorBtn, { marginTop: 18, alignSelf: 'center', paddingHorizontal: 32 }]}
+                onPress={() => {
+                  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('open-auth-modal'));
+                  }
+                  navigation?.navigate('Login', { openAuthModal: true });
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="log-in-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.bookDoctorBtnText}>Login</Text>
+              </TouchableOpacity>
+            </View>
+          ) : loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#00B894" />
               <Text style={styles.loadingText}>Fetching your physical appointments...</Text>
