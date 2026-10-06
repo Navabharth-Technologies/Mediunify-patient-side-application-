@@ -244,6 +244,7 @@ const FindDoctorsScreen = ({ navigation }) => {
           </View>
         </View>
 
+        {Platform.OS !== 'web' && <View style={{ height: 110 }} />}
 
         {/* Web Footer */}
         {Platform.OS === 'web' && <WebFooter navigation={navigation} />}

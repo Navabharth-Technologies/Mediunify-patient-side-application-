@@ -25,6 +25,7 @@ import {
 import colors from '../theme/colors';
 import { useCart } from '../context/CartContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../context/ThemeContext';
 
 
 // ==================================================
@@ -191,6 +192,7 @@ const BottomNavigation = ({
   const { width } = useWindowDimensions();
   const isTabletDevice = width >= 600;
   const insets = useSafeAreaInsets();
+  const { t } = useTheme();
 
   // Gentle breathing aura animation for the AI bot floating button
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -234,18 +236,32 @@ const BottomNavigation = ({
   };
 
 
+  const bottomOffset = Math.max(
+    insets.bottom > 0 ? insets.bottom + 4 : (Platform.OS === 'ios' ? 14 : 10),
+    10
+  );
+  const maxBarWidth = isTabletDevice ? 520 : 480;
+  const barWidth = Math.min(width - 24, maxBarWidth);
+  const barLeft = Math.max((width - barWidth) / 2, 0);
+
+  const isHomeActive = currentRoute === 'Home';
+  const isSearchActive = ['GlobalSearch', 'Search'].includes(currentRoute);
+  const isChatbotActive = currentRoute === 'Chatbot';
+  const isAlertsActive = ['Notifications', 'Alerts'].includes(currentRoute);
+  const isHistoryActive = ['TransactionHistory', 'History'].includes(currentRoute);
+
+  const activeColor = '#00B894';
+  const inactiveColor = '#647488';
+
   return (
     <View
       style={[
         styles.bottomNavigation,
-        isTabletDevice && {
-          left: (width - Math.min(width * 0.9, 520)) / 2,
-          right: 'auto',
-          width: Math.min(width * 0.9, 520),
-          height: 64,
-          bottom: insets.bottom > 0 ? insets.bottom : 0,
-          borderRadius: 24,
-          paddingHorizontal: 8,
+        {
+          left: barLeft,
+          width: barWidth,
+          bottom: bottomOffset,
+          height: isTabletDevice ? 64 : 62,
         },
       ]}
     >
@@ -256,17 +272,17 @@ const BottomNavigation = ({
         onPress={() => goTo('Home')}
       >
         <Ionicons
-          name={currentRoute === 'Home' ? 'home' : 'home-outline'}
+          name={isHomeActive ? 'home' : 'home-outline'}
           size={isTabletDevice ? 21 : 23}
-          color={currentRoute === 'Home' ? '#007D69' : '#64748B'}
+          color={isHomeActive ? activeColor : inactiveColor}
         />
         <Text
           style={[
             styles.bottomText,
-            currentRoute === 'Home' && styles.activeBottomText,
+            isHomeActive && styles.activeBottomText,
           ]}
         >
-          Home
+          {t('nav_home') || 'Home'}
         </Text>
       </TouchableOpacity>
 
@@ -277,17 +293,17 @@ const BottomNavigation = ({
         onPress={() => goTo('GlobalSearch')}
       >
         <Ionicons
-          name={currentRoute === 'GlobalSearch' ? 'search' : 'search-outline'}
+          name={isSearchActive ? 'search' : 'search-outline'}
           size={isTabletDevice ? 21 : 23}
-          color={currentRoute === 'GlobalSearch' ? '#007D69' : '#64748B'}
+          color={isSearchActive ? activeColor : inactiveColor}
         />
         <Text
           style={[
             styles.bottomText,
-            currentRoute === 'GlobalSearch' && styles.activeBottomText,
+            isSearchActive && styles.activeBottomText,
           ]}
         >
-          Search
+          {t('nav_search') || 'Search'}
         </Text>
       </TouchableOpacity>
 
@@ -310,7 +326,7 @@ const BottomNavigation = ({
           <View
             style={[
               styles.centerVaultCircle,
-              currentRoute === 'Chatbot' && styles.centerVaultCircleActive,
+              isChatbotActive && styles.centerVaultCircleActive,
             ]}
           >
             <Image
@@ -333,11 +349,11 @@ const BottomNavigation = ({
           style={[
             styles.bottomText,
             styles.centerAiText,
-            currentRoute === 'Chatbot' && styles.activeBottomText,
+            isChatbotActive && styles.activeBottomText,
           ]}
           numberOfLines={1}
         >
-          AI Chat Bot
+          {t('nav_ai_bot') || 'AI Chat Bot'}
         </Text>
       </TouchableOpacity>
 
@@ -349,19 +365,19 @@ const BottomNavigation = ({
       >
         <View style={{ position: 'relative' }}>
           <Ionicons
-            name={currentRoute === 'Notifications' ? 'notifications' : 'notifications-outline'}
+            name={isAlertsActive ? 'notifications' : 'notifications-outline'}
             size={isTabletDevice ? 21 : 23}
-            color={currentRoute === 'Notifications' ? '#007D69' : '#64748B'}
+            color={isAlertsActive ? activeColor : inactiveColor}
           />
           <View style={styles.notifBadgeDot} />
         </View>
         <Text
           style={[
             styles.bottomText,
-            currentRoute === 'Notifications' && styles.activeBottomText,
+            isAlertsActive && styles.activeBottomText,
           ]}
         >
-          Alerts
+          {t('nav_alerts') || 'Alerts'}
         </Text>
       </TouchableOpacity>
 
@@ -372,17 +388,17 @@ const BottomNavigation = ({
         onPress={() => goTo('TransactionHistory')}
       >
         <Ionicons
-          name={currentRoute === 'TransactionHistory' ? 'time' : 'time-outline'}
+          name={isHistoryActive ? 'time' : 'time-outline'}
           size={isTabletDevice ? 21 : 23}
-          color={currentRoute === 'TransactionHistory' ? '#007D69' : '#64748B'}
+          color={isHistoryActive ? activeColor : inactiveColor}
         />
         <Text
           style={[
             styles.bottomText,
-            currentRoute === 'TransactionHistory' && styles.activeBottomText,
+            isHistoryActive && styles.activeBottomText,
           ]}
         >
-          History
+          {t('nav_history') || 'History'}
         </Text>
       </TouchableOpacity>
     </View>
@@ -390,15 +406,30 @@ const BottomNavigation = ({
 };
 
 
-// ==================================================
-// MAIN NAVIGATOR
-// ==================================================
+// Screens that hide the bottom bar (Auth, checkout, and dedicated booking payment flows)
+const HIDE_BOTTOM_BAR_ROUTES = [
+  'Login',
+  'Register',
+  'ForgotPassword',
+  'OTP',
+  'Cart',
+  'Checkout',
+  'Payment',
+  'OrderSuccess',
+  'RadiologyPayment',
+  'RadiologyOrderSuccess',
+  'DoctorBooking',
+  'RadiologistBooking',
+  'VideoBooking',
+  'SurgeryQuoteRequest',
+  'RadiologyReportUpload',
+];
 
 const MainNavigator = ({
   navigation,
 }) => {
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 992;
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
 
   const [
     currentRoute,
@@ -976,10 +1007,10 @@ const MainNavigator = ({
 
 
       {/* ==================================================
-          BOTTOM NAVIGATION (ONLY ON MAIN TAB SCREENS & HIDDEN WHEN KEYBOARD OPEN)
+          BOTTOM NAVIGATION (FIXED ON MAIN PAGES & HIDDEN WHEN KEYBOARD OPEN)
       ================================================== */}
 
-      {!isDesktopWeb && !isKeyboardVisible && ['Home', 'DoctorList', 'VideoConsultation', 'Bookings', 'MyTests', 'MyAppointments', 'HealthRecords', 'Profile', 'AllServices', 'GlobalSearch', 'Notifications', 'Chatbot'].includes(currentRoute) && (
+      {!isDesktopWeb && !isKeyboardVisible && !HIDE_BOTTOM_BAR_ROUTES.includes(currentRoute) && (
         <BottomNavigation
           navigation={navigation}
           currentRoute={currentRoute}
@@ -1028,30 +1059,23 @@ const styles = StyleSheet.create({
 
   bottomNavigation: {
     position: Platform.OS === 'web' ? 'fixed' : 'absolute',
-    left: 14,
-    right: 14,
-    bottom: Platform.OS === 'ios' ? 20 : 10,
-    maxWidth: 520,
-    marginHorizontal: 'auto',
-    height: 62,
     borderRadius: 24,
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
     paddingHorizontal: 8,
-    paddingBottom: Platform.OS === 'ios' ? 4 : 2,
     borderWidth: 1,
-    borderColor: colors.border,
-    elevation: 10,
-    shadowColor: '#000',
+    borderColor: '#E2E8F0',
+    elevation: 12,
+    shadowColor: '#0F172A',
     shadowOffset: {
       width: 0,
-      height: 3,
+      height: -2,
     },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    zIndex: 999,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    zIndex: 9999,
   },
 
   bottomItem: {
@@ -1071,19 +1095,19 @@ const styles = StyleSheet.create({
   },
 
   activeBottomIcon: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#00B894',
   },
 
   bottomText: {
     marginTop: 2,
     fontSize: 9.5,
     fontWeight: '700',
-    color: '#64748B',
+    color: '#647488',
     textAlign: 'center',
   },
 
   activeBottomText: {
-    color: '#007D69',
+    color: '#00B894',
     fontWeight: '800',
   },
 
@@ -1127,9 +1151,9 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   centerVaultCircleActive: {
-    borderColor: '#007D69',
+    borderColor: '#00B894',
     backgroundColor: '#F0FDF9',
-    shadowColor: '#007D69',
+    shadowColor: '#00B894',
     shadowOpacity: 0.5,
     elevation: 10,
   },
@@ -1160,8 +1184,19 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: 9.5,
     fontWeight: '800',
-    color: '#007D69',
+    color: '#647488',
     letterSpacing: 0.1,
+  },
+  notifBadgeDot: {
+    position: 'absolute',
+    top: 1,
+    right: 2,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#EF4444',
+    borderWidth: 1.2,
+    borderColor: '#FFFFFF',
   },
   centerAiTabBtn: {
     alignItems: 'center',

@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 80,
+    paddingBottom: Platform.OS === 'web' ? 40 : 110,
   },
   desktopContainer: {
     maxWidth: 1040,

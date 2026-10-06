@@ -832,7 +832,7 @@ const PharmacyScreen = ({ navigation, route }) => {
         contentContainerStyle={[
           styles.scrollContent,
           isTablet && styles.tabletContainerWidth,
-          pharmacyCartCount > 0 && { paddingBottom: 110 },
+          { paddingBottom: pharmacyCartCount > 0 ? 175 : 135 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -2588,7 +2588,7 @@ const styles = StyleSheet.create({
   // FLOATING CART BAR
   floatingCartBar: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 24 : 16,
+    bottom: Platform.OS === 'ios' ? 88 : 78,
     left: 16,
     right: 16,
     backgroundColor: '#1E3A8A',

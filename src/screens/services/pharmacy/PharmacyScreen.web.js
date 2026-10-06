@@ -876,7 +876,10 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
 
       <ScrollView
         ref={mainScrollRef}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          !isDesktop && { paddingBottom: 140 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* ============================================================

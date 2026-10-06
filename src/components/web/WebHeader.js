@@ -15,19 +15,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../theme/colors';
 import { useCart } from '../../context/CartContext';
+import { useTheme } from '../../context/ThemeContext';
 import { navigationRef } from '../../navigation/navigationRef';
 
-import { ALL_LOCATIONS, filterLocations } from '../../data/locations';
 import { REMAINING_SERVICES } from '../../data/remainingServices';
 
 export { REMAINING_SERVICES };
 
 const NAV_LINKS = [
-  { id: 'doctors', label: 'Find Doctors', route: 'FindDoctors' },
-  { id: 'lab-tests', label: 'Lab Tests', route: 'LabTests' },
-  { id: 'pharmacy', label: 'Order Medicine', route: 'Pharmacy' },
-  { id: 'hospitals', label: 'Surgeries', route: 'HospitalCare' },
-  { id: 'radiology', label: 'Scans & X-Ray', route: 'Imaging' },
+  { id: 'doctors', label: 'Find Doctors', labelKey: 'nav_find_doctors', route: 'FindDoctors' },
+  { id: 'lab-tests', label: 'Lab Tests', labelKey: 'nav_lab_tests', route: 'LabTests' },
+  { id: 'pharmacy', label: 'Order Medicine', labelKey: 'nav_order_medicine', route: 'Pharmacy' },
+  { id: 'hospitals', label: 'Surgeries', labelKey: 'nav_surgeries', route: 'HospitalCare' },
+  { id: 'radiology', label: 'Scans & X-Ray', labelKey: 'nav_scans_xray', route: 'Imaging' },
 ];
 
 const INITIAL_NOTIFICATIONS = [
@@ -127,11 +127,11 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
   const isTablet = width >= 600 && width < 1024;
   const isCompactDesktop = width >= 1024 && width < 1340;
 
-  const [selectedCity, setSelectedCity] = useState('Bangalore');
-  const [isCityModalOpen, setIsCityModalOpen] = useState(false);
-  const [citySearchQuery, setCitySearchQuery] = useState('');
+  const { language, changeLanguage, LANGUAGES, t } = useTheme();
+  const currentLangObj = LANGUAGES.find((l) => l.code === language) || LANGUAGES[0];
+
   const [infoModal, setInfoModal] = useState(null);
-  const [openDropdown, setOpenDropdown] = useState(null); // 'find-care' | 'consultation' | 'more' | 'notifications' | null
+  const [openDropdown, setOpenDropdown] = useState(null); // 'more-services' | 'language' | 'notifications' | 'user-profile' | null
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -141,7 +141,6 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
   const [notificationsList, setNotificationsList] = useState(INITIAL_NOTIFICATIONS);
   const [showLogoutConfirmModal, setShowLogoutConfirmModal] = useState(false);
 
-  const filteredModalLocations = filterLocations(citySearchQuery);
   const [isTabletDrawerOpen, setIsTabletDrawerOpen] = useState(false);
 
   const { pharmacyCartCount = 0, pharmacyFinalTotal = 0, labCartCount = 0, radiologyCartCount = 0 } = useCart() || {};
@@ -166,8 +165,6 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
           setUserName('');
           setUserPhone('');
         }
-        const city = (await AsyncStorage.getItem('@mediunify_selected_city')) || (await AsyncStorage.getItem('@unnathi_user_location'));
-        if (city && CITIES.includes(city)) setSelectedCity(city);
         const memStr = await AsyncStorage.getItem('@mediunify_membership');
         if (memStr) {
           try {
@@ -199,6 +196,9 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
         .practo-profile-item {
           transition: background-color 0.12s ease !important;
           cursor: pointer !important;
+        }
+        .mediunify-lang-item:hover {
+          background-color: #F0FDF4 !important;
         }
         .practo-profile-item:hover {
           background-color: #F8FAFC !important;
@@ -320,12 +320,15 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
         const moreServicesWrap = document.getElementById('mediunify-more-services-wrap');
         const notifWrap = document.getElementById('mediunify-notif-wrap');
         const profileWrap = document.getElementById('mediunify-profile-wrap');
+        const langWrap = document.getElementById('mediunify-lang-wrap');
 
         if (openDropdown === 'more-services' && moreServicesWrap && !moreServicesWrap.contains(e.target)) {
           setOpenDropdown(null);
         } else if (openDropdown === 'notifications' && notifWrap && !notifWrap.contains(e.target)) {
           setOpenDropdown(null);
         } else if (openDropdown === 'user-profile' && profileWrap && !profileWrap.contains(e.target)) {
+          setOpenDropdown(null);
+        } else if (openDropdown === 'language' && langWrap && !langWrap.contains(e.target)) {
           setOpenDropdown(null);
         }
       };
@@ -507,7 +510,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                         active && styles.navLinkTextActive,
                       ]}
                     >
-                      {item.label}
+                      {t(item.labelKey, item.label)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -519,10 +522,79 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
         {/* ============================================================
             RIGHT: PRACTO UTILITY LINKS + NOTIFICATION + CART + PROFILE
         ============================================================ */}
-        <View style={[styles.rightActionsRow, { gap: isDesktop ? 20 : 10 }]}>
+        <View style={[styles.rightActionsRow, { gap: isDesktop ? 16 : 10 }]}>
           {/* Practo Utility Links matching Login page */}
           {isDesktop && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              {/* Language Dropdown Trigger & Popover (Matching More Services reference design) */}
+              <View style={styles.moreServicesWrapper} nativeID="mediunify-lang-wrap">
+                <TouchableOpacity
+                  style={styles.utilityItem}
+                  // @ts-ignore
+                  className="mediunify-utility-item"
+                  onPress={() => setOpenDropdown(openDropdown === 'language' ? null : 'language')}
+                  activeOpacity={0.8}
+                  accessibilityLabel="Select Language"
+                >
+                  <Ionicons
+                    name="globe-outline"
+                    size={14}
+                    color={openDropdown === 'language' ? '#00B894' : '#475569'}
+                    style={{ marginRight: 2 }}
+                  />
+                  <Text style={[styles.utilityText, openDropdown === 'language' && { color: '#00B894' }]}>
+                    {currentLangObj.name || currentLangObj.native || 'English'}
+                  </Text>
+                  <Ionicons
+                    name={openDropdown === 'language' ? 'chevron-up' : 'chevron-down'}
+                    size={13}
+                    color={openDropdown === 'language' ? '#00B894' : '#475569'}
+                    style={{ marginLeft: 2 }}
+                  />
+                </TouchableOpacity>
+
+                {/* Language Popover Dropdown (Matches More Services Dropdown Design) */}
+                {openDropdown === 'language' && (
+                  <View style={[styles.moreServicesDropdown, { width: 220, right: 0, left: 'auto' }]}>
+                    <View style={styles.moreServicesMenuList}>
+                      {LANGUAGES.map((langItem) => {
+                        const isSelected = language === langItem.code;
+                        return (
+                          <TouchableOpacity
+                            key={langItem.code}
+                            style={[
+                              styles.moreServiceMenuItem,
+                              isSelected && { backgroundColor: '#F0FDF4' },
+                            ]}
+                            // @ts-ignore
+                            className="practo-profile-item"
+                            onPress={() => {
+                              changeLanguage(langItem.code);
+                              setOpenDropdown(null);
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                              <Text
+                                style={[
+                                  styles.moreServiceMenuText,
+                                  isSelected && { color: '#00B894', fontWeight: '700' },
+                                ]}
+                              >
+                                {langItem.name} {langItem.name !== langItem.native ? `(${langItem.native})` : ''}
+                              </Text>
+                              {isSelected && (
+                                <Ionicons name="checkmark-circle" size={16} color="#00B894" />
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+              </View>
+
               {/* More Services Dropdown Trigger & Popover */}
               <View style={styles.moreServicesWrapper} nativeID="mediunify-more-services-wrap">
                 <TouchableOpacity
@@ -533,7 +605,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.utilityText, openDropdown === 'more-services' && { color: '#00B894' }]}>
-                    More Services
+                    {t('nav_more_services', 'More Services')}
                   </Text>
                   <Ionicons
                     name={openDropdown === 'more-services' ? 'chevron-up' : 'chevron-down'}
@@ -759,7 +831,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                       onPress={() => handleNavigate('MyAppointments')}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.practoProfileMenuText}>My Appointments</Text>
+                      <Text style={styles.practoProfileMenuText}>{t('my_appointments', 'My Appointments')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -769,7 +841,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                       onPress={() => handleNavigate('MyTests')}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.practoProfileMenuText}>My Tests</Text>
+                      <Text style={styles.practoProfileMenuText}>{t('my_tests', 'My Tests')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -779,7 +851,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                       onPress={() => handleNavigate('MyMedicineOrders')}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.practoProfileMenuText}>My Medicine Orders</Text>
+                      <Text style={styles.practoProfileMenuText}>{t('my_medicine_orders', 'My Medicine Orders')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -789,7 +861,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                       onPress={() => handleNavigate('MyMedicalRecords')}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.practoProfileMenuText}>My Medical Records</Text>
+                      <Text style={styles.practoProfileMenuText}>{t('my_medical_records', 'My Medical Records')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -799,7 +871,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                       onPress={() => handleNavigate('MyOnlineConsultations')}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.practoProfileMenuText}>My Online Consultations</Text>
+                      <Text style={styles.practoProfileMenuText}>{t('my_online_consultations', 'My Online Consultations')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -809,7 +881,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                       onPress={() => handleNavigate('MyFeedback')}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.practoProfileMenuText}>My Feedback</Text>
+                      <Text style={styles.practoProfileMenuText}>{t('my_feedback', 'My Feedback')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -819,7 +891,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                       onPress={() => handleNavigate('Profile', { editMode: true })}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.practoProfileMenuText}>View / Update Profile</Text>
+                      <Text style={styles.practoProfileMenuText}>{t('view_update_profile', 'View / Update Profile')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -829,7 +901,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                       onPress={handleLogout}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.practoProfileMenuText}>Logout</Text>
+                      <Text style={styles.practoProfileMenuText}>{t('logout', 'Logout')}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -848,7 +920,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
               }}
               activeOpacity={0.85}
             >
-              <Text style={styles.loginBtnText}>Login / Signup</Text>
+              <Text style={styles.loginBtnText}>{t('nav_login_signup', 'Login / Signup')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -906,125 +978,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
 
       {/* ============================================================
           LOCATION MODAL WITH SEARCH BAR
-      ============================================================ */}
-      <Modal
-        visible={isCityModalOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsCityModalOpen(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setIsCityModalOpen(false)}
-        >
-          <View style={[styles.cityModalCard, { width: 340, maxWidth: '94%' }]}>
-            <View style={styles.cityModalHeader}>
-              <Text style={styles.cityModalTitle}>Select Your Location</Text>
-              <TouchableOpacity onPress={() => setIsCityModalOpen(false)}>
-                <Ionicons name="close" size={20} color="#64748B" />
-              </TouchableOpacity>
-            </View>
 
-            {/* Search input inside location modal */}
-            <View style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              backgroundColor: '#F1F5F9',
-              borderRadius: 8,
-              paddingHorizontal: 10,
-              paddingVertical: 7,
-              gap: 8,
-              borderWidth: 1,
-              borderColor: '#E2E8F0',
-              marginTop: 10,
-              marginBottom: 8,
-            }}>
-              <Ionicons name="search" size={15} color="#0D9488" />
-              <TextInput
-                style={{ flex: 1, fontSize: 13, color: '#0F172A', padding: 0, outlineStyle: 'none' }}
-                placeholder="Search city, area, locality..."
-                placeholderTextColor="#94A3B8"
-                value={citySearchQuery}
-                onChangeText={setCitySearchQuery}
-                autoFocus
-              />
-              {citySearchQuery ? (
-                <TouchableOpacity onPress={() => setCitySearchQuery('')}>
-                  <Ionicons name="close-circle" size={15} color="#94A3B8" />
-                </TouchableOpacity>
-              ) : null}
-            </View>
-
-            {/* Auto-detect GPS Location */}
-            <TouchableOpacity
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 6,
-                paddingVertical: 7,
-                paddingHorizontal: 10,
-                backgroundColor: '#F0FDFA',
-                borderRadius: 6,
-                borderWidth: 1,
-                borderColor: '#CCFBF1',
-                marginBottom: 8,
-              }}
-              onPress={async () => {
-                setSelectedCity('Bangalore');
-                try {
-                  await AsyncStorage.setItem('@mediunify_selected_city', 'Bangalore');
-                  await AsyncStorage.setItem('@unnathi_user_location', 'Bangalore');
-                } catch (e) {}
-                setIsCityModalOpen(false);
-                setCitySearchQuery('');
-              }}
-            >
-              <Ionicons name="locate" size={15} color="#0F766E" />
-              <Text style={{ fontSize: 12, fontWeight: '700', color: '#0F766E' }}>Use Current Location (GPS)</Text>
-            </TouchableOpacity>
-
-            <ScrollView style={{ maxHeight: 220 }} showsVerticalScrollIndicator>
-              {filteredModalLocations.map((loc) => (
-                <TouchableOpacity
-                  key={loc.id}
-                  style={[styles.cityItem, selectedCity === loc.name && styles.cityItemActive]}
-                  onPress={async () => {
-                    setSelectedCity(loc.name);
-                    try {
-                      await AsyncStorage.setItem('@mediunify_selected_city', loc.name);
-                      await AsyncStorage.setItem('@unnathi_user_location', loc.name);
-                      if (typeof window !== 'undefined') {
-                        window.dispatchEvent(new Event('storage'));
-                      }
-                    } catch (e) {}
-                    setIsCityModalOpen(false);
-                    setCitySearchQuery('');
-                  }}
-                  activeOpacity={0.75}
-                >
-                  <Ionicons
-                    name={loc.type === 'city' ? 'business-outline' : 'navigate-outline'}
-                    size={15}
-                    color={selectedCity === loc.name ? '#00A389' : '#64748B'}
-                  />
-                  <Text
-                    style={[
-                      styles.cityItemText,
-                      selectedCity === loc.name && styles.cityItemTextActive,
-                    ]}
-                  >
-                    {loc.full}
-                  </Text>
-                  {selectedCity === loc.name && (
-                    <Ionicons name="checkmark-circle" size={17} color="#00A389" style={{ marginLeft: 'auto' }} />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
-      </Modal>
 
       {/* Info Modals */}
       <Modal
@@ -2140,6 +2094,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#00B894',
   },
+
+
   tabletNavStrip: {
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,

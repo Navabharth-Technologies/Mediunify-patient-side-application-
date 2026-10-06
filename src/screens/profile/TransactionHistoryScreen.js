@@ -1001,8 +1001,8 @@ const S = StyleSheet.create({
   pillTextRefund: { color: '#7C3AED' },
 
   // LIST
-  listContent: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 120 },
-  listContentTablet: { paddingHorizontal: 32 },
+  listContent: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: Platform.OS === 'ios' ? 145 : 130 },
+  listContentTablet: { paddingHorizontal: 32, paddingBottom: 145 },
 
   // SECTION HEADER
   sectionHeader: { paddingTop: 14, paddingBottom: 6 },

@@ -14,20 +14,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '../../context/ThemeContext';
 
 // All currently active & available MediUnify Mobile services
 // Strictly reusing the exact icon set, labels/names, libraries, and colors from Mobile Home Screen
 const ALL_SERVICES = [
-  {
-    id: 'chatbot',
-    title: 'AI Chat Bot',
-    iconFamily: 'Image',
-    image: require('../../../assets/ai-bot-avatar.png'),
-    iconColor: '#007D69',
-    iconBg: '#E8F6F6',
-    route: 'Chatbot',
-    keywords: 'ai chatbot bot assistant symptom health advice 24/7 ask bot mediunify ai',
-  },
   {
     id: 'videocall',
     title: 'Video Call Consultation',
@@ -148,19 +139,10 @@ const ALL_SERVICES = [
     route: 'Emergency',
     keywords: 'emergency ambulance sos 24x7 urgent helpline critical dispatch 108',
   },
-  {
-    id: 'healthrecords',
-    title: 'Health Records',
-    iconFamily: 'Ionicons',
-    icon: 'documents-outline',
-    iconColor: '#007D69',
-    iconBg: '#E8F6F6',
-    route: 'HealthRecords',
-    keywords: 'health records prescriptions medical reports history documents vault',
-  },
 ];
 
 const AllServicesScreen = ({ navigation, route }) => {
+  const { t, language } = useTheme();
   const { width } = useWindowDimensions();
   const [searchQuery, setSearchQuery] = useState('');
   const [storedCity, setStoredCity] = useState('');
@@ -237,7 +219,7 @@ const AllServicesScreen = ({ navigation, route }) => {
         </TouchableOpacity>
 
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>All Services</Text>
+          <Text style={styles.headerTitle}>{t('all_services', 'All Services')}</Text>
           <View style={styles.locationBadge}>
             <Ionicons name="location" size={13} color="#007D69" />
             <Text style={styles.locationBadgeText} numberOfLines={1}>
@@ -253,7 +235,7 @@ const AllServicesScreen = ({ navigation, route }) => {
           <Ionicons name="search" size={18} color="#64748B" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search all services..."
+            placeholder={t('search_all_services', 'Search all services...')}
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -360,7 +342,9 @@ const AllServicesScreen = ({ navigation, route }) => {
                     styles.serviceName,
                     isTablet && styles.serviceNameTablet,
                   ]}
-                  numberOfLines={2}
+                  numberOfLines={3}
+                  adjustsFontSizeToFit={true}
+                  minimumFontScale={0.82}
                 >
                   {service.title}
                 </Text>
@@ -369,8 +353,8 @@ const AllServicesScreen = ({ navigation, route }) => {
           </View>
         )}
 
-        {/* Bottom spacer to guarantee final service cards are 100% visible above floating bottom navigation */}
-        <View style={{ height: Platform.OS === 'ios' ? 96 : 84 }} />
+        {/* Bottom spacer: clears fixed bottom navigation bar on all platforms */}
+        <View style={{ height: Platform.OS === 'ios' ? 110 : 96 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -450,8 +434,8 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   scrollContent: {
-    paddingTop: 14,
-    paddingBottom: 24,
+    paddingTop: 16,
+    paddingBottom: 20,
   },
   countRow: {
     flexDirection: 'row',
@@ -473,6 +457,7 @@ const styles = StyleSheet.create({
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    rowGap: 12,
   },
   serviceCard: {
     backgroundColor: '#FFFFFF',
@@ -483,12 +468,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1.5,
-    minHeight: 126,
+    shadowColor: '#007D69',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.07,
+    shadowRadius: 6,
+    elevation: 2,
+    minHeight: 124,
   },
   serviceCardTablet: {
     paddingVertical: 22,
@@ -526,15 +511,37 @@ const styles = StyleSheet.create({
     height: 38,
   },
   serviceName: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '700',
     color: '#0F172A',
     textAlign: 'center',
-    lineHeight: 17,
+    width: '100%',
+    paddingHorizontal: 2,
+    ...Platform.select({
+      ios: {
+        lineHeight: 16,
+      },
+      android: {
+        includeFontPadding: false,
+      },
+      default: {
+        lineHeight: 16,
+      },
+    }),
   },
   serviceNameTablet: {
     fontSize: 14.5,
-    lineHeight: 20,
+    ...Platform.select({
+      ios: {
+        lineHeight: 20,
+      },
+      android: {
+        includeFontPadding: false,
+      },
+      default: {
+        lineHeight: 20,
+      },
+    }),
   },
   emptyContainer: {
     alignItems: 'center',

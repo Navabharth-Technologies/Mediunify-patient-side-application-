@@ -16,6 +16,7 @@ const FloatingAiBotIcon = () => {
 
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
+  const isMobileLayout = width < 992;
 
   const [currentPath, setCurrentPath] = useState('');
   const [showPopup, setShowPopup] = useState(false);
@@ -129,7 +130,7 @@ const FloatingAiBotIcon = () => {
        window.location.hash.toLowerCase().includes('radiology') ||
        window.location.hash.toLowerCase().includes('scan')));
 
-  if (isExcludedScreen) return null;
+  if (isExcludedScreen || isMobileLayout) return null;
 
   const handleOpenChat = () => {
     if (navigationRef?.isReady?.()) {

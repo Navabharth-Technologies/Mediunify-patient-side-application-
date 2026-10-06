@@ -2487,7 +2487,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   scrollContent: {
-    paddingBottom: 110,
+    paddingBottom: 140,
     width: '100%',
     alignSelf: 'center',
   },

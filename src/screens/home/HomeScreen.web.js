@@ -21,6 +21,7 @@ import SpecialtyIcon from '../../components/common/SpecialtyIcon';
 import { detectAutoLocation } from '../../utils/locationHelper';
 import { showAlert } from '../../utils/alert';
 import PromotionalAdsSection from '../../components/web/PromotionalAdsSection';
+import { useTheme } from '../../context/ThemeContext';
 
 // ==================================================
 // OFFICIAL MEDIUNIFY LOGO & BRAND PALETTE:
@@ -568,7 +569,7 @@ const HomeScreenWeb = ({ navigation }) => {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
                 <View style={styles.trustedBadge}>
                   <Ionicons name="shield-checkmark" size={13} color="#059669" style={{ marginRight: 6 }} />
-                  <Text style={styles.trustedBadgeText}>TRUSTED BY PATIENTS ACROSS INDIA</Text>
+                  <Text style={styles.trustedBadgeText}>{t('hero_badge', 'TRUSTED BY PATIENTS ACROSS INDIA')}</Text>
                 </View>
                 {isLoggedIn && (
                   <TouchableOpacity
@@ -577,15 +578,15 @@ const HomeScreenWeb = ({ navigation }) => {
                     activeOpacity={0.85}
                   >
                     <Ionicons name="gift" size={13} color="#00B894" style={{ marginRight: 5 }} />
-                    <Text style={styles.referEarnPillText}>Refer & Earn ₹250</Text>
+                    <Text style={styles.referEarnPillText}>{t('refer_earn', 'Refer & Earn ₹250')}</Text>
                   </TouchableOpacity>
                 )}
               </View>
 
               {/* 2. Main Title */}
               <View style={styles.heroTitleWrap}>
-                <Text style={styles.heroTitleNavy}>Your Healthcare.</Text>
-                <Text style={styles.heroTitleTeal}>One Intelligent Platform.</Text>
+                <Text style={styles.heroTitleNavy}>{t('hero_title_navy', 'Your Healthcare.')}</Text>
+                <Text style={styles.heroTitleTeal}>{t('hero_title_teal', 'One Intelligent Platform.')}</Text>
               </View>
 
               {/* 3. Subtitle */}
@@ -703,7 +704,7 @@ const HomeScreenWeb = ({ navigation }) => {
                   <Ionicons name="search-outline" size={18} color="#64748B" style={styles.searchIcon} />
                   <TextInput
                     style={styles.searchInput}
-                    placeholder="Search doctors, symptoms, tests, medicines, hospitals or services..."
+                    placeholder={t('search_placeholder', 'Search doctors, clinics, hospitals, tests, medicines...')}
                     placeholderTextColor="#94A3B8"
                     value={searchQuery}
                     onChangeText={setSearchQuery}
@@ -728,13 +729,13 @@ const HomeScreenWeb = ({ navigation }) => {
                   accessibilityLabel="Search"
                 >
                   <Ionicons name="search" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
-                  <Text style={styles.searchSubmitBtnText}>Search</Text>
+                  <Text style={styles.searchSubmitBtnText}>{t('search_btn', 'Search')}</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Popular Searches Row */}
               <View style={styles.popularSearchesRow}>
-                <Text style={styles.popularSearchesLabel}>Popular searches:</Text>
+                <Text style={styles.popularSearchesLabel}>{t('popular_searches', 'Popular searches:')}</Text>
                 <View style={styles.popularChipsContainer}>
                   {POPULAR_SEARCH_TAGS.map((tag, idx) => (
                     <TouchableOpacity
@@ -873,7 +874,7 @@ const HomeScreenWeb = ({ navigation }) => {
             <View style={styles.sectionBadgeWrap}>
               <Text style={styles.sectionBadge}>OUR SERVICES</Text>
             </View>
-            <Text style={styles.serviceCardsTitle}>Everything Healthcare,{`\n`}All in One Place</Text>
+            <Text style={styles.serviceCardsTitle}>{t('services_section_title', 'Everything Healthcare,\nAll in One Place')}</Text>
             <Text style={styles.serviceCardsSubtitle}>
               From consultations to home care — seamlessly connected for your health journey.
             </Text>
@@ -954,6 +955,23 @@ const HomeScreenWeb = ({ navigation }) => {
                 </View>
               </TouchableOpacity>
             ))}
+          </View>
+
+          {/* View All Services CTA */}
+          <View style={styles.viewAllServicesRow}>
+            <TouchableOpacity
+              style={styles.viewAllServicesBtn}
+              // @ts-ignore
+              className="view-all-services-btn"
+              onPress={() => handleNavigateToService('AllServices', { city: selectedCity, location: selectedCity })}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="View all healthcare services"
+            >
+              <Ionicons name="grid-outline" size={16} color="#007D69" style={{ marginRight: 8 }} />
+              <Text style={styles.viewAllServicesBtnText}>{t('view_services', 'View All 12 Services')}</Text>
+              <Ionicons name="arrow-forward" size={14} color="#007D69" style={{ marginLeft: 8 }} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -2404,6 +2422,30 @@ const styles = StyleSheet.create({
   footerBottomLinkDot: {
     fontSize: 12,
     color: '#94A3B8',
+  },
+
+  // ─── VIEW ALL SERVICES CTA ──────────────────────
+  viewAllServicesRow: {
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 4,
+  },
+  viewAllServicesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
+    borderRadius: 14,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  viewAllServicesBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#007D69',
+    letterSpacing: -0.2,
   },
 });
 

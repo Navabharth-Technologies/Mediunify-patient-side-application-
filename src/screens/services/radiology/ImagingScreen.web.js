@@ -1532,61 +1532,88 @@ export default function ImagingScreenWeb({ navigation, route }) {
           {/* VIEW 3: PROVIDERS / LABS COMPARISON FOR SELECTED TEST */}
           {viewMode === 'providers' && selectedTest && (
             <View style={styles.sectionWrap}>
-              {/* Selected Test Summary Banner */}
+              {/* Selected Test Summary Banner (Redesigned & Responsive) */}
               <View style={styles.selectedTestHeroCard}>
-                <View style={styles.selectedTestHeroLeft}>
+                {/* Header Row: Category Badge & Quick Actions */}
+                <View style={styles.selectedTestHeroTopRow}>
                   <View style={styles.selectedTestModalityPill}>
-                    {RADIOLOGY_3D_ICONS[selectedCategory?.id] ? (
-                      <Image
-                        source={RADIOLOGY_3D_ICONS[selectedCategory.id]}
-                        style={styles.heroModalityMini3DIcon}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <Ionicons name="scan" size={14} color="#00B894" />
-                    )}
+                    <Ionicons name="scan-outline" size={13} color="#00B894" />
                     <Text style={styles.selectedTestModalityText}>
-                      {selectedCategory?.name || 'Radiology Scan'}
+                      {selectedCategory?.name?.toUpperCase() || 'RADIOLOGY SCAN'}
                     </Text>
                   </View>
-                  <Text style={styles.selectedTestHeroTitle}>{selectedTest.name}</Text>
-                  <Text style={styles.selectedTestHeroPurpose}>{selectedTest.purpose}</Text>
-                  <View style={styles.selectedTestHeroBadges}>
-                    <View style={styles.heroMiniBadge}>
-                      <Ionicons name="time" size={12} color="#0369A1" />
-                      <Text style={styles.heroMiniBadgeText}>Duration: {selectedTest.duration}</Text>
-                    </View>
-                    <View style={styles.heroMiniBadge}>
-                      <Ionicons name="calendar" size={12} color="#059669" />
-                      <Text style={styles.heroMiniBadgeText}>Reports in {selectedTest.reportTime}</Text>
-                    </View>
-                    <View style={styles.heroMiniBadge}>
-                      <Ionicons name="information-circle" size={12} color="#D97706" />
-                      <Text style={styles.heroMiniBadgeText}>
-                        {selectedTest.fastingRequired ? `Fasting: ${selectedTest.fastingHours} hrs` : 'No Fasting'}
-                      </Text>
-                    </View>
+
+                  <View style={styles.selectedTestHeroActions}>
+                    <TouchableOpacity
+                      style={styles.changeTestPillBtn}
+                      onPress={() => navigateToView('tests')}
+                      activeOpacity={0.8}
+                      accessibilityLabel="Change selected test"
+                    >
+                      <Ionicons name="swap-horizontal" size={13} color="#0369A1" />
+                      <Text style={styles.changeTestPillBtnText}>Change Scan</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.viewProtocolBtn}
+                      onPress={() => setTestDetailsModal(selectedTest)}
+                      activeOpacity={0.8}
+                      accessibilityLabel="View test protocol"
+                    >
+                      <Ionicons name="information-circle-outline" size={14} color="#00B894" />
+                      <Text style={styles.viewProtocolBtnText}>Protocol</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
 
-                <View style={styles.selectedTestHeroRight}>
-                  <TouchableOpacity
-                    style={styles.changeTestPillBtn}
-                    onPress={() => navigateToView('tests')}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="swap-horizontal" size={14} color="#0369A1" />
-                    <Text style={styles.changeTestPillBtnText}>Change Scan</Text>
-                  </TouchableOpacity>
+                {/* Content Row: Test Info & Contained Equipment Thumbnail */}
+                <View style={styles.selectedTestHeroContentRow}>
+                  <View style={styles.selectedTestHeroTextCol}>
+                    <Text style={styles.selectedTestHeroTitle} numberOfLines={2}>
+                      {selectedTest.name}
+                    </Text>
+                    <Text style={styles.selectedTestHeroPurpose} numberOfLines={2}>
+                      {selectedTest.purpose}
+                    </Text>
+                    <View style={styles.selectedTestHeroBadges}>
+                      <View style={styles.heroMiniBadge}>
+                        <Ionicons name="time-outline" size={12} color="#0369A1" />
+                        <Text style={styles.heroMiniBadgeText}>Duration: {selectedTest.duration}</Text>
+                      </View>
+                      <View style={styles.heroMiniBadge}>
+                        <Ionicons name="calendar-outline" size={12} color="#059669" />
+                        <Text style={styles.heroMiniBadgeText}>Reports in {selectedTest.reportTime}</Text>
+                      </View>
+                      <View style={styles.heroMiniBadge}>
+                        <Ionicons
+                          name="restaurant-outline"
+                          size={12}
+                          color={selectedTest.fastingRequired ? '#D97706' : '#64748B'}
+                        />
+                        <Text style={styles.heroMiniBadgeText}>
+                          {selectedTest.fastingRequired ? `Fasting: ${selectedTest.fastingHours} hrs` : 'No Fasting'}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
 
-                  <TouchableOpacity
-                    style={styles.viewProtocolBtn}
-                    onPress={() => setTestDetailsModal(selectedTest)}
-                    activeOpacity={0.8}
+                  {/* Responsive Contained Medical Equipment Thumbnail */}
+                  <View
+                    style={[
+                      styles.heroEquipmentThumbContainer,
+                      width >= 768 && styles.heroEquipmentThumbContainerWide,
+                    ]}
                   >
-                    <Ionicons name="reader-outline" size={14} color="#00B894" />
-                    <Text style={styles.viewProtocolBtnText}>Protocol</Text>
-                  </TouchableOpacity>
+                    {RADIOLOGY_3D_ICONS[selectedCategory?.id] ? (
+                      <Image
+                        source={RADIOLOGY_3D_ICONS[selectedCategory.id]}
+                        style={styles.heroEquipmentImage}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <Ionicons name="medical" size={32} color="#00B894" />
+                    )}
+                  </View>
                 </View>
               </View>
 
@@ -3730,17 +3757,18 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 100,
+    paddingBottom: Platform.OS === 'web' ? 140 : 180,
   },
 
-  // Pinned Top App Bar (iOS, Android, Tablet)
+  // Pinned Top App Bar (iOS, Android, Tablet, Web)
   pinnedTopAppBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 8,
     minHeight: 56,
+    maxHeight: 62,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
@@ -3758,38 +3786,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F1F5F9',
+    flexShrink: 0,
   },
   pinnedTitleContainer: {
     flex: 1,
-    marginHorizontal: 8,
+    marginHorizontal: 10,
     justifyContent: 'center',
     minWidth: 0,
   },
   pinnedTitleText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0C3B6B',
+    lineHeight: 20,
   },
   pinnedCityBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    marginTop: 2,
+    marginTop: 1,
   },
   pinnedCityText: {
     fontSize: 11,
     fontWeight: '600',
     color: '#64748B',
+    lineHeight: 14,
   },
   pinnedMyBookingsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 7,
-    borderRadius: 16,
+    borderRadius: 18,
     backgroundColor: '#E0F2FE',
     position: 'relative',
     gap: 5,
+    flexShrink: 0,
   },
   pinnedMyBookingsBtnActive: {
     backgroundColor: '#0369A1',
@@ -4755,21 +4787,26 @@ const styles = StyleSheet.create({
 
   // VIEW 3: PROVIDERS
   selectedTestHeroCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 20,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     marginBottom: 16,
-    flexWrap: 'wrap',
-    gap: 16,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+    gap: 10,
+    width: '100%',
   },
-  selectedTestHeroLeft: {
-    flex: 1,
-    minWidth: 280,
+  selectedTestHeroTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
   },
   selectedTestModalityPill: {
     flexDirection: 'row',
@@ -4777,32 +4814,75 @@ const styles = StyleSheet.create({
     gap: 5,
     backgroundColor: '#E6F8F2',
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 3.5,
     borderRadius: 12,
-    alignSelf: 'flex-start',
-    marginBottom: 6,
   },
   selectedTestModalityText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '800',
     color: '#00B894',
+    letterSpacing: 0.3,
+  },
+  selectedTestHeroActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  changeTestPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+  },
+  changeTestPillBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0369A1',
+  },
+  viewProtocolBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#E6F8F2',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+  },
+  viewProtocolBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  selectedTestHeroContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  selectedTestHeroTextCol: {
+    flex: 1,
+    minWidth: 0,
   },
   selectedTestHeroTitle: {
-    fontSize: 22,
+    fontSize: 17,
     fontWeight: '800',
     color: '#0C3B6B',
-    marginBottom: 4,
+    marginBottom: 3,
+    letterSpacing: -0.2,
   },
   selectedTestHeroPurpose: {
-    fontSize: 13,
-    color: '#475569',
-    lineHeight: 18,
-    marginBottom: 10,
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 16.5,
+    marginBottom: 8,
   },
   selectedTestHeroBadges: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 6,
     flexWrap: 'wrap',
   },
   heroMiniBadge: {
@@ -4810,46 +4890,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     backgroundColor: '#F8FAFC',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
   },
   heroMiniBadgeText: {
-    fontSize: 11,
+    fontSize: 10.5,
     color: '#475569',
     fontWeight: '600',
   },
-  selectedTestHeroRight: {
-    flexDirection: 'column',
-    gap: 8,
-  },
-  changeTestPillBtn: {
-    flexDirection: 'row',
+  heroEquipmentThumbContainer: {
+    width: 82,
+    height: 82,
+    borderRadius: 14,
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#E0F2FE',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    justifyContent: 'center',
+    overflow: 'hidden',
+    padding: 4,
+    flexShrink: 0,
+  },
+  heroEquipmentThumbContainerWide: {
+    width: 96,
+    height: 96,
     borderRadius: 16,
   },
-  changeTestPillBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0369A1',
-  },
-  viewProtocolBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#E6F8F2',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 16,
-  },
-  viewProtocolBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#00B894',
+  heroEquipmentImage: {
+    width: '100%',
+    height: '100%',
+    maxWidth: 88,
+    maxHeight: 88,
   },
 
   // Filter Toolbar

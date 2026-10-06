@@ -7,6 +7,7 @@ import {
   FlatList,
   TouchableOpacity,
   TextInput,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -708,7 +709,7 @@ const styles =
 
     listContent: {
       padding: 18,
-      paddingBottom: 35,
+      paddingBottom: Platform.OS === 'web' ? 40 : 110,
       width: '100%',
       maxWidth: 1200,
       alignSelf: 'center',

@@ -478,7 +478,7 @@ const MyMedicineOrdersScreen = ({ navigation, route }) => {
               );
             })
           )}
-          <View style={{ height: 40 }} />
+          <View style={{ height: Platform.OS === 'web' ? 40 : 110 }} />
         </ScrollView>
       </SafeAreaView>
     );
@@ -621,7 +621,7 @@ const MyMedicineOrdersScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           ) : null}
 
-          <View style={{ height: 40 }} />
+          <View style={{ height: Platform.OS === 'web' ? 40 : 110 }} />
         </ScrollView>
       </SafeAreaView>
     );
@@ -734,7 +734,7 @@ const MyMedicineOrdersScreen = ({ navigation, route }) => {
               Continue ({returnSummary.count} selected • ₹{returnSummary.totalRefund})
             </Text>
           </TouchableOpacity>
-          <View style={{ height: 40 }} />
+          <View style={{ height: Platform.OS === 'web' ? 40 : 110 }} />
         </ScrollView>
       </SafeAreaView>
     );
@@ -844,7 +844,7 @@ const MyMedicineOrdersScreen = ({ navigation, route }) => {
               <Text style={styles.primaryBtnText}>Submit Return</Text>
             )}
           </TouchableOpacity>
-          <View style={{ height: 40 }} />
+          <View style={{ height: Platform.OS === 'web' ? 40 : 110 }} />
         </ScrollView>
       </SafeAreaView>
     );

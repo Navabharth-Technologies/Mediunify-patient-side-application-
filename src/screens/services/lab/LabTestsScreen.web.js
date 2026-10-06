@@ -2532,7 +2532,7 @@ const LabTestsScreenWeb = (props) => {
 
       {/* FLOATING LAB CART BAR */}
       {labCartCount > 0 && (
-        <View style={styles.webFloatingCartBar}>
+        <View style={[styles.webFloatingCartBar, !isDesktop && { bottom: 88 }]}>
           <View style={styles.floatingCartLeft}>
             <View style={styles.floatingCartIconCircle}>
               <Ionicons name="flask" size={18} color="#FFFFFF" />
@@ -2728,6 +2728,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     paddingHorizontal: 24,
     paddingTop: 24,
+    paddingBottom: 140,
   },
   webHeroBanner: {
     backgroundColor: '#E6FBF2',
@@ -3217,6 +3218,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     paddingHorizontal: 24,
     paddingTop: 24,
+    paddingBottom: 140,
   },
   webTabHeader: {
     flexDirection: 'row',

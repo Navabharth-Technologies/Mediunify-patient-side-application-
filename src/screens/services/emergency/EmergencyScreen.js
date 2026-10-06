@@ -91,6 +91,8 @@ const EmergencyScreen = ({ navigation }) => {
           </View>
         </View>
 
+        {!isDesktopWeb && <View style={{ height: 110 }} />}
+
         {isDesktopWeb && <WebFooter navigation={navigation} />}
       </ScrollView>
     </SafeAreaView>

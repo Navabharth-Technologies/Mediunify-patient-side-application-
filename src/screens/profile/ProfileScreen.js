@@ -25,7 +25,7 @@ import { syncActiveUser } from '../../services/dataSyncService';
 import { promptLoginRequired } from '../../utils/authHelper';
 
 const ProfileScreen = ({ navigation, route }) => {
-  const { isDarkMode, language, changeLanguage, LANGUAGES } = useTheme();
+  const { isDarkMode, language, changeLanguage, LANGUAGES, t } = useTheme();
   const currentLang = LANGUAGES.find((l) => l.code === language) || LANGUAGES[0];
   const { width } = useWindowDimensions();
   const isTablet = width >= 600;
@@ -433,7 +433,7 @@ const ProfileScreen = ({ navigation, route }) => {
         )}
 
         <Text style={[styles.headerTitle, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
-          PROFILE
+          {(t('profile_title') || 'PROFILE').toUpperCase()}
         </Text>
 
         <View style={{ width: 36 }} />
@@ -507,13 +507,13 @@ const ProfileScreen = ({ navigation, route }) => {
               style={[styles.userName, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}
               numberOfLines={1}
             >
-              {isGuest ? 'Guest User' : user.name}
+              {isGuest ? (t('guest_user') || 'Guest User') : user.name}
             </Text>
 
             {/* SUBTITLE FOR GUEST */}
             {isGuest && (
               <Text style={{ fontSize: 13, color: '#64748B', marginTop: 4, marginBottom: 8, fontWeight: '500' }}>
-                Login to access your profile
+                {t('guest_subtitle') || 'Login to access your profile'}
               </Text>
             )}
 
@@ -564,7 +564,7 @@ const ProfileScreen = ({ navigation, route }) => {
                 activeOpacity={0.85}
               >
                 <Ionicons name="log-in-outline" size={16} color="#FFFFFF" />
-                <Text style={[styles.editBtnText, { color: '#FFFFFF' }]}>Login / Sign In</Text>
+                <Text style={[styles.editBtnText, { color: '#FFFFFF' }]}>{t('login_sign_in') || 'Login / Sign In'}</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
@@ -573,7 +573,7 @@ const ProfileScreen = ({ navigation, route }) => {
                 activeOpacity={0.85}
               >
                 <Ionicons name="create-outline" size={15} color="#0D9488" />
-                <Text style={styles.editBtnText}>Edit Profile</Text>
+                <Text style={styles.editBtnText}>{t('edit_profile') || 'Edit Profile'}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -605,7 +605,7 @@ const ProfileScreen = ({ navigation, route }) => {
                     </Text>
                     <View style={styles.membershipActiveStatusRow}>
                       <View style={styles.activeDot} />
-                      <Text style={styles.membershipActiveText}>Active</Text>
+                      <Text style={styles.membershipActiveText}>{t('active') || 'Active'}</Text>
                     </View>
                   </View>
                 </View>
@@ -619,7 +619,7 @@ const ProfileScreen = ({ navigation, route }) => {
                 <View style={styles.membershipValidityDivider}>
                   <Ionicons name="calendar-outline" size={13} color={isDarkMode ? '#94A3B8' : '#64748B'} />
                   <Text style={[styles.membershipValidityText, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
-                    Valid until: {formatValidityDate(userMembership.expiresAt)}
+                    {t('valid_until') || 'Valid until'}: {formatValidityDate(userMembership.expiresAt)}
                   </Text>
                 </View>
               ) : null}
@@ -634,7 +634,7 @@ const ProfileScreen = ({ navigation, route }) => {
               [ Settings ]
           ============================================================ */}
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionHeading}>Quick access</Text>
+            <Text style={styles.sectionHeading}>{t('quick_access') || 'Quick access'}</Text>
           </View>
 
           <View style={[styles.quickAccessGrid, isTablet && styles.quickAccessGridTablet]}>
@@ -661,7 +661,7 @@ const ProfileScreen = ({ navigation, route }) => {
                 style={[styles.quickAccessTitle, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}
                 numberOfLines={1}
               >
-                Family Members
+                {t('family_members') || 'Family Members'}
               </Text>
             </TouchableOpacity>
 
@@ -688,7 +688,7 @@ const ProfileScreen = ({ navigation, route }) => {
                 style={[styles.quickAccessTitle, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}
                 numberOfLines={1}
               >
-                Health Records
+                {t('health_records') || 'Health Records'}
               </Text>
             </TouchableOpacity>
 
@@ -715,7 +715,7 @@ const ProfileScreen = ({ navigation, route }) => {
                 style={[styles.quickAccessTitle, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}
                 numberOfLines={1}
               >
-                Payment History
+                {t('payment_history') || 'Payment History'}
               </Text>
             </TouchableOpacity>
 
@@ -736,7 +736,7 @@ const ProfileScreen = ({ navigation, route }) => {
                 style={[styles.quickAccessTitle, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}
                 numberOfLines={1}
               >
-                Settings
+                {t('settings') || 'Settings'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -768,7 +768,7 @@ const ProfileScreen = ({ navigation, route }) => {
               </View>
               <View style={styles.menuTitleWrap}>
                 <Text style={[styles.menuTitle, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
-                  Personal Information
+                  {t('personal_info') || 'Personal Information'}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
@@ -793,7 +793,7 @@ const ProfileScreen = ({ navigation, route }) => {
               </View>
               <View style={styles.menuTitleWrap}>
                 <Text style={[styles.menuTitle, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
-                  Address
+                  {t('address') || 'Address'}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
@@ -812,16 +812,16 @@ const ProfileScreen = ({ navigation, route }) => {
               </View>
               <View style={styles.menuTitleWrap}>
                 <Text style={[styles.menuTitle, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
-                  Membership
+                  {t('membership') || 'Membership'}
                 </Text>
               </View>
               {userMembership?.status === 'active' ? (
                 <View style={styles.memberStatusPill}>
-                  <Text style={styles.memberStatusPillText}>{userMembership.tierName} Active</Text>
+                  <Text style={styles.memberStatusPillText}>{userMembership.tierName} {t('active') || 'Active'}</Text>
                 </View>
               ) : (
                 <View style={styles.explorePill}>
-                  <Text style={styles.explorePillText}>Explore Plans</Text>
+                  <Text style={styles.explorePillText}>{t('explore_plans') || 'Explore Plans'}</Text>
                 </View>
               )}
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
@@ -840,7 +840,7 @@ const ProfileScreen = ({ navigation, route }) => {
               </View>
               <View style={styles.menuTitleWrap}>
                 <Text style={[styles.menuTitle, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
-                  Notifications
+                  {t('notifications') || 'Notifications'}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
@@ -859,7 +859,7 @@ const ProfileScreen = ({ navigation, route }) => {
               </View>
               <View style={styles.menuTitleWrap}>
                 <Text style={[styles.menuTitle, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
-                  Language
+                  {t('language') || 'Language'}
                 </Text>
               </View>
               <View style={styles.langPill}>
@@ -881,7 +881,7 @@ const ProfileScreen = ({ navigation, route }) => {
               </View>
               <View style={styles.menuTitleWrap}>
                 <Text style={[styles.menuTitle, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
-                  Help & Support
+                  {t('help_support') || 'Help & Support'}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
@@ -900,7 +900,7 @@ const ProfileScreen = ({ navigation, route }) => {
               </View>
               <View style={styles.menuTitleWrap}>
                 <Text style={[styles.menuTitle, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
-                  About MediUnify
+                  {t('about_app') || 'About MediUnify'}
                 </Text>
               </View>
               <View style={styles.versionPill}>
@@ -926,7 +926,7 @@ const ProfileScreen = ({ navigation, route }) => {
               activeOpacity={0.85}
             >
               <Ionicons name="log-in-outline" size={20} color="#007D69" />
-              <Text style={[styles.logoutBtnText, { color: '#007D69' }]}>Sign In / Login</Text>
+              <Text style={[styles.logoutBtnText, { color: '#007D69' }]}>{t('login_sign_in') || 'Sign In / Login'}</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
@@ -935,7 +935,7 @@ const ProfileScreen = ({ navigation, route }) => {
               activeOpacity={0.85}
             >
               <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-              <Text style={styles.logoutBtnText}>Log Out</Text>
+              <Text style={styles.logoutBtnText}>{t('logout') || 'Log Out'}</Text>
             </TouchableOpacity>
           )}
 
@@ -970,7 +970,7 @@ const ProfileScreen = ({ navigation, route }) => {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Ionicons name="globe-outline" size={22} color="#0D9488" />
                 <Text style={[styles.modalTitle, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
-                  Select Language
+                  {t('language') || 'Select Language'}
                 </Text>
               </View>
               <TouchableOpacity
@@ -995,7 +995,10 @@ const ProfileScreen = ({ navigation, route }) => {
                     onPress={async () => {
                       await changeLanguage(langItem.code);
                       setShowLanguageModal(false);
-                      showAlert('Language Updated', `App language set to ${langItem.name}.`);
+                      showAlert(
+                        t('lang_updated_title') || 'Language Updated',
+                        `${t('lang_updated_desc') || 'App language set to'} ${langItem.name}.`
+                      );
                     }}
                     activeOpacity={0.8}
                   >
@@ -1216,7 +1219,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   scrollContent: {
-    paddingBottom: 110,
+    paddingBottom: 140,
   },
   pageInnerContainer: {
     width: '100%',
