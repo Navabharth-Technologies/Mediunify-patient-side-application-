@@ -155,9 +155,15 @@ const TRUST_PILLARS = [
   },
 ];
 
-const HomeScreenWeb = ({ navigation }) => {
-  const { t = (k, fb) => fb || k, isDarkMode, language, isIndic } = useTheme();
+const HomeScreenWeb = ({ navigation, ...props }) => {
   const { width } = useWindowDimensions();
+
+  // On mobile viewports (< 768px), strictly render the native mobile app HomeScreen
+  if (width < 768) {
+    return <HomeScreenMobile navigation={navigation} {...props} />;
+  }
+
+  const { t = (k, fb) => fb || k, isDarkMode, language, isIndic } = useTheme();
   const scrollViewRef = useRef(null);
 
   // Search state matching Practo reference

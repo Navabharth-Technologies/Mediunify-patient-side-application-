@@ -175,10 +175,16 @@ const RESCHEDULE_SLOTS = [
   'Evening Slot (05:00 PM - 06:00 PM)',
 ];
 
-const FAMILY_RELATIONS = ['Spouse', 'Son', 'Daughter', 'Father', 'Mother', 'Brother', 'Sister', 'Other'];
+import MyTestsScreenMobile from './MyTestsScreen';
 
-const MyTestsScreenWeb = ({ navigation, route }) => {
+const MyTestsScreenWeb = ({ navigation, route, ...props }) => {
   const { width } = useWindowDimensions();
+
+  // On mobile viewports (< 768px), strictly render the native mobile app MyTestsScreen
+  if (width < 768) {
+    return <MyTestsScreenMobile navigation={navigation} route={route} {...props} />;
+  }
+
   const isDesktop = width >= 1024;
   const isTablet = width >= 768 && width < 1024;
 

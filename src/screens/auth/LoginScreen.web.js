@@ -137,8 +137,16 @@ const TRUST_PILLARS = [
 
 const CITIES = ['Bangalore', 'Mysore', 'Hubli', 'Mangalore', 'Belgaum', 'Delhi NCR', 'Mumbai'];
 
-const LoginScreenWeb = ({ navigation, route = {} }) => {
+import LoginScreenMobile from './LoginScreen';
+
+const LoginScreenWeb = ({ navigation, route = {}, ...props }) => {
   const { width } = useWindowDimensions();
+
+  // On mobile viewports (< 768px), strictly render the native mobile app LoginScreen
+  if (width < 768) {
+    return <LoginScreenMobile navigation={navigation} route={route} {...props} />;
+  }
+
   const isDesktop = width >= 992;
   const isTablet = width >= 640 && width < 992;
   const isMobile = width < 640;

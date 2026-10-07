@@ -125,8 +125,11 @@ if (fs.existsSync(INDEX_HTML)) {
     `<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="theme-color" content="#0F766E" />`
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="MediUnify" />
+    <meta name="application-name" content="MediUnify" />
+    <meta name="theme-color" content="#00B894" />
+    <meta name="format-detection" content="telephone=no" />`
   );
 
   // Injected head scripts and @font-face CSS
@@ -134,6 +137,43 @@ if (fs.existsSync(INDEX_HTML)) {
   <style data-gh-font-patch="true">
     ${fontFaceCss}
     /* Mobile web application native feel optimizations */
+    @media (max-width: 767px) {
+      html, body {
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        overscroll-behavior: none;
+        -webkit-overscroll-behavior: none;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #root {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      ::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+      }
+      * {
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+      }
+    }
     html, body {
       overscroll-behavior-y: none;
       -webkit-overflow-scrolling: touch;
@@ -141,9 +181,12 @@ if (fs.existsSync(INDEX_HTML)) {
     }
     * {
       -webkit-tap-highlight-color: transparent;
+      box-sizing: border-box;
     }
     input, textarea, select {
       font-size: 16px !important;
+      -webkit-user-select: auto;
+      user-select: auto;
     }
   </style>
   <script data-gh-patch="true">

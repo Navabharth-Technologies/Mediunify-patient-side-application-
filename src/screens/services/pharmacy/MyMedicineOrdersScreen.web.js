@@ -111,8 +111,15 @@ const getShortStepTitle = (title) => {
   return title;
 };
 
-const MyMedicineOrdersScreenWeb = ({ navigation, route }) => {
+import MyMedicineOrdersScreenMobile from './MyMedicineOrdersScreen';
+
+const MyMedicineOrdersScreenWeb = ({ navigation, route, ...props }) => {
   const { width } = useWindowDimensions();
+
+  // On mobile viewports (< 768px), strictly render the native mobile app MyMedicineOrdersScreen
+  if (width < 768) {
+    return <MyMedicineOrdersScreenMobile navigation={navigation} route={route} {...props} />;
+  }
   const isDesktop = width >= 1024;
   const isTablet = width >= 768 && width < 1024;
 

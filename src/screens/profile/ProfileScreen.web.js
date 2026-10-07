@@ -22,11 +22,18 @@ import { useTheme } from '../../context/ThemeContext';
 import { syncActiveUser } from '../../services/dataSyncService';
 import { promptLoginRequired } from '../../utils/authHelper';
 import WebFooter from '../../components/web/WebFooter';
+import ProfileScreenMobile from './ProfileScreen';
 
-const ProfileScreenWeb = ({ navigation, route }) => {
+const ProfileScreenWeb = ({ navigation, route, ...props }) => {
+  const { width } = useWindowDimensions();
+
+  // On mobile viewports (< 768px), strictly render the native mobile app ProfileScreen
+  if (width < 768) {
+    return <ProfileScreenMobile navigation={navigation} route={route} {...props} />;
+  }
+
   const { isDarkMode, language, changeLanguage, LANGUAGES, t } = useTheme();
   const currentLang = LANGUAGES.find((l) => l.code === language) || LANGUAGES[0];
-  const { width } = useWindowDimensions();
   const isDesktop = width >= 992;
   const isTablet = width >= 640 && width < 992;
 

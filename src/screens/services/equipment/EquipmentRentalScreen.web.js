@@ -35,8 +35,16 @@ const ASYNC_KEY_NOTIFICATIONS = '@mediunify_user_notifications';
 const REQUIRED_DATE_CHOICES = ['Today', 'Tomorrow', 'Within 2-3 Days', 'Specific Date'];
 const DURATION_CHOICES = ['1 Week', '2 Weeks', '1 Month', '2 Months', '3 Months', 'Long-term'];
 
-const EquipmentRentalScreen = ({ navigation, route }) => {
+import EquipmentRentalScreenMobile from './EquipmentRentalScreen';
+
+const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
   const { width } = useWindowDimensions();
+
+  // On mobile viewports (< 768px), strictly render the native mobile app EquipmentRentalScreen
+  if (width < 768) {
+    return <EquipmentRentalScreenMobile navigation={navigation} route={route} {...props} />;
+  }
+
   const isDesktop = width >= 992;
   const isTablet = width >= 640 && width < 992;
   const isMobile = width < 640;

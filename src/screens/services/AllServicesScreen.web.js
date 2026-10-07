@@ -200,7 +200,7 @@ const AllServicesScreenWeb = ({ navigation, route }) => {
   const { t, language } = useTheme();
 
   const isDesktop = width >= 992;
-  const isMobileWeb = width < 640;
+  const isMobileWeb = width < 768;
 
   // On mobile-web, render the native mobile component for consistency
   if (isMobileWeb) {

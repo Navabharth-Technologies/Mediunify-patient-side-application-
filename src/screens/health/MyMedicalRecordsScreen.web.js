@@ -25,10 +25,18 @@ import {
   getMedicalRecords,
 } from '../../data/patientDashboardData';
 
+import HealthRecordsScreenMobile from './HealthRecordsScreen';
+
 const RECORD_TABS = ['All Records', 'Lab Reports', 'Radiology & Scans', 'Prescriptions', 'Other Records'];
 
-const MyMedicalRecordsScreenWeb = ({ navigation, route }) => {
+const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
   const { width } = useWindowDimensions();
+
+  // On mobile viewports (< 768px), strictly render the native mobile app HealthRecordsScreen
+  if (width < 768) {
+    return <HealthRecordsScreenMobile navigation={navigation} route={route} {...props} />;
+  }
+
   const isDesktop = width >= 1024;
   const isTablet = width >= 768 && width < 1024;
 
