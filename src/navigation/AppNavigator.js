@@ -159,6 +159,16 @@ const linking = {
           },
           MyFeedback: 'my-feedback',
           Settings: 'settings',
+          Notifications: {
+            path: 'alerts',
+            alias: ['alerts', 'Alerts', 'notifications', 'Notifications'],
+          },
+          Alerts: 'alerts',
+          TransactionHistory: {
+            path: 'history',
+            alias: ['history', 'History', 'transaction-history', 'TransactionHistory', 'payment-history'],
+          },
+          History: 'history',
         },
       },
     },

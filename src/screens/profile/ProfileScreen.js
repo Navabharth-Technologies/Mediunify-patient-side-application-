@@ -1222,7 +1222,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   scrollContent: {
-    paddingBottom: 140,
+    paddingBottom: 40,
   },
   pageInnerContainer: {
     width: '100%',

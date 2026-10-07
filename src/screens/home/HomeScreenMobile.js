@@ -1718,7 +1718,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   scrollContent: {
-    paddingBottom: 24,
+    paddingBottom: 110,
   },
   scrollContentTablet: {
     maxWidth: 780,

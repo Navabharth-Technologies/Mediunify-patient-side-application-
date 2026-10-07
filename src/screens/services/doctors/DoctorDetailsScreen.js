@@ -11,7 +11,7 @@ import {
   StatusBar,
   useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import WebFooter from '../../../components/web/WebFooter';
@@ -19,6 +19,7 @@ import DoctorBookingModal from '../../../components/booking/DoctorBookingModal';
 
 const DoctorDetailsScreen = ({ route, navigation }) => {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   const doctor = route?.params?.doctor;
   const [bookingModalVisible, setBookingModalVisible] = useState(false);
@@ -92,7 +93,10 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: 72 + Math.max(insets.bottom, 12) },
+        ]}
       >
         {/* DESKTOP BREADCRUMBS */}
         {isDesktopWeb && (
@@ -242,7 +246,7 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
       </ScrollView>
 
       {/* STICKY BOTTOM ACTION BAR */}
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <View style={styles.bottomBarInner}>
           <View style={styles.bottomPriceCol}>
             <Text style={styles.bottomFeeLabel}>In-Person Fee</Text>

@@ -1636,6 +1636,40 @@ const LabTestsScreenWeb = (props) => {
 
   return (
     <SafeAreaView style={styles.safeContainer}>
+      {!isDesktop && (
+        <View style={styles.mobileHeaderBar}>
+          <TouchableOpacity
+            style={styles.headerBackBtn}
+            onPress={() => {
+              if (navigation?.canGoBack && navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation?.navigate('Home');
+              }
+            }}
+            activeOpacity={0.7}
+            accessibilityLabel="Back"
+          >
+            <Ionicons name="arrow-back" size={20} color="#0F172A" />
+          </TouchableOpacity>
+          <Text style={styles.mobileHeaderTitle}>Lab Tests & Packages</Text>
+          <TouchableOpacity
+            style={styles.headerCartBtn}
+            onPress={() => navigation?.navigate('Cart', { initialTab: 'lab' })}
+            activeOpacity={0.8}
+            accessibilityLabel="Cart"
+          >
+            <Ionicons name="cart-outline" size={22} color="#0F172A" />
+            {labCartCount > 0 && (
+              <View style={styles.headerCartBadge}>
+                <Text style={styles.headerCartBadgeText}>
+                  {labCartCount > 99 ? '99+' : labCartCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
       <ScrollView ref={mainScrollRef} style={styles.scrollContainer} contentContainerStyle={{ paddingBottom: 60 }}>
         {renderWebBrowse()}
         {activeTab === 'BOOKINGS' && renderWebBookings()}
@@ -2532,7 +2566,7 @@ const LabTestsScreenWeb = (props) => {
 
       {/* FLOATING LAB CART BAR */}
       {labCartCount > 0 && (
-        <View style={[styles.webFloatingCartBar, !isDesktop && { bottom: 88 }]}>
+        <View style={[styles.webFloatingCartBar, !isDesktop && { bottom: 16 }]}>
           <View style={styles.floatingCartLeft}>
             <View style={styles.floatingCartIconCircle}>
               <Ionicons name="flask" size={18} color="#FFFFFF" />
@@ -2569,6 +2603,55 @@ const LabTestsScreenWeb = (props) => {
 };
 
 const styles = StyleSheet.create({
+  mobileHeaderBar: {
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  headerBackBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mobileHeaderTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  headerCartBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  headerCartBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    backgroundColor: '#00B894',
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  headerCartBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
   webAddToCartBtn: {
     flexDirection: 'row',
     alignItems: 'center',

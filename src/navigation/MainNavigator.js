@@ -18,6 +18,8 @@ import {
   createNativeStackNavigator,
 } from '@react-navigation/native-stack';
 
+import { navigationRef } from './navigationRef';
+
 import {
   Ionicons,
 } from '@expo/vector-icons';
@@ -415,23 +417,13 @@ const BottomNavigation = ({
 };
 
 
-// Screens that hide the bottom bar (Auth, checkout, and dedicated booking payment flows)
-const HIDE_BOTTOM_BAR_ROUTES = [
-  'Login',
-  'Register',
-  'ForgotPassword',
-  'OTP',
-  'Cart',
-  'Checkout',
-  'Payment',
-  'OrderSuccess',
-  'RadiologyPayment',
-  'RadiologyOrderSuccess',
-  'DoctorBooking',
-  'RadiologistBooking',
-  'VideoBooking',
-  'SurgeryQuoteRequest',
-  'RadiologyReportUpload',
+// Whitelist ONLY the main-level pages where bottom navigation is permitted
+const MAIN_BOTTOM_NAV_ROUTES = [
+  'Home',
+  'Notifications',
+  'Alerts',
+  'TransactionHistory',
+  'History',
 ];
 
 const MainNavigator = ({
@@ -482,37 +474,50 @@ const MainNavigator = ({
   // HANDLE ROUTE CHANGE
   // ==================================================
 
-  const handleNavigationStateChange = (
-    event
-  ) => {
-
-    const state =
-      event?.data?.state;
-
-    if (!state) {
-      return;
+  const getActiveRoute = (state) => {
+    if (!state || !state.routes || state.routes.length === 0) return null;
+    const route = state.routes[state.index ?? state.routes.length - 1];
+    if (route.state) {
+      return getActiveRoute(route.state);
     }
+    return route;
+  };
 
-    const route =
-      state.routes?.[
-        state.index
-      ];
+  const handleNavigationStateChange = (event) => {
+    const state = event?.data?.state;
+    if (!state) return;
 
-    if (route) {
-
-      console.log(
-        'Current route:',
-        route.name
-      );
-
-      setCurrentRoute(
-        route.name
-      );
-      setCurrentParams(
-        route.params || {}
-      );
+    const route = getActiveRoute(state);
+    if (route?.name) {
+      console.log('Current route:', route.name);
+      setCurrentRoute(route.name);
+      setCurrentParams(route.params || {});
     }
   };
+
+  useEffect(() => {
+    const syncRouteFromRef = () => {
+      if (navigationRef?.isReady?.()) {
+        const route = navigationRef.getCurrentRoute();
+        if (route?.name) {
+          setCurrentRoute((prev) => (prev !== route.name ? route.name : prev));
+          setCurrentParams(route.params || {});
+        }
+      }
+    };
+
+    syncRouteFromRef();
+
+    const unsubscribe = navigationRef?.addListener?.('state', () => {
+      syncRouteFromRef();
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, []);
 
 
   return (
@@ -626,6 +631,11 @@ const MainNavigator = ({
 
         <Stack.Screen
           name="Notifications"
+          component={NotificationsScreen}
+        />
+
+        <Stack.Screen
+          name="Alerts"
           component={NotificationsScreen}
         />
 
@@ -929,6 +939,11 @@ const MainNavigator = ({
         />
 
         <Stack.Screen
+          name="History"
+          component={TransactionHistoryScreen}
+        />
+
+        <Stack.Screen
           name="Wallet"
           component={WalletScreen}
         />
@@ -1016,10 +1031,10 @@ const MainNavigator = ({
 
 
       {/* ==================================================
-          BOTTOM NAVIGATION (FIXED ON MAIN PAGES & HIDDEN WHEN KEYBOARD OPEN)
+          BOTTOM NAVIGATION (RENDERED ONLY ON HOME, ALERTS, HISTORY)
       ================================================== */}
 
-      {!isDesktopWeb && !isKeyboardVisible && !HIDE_BOTTOM_BAR_ROUTES.includes(currentRoute) && (
+      {!isDesktopWeb && !isKeyboardVisible && MAIN_BOTTOM_NAV_ROUTES.includes(currentRoute) && (
         <BottomNavigation
           navigation={navigation}
           currentRoute={currentRoute}
