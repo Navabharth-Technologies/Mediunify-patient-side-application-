@@ -22,7 +22,7 @@ import {
   savePatientSettings,
 } from '../../data/patientDashboardData';
 
-import SettingsScreenMobile from './SettingsScreen';
+import SettingsScreenMobile from './SettingsScreenMobile';
 
 const LANGUAGES = ['English (India)', 'Kannada (ಕನ್ನಡ)', 'Hindi (हिन्दी)', 'Tamil (தமிழ்)', 'Telugu (తెలుగు)'];
 const COMM_CHANNELS = ['WhatsApp & SMS', 'SMS Only', 'WhatsApp Only', 'Email Only'];

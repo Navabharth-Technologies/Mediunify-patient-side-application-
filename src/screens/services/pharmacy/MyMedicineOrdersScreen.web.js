@@ -111,7 +111,7 @@ const getShortStepTitle = (title) => {
   return title;
 };
 
-import MyMedicineOrdersScreenMobile from './MyMedicineOrdersScreen';
+import MyMedicineOrdersScreenMobile from './MyMedicineOrdersScreenMobile';
 
 const MyMedicineOrdersScreenWeb = ({ navigation, route }) => {
   const { width } = useWindowDimensions();

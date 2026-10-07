@@ -158,7 +158,7 @@ const FAQS = [
   },
 ];
 
-import NurseBookingScreenMobile from './NurseBookingScreen';
+import NurseBookingScreenMobile from './NurseBookingScreenMobile';
 
 const NurseBookingScreen = ({ navigation, route, ...props }) => {
   const { width } = useWindowDimensions();

@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../context/ThemeContext';
-import AllServicesScreenMobile from './AllServicesScreen';
+import AllServicesScreenMobile from './AllServicesScreenMobile';
 import WebBackButton from '../../components/web/WebBackButton';
 
 // ─────────────────────────────────────────────────

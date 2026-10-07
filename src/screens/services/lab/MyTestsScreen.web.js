@@ -175,7 +175,7 @@ const RESCHEDULE_SLOTS = [
   'Evening Slot (05:00 PM - 06:00 PM)',
 ];
 
-import MyTestsScreenMobile from './MyTestsScreen';
+import MyTestsScreenMobile from './MyTestsScreenMobile';
 
 const MyTestsScreenWeb = ({ navigation, route, ...props }) => {
   const { width } = useWindowDimensions();

@@ -8,6 +8,8 @@ import {
   TextInput,
   Image,
   Modal,
+  Platform,
+  KeyboardAvoidingView,
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,7 +21,6 @@ import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
 import WebFooter from '../../../components/web/WebFooter';
 import OptimizedImage from '../../../components/common/OptimizedImage';
 import Pagination from '../../../components/common/Pagination';
-import WebBackButton from '../../../components/web/WebBackButton';
 import {
   equipmentCategories,
   equipmentCatalog,
@@ -35,13 +36,11 @@ const ASYNC_KEY_NOTIFICATIONS = '@mediunify_user_notifications';
 const REQUIRED_DATE_CHOICES = ['Today', 'Tomorrow', 'Within 2-3 Days', 'Specific Date'];
 const DURATION_CHOICES = ['1 Week', '2 Weeks', '1 Month', '2 Months', '3 Months', 'Long-term'];
 
-import EquipmentRentalScreenMobile from './EquipmentRentalScreenMobile';
-
-const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
+const EquipmentRentalScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 992;
-  const isTablet = width >= 640 && width < 992;
-  const isMobile = width < 640;
+  const isDesktopWeb = Platform.OS === 'web' && width >= 992;
+  const isTablet = width >= 600 && width < 992;
+  const isVerySmallMobile = width < 360;
 
   // View States: 'HOME' | 'DETAILS' | 'REQUEST_FORM' | 'MY_RENTALS'
   const [currentView, setCurrentView] = useState('HOME');
@@ -79,7 +78,7 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
   const [addressValidationModalVisible, setAddressValidationModalVisible] = useState(false);
   const [addressValidationMsg, setAddressValidationMsg] = useState('');
 
-  // Requests Data
+  // Requests Data & Active Rentals
   const [rentalRequests, setRentalRequests] = useState(initialRentalRequests);
   const [newlyCreatedRequest, setNewlyCreatedRequest] = useState(null);
 
@@ -195,16 +194,16 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
     });
   }, [selectedCategory, searchQuery]);
 
-  // Items per page based on device width to ensure complete rows (screen full of cards on tablet)
+  // Items per page to guarantee balanced full rows (full screen on tablet)
   const itemsPerPage = useMemo(() => {
-    if (isDesktop) return 8; // Desktop: 2 rows x 4 cols = 8 cards
-    if (isTablet) return 9;  // Tablet: 3 rows x 3 cols = 9 cards (screen full of cards)
-    return 4;                // Mobile: 2 rows x 2 cols = 4 cards
-  }, [isDesktop, isTablet]);
+    if (width >= 992) return 8; // Desktop: 2 rows x 4 cols = 8 cards
+    if (width >= 600) return 9; // Tablet: 3 rows x 3 cols = 9 cards (screen full of cards)
+    return 4;                   // Mobile: 2 rows x 2 cols = 4 cards
+  }, [width]);
 
   const totalPages = Math.ceil(filteredEquipment.length / itemsPerPage) || 1;
 
-  // Paginated items
+  // Paginated equipment list
   const paginatedItems = useMemo(() => {
     const startIdx = (currentPage - 1) * itemsPerPage;
     return filteredEquipment.slice(startIdx, startIdx + itemsPerPage);
@@ -229,7 +228,12 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
     setCurrentView('DETAILS');
   };
 
-  const handleStartRequest = (item) => {
+  const handleStartRequest = async (item) => {
+    const isGuest = await isGuestUser();
+    if (isGuest) {
+      promptLoginRequired(navigation, { service: 'equipment' });
+      return;
+    }
     setSelectedEquipment(item);
     setFormStep(1);
     setQuantity(1);
@@ -273,12 +277,6 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
 
   const handleSubmitRequest = async () => {
     if (!selectedEquipment) return;
-
-    const isGuest = await isGuestUser();
-    if (isGuest) {
-      promptLoginRequired(navigation, { service: 'equipment' });
-      return;
-    }
 
     const fullAddr = `${houseNo.trim()}, ${streetArea.trim()}, ${selectedCity}`;
     const validation = validateAddressMatchesCity(fullAddr, selectedCity, pincode.trim());
@@ -364,17 +362,24 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
     showAlert('Return Scheduled', 'Our team will contact you to collect the equipment.');
   };
 
-  // Card width dynamic style for Web responsive grid
+  // Card width dynamic style for Mobile & Tablet responsive grid
   const getCardWidthStyle = () => {
-    if (isDesktop) return styles.cardWidthDesktop;
-    if (isTablet) return styles.cardWidthTablet;
-    return styles.cardWidthMobile;
+    if (width >= 992) return styles.cardCol4;
+    if (width >= 600) return styles.cardCol3;
+    if (isVerySmallMobile) return styles.cardCol1;
+    return styles.cardCol2;
   };
 
   // Render individual Equipment Card in the reference format
   const renderCardItem = (item) => {
     return (
-      <View key={item.id} style={[styles.gridCard, getCardWidthStyle()]}>
+      <View
+        key={item.id}
+        style={[
+          styles.gridCard,
+          getCardWidthStyle(),
+        ]}
+      >
         <OptimizedImage
           source={{ uri: item.image }}
           style={styles.gridCardImg}
@@ -410,30 +415,33 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
     return (
       <ScrollView
         style={styles.scrollContainer}
-        contentContainerStyle={[styles.scrollContent, styles.desktopContainer]}
+        contentContainerStyle={[styles.scrollContent, isDesktopWeb && styles.desktopContainer]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Clean Web Header */}
+        {/* Simple Clean Header */}
         <View style={styles.topHeaderBar}>
-          <WebBackButton
+          <TouchableOpacity
+            style={styles.headerBackBtn}
             onPress={() => {
               if (navigation?.canGoBack()) navigation.goBack();
               else navigation?.navigate('Home');
             }}
-          />
+          >
+            <Ionicons name="arrow-back" size={20} color="#0F172A" />
+          </TouchableOpacity>
 
-          <View style={{ flex: 1, marginLeft: 12 }}>
+          <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={styles.screenHeaderTitle}>Equipment Rental</Text>
             <Text style={styles.screenHeaderSubtitle}>Medical equipment for your home care needs</Text>
           </View>
 
           <View style={styles.locationBadge}>
-            <Ionicons name="location-sharp" size={14} color="#00B894" />
+            <Ionicons name="location-sharp" size={12} color="#007D69" />
             <Text style={styles.locationBadgeText}>{selectedCity}</Text>
           </View>
         </View>
 
-        {/* View Navigation Tabs */}
+        {/* View Tabs */}
         <View style={styles.topNavTabs}>
           <TouchableOpacity
             style={[styles.navTabBtn, currentView === 'HOME' && styles.navTabBtnActive]}
@@ -459,7 +467,7 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
           <Ionicons name="search-outline" size={18} color="#64748B" style={{ marginRight: 8 }} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search equipment..."
+            placeholder="Search equipment"
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={(text) => {
@@ -497,7 +505,7 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
                 <Ionicons
                   name={cat.icon}
                   size={14}
-                  color={isSelected ? '#FFFFFF' : '#00B894'}
+                  color={isSelected ? '#FFFFFF' : '#007D69'}
                   style={{ marginRight: 5 }}
                 />
                 <Text style={[styles.categoryPillText, isSelected && styles.categoryPillTextActive]}>
@@ -523,7 +531,7 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
 
           {paginatedItems.length === 0 ? (
             <View style={styles.emptyBox}>
-              <Ionicons name="medkit-outline" size={44} color="#94A3B8" />
+              <Ionicons name="medkit-outline" size={40} color="#94A3B8" />
               <Text style={styles.emptyTitle}>No equipment found</Text>
               <Text style={styles.emptySub}>Try searching for hospital bed, wheelchair, or oxygen.</Text>
             </View>
@@ -533,7 +541,7 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
             </View>
           )}
 
-          {/* Pagination Navigation Bar */}
+          {/* Pagination Navigation Controls */}
           {totalPages > 1 && (
             <Pagination
               currentPage={currentPage}
@@ -543,7 +551,7 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
           )}
         </View>
 
-        <WebFooter />
+        {isDesktopWeb && <WebFooter />}
       </ScrollView>
     );
   };
@@ -558,14 +566,17 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
     return (
       <ScrollView
         style={styles.scrollContainer}
-        contentContainerStyle={[styles.scrollContent, styles.desktopContainer]}
+        contentContainerStyle={[styles.scrollContent, isDesktopWeb && styles.desktopContainer]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.topHeaderBar}>
-          <WebBackButton
+          <TouchableOpacity
+            style={styles.headerBackBtn}
             onPress={() => setCurrentView('HOME')}
-          />
-          <View style={{ flex: 1, marginLeft: 12 }}>
+          >
+            <Ionicons name="arrow-back" size={20} color="#0F172A" />
+          </TouchableOpacity>
+          <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={styles.screenHeaderTitle}>{item.name}</Text>
             <Text style={styles.screenHeaderSubtitle}>{item.categoryLabel}</Text>
           </View>
@@ -581,16 +592,16 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
           <Text style={styles.detailsSectionTitle}>Key Features</Text>
           {item.features?.map((f, i) => (
             <View key={i} style={styles.bulletRow}>
-              <Ionicons name="checkmark-circle" size={16} color="#00B894" style={{ marginRight: 6, marginTop: 2 }} />
+              <Ionicons name="checkmark-circle" size={15} color="#00B894" style={{ marginRight: 6, marginTop: 2 }} />
               <Text style={styles.bulletText}>{f}</Text>
             </View>
           ))}
 
           {/* Availability Notice */}
           <View style={styles.noticeCard}>
-            <Ionicons name="information-circle" size={18} color="#1E3A8A" style={{ marginRight: 8 }} />
+            <Ionicons name="information-circle" size={18} color="#0284C7" style={{ marginRight: 8 }} />
             <Text style={styles.noticeCardText}>
-              Availability will be confirmed after your request is placed.
+              Availability will be confirmed after your request.
             </Text>
           </View>
 
@@ -602,301 +613,315 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
           </TouchableOpacity>
         </View>
 
-        <WebFooter />
+        {isDesktopWeb && <WebFooter />}
       </ScrollView>
     );
   };
 
   // ==========================================================
-  // VIEW: 3. REQUEST FORM (Web Layout)
+  // VIEW: 3. REQUEST FORM (Keyboard Aware & Smooth Scrolling)
   // ==========================================================
   const renderRequestFormView = () => {
     if (!selectedEquipment) return null;
     const item = selectedEquipment;
 
     return (
-      <ScrollView
-        style={styles.scrollContainer}
-        contentContainerStyle={[styles.scrollContent, styles.desktopContainer]}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        style={{ flex: 1 }}
       >
-        <View style={styles.topHeaderBar}>
-          <WebBackButton
-            onPress={() => {
-              if (formStep === 2) setFormStep(1);
-              else setCurrentView('HOME');
-            }}
-          />
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.screenHeaderTitle}>Request Equipment</Text>
-            <Text style={styles.screenHeaderSubtitle}>{item.name}</Text>
+        <ScrollView
+          style={styles.scrollContainer}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: 220 },
+            isDesktopWeb && styles.desktopContainer,
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.topHeaderBar}>
+            <TouchableOpacity
+              style={styles.headerBackBtn}
+              onPress={() => {
+                if (formStep === 2) setFormStep(1);
+                else setCurrentView('HOME');
+              }}
+            >
+              <Ionicons name="arrow-back" size={20} color="#0F172A" />
+            </TouchableOpacity>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.screenHeaderTitle}>Request Equipment</Text>
+              <Text style={styles.screenHeaderSubtitle}>{item.name}</Text>
+            </View>
           </View>
-        </View>
 
-        {/* STEP 1: FORM FIELDS */}
-        {formStep === 1 && (
-          <View style={styles.formBox}>
-            {/* Equipment Preview */}
-            <View style={styles.formEquipRow}>
-              <OptimizedImage source={{ uri: item.image }} style={styles.formEquipImg} resizeMode="cover" fallbackIcon="fitness-outline" />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.formEquipName}>{item.name}</Text>
-                <Text style={styles.formEquipCity}>Location: {selectedCity}</Text>
-              </View>
-            </View>
-
-            {/* Quantity */}
-            <Text style={styles.inputLabel}>Quantity</Text>
-            <View style={styles.qtyRow}>
-              <TouchableOpacity
-                style={styles.qtyButton}
-                onPress={() => setQuantity((q) => Math.max(1, q - 1))}
-              >
-                <Ionicons name="remove" size={16} color="#0F172A" />
-              </TouchableOpacity>
-              <Text style={styles.qtyValue}>{quantity}</Text>
-              <TouchableOpacity
-                style={styles.qtyButton}
-                onPress={() => setQuantity((q) => Math.min(5, q + 1))}
-              >
-                <Ionicons name="add" size={16} color="#0F172A" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Required From */}
-            <Text style={styles.inputLabel}>Required From</Text>
-            <View style={styles.pillSelectRow}>
-              {REQUIRED_DATE_CHOICES.map((d) => (
-                <TouchableOpacity
-                  key={d}
-                  style={[styles.selectPill, requiredFromDate === d && styles.selectPillActive]}
-                  onPress={() => setRequiredFromDate(d)}
-                >
-                  <Text style={[styles.selectPillText, requiredFromDate === d && styles.selectPillTextActive]}>{d}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Required Until */}
-            <Text style={styles.inputLabel}>Required Until</Text>
-            <View style={styles.pillSelectRow}>
-              {DURATION_CHOICES.map((dur) => (
-                <TouchableOpacity
-                  key={dur}
-                  style={[styles.selectPill, requiredUntilDuration === dur && styles.selectPillActive]}
-                  onPress={() => setRequiredUntilDuration(dur)}
-                >
-                  <Text style={[styles.selectPillText, requiredUntilDuration === dur && styles.selectPillTextActive]}>{dur}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Patient */}
-            <Text style={styles.inputLabel}>Patient</Text>
-            <View style={styles.pillSelectRow}>
-              <TouchableOpacity
-                style={[styles.selectPill, selectedFamilyMemberId === 'self' && styles.selectPillActive]}
-                onPress={() => handleSelectPatient('self')}
-              >
-                <Text style={[styles.selectPillText, selectedFamilyMemberId === 'self' && styles.selectPillTextActive]}>Self</Text>
-              </TouchableOpacity>
-
-              {familyMembers.map((fm) => (
-                <TouchableOpacity
-                  key={fm.id || fm._id || fm.name}
-                  style={[styles.selectPill, selectedFamilyMemberId === (fm.id || fm._id || fm.name) && styles.selectPillActive]}
-                  onPress={() => handleSelectPatient(fm)}
-                >
-                  <Text style={[styles.selectPillText, selectedFamilyMemberId === (fm.id || fm._id || fm.name) && styles.selectPillTextActive]}>
-                    {fm.name || fm.displayName}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <TextInput
-              style={styles.textInput}
-              placeholder="Patient Name"
-              placeholderTextColor="#94A3B8"
-              value={patientName}
-              onChangeText={setPatientName}
-            />
-
-            {/* Mobile Number */}
-            <Text style={styles.inputLabel}>Mobile Number</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="10-digit Mobile Number"
-              placeholderTextColor="#94A3B8"
-              value={patientMobile}
-              onChangeText={setPatientMobile}
-              keyboardType="phone-pad"
-              maxLength={15}
-            />
-
-            {/* Delivery Address Section */}
-            <View style={styles.addressSection}>
-              <Text style={styles.addressSectionHeading}>Delivery Address</Text>
-              <Text style={styles.addressHelperText}>Must be within {selectedCity} for equipment delivery.</Text>
-
-              <TextInput
-                style={[styles.textInput, addressErrors.houseNo && styles.textInputError]}
-                placeholder="House / Flat Number"
-                placeholderTextColor="#94A3B8"
-                value={houseNo}
-                onChangeText={setHouseNo}
-              />
-
-              <TextInput
-                style={[styles.textInput, addressErrors.streetArea && styles.textInputError]}
-                placeholder="Street / Area / Landmark"
-                placeholderTextColor="#94A3B8"
-                value={streetArea}
-                onChangeText={setStreetArea}
-              />
-
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={[styles.textInput, { flex: 1, backgroundColor: '#E2E8F0', justifyContent: 'center' }]}>
-                  <Text style={{ fontSize: 13, color: '#334155', fontWeight: '600' }}>{selectedCity}</Text>
+          {/* STEP 1: FORM FIELDS */}
+          {formStep === 1 && (
+            <View style={styles.formBox}>
+              {/* Equipment Preview */}
+              <View style={styles.formEquipRow}>
+                <OptimizedImage source={{ uri: item.image }} style={styles.formEquipImg} resizeMode="cover" fallbackIcon="fitness-outline" />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={styles.formEquipName}>{item.name}</Text>
+                  <Text style={styles.formEquipCity}>Location: {selectedCity}</Text>
                 </View>
+              </View>
+
+              {/* Quantity */}
+              <Text style={styles.inputLabel}>Quantity</Text>
+              <View style={styles.qtyRow}>
+                <TouchableOpacity
+                  style={styles.qtyButton}
+                  onPress={() => setQuantity((q) => Math.max(1, q - 1))}
+                >
+                  <Ionicons name="remove" size={16} color="#0F172A" />
+                </TouchableOpacity>
+                <Text style={styles.qtyValue}>{quantity}</Text>
+                <TouchableOpacity
+                  style={styles.qtyButton}
+                  onPress={() => setQuantity((q) => Math.min(5, q + 1))}
+                >
+                  <Ionicons name="add" size={16} color="#0F172A" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Required From */}
+              <Text style={styles.inputLabel}>Required From</Text>
+              <View style={styles.pillSelectRow}>
+                {REQUIRED_DATE_CHOICES.map((d) => (
+                  <TouchableOpacity
+                    key={d}
+                    style={[styles.selectPill, requiredFromDate === d && styles.selectPillActive]}
+                    onPress={() => setRequiredFromDate(d)}
+                  >
+                    <Text style={[styles.selectPillText, requiredFromDate === d && styles.selectPillTextActive]}>{d}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Required Until */}
+              <Text style={styles.inputLabel}>Required Until</Text>
+              <View style={styles.pillSelectRow}>
+                {DURATION_CHOICES.map((dur) => (
+                  <TouchableOpacity
+                    key={dur}
+                    style={[styles.selectPill, requiredUntilDuration === dur && styles.selectPillActive]}
+                    onPress={() => setRequiredUntilDuration(dur)}
+                  >
+                    <Text style={[styles.selectPillText, requiredUntilDuration === dur && styles.selectPillTextActive]}>{dur}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Patient */}
+              <Text style={styles.inputLabel}>Patient</Text>
+              <View style={styles.pillSelectRow}>
+                <TouchableOpacity
+                  style={[styles.selectPill, selectedFamilyMemberId === 'self' && styles.selectPillActive]}
+                  onPress={() => handleSelectPatient('self')}
+                >
+                  <Text style={[styles.selectPillText, selectedFamilyMemberId === 'self' && styles.selectPillTextActive]}>Self</Text>
+                </TouchableOpacity>
+
+                {familyMembers.map((fm) => (
+                  <TouchableOpacity
+                    key={fm.id || fm._id || fm.name}
+                    style={[styles.selectPill, selectedFamilyMemberId === (fm.id || fm._id || fm.name) && styles.selectPillActive]}
+                    onPress={() => handleSelectPatient(fm)}
+                  >
+                    <Text style={[styles.selectPillText, selectedFamilyMemberId === (fm.id || fm._id || fm.name) && styles.selectPillTextActive]}>
+                      {fm.name || fm.displayName}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TextInput
+                style={styles.textInput}
+                placeholder="Patient Name"
+                placeholderTextColor="#94A3B8"
+                value={patientName}
+                onChangeText={setPatientName}
+              />
+
+              {/* Mobile Number */}
+              <Text style={styles.inputLabel}>Mobile Number</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="10-digit Mobile Number"
+                placeholderTextColor="#94A3B8"
+                value={patientMobile}
+                onChangeText={setPatientMobile}
+                keyboardType="phone-pad"
+                maxLength={15}
+              />
+
+              {/* Delivery Address Section */}
+              <View style={styles.addressSection}>
+                <Text style={styles.addressSectionHeading}>Delivery Address</Text>
+                <Text style={styles.addressHelperText}>Must be within {selectedCity} for equipment delivery.</Text>
 
                 <TextInput
-                  style={[styles.textInput, { flex: 1 }, addressErrors.pincode && styles.textInputError]}
-                  placeholder="Pincode"
+                  style={[styles.textInput, addressErrors.houseNo && styles.textInputError]}
+                  placeholder="House / Flat Number"
                   placeholderTextColor="#94A3B8"
-                  value={pincode}
-                  onChangeText={setPincode}
-                  keyboardType="numeric"
-                  maxLength={6}
+                  value={houseNo}
+                  onChangeText={setHouseNo}
                 />
+
+                <TextInput
+                  style={[styles.textInput, addressErrors.streetArea && styles.textInputError]}
+                  placeholder="Street / Area / Landmark"
+                  placeholderTextColor="#94A3B8"
+                  value={streetArea}
+                  onChangeText={setStreetArea}
+                />
+
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={[styles.textInput, { flex: 1, backgroundColor: '#E2E8F0', justifyContent: 'center' }]}>
+                    <Text style={{ fontSize: 13, color: '#334155', fontWeight: '600' }}>{selectedCity}</Text>
+                  </View>
+
+                  <TextInput
+                    style={[styles.textInput, { flex: 1 }, addressErrors.pincode && styles.textInputError]}
+                    placeholder="Pincode"
+                    placeholderTextColor="#94A3B8"
+                    value={pincode}
+                    onChangeText={setPincode}
+                    keyboardType="numeric"
+                    maxLength={6}
+                  />
+                </View>
+
+                {addressErrors.address && (
+                  <Text style={styles.errorMsgText}>{addressErrors.address}</Text>
+                )}
               </View>
 
-              {addressErrors.address && (
-                <Text style={styles.errorMsgText}>{addressErrors.address}</Text>
-              )}
-            </View>
-
-            {/* Additional Notes */}
-            <Text style={styles.inputLabel}>Additional Requirements</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Any special instructions or ground floor delivery?"
-              placeholderTextColor="#94A3B8"
-              value={additionalNotes}
-              onChangeText={setAdditionalNotes}
-            />
-
-            <TouchableOpacity
-              style={styles.submitBtn}
-              onPress={handleProceedToReview}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.submitBtnText}>Review & Submit →</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* STEP 2: REVIEW */}
-        {formStep === 2 && (
-          <View style={styles.formBox}>
-            <Text style={styles.reviewHeader}>Confirm Details</Text>
-
-            <View style={styles.reviewList}>
-              <View style={styles.reviewRow}>
-                <Text style={styles.reviewLabel}>Equipment</Text>
-                <Text style={styles.reviewValue}>{item.name}</Text>
-              </View>
-              <View style={styles.reviewRow}>
-                <Text style={styles.reviewLabel}>Quantity</Text>
-                <Text style={styles.reviewValue}>{quantity} Unit</Text>
-              </View>
-              <View style={styles.reviewRow}>
-                <Text style={styles.reviewLabel}>Required From</Text>
-                <Text style={styles.reviewValue}>{requiredFromDate}</Text>
-              </View>
-              <View style={styles.reviewRow}>
-                <Text style={styles.reviewLabel}>Required Until</Text>
-                <Text style={styles.reviewValue}>{requiredUntilDuration}</Text>
-              </View>
-              <View style={styles.reviewRow}>
-                <Text style={styles.reviewLabel}>Patient</Text>
-                <Text style={styles.reviewValue}>{patientName}</Text>
-              </View>
-              <View style={styles.reviewRow}>
-                <Text style={styles.reviewLabel}>Mobile</Text>
-                <Text style={styles.reviewValue}>{patientMobile}</Text>
-              </View>
-              <View style={styles.reviewRow}>
-                <Text style={styles.reviewLabel}>Address</Text>
-                <Text style={styles.reviewValue}>{houseNo}, {streetArea}, {selectedCity} - {pincode}</Text>
-              </View>
-            </View>
-
-            <View style={styles.noticeCard}>
-              <Ionicons name="information-circle" size={18} color="#1E3A8A" style={{ marginRight: 8 }} />
-              <Text style={styles.noticeCardText}>
-                Availability will be confirmed after your request is placed.
-              </Text>
-            </View>
-
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-              <TouchableOpacity
-                style={[styles.btnOutline, { flex: 1, paddingVertical: 12 }]}
-                onPress={() => setFormStep(1)}
-              >
-                <Text style={styles.btnOutlineText}>Edit</Text>
-              </TouchableOpacity>
+              {/* Additional Notes */}
+              <Text style={styles.inputLabel}>Additional Requirements</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Any special instructions or ground floor delivery?"
+                placeholderTextColor="#94A3B8"
+                value={additionalNotes}
+                onChangeText={setAdditionalNotes}
+              />
 
               <TouchableOpacity
-                style={[styles.submitBtn, { flex: 2, marginTop: 0 }]}
-                onPress={handleSubmitRequest}
+                style={styles.submitBtn}
+                onPress={handleProceedToReview}
+                activeOpacity={0.85}
               >
-                <Text style={styles.submitBtnText}>Submit Request</Text>
+                <Text style={styles.submitBtnText}>Review & Submit →</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        )}
+          )}
 
-        {/* STEP 3: SUBMITTED CONFIRMATION */}
-        {formStep === 3 && newlyCreatedRequest && (
-          <View style={styles.submittedBox}>
-            <Ionicons name="checkmark-circle" size={56} color="#00B894" style={{ marginBottom: 8 }} />
-            <Text style={styles.submittedHeading}>Request sent successfully</Text>
-            <Text style={styles.submittedSub}>We'll check availability for you in {selectedCity}.</Text>
+          {/* STEP 2: REVIEW */}
+          {formStep === 2 && (
+            <View style={styles.formBox}>
+              <Text style={styles.reviewHeader}>Confirm Details</Text>
 
-            <View style={styles.submittedInfoBox}>
-              <Text style={styles.submittedId}>Request ID: {newlyCreatedRequest.id}</Text>
-              <Text style={styles.submittedItem}>Equipment: {newlyCreatedRequest.equipmentName} ({newlyCreatedRequest.quantity} Unit)</Text>
-              <Text style={styles.submittedItem}>Required From: {newlyCreatedRequest.requiredFromDate}</Text>
-              <Text style={styles.submittedItem}>Address: {newlyCreatedRequest.deliveryAddress?.address}</Text>
-              <Text style={styles.submittedStatus}>Status: Request Sent</Text>
+              <View style={styles.reviewList}>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Equipment</Text>
+                  <Text style={styles.reviewValue}>{item.name}</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Quantity</Text>
+                  <Text style={styles.reviewValue}>{quantity} Unit</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Required From</Text>
+                  <Text style={styles.reviewValue}>{requiredFromDate}</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Required Until</Text>
+                  <Text style={styles.reviewValue}>{requiredUntilDuration}</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Patient</Text>
+                  <Text style={styles.reviewValue}>{patientName}</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Mobile</Text>
+                  <Text style={styles.reviewValue}>{patientMobile}</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Address</Text>
+                  <Text style={styles.reviewValue}>{houseNo}, {streetArea}, {selectedCity} - {pincode}</Text>
+                </View>
+              </View>
+
+              <View style={styles.noticeCard}>
+                <Ionicons name="information-circle" size={18} color="#0284C7" style={{ marginRight: 8 }} />
+                <Text style={styles.noticeCardText}>
+                  Availability will be confirmed after your request is placed.
+                </Text>
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                <TouchableOpacity
+                  style={[styles.btnOutline, { flex: 1, paddingVertical: 12 }]}
+                  onPress={() => setFormStep(1)}
+                >
+                  <Text style={styles.btnOutlineText}>Edit</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.submitBtn, { flex: 2, marginTop: 0 }]}
+                  onPress={handleSubmitRequest}
+                >
+                  <Text style={styles.submitBtnText}>Submit Request</Text>
+                </TouchableOpacity>
+              </View>
             </View>
+          )}
 
-            <View style={{ flexDirection: 'row', gap: 10, width: '100%', marginTop: 14 }}>
-              <TouchableOpacity
-                style={[styles.btnOutline, { flex: 1, paddingVertical: 12 }]}
-                onPress={() => setCurrentView('HOME')}
-              >
-                <Text style={styles.btnOutlineText}>Browse More</Text>
-              </TouchableOpacity>
+          {/* STEP 3: SUBMITTED CONFIRMATION */}
+          {formStep === 3 && newlyCreatedRequest && (
+            <View style={styles.submittedBox}>
+              <Ionicons name="checkmark-circle" size={56} color="#00B894" style={{ marginBottom: 8 }} />
+              <Text style={styles.submittedHeading}>Request sent successfully</Text>
+              <Text style={styles.submittedSub}>We'll check availability for you in {selectedCity}.</Text>
 
-              <TouchableOpacity
-                style={[styles.submitBtn, { flex: 1.5, marginTop: 0 }]}
-                onPress={() => setCurrentView('MY_RENTALS')}
-              >
-                <Text style={styles.submitBtnText}>Track Status →</Text>
-              </TouchableOpacity>
+              <View style={styles.submittedInfoBox}>
+                <Text style={styles.submittedId}>Request ID: {newlyCreatedRequest.id}</Text>
+                <Text style={styles.submittedItem}>Equipment: {newlyCreatedRequest.equipmentName} ({newlyCreatedRequest.quantity} Unit)</Text>
+                <Text style={styles.submittedItem}>Required From: {newlyCreatedRequest.requiredFromDate}</Text>
+                <Text style={styles.submittedItem}>Address: {newlyCreatedRequest.deliveryAddress?.address}</Text>
+                <Text style={styles.submittedStatus}>Status: Request Sent</Text>
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 10, width: '100%', marginTop: 14 }}>
+                <TouchableOpacity
+                  style={[styles.btnOutline, { flex: 1, paddingVertical: 12 }]}
+                  onPress={() => setCurrentView('HOME')}
+                >
+                  <Text style={styles.btnOutlineText}>Browse More</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.submitBtn, { flex: 1.5, marginTop: 0 }]}
+                  onPress={() => setCurrentView('MY_RENTALS')}
+                >
+                  <Text style={styles.submitBtnText}>Track Status →</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        )}
+          )}
 
-        <WebFooter />
-      </ScrollView>
+          {isDesktopWeb && <WebFooter />}
+        </ScrollView>
+      </KeyboardAvoidingView>
     );
   };
 
   // ==========================================================
-  // VIEW: 4. MY RENTALS
+  // VIEW: 4. MY RENTALS (Clean Status & Tracking)
   // ==========================================================
   const renderMyRentalsView = () => {
     const listToDisplay = myRentalsTab === 'CURRENT' ? currentRentals : pastRentals;
@@ -904,14 +929,17 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
     return (
       <ScrollView
         style={styles.scrollContainer}
-        contentContainerStyle={[styles.scrollContent, styles.desktopContainer]}
+        contentContainerStyle={[styles.scrollContent, isDesktopWeb && styles.desktopContainer]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.topHeaderBar}>
-          <WebBackButton
+          <TouchableOpacity
+            style={styles.headerBackBtn}
             onPress={() => setCurrentView('HOME')}
-          />
-          <View style={{ flex: 1, marginLeft: 12 }}>
+          >
+            <Ionicons name="arrow-back" size={20} color="#0F172A" />
+          </TouchableOpacity>
+          <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={styles.screenHeaderTitle}>My Rentals</Text>
             <Text style={styles.screenHeaderSubtitle}>Track your equipment requests</Text>
           </View>
@@ -940,7 +968,7 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
 
         {listToDisplay.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Ionicons name="clipboard-outline" size={44} color="#94A3B8" />
+            <Ionicons name="clipboard-outline" size={40} color="#94A3B8" />
             <Text style={styles.emptyTitle}>No {myRentalsTab === 'CURRENT' ? 'current' : 'past'} rentals</Text>
             <TouchableOpacity style={styles.btnSolid} onPress={() => setCurrentView('HOME')}>
               <Text style={styles.btnSolidText}>Find Equipment</Text>
@@ -1021,7 +1049,7 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
           </View>
         )}
 
-        <WebFooter />
+        {isDesktopWeb && <WebFooter />}
       </ScrollView>
     );
   };
@@ -1052,7 +1080,7 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
               </View>
               <View style={styles.reviewRow}>
                 <Text style={styles.reviewLabel}>Status</Text>
-                <Text style={[styles.reviewValue, { color: '#00B894', fontWeight: '700' }]}>{req.status}</Text>
+                <Text style={[styles.reviewValue, { color: '#007D69', fontWeight: '700' }]}>{req.status}</Text>
               </View>
             </View>
 
@@ -1094,7 +1122,7 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
 };
 
 // ============================================================================
-// STYLESHEET (MediUnify Standard Theme - Responsive Pagination Grid)
+// STYLESHEET (MediUnify Standard Theme - Responsive Reference Card Design)
 // ============================================================================
 const styles = StyleSheet.create({
   safeContainer: {
@@ -1105,10 +1133,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: 110,
   },
   desktopContainer: {
-    maxWidth: 1040,
+    maxWidth: 960,
     width: '100%',
     alignSelf: 'center',
   },
@@ -1118,41 +1146,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
   headerBackBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
   },
   screenHeaderTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
-    color: '#1E3A8A',
+    color: '#0F172A',
   },
   screenHeaderSubtitle: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748B',
   },
   locationBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#E6F4F1',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 6,
-    gap: 4,
+    gap: 3,
   },
   locationBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
-    color: '#00B894',
+    color: '#007D69',
   },
 
   // Nav Tabs
@@ -1160,23 +1188,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
-    gap: 10,
+    gap: 8,
   },
   navTabBtn: {
     flex: 1,
-    paddingVertical: 9,
-    borderRadius: 8,
+    paddingVertical: 8,
+    borderRadius: 6,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
   },
   navTabBtnActive: {
-    backgroundColor: '#00B894',
+    backgroundColor: '#007D69',
   },
   navTabText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#64748B',
   },
@@ -1193,21 +1221,21 @@ const styles = StyleSheet.create({
     borderColor: '#CBD5E1',
     borderRadius: 8,
     marginHorizontal: 16,
-    marginTop: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    marginTop: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
-    color: '#1E3A8A',
+    fontSize: 13,
+    color: '#0F172A',
   },
 
   // Categories
   categoriesScroll: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
+    paddingVertical: 10,
+    gap: 6,
   },
   categoryPill: {
     flexDirection: 'row',
@@ -1215,13 +1243,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 18,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
   categoryPillActive: {
-    backgroundColor: '#00B894',
-    borderColor: '#00B894',
+    backgroundColor: '#007D69',
+    borderColor: '#007D69',
   },
   categoryPillText: {
     fontSize: 12,
@@ -1241,24 +1269,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   sectionHeading: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
-    color: '#1E3A8A',
+    color: '#0F172A',
   },
   pageIndicatorText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
-    color: '#00B894',
+    color: '#007D69',
   },
 
   // Responsive Grid
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
   },
   gridCard: {
     backgroundColor: '#FFFFFF',
@@ -1273,18 +1301,21 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
-  cardWidthDesktop: {
+  cardCol4: {
     width: '23.6%',
   },
-  cardWidthTablet: {
+  cardCol3: {
     width: '31.6%',
   },
-  cardWidthMobile: {
+  cardCol2: {
     width: '48.5%',
+  },
+  cardCol1: {
+    width: '100%',
   },
   gridCardImg: {
     width: '100%',
-    height: 125,
+    height: 110,
     backgroundColor: '#F1F5F9',
   },
   gridCardBody: {
@@ -1293,7 +1324,7 @@ const styles = StyleSheet.create({
   gridCardTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#1E3A8A',
+    color: '#0F172A',
     marginBottom: 2,
   },
   gridCardDesc: {
@@ -1309,7 +1340,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   gridCardBtn: {
-    backgroundColor: '#00B894',
+    backgroundColor: '#007D69',
     paddingVertical: 7,
     borderRadius: 6,
     alignItems: 'center',
@@ -1326,29 +1357,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 18,
-    marginBottom: 16,
-    gap: 12,
+    marginTop: 14,
+    marginBottom: 14,
+    gap: 8,
   },
   pageBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#00B894',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 4,
+    borderColor: '#007D69',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 2,
   },
   pageBtnDisabled: {
     borderColor: '#CBD5E1',
     backgroundColor: '#F8FAFC',
   },
   pageBtnText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
-    color: '#00B894',
+    color: '#007D69',
   },
   pageBtnTextDisabled: {
     color: '#94A3B8',
@@ -1356,12 +1387,12 @@ const styles = StyleSheet.create({
   pageNumbersRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
   pageNumberChip: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 6,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#CBD5E1',
@@ -1369,11 +1400,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pageNumberChipActive: {
-    backgroundColor: '#00B894',
-    borderColor: '#00B894',
+    backgroundColor: '#007D69',
+    borderColor: '#007D69',
   },
   pageNumberText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#334155',
   },
@@ -1386,42 +1417,42 @@ const styles = StyleSheet.create({
     margin: 16,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
   detailsImg: {
     width: '100%',
-    height: 220,
+    height: 180,
     borderRadius: 8,
     backgroundColor: '#E2E8F0',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   detailsTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
-    color: '#1E3A8A',
-    marginBottom: 6,
+    color: '#0F172A',
+    marginBottom: 4,
   },
   detailsDesc: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#475569',
-    lineHeight: 20,
-    marginBottom: 12,
+    lineHeight: 18,
+    marginBottom: 10,
   },
   detailsSectionTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
-    color: '#1E3A8A',
-    marginBottom: 8,
+    color: '#0F172A',
+    marginBottom: 6,
   },
   bulletRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 5,
+    marginBottom: 4,
   },
   bulletText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#334155',
     flex: 1,
   },
@@ -1430,23 +1461,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#F0F9FF',
     borderRadius: 8,
-    padding: 12,
-    marginVertical: 14,
+    padding: 10,
+    marginVertical: 12,
   },
   noticeCardText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#1E3A8A',
+    color: '#0369A1',
     flex: 1,
   },
   detailsRequestBtn: {
-    backgroundColor: '#00B894',
+    backgroundColor: '#007D69',
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
   },
   detailsRequestBtnText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: '#FFFFFF',
   },
@@ -1456,7 +1487,7 @@ const styles = StyleSheet.create({
     margin: 16,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 18,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
@@ -1465,66 +1496,66 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#F8FAFC',
     borderRadius: 8,
-    padding: 10,
-    marginBottom: 12,
+    padding: 8,
+    marginBottom: 10,
   },
   formEquipImg: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: 6,
   },
   formEquipName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
-    color: '#1E3A8A',
+    color: '#0F172A',
   },
   formEquipCity: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748B',
   },
   inputLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#334155',
-    marginTop: 10,
-    marginBottom: 6,
+    marginTop: 8,
+    marginBottom: 4,
   },
   qtyRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
+    gap: 10,
+    marginBottom: 6,
   },
   qtyButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
   },
   qtyValue: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#1E3A8A',
+    color: '#0F172A',
   },
   pillSelectRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 8,
+    gap: 6,
+    marginBottom: 6,
   },
   selectPill: {
     backgroundColor: '#F1F5F9',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 6,
   },
   selectPillActive: {
-    backgroundColor: '#00B894',
+    backgroundColor: '#007D69',
   },
   selectPillText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#334155',
   },
@@ -1536,80 +1567,80 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#CBD5E1',
     borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: 13,
-    color: '#1E3A8A',
-    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 12,
+    color: '#0F172A',
+    marginBottom: 6,
   },
   textInputError: {
     borderColor: '#EF4444',
   },
   addressSection: {
     backgroundColor: '#F8FAFC',
-    padding: 12,
+    padding: 10,
     borderRadius: 8,
-    marginVertical: 10,
+    marginVertical: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
   addressSectionHeading: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
-    color: '#1E3A8A',
+    color: '#0F172A',
   },
   addressHelperText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748B',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   errorMsgText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#DC2626',
     fontWeight: '600',
-    marginTop: 4,
+    marginTop: 2,
   },
   submitBtn: {
-    backgroundColor: '#00B894',
+    backgroundColor: '#007D69',
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 8,
   },
   submitBtnText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: '#FFFFFF',
   },
 
   // Review
   reviewHeader: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
-    color: '#1E3A8A',
-    marginBottom: 12,
+    color: '#0F172A',
+    marginBottom: 10,
   },
   reviewList: {
     backgroundColor: '#F8FAFC',
     borderRadius: 8,
-    padding: 12,
-    marginBottom: 10,
+    padding: 10,
+    marginBottom: 8,
   },
   reviewRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
   reviewLabel: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#64748B',
   },
   reviewValue: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#1E3A8A',
+    color: '#0F172A',
     maxWidth: '65%',
     textAlign: 'right',
   },
@@ -1619,42 +1650,42 @@ const styles = StyleSheet.create({
     margin: 16,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 24,
+    padding: 20,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
   submittedHeading: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
-    color: '#1E3A8A',
+    color: '#0F172A',
   },
   submittedSub: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#64748B',
-    marginTop: 4,
-    marginBottom: 14,
+    marginTop: 2,
+    marginBottom: 12,
   },
   submittedInfoBox: {
     width: '100%',
     backgroundColor: '#F8FAFC',
     borderRadius: 8,
-    padding: 12,
-    gap: 6,
+    padding: 10,
+    gap: 4,
   },
   submittedId: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
-    color: '#00B894',
+    color: '#007D69',
   },
   submittedItem: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#334155',
   },
   submittedStatus: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
-    color: '#1E3A8A',
+    color: '#0284C7',
     marginTop: 2,
   },
 
@@ -1662,12 +1693,12 @@ const styles = StyleSheet.create({
   historyTabsRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 10,
+    paddingVertical: 8,
+    gap: 8,
   },
   historyTab: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 7,
     borderRadius: 6,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
@@ -1675,20 +1706,20 @@ const styles = StyleSheet.create({
   historyTabActive: {
     backgroundColor: '#E6F4F1',
     borderWidth: 1,
-    borderColor: '#00B894',
+    borderColor: '#007D69',
   },
   historyTabText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#64748B',
   },
   historyTabTextActive: {
-    color: '#00B894',
+    color: '#007D69',
   },
   rentalItemCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
-    padding: 14,
+    padding: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
@@ -1698,23 +1729,23 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   rentalItemId: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748B',
   },
   rentalItemName: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
-    color: '#1E3A8A',
+    color: '#0F172A',
   },
   rentalItemCity: {
-    fontSize: 12,
-    color: '#00B894',
+    fontSize: 11,
+    color: '#007D69',
     fontWeight: '600',
   },
   statusTag: {
     backgroundColor: '#E0F2FE',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 6,
   },
   statusTagUnavailable: {
@@ -1724,20 +1755,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#D1FAE5',
   },
   statusTagText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
-    color: '#1E3A8A',
+    color: '#0284C7',
   },
   stepperContainer: {
     backgroundColor: '#F8FAFC',
     borderRadius: 6,
-    padding: 10,
-    marginVertical: 10,
+    padding: 8,
+    marginVertical: 8,
   },
   stepperDotsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   stepperSegment: {
     flexDirection: 'row',
@@ -1762,56 +1793,56 @@ const styles = StyleSheet.create({
     backgroundColor: '#00B894',
   },
   stepperStatusText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#334155',
     fontWeight: '600',
   },
   unavailableBox: {
     backgroundColor: '#FEF2F2',
-    padding: 10,
+    padding: 8,
     borderRadius: 6,
-    marginVertical: 10,
+    marginVertical: 8,
   },
   unavailableTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#DC2626',
   },
   unavailableReason: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#991B1B',
   },
   rentalActionRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 10,
-    marginTop: 6,
+    gap: 8,
+    marginTop: 4,
   },
   btnOutlineSmall: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#00B894',
+    borderColor: '#007D69',
   },
   btnOutlineSmallText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
-    color: '#00B894',
+    color: '#007D69',
   },
   btnReturnSmall: {
     backgroundColor: '#FF7F50',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 6,
   },
   btnReturnSmallText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#FFFFFF',
   },
   btnOutline: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 6,
     borderWidth: 1,
@@ -1819,20 +1850,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   btnOutlineText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#334155',
   },
   btnSolid: {
-    backgroundColor: '#00B894',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    backgroundColor: '#007D69',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },
   btnSolidText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#FFFFFF',
   },
@@ -1850,12 +1881,12 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 18,
+    padding: 16,
   },
   modalTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
-    color: '#1E3A8A',
+    color: '#0F172A',
   },
   modalSub: {
     fontSize: 12,
@@ -1865,32 +1896,23 @@ const styles = StyleSheet.create({
 
   // Empty State
   emptyBox: {
-    padding: 36,
+    padding: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#1E3A8A',
+    color: '#0F172A',
     marginTop: 8,
   },
   emptySub: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748B',
     textAlign: 'center',
-    marginTop: 3,
+    marginTop: 2,
     marginBottom: 10,
   },
 });
 
-const EquipmentRentalScreenResponsive = (props) => {
-  const { width } = useWindowDimensions();
-  return width < 768 ? (
-    <EquipmentRentalScreenMobile {...props} />
-  ) : (
-    <EquipmentRentalScreen {...props} />
-  );
-};
-
-export default EquipmentRentalScreenResponsive;
+export default EquipmentRentalScreen;

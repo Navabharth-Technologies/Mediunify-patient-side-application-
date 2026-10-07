@@ -573,7 +573,7 @@ const EXTENDED_PRODUCTS = [
 
 
 
-import PharmacyScreenMobile from './PharmacyScreen';
+import PharmacyScreenMobile from './PharmacyScreenMobile';
 
 const PharmacyScreenWeb = ({ navigation, route }) => {
   const { width } = useWindowDimensions();

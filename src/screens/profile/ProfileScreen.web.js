@@ -22,7 +22,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { syncActiveUser } from '../../services/dataSyncService';
 import { promptLoginRequired } from '../../utils/authHelper';
 import WebFooter from '../../components/web/WebFooter';
-import ProfileScreenMobile from './ProfileScreen';
+import ProfileScreenMobile from './ProfileScreenMobile';
 
 const ProfileScreenWeb = ({ navigation, route }) => {
   const { isDarkMode, language, changeLanguage, LANGUAGES, t } = useTheme();

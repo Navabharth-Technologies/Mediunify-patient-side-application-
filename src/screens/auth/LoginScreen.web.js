@@ -137,7 +137,7 @@ const TRUST_PILLARS = [
 
 const CITIES = ['Bangalore', 'Mysore', 'Hubli', 'Mangalore', 'Belgaum', 'Delhi NCR', 'Mumbai'];
 
-import LoginScreenMobile from './LoginScreen';
+import LoginScreenMobile from './LoginScreenMobile';
 
 const LoginScreenWeb = ({ navigation, route = {} }) => {
   const { width } = useWindowDimensions();
