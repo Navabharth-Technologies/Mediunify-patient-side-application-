@@ -24,14 +24,7 @@ import { promptLoginRequired } from '../../utils/authHelper';
 import WebFooter from '../../components/web/WebFooter';
 import ProfileScreenMobile from './ProfileScreen';
 
-const ProfileScreenWeb = ({ navigation, route, ...props }) => {
-  const { width } = useWindowDimensions();
-
-  // On mobile viewports (< 768px), strictly render the native mobile app ProfileScreen
-  if (width < 768) {
-    return <ProfileScreenMobile navigation={navigation} route={route} {...props} />;
-  }
-
+const ProfileScreenWeb = ({ navigation, route }) => {
   const { isDarkMode, language, changeLanguage, LANGUAGES, t } = useTheme();
   const currentLang = LANGUAGES.find((l) => l.code === language) || LANGUAGES[0];
   const isDesktop = width >= 992;
@@ -2513,4 +2506,12 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ProfileScreenWeb;
+const ProfileScreenResponsive = (props) => {
+  const { width } = useWindowDimensions();
+  if (width < 768) {
+    return <ProfileScreenMobile {...props} />;
+  }
+  return <ProfileScreenWeb {...props} />;
+};
+
+export default ProfileScreenResponsive;

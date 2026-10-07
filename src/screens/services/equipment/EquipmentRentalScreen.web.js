@@ -39,12 +39,6 @@ import EquipmentRentalScreenMobile from './EquipmentRentalScreen';
 
 const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
   const { width } = useWindowDimensions();
-
-  // On mobile viewports (< 768px), strictly render the native mobile app EquipmentRentalScreen
-  if (width < 768) {
-    return <EquipmentRentalScreenMobile navigation={navigation} route={route} {...props} />;
-  }
-
   const isDesktop = width >= 992;
   const isTablet = width >= 640 && width < 992;
   const isMobile = width < 640;
@@ -1890,4 +1884,13 @@ const styles = StyleSheet.create({
   },
 });
 
-export default EquipmentRentalScreen;
+const EquipmentRentalScreenResponsive = (props) => {
+  const { width } = useWindowDimensions();
+  return width < 768 ? (
+    <EquipmentRentalScreenMobile {...props} />
+  ) : (
+    <EquipmentRentalScreen {...props} />
+  );
+};
+
+export default EquipmentRentalScreenResponsive;

@@ -200,12 +200,6 @@ const AllServicesScreenWeb = ({ navigation, route }) => {
   const { t, language } = useTheme();
 
   const isDesktop = width >= 992;
-  const isMobileWeb = width < 768;
-
-  // On mobile-web, render the native mobile component for consistency
-  if (isMobileWeb) {
-    return <AllServicesScreenMobile navigation={navigation} route={route} />;
-  }
 
   const [searchQuery, setSearchQuery] = useState('');
   const [storedCity, setStoredCity] = useState('');
@@ -785,4 +779,13 @@ const styles = StyleSheet.create({
   },
 });
 
-export default AllServicesScreenWeb;
+const AllServicesScreenResponsive = (props) => {
+  const { width } = useWindowDimensions();
+  return width < 768 ? (
+    <AllServicesScreenMobile {...props} />
+  ) : (
+    <AllServicesScreenWeb {...props} />
+  );
+};
+
+export default AllServicesScreenResponsive;

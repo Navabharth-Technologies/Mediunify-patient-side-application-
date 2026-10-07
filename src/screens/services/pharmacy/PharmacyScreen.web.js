@@ -575,14 +575,8 @@ const EXTENDED_PRODUCTS = [
 
 import PharmacyScreenMobile from './PharmacyScreen';
 
-const PharmacyScreenWeb = ({ navigation, route, ...props }) => {
+const PharmacyScreenWeb = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
-
-  // On mobile viewports (< 768px), strictly render the native mobile app PharmacyScreen
-  if (width < 768) {
-    return <PharmacyScreenMobile navigation={navigation} route={route} {...props} />;
-  }
-
   const isDesktop = width >= 1024;
   const isTablet = width >= 768 && width < 1024;
 
@@ -3293,4 +3287,12 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PharmacyScreenWeb;
+const PharmacyScreenResponsive = (props) => {
+  const { width } = useWindowDimensions();
+  if (width < 768) {
+    return <PharmacyScreenMobile {...props} />;
+  }
+  return <PharmacyScreenWeb {...props} />;
+};
+
+export default PharmacyScreenResponsive;

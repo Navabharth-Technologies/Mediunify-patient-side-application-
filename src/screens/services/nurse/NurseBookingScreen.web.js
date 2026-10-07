@@ -162,12 +162,6 @@ import NurseBookingScreenMobile from './NurseBookingScreen';
 
 const NurseBookingScreen = ({ navigation, route, ...props }) => {
   const { width } = useWindowDimensions();
-
-  // On mobile viewports (< 768px), strictly render the native mobile app NurseBookingScreen
-  if (width < 768) {
-    return <NurseBookingScreenMobile navigation={navigation} route={route} {...props} />;
-  }
-
   const isDesktopWeb = Platform.OS === 'web' && width >= 992;
   const isTablet = width >= 768 && width < 992;
   const { requireLogin } = useAuthGuard();
@@ -7305,4 +7299,13 @@ const styles = StyleSheet.create({
   },
 });
 
-export default NurseBookingScreen;
+const NurseBookingScreenResponsive = (props) => {
+  const { width } = useWindowDimensions();
+  return width < 768 ? (
+    <NurseBookingScreenMobile {...props} />
+  ) : (
+    <NurseBookingScreen {...props} />
+  );
+};
+
+export default NurseBookingScreenResponsive;

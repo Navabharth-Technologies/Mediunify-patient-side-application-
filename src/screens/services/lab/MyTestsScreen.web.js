@@ -179,12 +179,6 @@ import MyTestsScreenMobile from './MyTestsScreen';
 
 const MyTestsScreenWeb = ({ navigation, route, ...props }) => {
   const { width } = useWindowDimensions();
-
-  // On mobile viewports (< 768px), strictly render the native mobile app MyTestsScreen
-  if (width < 768) {
-    return <MyTestsScreenMobile navigation={navigation} route={route} {...props} />;
-  }
-
   const isDesktop = width >= 1024;
   const isTablet = width >= 768 && width < 1024;
 
@@ -2411,7 +2405,16 @@ const MyTestsScreenWeb = ({ navigation, route, ...props }) => {
   );
 };
 
-export default MyTestsScreenWeb;
+const MyTestsScreenResponsive = (props) => {
+  const { width } = useWindowDimensions();
+  return width < 768 ? (
+    <MyTestsScreenMobile {...props} />
+  ) : (
+    <MyTestsScreenWeb {...props} />
+  );
+};
+
+export default MyTestsScreenResponsive;
 
 const styles = StyleSheet.create({
   safeArea: {

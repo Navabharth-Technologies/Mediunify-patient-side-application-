@@ -113,13 +113,8 @@ const getShortStepTitle = (title) => {
 
 import MyMedicineOrdersScreenMobile from './MyMedicineOrdersScreen';
 
-const MyMedicineOrdersScreenWeb = ({ navigation, route, ...props }) => {
+const MyMedicineOrdersScreenWeb = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
-
-  // On mobile viewports (< 768px), strictly render the native mobile app MyMedicineOrdersScreen
-  if (width < 768) {
-    return <MyMedicineOrdersScreenMobile navigation={navigation} route={route} {...props} />;
-  }
   const isDesktop = width >= 1024;
   const isTablet = width >= 768 && width < 1024;
 
@@ -1670,7 +1665,15 @@ const MyMedicineOrdersScreenWeb = ({ navigation, route, ...props }) => {
   );
 };
 
-export default MyMedicineOrdersScreenWeb;
+const MyMedicineOrdersScreenResponsive = (props) => {
+  const { width } = useWindowDimensions();
+  if (width < 768) {
+    return <MyMedicineOrdersScreenMobile {...props} />;
+  }
+  return <MyMedicineOrdersScreenWeb {...props} />;
+};
+
+export default MyMedicineOrdersScreenResponsive;
 
 const styles = StyleSheet.create({
   safeArea: {

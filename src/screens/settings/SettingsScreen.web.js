@@ -27,14 +27,8 @@ import SettingsScreenMobile from './SettingsScreen';
 const LANGUAGES = ['English (India)', 'Kannada (ಕನ್ನಡ)', 'Hindi (हिन्दी)', 'Tamil (தமிழ்)', 'Telugu (తెలుగు)'];
 const COMM_CHANNELS = ['WhatsApp & SMS', 'SMS Only', 'WhatsApp Only', 'Email Only'];
 
-const SettingsScreenWeb = ({ navigation, route, ...props }) => {
+const SettingsScreenWeb = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
-
-  // On mobile viewports (< 768px), strictly render the native mobile app SettingsScreen
-  if (width < 768) {
-    return <SettingsScreenMobile navigation={navigation} route={route} {...props} />;
-  }
-
   const isDesktop = width >= 1024;
 
   const [patient, setPatient] = useState(null);
@@ -541,7 +535,15 @@ const SettingsScreenWeb = ({ navigation, route, ...props }) => {
   );
 };
 
-export default SettingsScreenWeb;
+const SettingsScreenResponsive = (props) => {
+  const { width } = useWindowDimensions();
+  if (width < 768) {
+    return <SettingsScreenMobile {...props} />;
+  }
+  return <SettingsScreenWeb {...props} />;
+};
+
+export default SettingsScreenResponsive;
 
 const styles = StyleSheet.create({
   safeArea: {

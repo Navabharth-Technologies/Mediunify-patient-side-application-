@@ -155,15 +155,9 @@ const TRUST_PILLARS = [
   },
 ];
 
-const HomeScreenWeb = ({ navigation, ...props }) => {
-  const { width } = useWindowDimensions();
-
-  // On mobile viewports (< 768px), strictly render the native mobile app HomeScreen
-  if (width < 768) {
-    return <HomeScreenMobile navigation={navigation} {...props} />;
-  }
-
+const HomeScreenWeb = ({ navigation }) => {
   const { t = (k, fb) => fb || k, isDarkMode, language, isIndic } = useTheme();
+  const { width } = useWindowDimensions();
   const scrollViewRef = useRef(null);
 
   // Search state matching Practo reference
@@ -2471,7 +2465,7 @@ const styles = StyleSheet.create({
 
 const HomeScreenResponsive = (props) => {
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 992;
+  const isDesktop = width >= 768;
 
   if (!isDesktop) {
     return <HomeScreenMobile {...props} />;
