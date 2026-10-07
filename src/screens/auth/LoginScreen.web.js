@@ -78,7 +78,7 @@ const HERO_CARDS = [
     subtitle: 'Advanced imaging diagnostics with certified radiologists.',
     bgColor: '#E8F4FD',
     gradientTop: 'linear-gradient(135deg, #BFD8F0 0%, #D8ECFA 100%)',
-    accentColor: '#0369A1',
+    accentColor: '#1E3A8A',
     accentBg: '#E8F4FD',
     availability: 'Same Day Reports',
     iconFamily: 'Ionicons',
@@ -916,6 +916,26 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
     }
   };
 
+  const handleContinueAsGuest = async () => {
+    try {
+      await AsyncStorage.setItem('isLoggedIn', 'false');
+      await AsyncStorage.setItem('@unnathi_is_guest', 'true');
+      await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('userName');
+      await AsyncStorage.removeItem('userEmail');
+      await AsyncStorage.removeItem('userPhone');
+      await AsyncStorage.removeItem('@unnathi_primary_user');
+      await AsyncStorage.removeItem('@mediunify_membership');
+      await AsyncStorage.removeItem('@unnathi_active_patient');
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('storage'));
+      }
+    } catch (e) {}
+    setShowAuthModal(false);
+    await safeNavigateToMain(navigation);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* ==================================================
@@ -989,7 +1009,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                     accessibilityRole="button"
                     accessibilityLabel={`Selected location: ${selectedCity}`}
                   >
-                    <Ionicons name="location-sharp" size={18} color="#0C3B6B" />
+                    <Ionicons name="location-sharp" size={18} color="#1E3A8A" />
                     <Text style={styles.cityText} numberOfLines={1}>{selectedCity}</Text>
                     <Ionicons name="chevron-down" size={13} color="#64748B" />
                   </TouchableOpacity>
@@ -1134,6 +1154,21 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                     </TouchableOpacity>
                   ))}
                 </View>
+              </View>
+
+              {/* Guest Exploration Strip */}
+              <View style={styles.guestStrip}>
+                <View style={{ flex: 1, minWidth: 220 }}>
+                  <Text style={styles.guestStripHeading}>Explore MediUnify as Guest</Text>
+                  <Text style={styles.guestStripText}>Browse doctors, lab tests, radiology scans and medicine prices with full transparency.</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.guestStripBtn}
+                  onPress={handleContinueAsGuest}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.guestStripBtnText}>Continue as Guest →</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -1441,7 +1476,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   </View>
 
                   {/* Specialty Title */}
-                  <Text style={[styles.specialtyItemTitle, { color: '#0C3B6B' }]} numberOfLines={1}>
+                  <Text style={[styles.specialtyItemTitle, { color: '#1E3A8A' }]} numberOfLines={1}>
                     {spec.title}
                   </Text>
 
@@ -2071,14 +2106,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
 
             {/* Quick Guest Continue */}
             <TouchableOpacity
-              onPress={async () => {
-                try {
-                  await AsyncStorage.setItem('isLoggedIn', 'false');
-                  await AsyncStorage.setItem('@unnathi_is_guest', 'true');
-                } catch (e) {}
-                setShowAuthModal(false);
-                safeNavigateToMain(navigation);
-              }}
+              onPress={handleContinueAsGuest}
               style={styles.skipGuestModalBtn}
             >
               <Text style={styles.skipGuestModalText}>Continue as Guest →</Text>
@@ -2391,7 +2419,7 @@ const styles = StyleSheet.create({
   heroTitleNavy: {
     fontSize: 36,
     fontWeight: '900',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     letterSpacing: -0.8,
     lineHeight: 44,
   },
@@ -2421,7 +2449,7 @@ const styles = StyleSheet.create({
     height: 56,
     paddingLeft: 12,
     paddingRight: 6,
-    shadowColor: '#0C3B6B',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.07,
     shadowRadius: 18,
@@ -2440,7 +2468,7 @@ const styles = StyleSheet.create({
     height: 56,
     paddingLeft: 12,
     paddingRight: 6,
-    shadowColor: '#0C3B6B',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.07,
     shadowRadius: 18,
@@ -2466,7 +2494,7 @@ const styles = StyleSheet.create({
   cityText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   cityDropdown: {
     position: 'absolute',
@@ -2478,7 +2506,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#DCE7EC',
-    shadowColor: '#0C3B6B',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 16 },
     shadowOpacity: 0.14,
     shadowRadius: 28,
@@ -2501,7 +2529,7 @@ const styles = StyleSheet.create({
   locationSearchInput: {
     flex: 1,
     fontSize: 12.5,
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     padding: 0,
     outlineStyle: 'none',
   },
@@ -2626,7 +2654,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 13,
     paddingVertical: 5.5,
-    shadowColor: '#0C3B6B',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,
     shadowRadius: 3,
@@ -2664,7 +2692,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#DCE7EC',
     padding: 16,
-    shadowColor: '#0C3B6B',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.08,
     shadowRadius: 24,
@@ -2689,7 +2717,7 @@ const styles = StyleSheet.create({
   mediAiTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   mediAiBadge: {
     backgroundColor: '#DCFCE7',
@@ -2717,7 +2745,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   mediAiBtn: {
-    backgroundColor: '#0C3B6B',
+    backgroundColor: '#1E3A8A',
     borderRadius: 10,
     paddingVertical: 9,
     paddingHorizontal: 12,
@@ -2827,7 +2855,7 @@ const styles = StyleSheet.create({
   serviceCardsTitle: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     letterSpacing: -0.6,
     marginBottom: 8,
     lineHeight: 36,
@@ -2864,7 +2892,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2EEF3',
     overflow: 'hidden',
-    shadowColor: '#0C3B6B',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.07,
     shadowRadius: 18,
@@ -2892,7 +2920,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.94)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.8)',
-    shadowColor: '#0C3B6B',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.14,
     shadowRadius: 6,
@@ -2928,7 +2956,7 @@ const styles = StyleSheet.create({
   heroCardTitle: {
     fontSize: 15.5,
     fontWeight: '700',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     marginBottom: 5,
     letterSpacing: -0.2,
   },
@@ -3137,7 +3165,7 @@ const styles = StyleSheet.create({
   specialtyItemTitle: {
     fontSize: 14.5,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     textAlign: 'center',
     marginBottom: 4,
     letterSpacing: -0.2,
@@ -3382,7 +3410,7 @@ const styles = StyleSheet.create({
   compliancePillText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   footerCol: {
     flex: 1,
@@ -3391,7 +3419,7 @@ const styles = StyleSheet.create({
   footerColTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     marginBottom: 14,
     letterSpacing: 0.2,
   },

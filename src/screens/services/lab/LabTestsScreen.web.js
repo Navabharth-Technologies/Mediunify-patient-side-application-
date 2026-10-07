@@ -804,29 +804,29 @@ const LabTestsScreenWeb = (props) => {
               paddingHorizontal: 32,
               borderRadius: 24,
               marginBottom: 24,
-              backgroundColor: '#E6FBF2',
+              backgroundColor: '#F8FAFC',
               ...(Platform.OS === 'web'
                 ? {
-                    backgroundImage: 'linear-gradient(135deg, #E6FBF2 0%, #D4F7EC 50%, #E2F9F0 100%)',
+                    backgroundImage: 'linear-gradient(135deg, #F0FDF9 0%, #F8FAFC 55%, #EEF2FF 100%)',
                   }
                 : {}),
-              borderWidth: 1.5,
-              borderColor: '#A7F3D0',
-              boxShadow: '0 12px 32px -8px rgba(0, 184, 148, 0.12), 0 4px 12px -2px rgba(0, 0, 0, 0.03)',
+              borderWidth: 1,
+              borderColor: '#E2E8F0',
+              boxShadow: '0 4px 20px rgba(15, 23, 42, 0.04)',
             },
           ]}
         >
           <View style={styles.webHeroTextCol}>
             <View style={[styles.webHeroBadge, { backgroundColor: '#FFFFFF', borderColor: '#A7F3D0', borderWidth: 1, boxShadow: '0 2px 6px rgba(0, 184, 148, 0.08)' }]}>
-              <Ionicons name="shield-checkmark" size={15} color="#059669" />
-              <Text style={[styles.webHeroBadgeText, { color: '#059669', fontWeight: '800' }]}>
+              <Ionicons name="shield-checkmark" size={15} color="#00B894" />
+              <Text style={[styles.webHeroBadgeText, { color: '#00B894', fontWeight: '800' }]}>
                 NABL & ICMR Certified Clinical Partner Labs • Doorstep Collection
               </Text>
             </View>
-            <Text style={[styles.webHeroTitle, { fontSize: 32, fontWeight: '900', color: '#0C3B6B', marginTop: 10, marginBottom: 6, letterSpacing: -0.6 }]}>
+            <Text style={[styles.webHeroTitle, { fontSize: 32, fontWeight: '900', color: '#1E3A8A', marginTop: 10, marginBottom: 6, letterSpacing: -0.6 }]}>
               Lab Tests & Health Checkup Packages
             </Text>
-            <Text style={[styles.webHeroSubtitle, { fontSize: 14.5, color: '#334155', maxWidth: 680, lineHeight: 22 }]}>
+            <Text style={[styles.webHeroSubtitle, { fontSize: 14.5, color: '#647488', maxWidth: 680, lineHeight: 22 }]}>
               Choose from 13 doctor-verified health checkups with free doorstep sample collection, automated lab testing, and digital reports delivered in 6–8 hours.
             </Text>
           </View>
@@ -839,10 +839,10 @@ const LabTestsScreenWeb = (props) => {
                 maxWidth: 640,
                 marginTop: 18,
                 backgroundColor: '#FFFFFF',
-                borderWidth: 1.5,
-                borderColor: '#A7F3D0',
+                borderWidth: 1,
+                borderColor: '#E2E8F0',
                 borderRadius: 14,
-                boxShadow: '0 6px 20px -4px rgba(0, 184, 148, 0.14)',
+                boxShadow: '0 4px 14px rgba(15, 23, 42, 0.05)',
               },
             ]}
           >
@@ -1295,8 +1295,8 @@ const LabTestsScreenWeb = (props) => {
                         {/* Key Specs Pills */}
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EEF2FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
-                            <Ionicons name="flask-outline" size={13} color="#4338CA" />
-                            <Text style={{ fontSize: 11.5, color: '#4338CA', fontWeight: '700' }}>{pkg.testsCount} Tests Included</Text>
+                            <Ionicons name="flask-outline" size={13} color="#1E3A8A" />
+                            <Text style={{ fontSize: 11.5, color: '#1E3A8A', fontWeight: '700' }}>{pkg.testsCount} Tests Included</Text>
                           </View>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#ECFDF5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
                             <Ionicons name="time-outline" size={13} color="#047857" />
@@ -1311,7 +1311,7 @@ const LabTestsScreenWeb = (props) => {
                         {/* Clinical Note Excerpt */}
                         {Boolean(pkg.clinicalNote) && (
                           <View style={{ backgroundColor: '#F8FAFC', borderRadius: 8, padding: 9, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0', flexDirection: 'row', gap: 6 }}>
-                            <Ionicons name="information-circle-outline" size={15} color="#0284C7" style={{ marginTop: 1 }} />
+                            <Ionicons name="information-circle-outline" size={15} color="#1E3A8A" style={{ marginTop: 1 }} />
                             <Text style={{ fontSize: 11.5, color: '#475569', lineHeight: 16, flex: 1 }} numberOfLines={2}>
                               {pkg.clinicalNote}
                             </Text>
@@ -1455,7 +1455,7 @@ const LabTestsScreenWeb = (props) => {
                     <Text style={styles.webCentreMetaPillText}>{centre.rating} ({centre.reviewsCount}+ reviews)</Text>
                   </View>
                   <View style={styles.webCentreMetaPill}>
-                    <Ionicons name="navigate-outline" size={12} color="#0284C7" />
+                    <Ionicons name="navigate-outline" size={12} color="#1E3A8A" />
                     <Text style={styles.webCentreMetaPillText}>{centre.distanceKm} km away</Text>
                   </View>
                   <View style={styles.webCentreMetaPill}>
@@ -1759,7 +1759,7 @@ const LabTestsScreenWeb = (props) => {
                 {Boolean(selectedPackage.clinicalNote) && (
                   <View style={{ backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, padding: 12, marginBottom: 14 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                      <Ionicons name="information-circle" size={16} color="#0284C7" />
+                      <Ionicons name="information-circle" size={16} color="#1E3A8A" />
                       <Text style={{ fontSize: 12, fontWeight: '700', color: '#0F172A' }}>Clinical / Pricing Note</Text>
                     </View>
                     <Text style={{ fontSize: 12, color: '#475569', lineHeight: 18 }}>{selectedPackage.clinicalNote}</Text>
@@ -1777,8 +1777,8 @@ const LabTestsScreenWeb = (props) => {
                   </View>
                   <View style={{ flex: 1, minWidth: 140, backgroundColor: '#EFF6FF', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: '#DBEAFE' }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                      <Ionicons name="flask-outline" size={13} color="#2563EB" />
-                      <Text style={{ fontSize: 11, color: '#2563EB', fontWeight: '700' }}>Sample Required</Text>
+                      <Ionicons name="flask-outline" size={13} color="#1E3A8A" />
+                      <Text style={{ fontSize: 11, color: '#1E3A8A', fontWeight: '700' }}>Sample Required</Text>
                     </View>
                     <Text style={{ fontSize: 12, color: '#0F172A', fontWeight: '600', marginTop: 2 }}>{selectedPackage.sampleSummary || 'Blood / Urine'}</Text>
                   </View>
@@ -2280,7 +2280,7 @@ const LabTestsScreenWeb = (props) => {
                 {bookingFlowStep === 4 && (
                   <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
                     <View style={styles.demoPaymentAlert}>
-                      <Ionicons name="information-circle" size={18} color="#0284C7" />
+                      <Ionicons name="information-circle" size={18} color="#1E3A8A" />
                       <Text style={styles.demoPaymentAlertText}>Frontend prototype: No real payment will occur.</Text>
                     </View>
                     <Text style={styles.stepBlockTitle}>Select Payment Method</Text>
@@ -2731,11 +2731,11 @@ const styles = StyleSheet.create({
     paddingBottom: 140,
   },
   webHeroBanner: {
-    backgroundColor: '#E6FBF2',
+    backgroundColor: '#F8FAFC',
     borderRadius: 24,
     padding: 28,
-    borderWidth: 1.5,
-    borderColor: '#A7F3D0',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     marginBottom: 24,
   },
   webHeroTextCol: {
@@ -3028,14 +3028,14 @@ const styles = StyleSheet.create({
   webRecommendedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E0F2FE',
+    backgroundColor: '#EEF2FF',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
     gap: 4,
   },
   webRecommendedBadgeText: {
-    color: '#0284C7',
+    color: '#1E3A8A',
     fontSize: 10,
     fontWeight: '700',
   },
@@ -3283,8 +3283,8 @@ const styles = StyleSheet.create({
   statusBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#0284C7',
-    backgroundColor: '#E0F2FE',
+    color: '#1E3A8A',
+    backgroundColor: '#EEF2FF',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -3889,7 +3889,7 @@ const styles = StyleSheet.create({
   },
   demoPaymentAlertText: {
     fontSize: 12,
-    color: '#1D4ED8',
+    color: '#1E3A8A',
     flex: 1,
   },
   paymentMethodCard: {
@@ -3995,7 +3995,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   timelineNodeDone: { backgroundColor: '#00B894' },
-  timelineNodeCurr: { backgroundColor: '#0284C7' },
+  timelineNodeCurr: { backgroundColor: '#1E3A8A' },
   timelineLine: {
     width: 2,
     flex: 1,
@@ -4015,7 +4015,7 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     marginBottom: 2,
   },
-  timelineStepTitleCurr: { color: '#0284C7' },
+  timelineStepTitleCurr: { color: '#1E3A8A' },
   timelineStepDesc: {
     fontSize: 11,
     color: '#64748B',

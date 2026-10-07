@@ -21,6 +21,7 @@ import {
 
 import colors from '../../../theme/colors';
 import { useCart } from '../../../context/CartContext';
+import WebBackButton from '../../../components/web/WebBackButton';
 
 const DEFAULT_LOCATION = {
   latitude: 12.2958,
@@ -137,13 +138,9 @@ const PharmacyLocationScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.container}>
       {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backBtn}
+        <WebBackButton
           onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.secondary} />
-        </TouchableOpacity>
+        />
 
         <View style={styles.headerTitleWrap}>
           <Text style={styles.headerTitle}>Select Delivery Location</Text>

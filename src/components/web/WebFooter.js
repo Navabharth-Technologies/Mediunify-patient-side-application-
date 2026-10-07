@@ -357,12 +357,12 @@ const styles = StyleSheet.create({
     paddingRight: 4,
     paddingVertical: 4,
     height: 44,
-    boxShadow: '0 2px 6px rgba(12, 59, 107, 0.05)',
+    boxShadow: '0 2px 6px rgba(30, 58, 138, 0.05)',
   },
   newsletterInput: {
     flex: 1,
     fontSize: 13,
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     outlineStyle: 'none',
   },
   subscribeBtn: {

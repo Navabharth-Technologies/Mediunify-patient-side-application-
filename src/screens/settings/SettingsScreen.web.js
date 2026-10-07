@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import WebHeader from '../../components/web/WebHeader';
 import WebFooter from '../../components/web/WebFooter';
+import WebBackButton from '../../components/web/WebBackButton';
 import {
   getActivePatient,
   getPatientSettings,
@@ -181,7 +182,12 @@ const SettingsScreenWeb = ({ navigation, route }) => {
                 </View>
                 <Text style={styles.categoryBadgeText}>Preferences & Security</Text>
               </View>
-              <Text style={styles.pageTitle}>Account Settings</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8, marginBottom: 4 }}>
+                <WebBackButton
+                  onPress={() => navigation?.canGoBack?.() ? navigation.goBack() : navigation?.navigate('Home')}
+                />
+                <Text style={[styles.pageTitle, { marginTop: 0, marginBottom: 0 }]}>Account Settings</Text>
+              </View>
               <Text style={styles.pageSubtitle}>
                 Manage SMS/email notification alerts, privacy controls, consultation reminders, and security preferences.
               </Text>
@@ -590,12 +596,12 @@ const styles = StyleSheet.create({
   },
   heroBannerWrap: {
     width: '100%',
-    backgroundColor: '#E6F8F4',
-    borderBottomWidth: 1.5,
-    borderBottomColor: '#A7F3D0',
+    backgroundColor: '#F8FAFC',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
     paddingVertical: 32,
     marginBottom: 20,
-    boxShadow: '0 4px 16px rgba(0, 184, 148, 0.08)',
+    boxShadow: '0 2px 8px rgba(15, 23, 42, 0.03)',
   },
   heroSection: {
     flexDirection: 'row',
@@ -614,10 +620,11 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0 2px 6px rgba(0, 184, 148, 0.12)',
   },
   categoryBadgeText: {
     fontSize: 12,
@@ -629,12 +636,12 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 28,
     fontWeight: '900',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     letterSpacing: -0.6,
   },
   pageSubtitle: {
     fontSize: 14,
-    color: '#475569',
+    color: '#647488',
     marginTop: 6,
     maxWidth: 680,
     lineHeight: 21,

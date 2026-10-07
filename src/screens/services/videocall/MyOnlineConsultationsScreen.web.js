@@ -24,6 +24,7 @@ import {
 } from '../../../data/patientDashboardData';
 import { cancelBookedSlot } from '../../../services/slotBookingService';
 import { showAlert } from '../../../utils/alert';
+import { isGuestUser } from '../../../utils/authHelper';
 
 const CONSULTATION_TABS = ['Upcoming', 'Completed', 'Cancelled'];
 
@@ -35,6 +36,7 @@ const MyOnlineConsultationsScreenWeb = ({ navigation, route }) => {
   const [patient, setPatient] = useState(null);
   const [consultations, setConsultations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isGuestMode, setIsGuestMode] = useState(false);
   const [activeTab, setActiveTab] = useState('Upcoming');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -106,6 +108,15 @@ const MyOnlineConsultationsScreenWeb = ({ navigation, route }) => {
   const loadData = async () => {
     setLoading(true);
     try {
+      const guest = await isGuestUser();
+      if (guest) {
+        setIsGuestMode(true);
+        setPatient(null);
+        setConsultations([]);
+        setLoading(false);
+        return;
+      }
+      setIsGuestMode(false);
       const p = await getActivePatient();
       setPatient(p);
       const items = await getOnlineConsultations();
@@ -264,25 +275,26 @@ const MyOnlineConsultationsScreenWeb = ({ navigation, route }) => {
         {/* Page Hero Banner */}
         <View style={styles.innerContainer}>
           <PatientPageBanner
+            onBack={() => navigation?.canGoBack?.() ? navigation.goBack() : navigation?.navigate('Home')}
             title="My Online Consultations"
             subtitle="Dedicated private telehealth appointments. Join active HD video calls directly from your browser with certified medical specialists."
             badgeText="TELEHEALTH PRIVATE VIDEO SUITE"
             badgeIcon="videocam"
             iconName="videocam"
-            theme="aqua"
+            theme="teal"
             pills={[
               {
                 label: `Upcoming: ${consultations.filter((c) => c.status === 'Upcoming').length} Calls`,
-                bgColor: '#DCFCE7',
-                borderColor: '#86EFAC',
-                textColor: '#166534',
+                bgColor: '#ECFDF5',
+                borderColor: '#A7F3D0',
+                textColor: '#008B94',
                 icon: 'radio-outline',
               },
               {
                 label: `Completed: ${consultations.filter((c) => c.status === 'Completed').length}`,
-                bgColor: '#E0F2FE',
-                borderColor: '#BAE6FD',
-                textColor: '#0369A1',
+                bgColor: '#EFF6FF',
+                borderColor: '#BFDBFE',
+                textColor: '#1E3A8A',
                 icon: 'checkmark-circle-outline',
               },
             ]}
@@ -339,7 +351,30 @@ const MyOnlineConsultationsScreenWeb = ({ navigation, route }) => {
           </View>
 
           {/* Consultations List */}
-          {loading ? (
+          {isGuestMode ? (
+            <View style={styles.emptyCard}>
+              <View style={[styles.emptyIconCircle, { backgroundColor: '#E6F8F4' }]}>
+                <Ionicons name="videocam-outline" size={42} color="#00B894" />
+              </View>
+              <Text style={styles.emptyTitle}>Login to view your online consultations</Text>
+              <Text style={styles.emptyDesc}>
+                Please sign in to view your scheduled video calls, doctor prescriptions, and consultation history.
+              </Text>
+              <TouchableOpacity
+                style={[styles.bookInstantBtn, { marginTop: 18, alignSelf: 'center', paddingHorizontal: 32 }]}
+                onPress={() => {
+                  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('open-auth-modal'));
+                  }
+                  navigation?.navigate('Login', { openAuthModal: true });
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="log-in-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.bookInstantBtnText}>Login</Text>
+              </TouchableOpacity>
+            </View>
+          ) : loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#00B894" />
               <Text style={styles.loadingText}>Loading your video consultations...</Text>

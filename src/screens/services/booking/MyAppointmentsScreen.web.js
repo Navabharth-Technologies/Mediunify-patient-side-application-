@@ -470,6 +470,7 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
         {/* Page Hero Banner */}
         <View style={styles.innerContainer}>
           <PatientPageBanner
+            onBack={() => navigation?.canGoBack?.() ? navigation.goBack() : navigation?.navigate('Home')}
             title="My Appointments"
             subtitle={
               <Text style={styles.pageSubtitle}>
@@ -490,23 +491,23 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
             pills={[
               {
                 label: `Upcoming: ${statusCounts.Upcoming} Visits`,
-                bgColor: '#DCFCE7',
-                borderColor: '#86EFAC',
-                textColor: '#166534',
+                bgColor: '#ECFDF5',
+                borderColor: '#A7F3D0',
+                textColor: '#008B94',
                 icon: 'checkmark-circle',
               },
               {
                 label: `Today: ${statusCounts.Today}`,
-                bgColor: '#FEF9C3',
-                borderColor: '#FDE047',
-                textColor: '#854D0E',
+                bgColor: '#EFF6FF',
+                borderColor: '#BFDBFE',
+                textColor: '#1E3A8A',
                 icon: 'today-outline',
               },
               {
                 label: `Completed: ${statusCounts.Completed}`,
-                bgColor: '#E0F2FE',
-                borderColor: '#BAE6FD',
-                textColor: '#0369A1',
+                bgColor: '#EBF8E7',
+                borderColor: '#C2EDB7',
+                textColor: '#15803D',
                 icon: 'time-outline',
               },
             ]}

@@ -192,7 +192,7 @@ const BottomNavigation = ({
   const { width } = useWindowDimensions();
   const isTabletDevice = width >= 600;
   const insets = useSafeAreaInsets();
-  const { t } = useTheme();
+  const { t, isIndic } = useTheme();
 
   // Gentle breathing aura animation for the AI bot floating button
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -279,8 +279,10 @@ const BottomNavigation = ({
         <Text
           style={[
             styles.bottomText,
+            isIndic && { fontSize: 8.5, lineHeight: 12 },
             isHomeActive && styles.activeBottomText,
           ]}
+          numberOfLines={1}
         >
           {t('nav_home') || 'Home'}
         </Text>
@@ -300,8 +302,10 @@ const BottomNavigation = ({
         <Text
           style={[
             styles.bottomText,
+            isIndic && { fontSize: 8.5, lineHeight: 12 },
             isSearchActive && styles.activeBottomText,
           ]}
+          numberOfLines={1}
         >
           {t('nav_search') || 'Search'}
         </Text>
@@ -349,6 +353,7 @@ const BottomNavigation = ({
           style={[
             styles.bottomText,
             styles.centerAiText,
+            isIndic && { fontSize: 8.5, lineHeight: 12 },
             isChatbotActive && styles.activeBottomText,
           ]}
           numberOfLines={1}
@@ -374,8 +379,10 @@ const BottomNavigation = ({
         <Text
           style={[
             styles.bottomText,
+            isIndic && { fontSize: 8.5, lineHeight: 12 },
             isAlertsActive && styles.activeBottomText,
           ]}
+          numberOfLines={1}
         >
           {t('nav_alerts') || 'Alerts'}
         </Text>
@@ -395,8 +402,10 @@ const BottomNavigation = ({
         <Text
           style={[
             styles.bottomText,
+            isIndic && { fontSize: 8.5, lineHeight: 12 },
             isHistoryActive && styles.activeBottomText,
           ]}
+          numberOfLines={1}
         >
           {t('nav_history') || 'History'}
         </Text>

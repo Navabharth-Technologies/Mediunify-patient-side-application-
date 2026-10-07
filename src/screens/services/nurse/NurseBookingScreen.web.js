@@ -18,7 +18,9 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../../theme/colors';
 import { showAlert } from '../../../utils/alert';
+import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
 import WebFooter from '../../../components/web/WebFooter';
+import WebBackButton from '../../../components/web/WebBackButton';
 import {
   availableNursingServices,
   howItWorksSteps,
@@ -1027,6 +1029,11 @@ const NurseBookingScreen = ({ navigation, route }) => {
 
   const handleConfirmPayment = async () => {
     if (!selectedPaymentReq) return;
+    const isGuest = await isGuestUser();
+    if (isGuest) {
+      promptLoginRequired(navigation, { service: 'payment' });
+      return;
+    }
     setPaymentProcessing(true);
 
     try {
@@ -1171,8 +1178,13 @@ const NurseBookingScreen = ({ navigation, route }) => {
   };
 
   // Submit Care Request
-  const handleSubmitCareRequest = () => {
-    requireLogin(() => _doSubmitCareRequest());
+  const handleSubmitCareRequest = async () => {
+    const isGuest = await isGuestUser();
+    if (isGuest) {
+      promptLoginRequired(navigation, { service: 'nursing' });
+      return;
+    }
+    _doSubmitCareRequest();
   };
 
   const _doSubmitCareRequest = async () => {
@@ -1335,8 +1347,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
         {/* Top Header Bar */}
         <View style={styles.topBarRow}>
           <View style={styles.headerLeftGroup}>
-            <TouchableOpacity
-              style={styles.backCircleBtn}
+            <WebBackButton
               onPress={() => {
                 if (navigation?.canGoBack && navigation.canGoBack()) {
                   navigation.goBack();
@@ -1344,10 +1355,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
                   navigation?.navigate('Home');
                 }
               }}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="arrow-back" size={20} color="#0F172A" />
-            </TouchableOpacity>
+            />
 
             <View style={styles.headerTitleWrap}>
               <Text style={styles.headerTitle}>Home Nursing Care</Text>
@@ -1653,7 +1661,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
                                 isRejected && { color: '#DC2626' },
                                 isServiceDone && { color: '#475569' },
                                 isBookingDone && !isServiceDone && { color: '#15803D' },
-                                !isRejected && !isServiceDone && !isBookingDone && { color: '#0369A1' },
+                                !isRejected && !isServiceDone && !isBookingDone && { color: '#1E3A8A' },
                               ]}
                             >
                               {isRejected ? 'Booking Not Confirmed' : isServiceDone ? 'Completed' : isBookingDone ? 'Booking Confirmed' : req.status === 'Payment Pending' ? 'Payment Pending' : 'Request Sent'}
@@ -1788,7 +1796,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
           {/* Quick Metrics */}
           <View style={styles.adminStatsGrid}>
             <View style={styles.adminStatItem}>
-              <Text style={[styles.adminStatNumber, { color: '#0284C7' }]}>{submittedCount}</Text>
+              <Text style={[styles.adminStatNumber, { color: '#1E3A8A' }]}>{submittedCount}</Text>
               <Text style={styles.adminStatLabel}>New Received</Text>
             </View>
             <View style={styles.adminStatItem}>
@@ -1796,7 +1804,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
               <Text style={styles.adminStatLabel}>Pay Pending</Text>
             </View>
             <View style={styles.adminStatItem}>
-              <Text style={[styles.adminStatNumber, { color: '#4F46E5' }]}>{inProgressCount}</Text>
+              <Text style={[styles.adminStatNumber, { color: '#1E3A8A' }]}>{inProgressCount}</Text>
               <Text style={styles.adminStatLabel}>In Progress</Text>
             </View>
             <View style={styles.adminStatItem}>
@@ -1873,7 +1881,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
                           isCompleted && { color: '#475569' },
                           isConfirmed && { color: '#15803D' },
                           req.status === 'Payment Pending' && { color: '#C2410C' },
-                          !isRejected && !isCompleted && !isConfirmed && req.status !== 'Payment Pending' && { color: '#0369A1' },
+                          !isRejected && !isCompleted && !isConfirmed && req.status !== 'Payment Pending' && { color: '#1E3A8A' },
                         ]}
                       >
                         {isRejected ? 'Booking Not Confirmed' : isCompleted ? 'Service Completed' : isConfirmed ? 'Booking Confirmed' : req.status}
@@ -2019,8 +2027,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
     <View style={styles.flowRoot}>
       {/* Top Flow Header */}
       <View style={styles.flowHeader}>
-        <TouchableOpacity
-          style={styles.flowBackBtn}
+        <WebBackButton
           onPress={() => {
             if (flowStep > 1 && flowStep < 5) {
               setFlowStep(flowStep - 1);
@@ -2028,10 +2035,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
               setCurrentView('LANDING');
             }
           }}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={20} color="#0F172A" />
-        </TouchableOpacity>
+        />
 
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={styles.flowHeaderTitle}>
@@ -2975,13 +2979,9 @@ const NurseBookingScreen = ({ navigation, route }) => {
         <View style={[styles.mainInnerContent, isDesktopWeb && styles.desktopContainer]}>
         {/* Top Header - Note: "+ New Request" button is removed per requirements */}
         <View style={styles.myRequestsHeaderRow}>
-          <TouchableOpacity
-            style={styles.flowBackBtn}
+          <WebBackButton
             onPress={() => setCurrentView('LANDING')}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={20} color="#0F172A" />
-          </TouchableOpacity>
+          />
 
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={styles.myRequestsMainTitle}>My Home Care Requests</Text>
@@ -3067,7 +3067,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
                               isServiceDone && { color: '#475569' },
                               isBookingDone && !isServiceDone && { color: '#15803D' },
                               isPayPending && { color: '#C2410C' },
-                              !isRejected && !isServiceDone && !isBookingDone && !isPayPending && { color: '#0369A1' },
+                              !isRejected && !isServiceDone && !isBookingDone && !isPayPending && { color: '#1E3A8A' },
                             ]}
                           >
                             {isRejected ? 'Booking Not Confirmed' : isServiceDone ? 'Service Completed' : isBookingDone ? 'Booking Confirmed' : isPayPending ? 'Payment Pending' : 'Request Sent'}
@@ -3353,13 +3353,9 @@ const NurseBookingScreen = ({ navigation, route }) => {
       >
         <View style={[styles.mainInnerContent, isDesktopWeb && styles.desktopContainer]}>
         <View style={styles.detailHeaderRow}>
-          <TouchableOpacity
-            style={styles.flowBackBtn}
+          <WebBackButton
             onPress={() => setCurrentView('MY_REQUESTS')}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={20} color="#0F172A" />
-          </TouchableOpacity>
+          />
 
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={styles.detailMainTitle}>Home Care Request Details</Text>
@@ -3977,7 +3973,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
                 </View>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Current Status:</Text>
-                  <Text style={[styles.summaryValue, { color: '#0369A1', fontWeight: '800' }]}>{submittedBookingDetail.status}</Text>
+                  <Text style={[styles.summaryValue, { color: '#1E3A8A', fontWeight: '800' }]}>{submittedBookingDetail.status}</Text>
                 </View>
               </View>
             )}
@@ -4326,13 +4322,13 @@ const styles = StyleSheet.create({
 
   // Light Banner Web Hero
   webHeroBanner: {
-    backgroundColor: '#E6F8F5', // Richer light mint/teal banner
+    backgroundColor: '#F8FAFC',
     borderRadius: 20,
     paddingVertical: 24,
     paddingHorizontal: 28,
     marginBottom: 24,
-    borderWidth: 1.5,
-    borderColor: '#99F6E4',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     shadowColor: '#0D9488',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -4350,11 +4346,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   cardBannerHeader: {
-    backgroundColor: '#E6F8F5', // Light colored banner header matching hero
+    backgroundColor: '#F8FAFC',
     paddingVertical: 13,
     paddingHorizontal: 18,
     borderBottomWidth: 1,
-    borderBottomColor: '#99F6E4',
+    borderBottomColor: '#E2E8F0',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -4432,13 +4428,13 @@ const styles = StyleSheet.create({
   webHeroTitle: {
     fontSize: 26,
     fontWeight: '900',
-    color: '#0F172A',
+    color: '#1E3A8A',
     letterSpacing: -0.5,
     marginBottom: 6,
   },
   webHeroSubtitle: {
     fontSize: 14,
-    color: '#475569',
+    color: '#647488',
     lineHeight: 20,
     marginBottom: 14,
     maxWidth: 620,
@@ -5320,7 +5316,7 @@ const styles = StyleSheet.create({
   adminCityTagText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#0369A1',
+    color: '#1E3A8A',
   },
   adminReqDateText: {
     fontSize: 11,
@@ -5418,7 +5414,7 @@ const styles = StyleSheet.create({
   adminPrimaryActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0284C7',
+    backgroundColor: '#1E3A8A',
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 6,
@@ -6656,7 +6652,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#00B894',
   },
   compactStepDotCurrent: {
-    backgroundColor: '#0284C7',
+    backgroundColor: '#1E3A8A',
     borderWidth: 2,
     borderColor: '#BAE6FD',
   },
@@ -6803,7 +6799,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#00B894',
   },
   timelineBulletCurrent: {
-    backgroundColor: '#0284C7',
+    backgroundColor: '#1E3A8A',
   },
   timelineBulletLive: {
     width: 6,

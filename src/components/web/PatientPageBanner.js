@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import WebBackButton from './WebBackButton';
 
 /**
  * PatientPageBanner - Consistent, modern healthcare header banner
@@ -29,6 +30,7 @@ const PatientPageBanner = ({
   pills = [],
   rightContent = null,
   style = {},
+  onBack,
 }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 900;
@@ -49,8 +51,23 @@ const PatientPageBanner = ({
       <View style={[styles.mainRow, isDesktop ? styles.mainRowDesktop : styles.mainRowMobile]}>
         {/* Left Section: Icon + Text Content */}
         <View style={styles.leftGroup}>
+          {onBack ? (
+            <WebBackButton
+              onPress={onBack}
+              style={{ alignSelf: 'flex-start', marginTop: 2 }}
+            />
+          ) : null}
+
           {iconName ? (
-            <View style={[styles.iconCircle, { backgroundColor: currentTheme.iconCircleBg }]}>
+            <View
+              style={[
+                styles.iconCircle,
+                {
+                  backgroundColor: currentTheme.iconCircleBg,
+                  borderColor: currentTheme.iconBorder || currentTheme.badgeBorder || '#E2E8F0',
+                },
+              ]}
+            >
               <Ionicons name={iconName} size={24} color={currentTheme.iconColor} />
             </View>
           ) : null}
@@ -159,12 +176,13 @@ const styles = StyleSheet.create({
   iconCircle: {
     width: 48,
     height: 48,
-    borderRadius: 12,
+    borderRadius: 14,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
     flexShrink: 0,
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+    boxShadow: '0 2px 6px rgba(15, 23, 42, 0.04)',
   },
   textColumn: {
     flex: 1,

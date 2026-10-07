@@ -127,7 +127,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
   const isTablet = width >= 600 && width < 1024;
   const isCompactDesktop = width >= 1024 && width < 1340;
 
-  const { language, changeLanguage, LANGUAGES, t } = useTheme();
+  const { language, changeLanguage, LANGUAGES, t, isIndic } = useTheme();
   const currentLangObj = LANGUAGES.find((l) => l.code === language) || LANGUAGES[0];
 
   const [infoModal, setInfoModal] = useState(null);
@@ -135,6 +135,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
   const [userName, setUserName] = useState('');
   const [userPhone, setUserPhone] = useState('');
   const [isVipMember, setIsVipMember] = useState(false);
@@ -154,8 +155,10 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
     const checkAuth = async () => {
       try {
         const stored = await AsyncStorage.getItem('isLoggedIn');
-        const isUserLoggedIn = stored === 'true';
+        const isGuestStored = await AsyncStorage.getItem('@unnathi_is_guest');
+        const isUserLoggedIn = stored === 'true' && isGuestStored !== 'true';
         setIsLoggedIn(isUserLoggedIn);
+        setIsGuest(!isUserLoggedIn && isGuestStored === 'true');
         if (isUserLoggedIn) {
           const name = await AsyncStorage.getItem('userName');
           if (name) setUserName(name);
@@ -270,7 +273,9 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
         'userPhone',
       ]);
       await AsyncStorage.setItem('isLoggedIn', 'false');
+      await AsyncStorage.setItem('@unnathi_is_guest', 'true');
       setIsLoggedIn(false);
+      setIsGuest(true);
       setUserName('');
       setUserPhone('');
     } catch (e) {}
@@ -358,7 +363,8 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
     if (targetRoute === 'Home') {
       try {
         const stored = await AsyncStorage.getItem('isLoggedIn');
-        if (stored !== 'true') {
+        const isGuestStored = await AsyncStorage.getItem('@unnathi_is_guest');
+        if (stored !== 'true' && isGuestStored !== 'true') {
           targetRoute = 'Login';
         }
       } catch (e) {}
@@ -450,7 +456,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
         {/* ============================================================
             LEFT GROUP: BRAND LOGO + NAV LINKS (PINNED TO LEFT EDGE)
         ============================================================ */}
-        <View style={styles.headerLeftGroup}>
+        <View style={[styles.headerLeftGroup, isIndic && { gap: width < 1360 ? 16 : 24 }]}>
           <TouchableOpacity
             style={styles.brandCol}
             onPress={() => handleNavigate('Home')}
@@ -487,7 +493,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
               CENTER: NAVIGATION LINKS (Desktop only)
           ============================================================ */}
           {isDesktop && (
-            <View style={styles.navLinksRow}>
+            <View style={[styles.navLinksRow, isIndic && { gap: width < 1360 ? 6 : 10 }]}>
               {NAV_LINKS.map((item) => {
                 const active = isTabActive(item);
                 return (
@@ -495,6 +501,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                     key={item.id}
                     style={[
                       styles.navLinkBtn,
+                      isIndic && { paddingHorizontal: width < 1360 ? 8 : 10 },
                       active && styles.navLinkBtnActive,
                     ]}
                     // @ts-ignore
@@ -507,8 +514,13 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                     <Text
                       style={[
                         styles.navLinkText,
+                        isIndic && {
+                          fontSize: width < 1360 ? 12.5 : 13,
+                          lineHeight: 18,
+                        },
                         active && styles.navLinkTextActive,
                       ]}
+                      numberOfLines={1}
                     >
                       {t(item.labelKey, item.label)}
                     </Text>
@@ -522,14 +534,14 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
         {/* ============================================================
             RIGHT: PRACTO UTILITY LINKS + NOTIFICATION + CART + PROFILE
         ============================================================ */}
-        <View style={[styles.rightActionsRow, { gap: isDesktop ? 16 : 10 }]}>
+        <View style={[styles.rightActionsRow, { gap: isDesktop ? (isIndic && width < 1360 ? 10 : 16) : 10 }]}>
           {/* Practo Utility Links matching Login page */}
           {isDesktop && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: isIndic ? 10 : 14 }}>
               {/* Language Dropdown Trigger & Popover (Matching More Services reference design) */}
               <View style={styles.moreServicesWrapper} nativeID="mediunify-lang-wrap">
                 <TouchableOpacity
-                  style={styles.utilityItem}
+                  style={[styles.utilityItem, { flexShrink: 0 }]}
                   // @ts-ignore
                   className="mediunify-utility-item"
                   onPress={() => setOpenDropdown(openDropdown === 'language' ? null : 'language')}
@@ -542,7 +554,7 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                     color={openDropdown === 'language' ? '#00B894' : '#475569'}
                     style={{ marginRight: 2 }}
                   />
-                  <Text style={[styles.utilityText, openDropdown === 'language' && { color: '#00B894' }]}>
+                  <Text style={[styles.utilityText, openDropdown === 'language' && { color: '#00B894' }, isIndic && { fontSize: 12.5, lineHeight: 17 }]}>
                     {currentLangObj.name || currentLangObj.native || 'English'}
                   </Text>
                   <Ionicons
@@ -908,20 +920,28 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
               )}
             </View>
           ) : (
-            <TouchableOpacity
-              style={styles.loginBtn}
-              // @ts-ignore
-              className="mediunify-login-btn"
-              onPress={() => {
-                if (Platform.OS === 'web' && typeof window !== 'undefined') {
-                  window.dispatchEvent(new CustomEvent('open-auth-modal'));
-                }
-                handleNavigate('Login', { openAuthModal: true });
-              }}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.loginBtnText}>{t('nav_login_signup', 'Login / Signup')}</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              {isGuest && (
+                <View style={styles.headerGuestPill}>
+                  <Ionicons name="person-outline" size={13} color="#1E3A8A" />
+                  <Text style={styles.headerGuestPillText}>Guest</Text>
+                </View>
+              )}
+              <TouchableOpacity
+                style={styles.loginBtn}
+                // @ts-ignore
+                className="mediunify-login-btn"
+                onPress={() => {
+                  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('open-auth-modal'));
+                  }
+                  handleNavigate('Login', { openAuthModal: true });
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.loginBtnText}>{t('nav_login_signup', 'Login / Signup')}</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       </View>
@@ -1829,6 +1849,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.1,
+  },
+  headerGuestPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#F1F5F9',
+    borderColor: '#CBD5E1',
+    borderWidth: 1,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  headerGuestPillText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#334155',
   },
   userProfileWrapper: {
     position: 'relative',

@@ -15,9 +15,11 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { validateAddressMatchesCity } from '../../../utils/addressLocationValidator';
 import { showAlert } from '../../../utils/alert';
+import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
 import WebFooter from '../../../components/web/WebFooter';
 import OptimizedImage from '../../../components/common/OptimizedImage';
 import Pagination from '../../../components/common/Pagination';
+import WebBackButton from '../../../components/web/WebBackButton';
 import {
   equipmentCategories,
   equipmentCatalog,
@@ -270,6 +272,12 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
   const handleSubmitRequest = async () => {
     if (!selectedEquipment) return;
 
+    const isGuest = await isGuestUser();
+    if (isGuest) {
+      promptLoginRequired(navigation, { service: 'equipment' });
+      return;
+    }
+
     const fullAddr = `${houseNo.trim()}, ${streetArea.trim()}, ${selectedCity}`;
     const validation = validateAddressMatchesCity(fullAddr, selectedCity, pincode.trim());
     if (!validation.isValid) {
@@ -405,15 +413,12 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
       >
         {/* Clean Web Header */}
         <View style={styles.topHeaderBar}>
-          <TouchableOpacity
-            style={styles.headerBackBtn}
+          <WebBackButton
             onPress={() => {
               if (navigation?.canGoBack()) navigation.goBack();
               else navigation?.navigate('Home');
             }}
-          >
-            <Ionicons name="arrow-back" size={20} color="#0F172A" />
-          </TouchableOpacity>
+          />
 
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={styles.screenHeaderTitle}>Equipment Rental</Text>
@@ -421,7 +426,7 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
           </View>
 
           <View style={styles.locationBadge}>
-            <Ionicons name="location-sharp" size={14} color="#007D69" />
+            <Ionicons name="location-sharp" size={14} color="#00B894" />
             <Text style={styles.locationBadgeText}>{selectedCity}</Text>
           </View>
         </View>
@@ -490,7 +495,7 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
                 <Ionicons
                   name={cat.icon}
                   size={14}
-                  color={isSelected ? '#FFFFFF' : '#007D69'}
+                  color={isSelected ? '#FFFFFF' : '#00B894'}
                   style={{ marginRight: 5 }}
                 />
                 <Text style={[styles.categoryPillText, isSelected && styles.categoryPillTextActive]}>
@@ -555,12 +560,9 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.topHeaderBar}>
-          <TouchableOpacity
-            style={styles.headerBackBtn}
+          <WebBackButton
             onPress={() => setCurrentView('HOME')}
-          >
-            <Ionicons name="arrow-back" size={20} color="#0F172A" />
-          </TouchableOpacity>
+          />
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={styles.screenHeaderTitle}>{item.name}</Text>
             <Text style={styles.screenHeaderSubtitle}>{item.categoryLabel}</Text>
@@ -584,7 +586,7 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
 
           {/* Availability Notice */}
           <View style={styles.noticeCard}>
-            <Ionicons name="information-circle" size={18} color="#0284C7" style={{ marginRight: 8 }} />
+            <Ionicons name="information-circle" size={18} color="#1E3A8A" style={{ marginRight: 8 }} />
             <Text style={styles.noticeCardText}>
               Availability will be confirmed after your request is placed.
             </Text>
@@ -617,15 +619,12 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.topHeaderBar}>
-          <TouchableOpacity
-            style={styles.headerBackBtn}
+          <WebBackButton
             onPress={() => {
               if (formStep === 2) setFormStep(1);
               else setCurrentView('HOME');
             }}
-          >
-            <Ionicons name="arrow-back" size={20} color="#0F172A" />
-          </TouchableOpacity>
+          />
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={styles.screenHeaderTitle}>Request Equipment</Text>
             <Text style={styles.screenHeaderSubtitle}>{item.name}</Text>
@@ -832,7 +831,7 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
             </View>
 
             <View style={styles.noticeCard}>
-              <Ionicons name="information-circle" size={18} color="#0284C7" style={{ marginRight: 8 }} />
+              <Ionicons name="information-circle" size={18} color="#1E3A8A" style={{ marginRight: 8 }} />
               <Text style={styles.noticeCardText}>
                 Availability will be confirmed after your request is placed.
               </Text>
@@ -907,12 +906,9 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.topHeaderBar}>
-          <TouchableOpacity
-            style={styles.headerBackBtn}
+          <WebBackButton
             onPress={() => setCurrentView('HOME')}
-          >
-            <Ionicons name="arrow-back" size={20} color="#0F172A" />
-          </TouchableOpacity>
+          />
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={styles.screenHeaderTitle}>My Rentals</Text>
             <Text style={styles.screenHeaderSubtitle}>Track your equipment requests</Text>
@@ -1054,7 +1050,7 @@ const EquipmentRentalScreen = ({ navigation, route }) => {
               </View>
               <View style={styles.reviewRow}>
                 <Text style={styles.reviewLabel}>Status</Text>
-                <Text style={[styles.reviewValue, { color: '#007D69', fontWeight: '700' }]}>{req.status}</Text>
+                <Text style={[styles.reviewValue, { color: '#00B894', fontWeight: '700' }]}>{req.status}</Text>
               </View>
             </View>
 
@@ -1136,7 +1132,7 @@ const styles = StyleSheet.create({
   screenHeaderTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   screenHeaderSubtitle: {
     fontSize: 12,
@@ -1154,7 +1150,7 @@ const styles = StyleSheet.create({
   locationBadgeText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#007D69',
+    color: '#00B894',
   },
 
   // Nav Tabs
@@ -1175,7 +1171,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   navTabBtnActive: {
-    backgroundColor: '#007D69',
+    backgroundColor: '#00B894',
   },
   navTabText: {
     fontSize: 13,
@@ -1202,7 +1198,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
 
   // Categories
@@ -1222,8 +1218,8 @@ const styles = StyleSheet.create({
     borderRadius: 18,
   },
   categoryPillActive: {
-    backgroundColor: '#007D69',
-    borderColor: '#007D69',
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
   },
   categoryPillText: {
     fontSize: 12,
@@ -1248,12 +1244,12 @@ const styles = StyleSheet.create({
   sectionHeading: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   pageIndicatorText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#007D69',
+    color: '#00B894',
   },
 
   // Responsive Grid
@@ -1295,7 +1291,7 @@ const styles = StyleSheet.create({
   gridCardTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#1E3A8A',
     marginBottom: 2,
   },
   gridCardDesc: {
@@ -1311,7 +1307,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   gridCardBtn: {
-    backgroundColor: '#007D69',
+    backgroundColor: '#00B894',
     paddingVertical: 7,
     borderRadius: 6,
     alignItems: 'center',
@@ -1337,7 +1333,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#007D69',
+    borderColor: '#00B894',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
@@ -1350,7 +1346,7 @@ const styles = StyleSheet.create({
   pageBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#007D69',
+    color: '#00B894',
   },
   pageBtnTextDisabled: {
     color: '#94A3B8',
@@ -1371,8 +1367,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pageNumberChipActive: {
-    backgroundColor: '#007D69',
-    borderColor: '#007D69',
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
   },
   pageNumberText: {
     fontSize: 13,
@@ -1402,7 +1398,7 @@ const styles = StyleSheet.create({
   detailsTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
     marginBottom: 6,
   },
   detailsDesc: {
@@ -1414,7 +1410,7 @@ const styles = StyleSheet.create({
   detailsSectionTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#1E3A8A',
     marginBottom: 8,
   },
   bulletRow: {
@@ -1438,11 +1434,11 @@ const styles = StyleSheet.create({
   noticeCardText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#0369A1',
+    color: '#1E3A8A',
     flex: 1,
   },
   detailsRequestBtn: {
-    backgroundColor: '#007D69',
+    backgroundColor: '#00B894',
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -1478,7 +1474,7 @@ const styles = StyleSheet.create({
   formEquipName: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   formEquipCity: {
     fontSize: 12,
@@ -1508,7 +1504,7 @@ const styles = StyleSheet.create({
   qtyValue: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   pillSelectRow: {
     flexDirection: 'row',
@@ -1523,7 +1519,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   selectPillActive: {
-    backgroundColor: '#007D69',
+    backgroundColor: '#00B894',
   },
   selectPillText: {
     fontSize: 12,
@@ -1541,7 +1537,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 9,
     fontSize: 13,
-    color: '#0F172A',
+    color: '#1E3A8A',
     marginBottom: 8,
   },
   textInputError: {
@@ -1558,7 +1554,7 @@ const styles = StyleSheet.create({
   addressSectionHeading: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   addressHelperText: {
     fontSize: 12,
@@ -1572,7 +1568,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   submitBtn: {
-    backgroundColor: '#007D69',
+    backgroundColor: '#00B894',
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -1588,7 +1584,7 @@ const styles = StyleSheet.create({
   reviewHeader: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
     marginBottom: 12,
   },
   reviewList: {
@@ -1611,7 +1607,7 @@ const styles = StyleSheet.create({
   reviewValue: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#0F172A',
+    color: '#1E3A8A',
     maxWidth: '65%',
     textAlign: 'right',
   },
@@ -1629,7 +1625,7 @@ const styles = StyleSheet.create({
   submittedHeading: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   submittedSub: {
     fontSize: 13,
@@ -1647,7 +1643,7 @@ const styles = StyleSheet.create({
   submittedId: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#007D69',
+    color: '#00B894',
   },
   submittedItem: {
     fontSize: 12,
@@ -1656,7 +1652,7 @@ const styles = StyleSheet.create({
   submittedStatus: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#0284C7',
+    color: '#1E3A8A',
     marginTop: 2,
   },
 
@@ -1677,7 +1673,7 @@ const styles = StyleSheet.create({
   historyTabActive: {
     backgroundColor: '#E6F4F1',
     borderWidth: 1,
-    borderColor: '#007D69',
+    borderColor: '#00B894',
   },
   historyTabText: {
     fontSize: 13,
@@ -1685,7 +1681,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   historyTabTextActive: {
-    color: '#007D69',
+    color: '#00B894',
   },
   rentalItemCard: {
     backgroundColor: '#FFFFFF',
@@ -1706,11 +1702,11 @@ const styles = StyleSheet.create({
   rentalItemName: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   rentalItemCity: {
     fontSize: 12,
-    color: '#007D69',
+    color: '#00B894',
     fontWeight: '600',
   },
   statusTag: {
@@ -1728,7 +1724,7 @@ const styles = StyleSheet.create({
   statusTagText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#0284C7',
+    color: '#1E3A8A',
   },
   stepperContainer: {
     backgroundColor: '#F8FAFC',
@@ -1794,12 +1790,12 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#007D69',
+    borderColor: '#00B894',
   },
   btnOutlineSmallText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#007D69',
+    color: '#00B894',
   },
   btnReturnSmall: {
     backgroundColor: '#FF7F50',
@@ -1826,7 +1822,7 @@ const styles = StyleSheet.create({
     color: '#334155',
   },
   btnSolid: {
-    backgroundColor: '#007D69',
+    backgroundColor: '#00B894',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 6,
@@ -1857,7 +1853,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1E3A8A',
   },
   modalSub: {
     fontSize: 12,
@@ -1874,7 +1870,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#1E3A8A',
     marginTop: 8,
   },
   emptySub: {

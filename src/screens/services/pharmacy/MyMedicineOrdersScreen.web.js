@@ -36,7 +36,7 @@ import {
  * - Slate:       #64748B (Secondary Text, Borders, Neutral Badges)
  */
 const BRAND = {
-  TEAL: '#008B94',
+  TEAL: '#00B894',
   NAVY: '#1E3A8A',
   AQUA: '#00C2CB',
   GREEN: '#7BC96F',
@@ -44,16 +44,16 @@ const BRAND = {
   SLATE: '#64748B',
 
   // Soft Tinted Fills for Maximum Legibility
-  TEAL_LIGHT: '#E0F4F5',
-  TEAL_BORDER: '#99D9DC',
-  NAVY_LIGHT: '#EEF3F9',
-  NAVY_BORDER: '#BACDE2',
-  AQUA_LIGHT: '#E6F9FA',
-  AQUA_BORDER: '#99E7EA',
-  GREEN_LIGHT: '#EDF8EB',
-  GREEN_BORDER: '#C5E7BF',
-  CORAL_LIGHT: '#FFF1EB',
-  CORAL_BORDER: '#FFC7B3',
+  TEAL_LIGHT: '#E6F8F4',
+  TEAL_BORDER: '#A7F3D0',
+  NAVY_LIGHT: '#EFF6FF',
+  NAVY_BORDER: '#BFDBFE',
+  AQUA_LIGHT: '#E0F7FA',
+  AQUA_BORDER: '#B2EBF2',
+  GREEN_LIGHT: '#EBF8E7',
+  GREEN_BORDER: '#C2EDB7',
+  CORAL_LIGHT: '#FFF2ED',
+  CORAL_BORDER: '#FED7AA',
   SLATE_LIGHT: '#F1F5F9',
   SLATE_BORDER: '#E2E8F0',
 };
@@ -68,6 +68,48 @@ const RETURN_REASONS = [
   'Received duplicate or extra package',
   'Quality issue / defective strip',
 ];
+
+// Clean up overly verbose address strings (e.g. remove repetitive taluk/district/country)
+const formatCleanAddress = (addr) => {
+  if (!addr) return 'Srirampura, Mysuru - 570001';
+  let clean = addr
+    .replace(/,\s*Mysuru taluk/gi, '')
+    .replace(/,\s*Mysore taluk/gi, '')
+    .replace(/,\s*Mysuru District/gi, '')
+    .replace(/,\s*Mysore District/gi, '')
+    .replace(/,\s*India/gi, '')
+    .trim();
+  clean = clean.replace(/,\s*Karnataka,?\s*(\d{6})/gi, ', Karnataka $1');
+  return clean;
+};
+
+// Clean payment status and avoid duplicate "(Verified) (Verified)"
+const formatCleanPayment = (paymentStatus) => {
+  if (!paymentStatus) return 'Paid Online • Verified';
+  const clean = paymentStatus.replace(/\(Verified\)/gi, '').trim();
+  return `${clean || 'Paid Online'} • Verified`;
+};
+
+// Simplify long medicine titles by separating specs in parentheses
+const splitMedNameAndSpecs = (fullName) => {
+  if (!fullName) return { name: 'Medicine', specs: null };
+  const match = fullName.match(/^(.*?)\s*\((.*?)\)$/);
+  if (match) {
+    return { name: match[1].trim(), specs: match[2].trim() };
+  }
+  return { name: fullName.trim(), specs: null };
+};
+
+// Shorten tracking step titles for a crisp stepper
+const getShortStepTitle = (title) => {
+  if (!title) return '';
+  if (/placed/i.test(title)) return 'Placed';
+  if (/pharmacist|confirmed/i.test(title)) return 'Confirmed';
+  if (/packed|pharmacy/i.test(title)) return 'Packed';
+  if (/out for delivery/i.test(title)) return 'Out for Delivery';
+  if (/delivered/i.test(title)) return 'Delivered';
+  return title;
+};
 
 const MyMedicineOrdersScreenWeb = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
@@ -414,6 +456,11 @@ const MyMedicineOrdersScreenWeb = ({ navigation, route }) => {
           deliveryStatus: 'Delivered to Doorstep',
           deliveredDate: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
           isReturnEligible: true,
+          trackingHistory: (o.trackingHistory || []).map((step) => ({
+            ...step,
+            done: true,
+            time: step.time && step.time !== 'Pending' && step.time !== 'In Progress' ? step.time : 'Completed',
+          })),
           items: (o.items || []).map((itm) => ({
             ...itm,
             isReturnEligible: true,
@@ -456,26 +503,26 @@ const MyMedicineOrdersScreenWeb = ({ navigation, route }) => {
     }
   };
 
-  // Status badge styling using exact brand palette
+  // Status badge styling harmonized with web app design system
   const getOrderStatusStyle = (status) => {
     switch (status) {
       case 'Delivered':
-        return { bg: BRAND.GREEN_LIGHT, text: '#237804', border: BRAND.GREEN_BORDER, icon: 'checkmark-circle' };
+        return { bg: '#ECFDF5', text: '#047857', border: '#A7F3D0', icon: 'checkmark-circle' };
       case 'Out for Delivery':
-        return { bg: BRAND.AQUA_LIGHT, text: BRAND.TEAL, border: BRAND.AQUA_BORDER, icon: 'bicycle' };
+        return { bg: '#EFF6FF', text: '#1E3A8A', border: '#BFDBFE', icon: 'bicycle' };
       case 'Preparing':
       case 'Confirmed':
       case 'Order Placed':
-        return { bg: BRAND.NAVY_LIGHT, text: BRAND.NAVY, border: BRAND.NAVY_BORDER, icon: 'cube' };
+        return { bg: '#EEF2FF', text: '#1E3A8A', border: '#C7D2FE', icon: 'cube' };
       case 'Return Requested':
       case 'Partially Returned':
-        return { bg: BRAND.CORAL_LIGHT, text: BRAND.CORAL, border: BRAND.CORAL_BORDER, icon: 'return-up-back' };
+        return { bg: '#FFF7ED', text: '#C2410C', border: '#FED7AA', icon: 'return-up-back' };
       case 'Returned':
-        return { bg: BRAND.CORAL_LIGHT, text: '#C84E23', border: BRAND.CORAL_BORDER, icon: 'arrow-undo' };
+        return { bg: '#F8FAFC', text: '#475569', border: '#E2E8F0', icon: 'arrow-undo' };
       case 'Cancelled':
-        return { bg: '#FEE2E2', text: '#EF4444', border: '#FECACA', icon: 'close-circle' };
+        return { bg: '#FEF2F2', text: '#DC2626', border: '#FECACA', icon: 'close-circle' };
       default:
-        return { bg: BRAND.SLATE_LIGHT, text: BRAND.SLATE, border: BRAND.SLATE_BORDER, icon: 'time-outline' };
+        return { bg: '#F8FAFC', text: '#64748B', border: '#E2E8F0', icon: 'time-outline' };
     }
   };
 
@@ -505,25 +552,26 @@ const MyMedicineOrdersScreenWeb = ({ navigation, route }) => {
         {/* Page Hero Banner */}
         <View style={styles.innerContainer}>
           <PatientPageBanner
+            onBack={() => navigation?.canGoBack?.() ? navigation.goBack() : navigation?.navigate('Home')}
             title="My Medicine Orders"
-            subtitle="Track live medicine shipments, inspect prescribed dosages, download GST invoices, and manage easy item-level returns."
+            subtitle="Track live shipments, download tax invoices, and manage easy medicine returns."
             badgeText="PRESCRIPTION & MEDICINE DELIVERIES"
             badgeIcon="medkit"
             iconName="cart"
-            theme="teal"
+            theme="navy"
             pills={[
               {
                 label: `Active: ${orders.filter((o) => ['Order Placed', 'Confirmed', 'Preparing', 'Out for Delivery'].includes(o.status)).length} Orders`,
-                bgColor: '#E6F8F9',
-                borderColor: '#BFE7EA',
-                textColor: '#007A82',
+                bgColor: '#ECFDF5',
+                borderColor: '#A7F3D0',
+                textColor: '#047857',
                 icon: 'bicycle-outline',
               },
               {
-                label: `Delivered: ${orders.filter((o) => ['Delivered', 'Returned', 'Partially Returned'].includes(o.status)).length} Delivered`,
-                bgColor: '#EDF8EB',
-                borderColor: '#C5E7BF',
-                textColor: '#15803D',
+                label: `Delivered: ${orders.filter((o) => ['Delivered', 'Returned', 'Partially Returned'].includes(o.status)).length} Orders`,
+                bgColor: '#EFF6FF',
+                borderColor: '#BFDBFE',
+                textColor: '#1E3A8A',
                 icon: 'checkmark-done-circle-outline',
               },
             ]}
@@ -547,7 +595,7 @@ const MyMedicineOrdersScreenWeb = ({ navigation, route }) => {
               <Ionicons name="search-outline" size={18} color="#94A3B8" style={{ marginRight: 8 }} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search by medicine name (e.g. Augmentin, Dolo, Shelcal) or Order ID (#MU...)"
+                placeholder="Search by medicine name or Order ID (#MU...)"
                 placeholderTextColor="#94A3B8"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -700,239 +748,298 @@ const MyMedicineOrdersScreenWeb = ({ navigation, route }) => {
                       </View>
 
                       <View style={[styles.statusBadge, { backgroundColor: badge.bg, borderColor: badge.border }]}>
-                        <Ionicons name={badge.icon} size={14} color={badge.text} style={{ marginRight: 4 }} />
+                        <Ionicons name={badge.icon} size={13} color={badge.text} style={{ marginRight: 5 }} />
                         <Text style={[styles.statusBadgeText, { color: badge.text }]}>{order.status}</Text>
                       </View>
                     </View>
 
-                      {/* Delivery Destination Section (Pharmacy store name completely removed per user request) */}
+                    <View style={styles.orderBody}>
+                      {/* Delivery Destination & Status Block */}
                       <View style={styles.deliveryMetaRow}>
                         <View style={styles.deliveryAddressBlock}>
                           <View style={styles.deliveryAddressHeader}>
                             <View style={styles.deliveryIconCircle}>
-                              <Ionicons name="location-outline" size={14} color={BRAND.TEAL} />
+                              <Ionicons name="location" size={13} color="#1E3A8A" />
                             </View>
                             <Text style={styles.deliveryAddressTitle}>Delivery Address</Text>
                             <View style={styles.verifiedAddressBadge}>
-                              <Ionicons name="shield-checkmark" size={11} color="#15803D" style={{ marginRight: 3 }} />
-                              <Text style={styles.verifiedAddressBadgeText}>Verified Destination</Text>
+                              <Ionicons name="shield-checkmark" size={11} color="#047857" style={{ marginRight: 3 }} />
+                              <Text style={styles.verifiedAddressBadgeText}>Verified</Text>
                             </View>
                           </View>
                           <Text style={styles.deliveryAddressText}>
-                            {order.deliveryAddress || order.address?.addressLine || 'Vishwashanti Road, Sriramapura, Mysuru, Karnataka, 570001, India'}
+                            {formatCleanAddress(order.deliveryAddress || order.address?.addressLine)}
                           </Text>
                           {(order.address?.recipientName || order.recipientName || order.address?.name || patient?.name) ? (
                             <Text style={styles.recipientInfoText}>
-                              Recipient: <Text style={{ fontWeight: '700', color: BRAND.NAVY }}>{order.address?.recipientName || order.recipientName || order.address?.name || patient?.name}</Text>
-                              {(order.address?.phone || order.recipientPhone) ? ` • Tel: ${order.address?.phone || order.recipientPhone}` : ''}
+                              Recipient: <Text style={{ fontWeight: '600', color: '#1E293B' }}>{order.address?.recipientName || order.recipientName || order.address?.name || patient?.name}</Text>
+                              {(order.address?.phone || order.recipientPhone) ? ` • ${order.address?.phone || order.recipientPhone}` : ''}
                             </Text>
                           ) : null}
                         </View>
 
-                        <View style={[styles.deliveryPillar, isDelivered && styles.deliveryPillarDelivered]}>
-                          <Text style={[styles.deliveryLabel, isDelivered && { color: '#1B6418' }]}>
-                            {isDelivered ? 'Delivery Status:' : 'Order Status:'}
+                        <View style={styles.deliveryPillar}>
+                          <Text style={styles.deliveryLabel}>
+                            {isDelivered ? 'Delivery Status' : 'Order Status'}
                           </Text>
-                          <Text style={[styles.deliveryValue, isDelivered ? { color: '#166534' } : { color: BRAND.NAVY }]}>
-                            {order.deliveredDate ? `Delivered on ${order.deliveredDate}` : order.deliveryStatus || order.expectedDelivery || 'Processing & Dispatching'}
+                          <Text style={styles.deliveryValue}>
+                            {order.deliveredDate ? `Delivered on ${order.deliveredDate}` : order.deliveryStatus || order.expectedDelivery || 'Preparing Order at Pharmacy'}
                           </Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 }}>
                             <Ionicons
                               name={order.paymentStatus?.toLowerCase().includes('paid') ? 'checkmark-circle' : 'time-outline'}
                               size={13}
-                              color={order.paymentStatus?.toLowerCase().includes('paid') ? '#166534' : BRAND.CORAL}
+                              color={order.paymentStatus?.toLowerCase().includes('paid') ? '#047857' : '#EA580C'}
                             />
-                            <Text style={[styles.paymentStatusText, order.paymentStatus?.toLowerCase().includes('paid') && { color: '#166534', fontWeight: '700' }]}>
-                              {order.paymentStatus ? `${order.paymentStatus} (Verified)` : 'Paid Online (Verified)'}
+                            <Text style={[styles.paymentStatusText, order.paymentStatus?.toLowerCase().includes('paid') && { color: '#047857' }]}>
+                              {formatCleanPayment(order.paymentStatus)}
                             </Text>
                           </View>
                         </View>
                       </View>
 
-                    {/* Visual Tracking Stepper for Active / Delivered Orders */}
-                    {order.trackingHistory && order.status !== 'Cancelled' && (
-                      <View style={styles.trackingStepperCard}>
-                        <Text style={styles.trackingHeader}>Order Delivery Tracking:</Text>
-                        <View style={styles.stepperRow}>
-                          {order.trackingHistory.map((step, idx) => (
-                            <View key={idx} style={styles.stepCol}>
-                              <View style={[styles.stepDot, step.done && styles.stepDotDone]}>
-                                <Ionicons
-                                  name={step.done ? 'checkmark' : 'ellipse'}
-                                  size={11}
-                                  color={step.done ? '#FFFFFF' : '#94A3B8'}
-                                />
+                      {/* Visual Tracking Stepper for Active / Delivered Orders */}
+                      {order.trackingHistory && order.status !== 'Cancelled' && (() => {
+                        const isOrderDelivered = ['delivered', 'returned', 'partially returned'].includes((order.status || '').toLowerCase());
+                        const activeTrackColor = isOrderDelivered ? '#047857' : '#1E3A8A';
+
+                        return (
+                          <View style={styles.trackingStepperCard}>
+                            <View style={styles.trackingHeaderRow}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <Ionicons name="trail-sign-outline" size={13} color="#1E3A8A" style={{ marginRight: 6 }} />
+                                <Text style={styles.trackingHeader}>Delivery Progress</Text>
                               </View>
-                              <Text style={[styles.stepTitle, step.done && styles.stepTitleDone]}>
-                                {step.title}
-                              </Text>
-                              <Text style={styles.stepTime}>{step.time}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      </View>
-                    )}
-
-                    {/* Return Requested Callout if Active (Coral Themed) */}
-                    {(order.status === 'Return Requested' || order.returnRequested || order.status === 'Partially Returned') && (
-                      <View style={styles.returnNoticeBox}>
-                        <Ionicons name="refresh-circle" size={20} color={BRAND.CORAL} style={{ marginRight: 8 }} />
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontWeight: '800', color: '#C84E23', fontSize: 13 }}>
-                            Return Request Active: {order.returnRequests?.[0]?.reason || order.returnReason || 'Item Return Initiated'}
-                          </Text>
-                          <Text style={{ fontSize: 12, color: '#9A3412', marginTop: 2 }}>
-                            {order.returnStatus || 'A pickup executive will arrive within 24-48 hours to collect the return parcel.'}
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-
-                    {/* Multi-Item Display (Requirement 3: Show All Items Inside Order) */}
-                    <View style={styles.medicinesPreview}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <Text style={styles.medsHeading}>Ordered Medicines ({order.items?.length || 0}):</Text>
-                        <Text style={{ fontSize: 11.5, color: BRAND.SLATE, fontWeight: '500' }}>
-                          Verified MediUnify Package
-                        </Text>
-                      </View>
-
-                      <View style={{ gap: 8 }}>
-                        {order.items?.map((item, idx) => {
-                          const isReturned = (item.returnedQuantity || 0) >= item.quantity;
-                          const isPartReturned = (item.returnedQuantity || 0) > 0 && !isReturned;
-
-                          return (
-                            <View key={item.id || idx} style={styles.medicineItemRow}>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                                <View style={[styles.pillIconSmall, isReturned && { backgroundColor: BRAND.CORAL_LIGHT }]}>
-                                  <Ionicons
-                                    name={isReturned ? 'arrow-undo' : 'medkit-outline'}
-                                    size={13}
-                                    color={isReturned ? BRAND.CORAL : BRAND.TEAL}
-                                  />
+                              {isOrderDelivered && (
+                                <View style={styles.deliveredStepperBadge}>
+                                  <Ionicons name="checkmark-circle" size={11} color="#047857" style={{ marginRight: 3 }} />
+                                  <Text style={styles.deliveredStepperBadgeText}>Completed</Text>
                                 </View>
-                                <View style={{ flex: 1 }}>
-                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                    <Text style={[styles.medItemName, isReturned && { textDecorationLine: 'line-through', color: BRAND.SLATE }]}>
-                                      {item.name}
-                                    </Text>
-                                    {item.strength ? (
-                                      <Text style={{ color: BRAND.SLATE, fontSize: 11, fontWeight: '400' }}>
-                                        ({item.strength})
+                              )}
+                            </View>
+                            <View style={styles.stepperContainer}>
+                              <View style={styles.stepperRow}>
+                                {order.trackingHistory.map((step, idx) => {
+                                  const isLast = idx === order.trackingHistory.length - 1;
+                                  const isStepDone = isOrderDelivered || (() => {
+                                    const s = (order.status || '').toLowerCase();
+                                    if (s === 'out for delivery') return idx <= 3;
+                                    if (s === 'preparing') return idx <= 2;
+                                    if (s === 'confirmed') return idx <= 1;
+                                    if (s === 'order placed') return idx === 0;
+                                    return !!step.done;
+                                  })();
+                                  const isNextDone = !isLast && (isOrderDelivered || (() => {
+                                    const s = (order.status || '').toLowerCase();
+                                    if (s === 'out for delivery') return idx + 1 <= 3;
+                                    if (s === 'preparing') return idx + 1 <= 2;
+                                    if (s === 'confirmed') return idx + 1 <= 1;
+                                    return !!order.trackingHistory[idx + 1]?.done;
+                                  })());
+                                  const shortTitle = getShortStepTitle(step.title);
+
+                                  let displayTime = step.time || 'Pending';
+                                  if (isOrderDelivered) {
+                                    if (displayTime === 'Pending' || displayTime === 'In Progress') {
+                                      displayTime = 'Completed';
+                                    }
+                                  } else if (isStepDone && displayTime === 'Pending') {
+                                    displayTime = 'Completed';
+                                  }
+
+                                  return (
+                                    <View key={idx} style={styles.stepCol}>
+                                      <View style={styles.stepIconWrap}>
+                                        <View style={[
+                                          styles.stepDot,
+                                          isStepDone && { backgroundColor: activeTrackColor, borderColor: activeTrackColor }
+                                        ]}>
+                                          <Ionicons
+                                            name={isStepDone ? 'checkmark' : 'ellipse'}
+                                            size={10}
+                                            color={isStepDone ? '#FFFFFF' : '#CBD5E1'}
+                                          />
+                                        </View>
+                                        {!isLast && (
+                                          <View style={[
+                                            styles.stepConnectorLine,
+                                            isNextDone && { backgroundColor: activeTrackColor }
+                                          ]} />
+                                        )}
+                                      </View>
+                                      <Text style={[styles.stepTitle, isStepDone && styles.stepTitleDone]} numberOfLines={1}>
+                                        {shortTitle}
                                       </Text>
-                                    ) : null}
-
-                                    {/* Item Return Status Badge */}
-                                    {isReturned ? (
-                                      <View style={styles.itemReturnedBadge}>
-                                        <Text style={styles.itemReturnedBadgeText}>Returned ({item.returnedQuantity} units)</Text>
-                                      </View>
-                                    ) : isPartReturned ? (
-                                      <View style={[styles.itemReturnedBadge, { backgroundColor: BRAND.CORAL_LIGHT, borderColor: BRAND.CORAL_BORDER }]}>
-                                        <Text style={[styles.itemReturnedBadgeText, { color: '#C84E23' }]}>
-                                          Partial Return ({item.returnedQuantity}/{item.quantity})
-                                        </Text>
-                                      </View>
-                                    ) : null}
-                                  </View>
-
-                                  <Text style={styles.medItemQty}>
-                                    Quantity: <Text style={{ fontWeight: '700', color: '#0F172A' }}>{item.quantity}</Text> • ₹{item.price} each
-                                  </Text>
-                                </View>
+                                      <Text style={[styles.stepTime, isStepDone && isOrderDelivered && { color: '#047857', fontWeight: '500' }]}>
+                                        {displayTime}
+                                      </Text>
+                                    </View>
+                                  );
+                                })}
                               </View>
-                              <Text style={styles.medItemPrice}>
-                                ₹{item.total || Number(item.price || 0) * Number(item.quantity || 1)}
-                              </Text>
                             </View>
-                          );
-                        })}
+                          </View>
+                        );
+                      })()}
+
+                      {/* Return Requested Callout if Active */}
+                      {(order.status === 'Return Requested' || order.returnRequested || order.status === 'Partially Returned') && (
+                        <View style={styles.returnNoticeBox}>
+                          <Ionicons name="refresh-circle" size={18} color="#EA580C" style={{ marginRight: 8 }} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontWeight: '700', color: '#9A3412', fontSize: 12.5 }}>
+                              Return Active: {order.returnRequests?.[0]?.reason || order.returnReason || 'Item Return Initiated'}
+                            </Text>
+                            <Text style={{ fontSize: 11.5, color: '#C2410C', marginTop: 2 }}>
+                              {order.returnStatus || 'A pickup executive will arrive within 24-48 hours.'}
+                            </Text>
+                          </View>
+                        </View>
+                      )}
+
+                      {/* Ordered Items Preview */}
+                      <View style={styles.medicinesPreview}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                          <Text style={styles.medsHeading}>Ordered Items ({order.items?.length || 0})</Text>
+                          <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '500' }}>
+                            Verified MediUnify Package
+                          </Text>
+                        </View>
+
+                        <View style={{ gap: 8 }}>
+                          {order.items?.map((item, idx) => {
+                            const isReturned = (item.returnedQuantity || 0) >= item.quantity;
+                            const isPartReturned = (item.returnedQuantity || 0) > 0 && !isReturned;
+                            const { name: medName, specs: medSpecs } = splitMedNameAndSpecs(item.name);
+                            const itemSpecs = item.strength || medSpecs;
+
+                            return (
+                              <View key={item.id || idx} style={styles.medicineItemRow}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                                  <View style={[styles.pillIconSmall, isReturned && { backgroundColor: '#FFF7ED' }]}>
+                                    <Ionicons
+                                      name={isReturned ? 'arrow-undo' : 'medkit-outline'}
+                                      size={12}
+                                      color={isReturned ? '#EA580C' : '#1E3A8A'}
+                                    />
+                                  </View>
+                                  <View style={{ flex: 1 }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                      <Text style={[styles.medItemName, isReturned && { textDecorationLine: 'line-through', color: '#94A3B8' }]}>
+                                        {medName}
+                                      </Text>
+
+                                      {/* Item Return Status Badge */}
+                                      {isReturned ? (
+                                        <View style={styles.itemReturnedBadge}>
+                                          <Text style={styles.itemReturnedBadgeText}>Returned ({item.returnedQuantity})</Text>
+                                        </View>
+                                      ) : isPartReturned ? (
+                                        <View style={[styles.itemReturnedBadge, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}>
+                                          <Text style={[styles.itemReturnedBadgeText, { color: '#C2410C' }]}>
+                                            Partial Return ({item.returnedQuantity}/{item.quantity})
+                                          </Text>
+                                        </View>
+                                      ) : null}
+                                    </View>
+
+                                    <Text style={styles.medItemQty}>
+                                      Qty: <Text style={{ fontWeight: '600', color: '#334155' }}>{item.quantity}</Text> • ₹{item.price} each{itemSpecs ? ` • ${itemSpecs}` : ''}
+                                    </Text>
+                                  </View>
+                                </View>
+                                <Text style={styles.medItemPrice}>
+                                  ₹{item.total || Number(item.price || 0) * Number(item.quantity || 1)}
+                                </Text>
+                              </View>
+                            );
+                          })}
+                        </View>
+
+                        {/* Total Amount Row */}
+                        <View style={styles.totalRow}>
+                          <Text style={styles.totalLabel}>Total Amount (Paid):</Text>
+                          <Text style={styles.totalAmount}>₹{order.totalAmount || order.total}</Text>
+                        </View>
                       </View>
 
-                      {/* Total Amount Row */}
-                      <View style={styles.totalRow}>
-                        <Text style={styles.totalLabel}>Total Amount (Paid):</Text>
-                        <Text style={styles.totalAmount}>₹{order.totalAmount || order.total}</Text>
-                      </View>
-                    </View>
-
-                    {/* Action Buttons Row */}
-                    <View style={styles.orderActionsRow}>
-                      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                        {/* View Details Button (Requirement 1) */}
-                        <TouchableOpacity
-                          style={styles.detailsBtn}
-                          onPress={() => {
-                            setSelectedOrder(order);
-                            setActiveModal('details');
-                          }}
-                          activeOpacity={0.8}
-                        >
-                          <Ionicons name="receipt-outline" size={15} color={BRAND.NAVY} style={{ marginRight: 4 }} />
-                          <Text style={styles.detailsBtnText}>View Details</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={styles.invoiceBtn}
-                          onPress={() => {
-                            setSelectedOrder(order);
-                            setActiveModal('invoice');
-                          }}
-                          activeOpacity={0.8}
-                        >
-                          <Ionicons name="document-text-outline" size={15} color={BRAND.TEAL} style={{ marginRight: 4 }} />
-                          <Text style={styles.invoiceBtnText}>View Invoice</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={styles.contactBtn}
-                          onPress={() => {
-                            setSelectedOrder(order);
-                            setActiveModal('contact');
-                          }}
-                          activeOpacity={0.8}
-                        >
-                          <Ionicons name="headset-outline" size={14} color={BRAND.SLATE} style={{ marginRight: 4 }} />
-                          <Text style={styles.contactBtnText}>Order Support</Text>
-                        </TouchableOpacity>
-
-                        {/* Demo Testing Helper: Mark Delivered to test Return flow if order is newly placed */}
-                        {!isDelivered && (
+                      {/* Action Buttons Row */}
+                      <View style={styles.orderActionsRow}>
+                        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                          {/* View Details Button */}
                           <TouchableOpacity
-                            style={styles.demoDeliveredBtn}
-                            onPress={() => handleMarkOrderDelivered(order)}
+                            style={styles.detailsBtn}
+                            onPress={() => {
+                              setSelectedOrder(order);
+                              setActiveModal('details');
+                            }}
                             activeOpacity={0.8}
                           >
-                            <Ionicons name="checkmark-done" size={13} color={BRAND.TEAL} style={{ marginRight: 4 }} />
-                            <Text style={styles.demoDeliveredBtnText}>Mark Delivered (Test Return)</Text>
+                            <Ionicons name="receipt-outline" size={14} color="#1E293B" style={{ marginRight: 5 }} />
+                            <Text style={styles.detailsBtnText}>Details</Text>
                           </TouchableOpacity>
-                        )}
-                      </View>
 
-                      {/* Return Items & Reorder Actions (Requirements 4, 5) */}
-                      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                        {isDeliveredOrReturnable && returnableItemsCount > 0 && (
                           <TouchableOpacity
-                            style={styles.returnBtn}
-                            onPress={() => handleOpenReturnModal(order)}
+                            style={styles.invoiceBtn}
+                            onPress={() => {
+                              setSelectedOrder(order);
+                              setActiveModal('invoice');
+                            }}
                             activeOpacity={0.8}
                           >
-                            <Ionicons name="return-down-back-outline" size={15} color={BRAND.CORAL} style={{ marginRight: 4 }} />
-                            <Text style={styles.returnBtnText}>Return Items</Text>
+                            <Ionicons name="document-text-outline" size={14} color="#1E3A8A" style={{ marginRight: 5 }} />
+                            <Text style={styles.invoiceBtnText}>Invoice</Text>
                           </TouchableOpacity>
-                        )}
 
-                        {isDelivered && (
                           <TouchableOpacity
-                            style={styles.reorderBtn}
-                            onPress={() => handleReorder(order)}
+                            style={styles.contactBtn}
+                            onPress={() => {
+                              setSelectedOrder(order);
+                              setActiveModal('contact');
+                            }}
                             activeOpacity={0.8}
                           >
-                            <Ionicons name="repeat-outline" size={15} color="#FFFFFF" style={{ marginRight: 4 }} />
-                            <Text style={styles.reorderBtnText}>Reorder</Text>
+                            <Ionicons name="headset-outline" size={14} color="#475569" style={{ marginRight: 5 }} />
+                            <Text style={styles.contactBtnText}>Support</Text>
                           </TouchableOpacity>
-                        )}
+
+                          {/* Demo Testing Helper: Mark Delivered */}
+                          {!isDelivered && (
+                            <TouchableOpacity
+                              style={styles.demoDeliveredBtn}
+                              onPress={() => handleMarkOrderDelivered(order)}
+                              activeOpacity={0.8}
+                            >
+                              <Ionicons name="checkmark-done" size={13} color="#008B94" style={{ marginRight: 4 }} />
+                              <Text style={styles.demoDeliveredBtnText}>Mark Delivered</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+
+                        {/* Return Items & Reorder Actions */}
+                        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                          {isDeliveredOrReturnable && returnableItemsCount > 0 && (
+                            <TouchableOpacity
+                              style={styles.returnBtn}
+                              onPress={() => handleOpenReturnModal(order)}
+                              activeOpacity={0.8}
+                            >
+                              <Ionicons name="return-down-back-outline" size={14} color="#C2410C" style={{ marginRight: 4 }} />
+                              <Text style={styles.returnBtnText}>Return Items</Text>
+                            </TouchableOpacity>
+                          )}
+
+                          {isDelivered && (
+                            <TouchableOpacity
+                              style={styles.reorderBtn}
+                              onPress={() => handleReorder(order)}
+                              activeOpacity={0.8}
+                            >
+                              <Ionicons name="repeat-outline" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+                              <Text style={styles.reorderBtnText}>Reorder</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
                       </View>
                     </View>
                   </View>
@@ -1561,8 +1668,7 @@ export default MyMedicineOrdersScreenWeb;
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#E8F1F8',
-    backgroundImage: 'linear-gradient(180deg, #E6F0F7 0%, #EBF4FA 35%, #F0F6FA 100%)',
+    backgroundColor: '#F8FAFC',
   },
   scrollContent: {
     flexGrow: 1,
@@ -1835,278 +1941,324 @@ const styles = StyleSheet.create({
   },
   orderCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#BCE3E7',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     overflow: 'hidden',
-    boxShadow: '0 6px 20px rgba(0, 139, 148, 0.08)',
+    boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
   },
   orderTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#EDF7F9',
-    borderBottomWidth: 1.5,
-    borderBottomColor: '#D0ECEF',
+    backgroundColor: '#F8FAFC',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
   orderBody: {
-    padding: 18,
+    padding: 16,
   },
   orderIdText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: BRAND.NAVY,
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: '#1E3A8A',
   },
   orderDateText: {
     fontSize: 12,
-    color: BRAND.SLATE,
+    color: '#64748B',
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 14,
-    borderWidth: 1.5,
+    paddingVertical: 3.5,
+    borderRadius: 12,
+    borderWidth: 1,
   },
   statusBadgeText: {
     fontSize: 11.5,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   deliveryMetaRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'stretch',
     flexWrap: 'wrap',
-    gap: 16,
+    gap: 12,
     marginBottom: 14,
   },
   deliveryAddressBlock: {
     flex: 1,
     minWidth: 280,
-    backgroundColor: '#F6FCFC',
-    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#D4EFEF',
-    padding: 14,
+    borderColor: '#E2E8F0',
+    padding: 12,
   },
   deliveryAddressHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 7,
     marginBottom: 6,
   },
   deliveryIconCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: BRAND.TEAL,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#EEF2FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   deliveryAddressTitle: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: BRAND.NAVY,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
   },
   verifiedAddressBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E0F4F5',
+    backgroundColor: '#ECFDF5',
     borderWidth: 1,
-    borderColor: '#99D9DC',
-    borderRadius: 10,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    borderColor: '#A7F3D0',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
     marginLeft: 4,
   },
   verifiedAddressBadgeText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: BRAND.TEAL,
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#047857',
   },
   deliveryAddressText: {
-    fontSize: 12.5,
-    color: '#334155',
+    fontSize: 12,
+    color: '#475569',
     lineHeight: 18,
-    marginTop: 2,
   },
   recipientInfoText: {
-    fontSize: 12,
-    color: BRAND.SLATE,
+    fontSize: 11.5,
+    color: '#64748B',
     marginTop: 6,
     paddingTop: 6,
     borderTopWidth: 1,
-    borderTopColor: '#E6F4F5',
+    borderTopColor: '#E2E8F0',
   },
   deliveryPillar: {
-    backgroundColor: '#EAF6F8',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#BFE7EB',
-    padding: 14,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
     minWidth: 220,
     justifyContent: 'center',
   },
-  deliveryPillarDelivered: {
-    backgroundColor: '#EBF9EA',
-    borderColor: '#AEE4A6',
-  },
   deliveryLabel: {
     fontSize: 11,
-    color: BRAND.SLATE,
+    color: '#64748B',
     fontWeight: '600',
   },
   deliveryValue: {
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: '700',
-    color: BRAND.NAVY,
+    color: '#0F172A',
     marginTop: 2,
   },
   paymentStatusText: {
-    fontSize: 11,
-    color: '#475569',
+    fontSize: 11.5,
+    color: '#047857',
     fontWeight: '600',
   },
   trackingStepperCard: {
-    backgroundColor: '#F0F9FA',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#CEEFEF',
-    padding: 14,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     marginBottom: 14,
   },
+  trackingHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
   trackingHeader: {
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: '700',
-    color: '#475569',
-    marginBottom: 8,
+    color: '#1E3A8A',
+  },
+  deliveredStepperBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  deliveredStepperBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#047857',
+  },
+  stepperContainer: {
+    width: '100%',
   },
   stepperRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 6,
+    alignItems: 'flex-start',
   },
   stepCol: {
     flex: 1,
     alignItems: 'center',
+    position: 'relative',
+    paddingBottom: 2,
+  },
+  stepIconWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    justifyContent: 'center',
+    marginBottom: 6,
+    position: 'relative',
   },
   stepDot: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: BRAND.SLATE_BORDER,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    zIndex: 2,
   },
   stepDotDone: {
-    backgroundColor: BRAND.TEAL,
+    backgroundColor: '#047857',
+    borderColor: '#047857',
+  },
+  stepConnectorLine: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    right: '-50%',
+    height: 2,
+    backgroundColor: '#E2E8F0',
+    zIndex: 1,
+    marginTop: -1,
+  },
+  stepConnectorLineActive: {
+    backgroundColor: '#047857',
   },
   stepTitle: {
-    fontSize: 10,
-    color: BRAND.SLATE,
+    fontSize: 11,
+    color: '#64748B',
     textAlign: 'center',
-    lineHeight: 12,
+    lineHeight: 14,
   },
   stepTitleDone: {
-    fontWeight: '700',
-    color: BRAND.NAVY,
+    fontWeight: '600',
+    color: '#0F172A',
   },
   stepTime: {
-    fontSize: 9,
+    fontSize: 10,
     color: '#94A3B8',
-    marginTop: 2,
+    marginTop: 3,
     textAlign: 'center',
+    lineHeight: 13,
   },
   returnNoticeBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: BRAND.CORAL_LIGHT,
+    backgroundColor: '#FFF7ED',
     borderWidth: 1,
-    borderColor: BRAND.CORAL_BORDER,
+    borderColor: '#FED7AA',
     borderRadius: 8,
     padding: 10,
     marginBottom: 12,
   },
 
-  // Multi-Item Medicines Preview (Requirement 3)
+  // Multi-Item Medicines Preview
   medicinesPreview: {
-    backgroundColor: '#F7FCFD',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#D4EFEF',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     padding: 14,
   },
   medsHeading: {
     fontSize: 12.5,
-    fontWeight: '800',
-    color: BRAND.NAVY,
+    fontWeight: '700',
+    color: '#0F172A',
   },
   medicineItemRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderBottomWidth: 1,
-    borderBottomColor: '#E6F4F5',
+    borderBottomColor: '#F1F5F9',
   },
   pillIconSmall: {
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: '#CEEFEF',
+    backgroundColor: '#EFF6FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   medItemName: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
   },
   medItemQty: {
     fontSize: 11.5,
-    color: BRAND.SLATE,
+    color: '#64748B',
     marginTop: 2,
   },
   medItemPrice: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: BRAND.NAVY,
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#0F172A',
   },
   itemReturnedBadge: {
-    backgroundColor: BRAND.CORAL_LIGHT,
+    backgroundColor: '#FFF7ED',
     borderWidth: 1,
-    borderColor: BRAND.CORAL_BORDER,
+    borderColor: '#FED7AA',
     borderRadius: 4,
     paddingHorizontal: 6,
-    paddingVertical: 1.5,
+    paddingVertical: 1,
   },
   itemReturnedBadgeText: {
     fontSize: 10,
-    fontWeight: '700',
-    color: '#C84E23',
+    fontWeight: '600',
+    color: '#C2410C',
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: 12,
-    marginTop: 10,
-    borderTopWidth: 1.5,
-    borderTopColor: '#CBE7EB',
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
   },
   totalLabel: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: BRAND.NAVY,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
   },
   totalAmount: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: BRAND.TEAL,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1E3A8A',
   },
   orderActionsRow: {
     flexDirection: 'row',
@@ -2115,97 +2267,97 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     marginTop: 14,
-    paddingTop: 14,
-    borderTopWidth: 1.5,
-    borderTopColor: '#E2F0F2',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
   },
   detailsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: BRAND.NAVY,
-    backgroundColor: '#EEF3F9',
+    paddingVertical: 6.5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
   },
   detailsBtnText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: BRAND.NAVY,
+    fontWeight: '600',
+    color: '#1E293B',
   },
   invoiceBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: BRAND.TEAL,
-    backgroundColor: '#E0F4F5',
+    paddingVertical: 6.5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
   },
   invoiceBtnText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: BRAND.TEAL,
+    fontWeight: '600',
+    color: '#1E3A8A',
   },
   contactBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: '#94A3B8',
-    backgroundColor: '#F1F5F9',
+    paddingVertical: 6.5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
   },
   contactBtnText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#475569',
   },
   demoDeliveredBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: BRAND.AQUA_BORDER,
-    backgroundColor: BRAND.AQUA_LIGHT,
+    paddingVertical: 6.5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
   },
   demoDeliveredBtnText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: BRAND.TEAL,
+    fontWeight: '600',
+    color: '#1E3A8A',
   },
   returnBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: BRAND.CORAL,
-    backgroundColor: '#FFF0EB',
+    paddingHorizontal: 13,
+    paddingVertical: 6.5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    backgroundColor: '#FFF7ED',
   },
   returnBtnText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#D94814',
+    fontWeight: '600',
+    color: '#C2410C',
   },
   reorderBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: BRAND.TEAL,
-    boxShadow: '0 4px 12px rgba(0, 139, 148, 0.28)',
+    paddingVertical: 7.5,
+    borderRadius: 8,
+    backgroundColor: '#1E3A8A',
+    boxShadow: '0 2px 6px rgba(30, 58, 138, 0.25)',
   },
   reorderBtnText: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#FFFFFF',
   },
 

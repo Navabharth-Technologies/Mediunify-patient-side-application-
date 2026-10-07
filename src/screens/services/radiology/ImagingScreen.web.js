@@ -19,7 +19,9 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../../theme/colors';
 import { showAlert } from '../../../utils/alert';
+import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
 import WebFooter from '../../../components/web/WebFooter';
+import WebBackButton from '../../../components/web/WebBackButton';
 import {
   RADIOLOGY_CATEGORIES,
   RADIOLOGY_TESTS,
@@ -740,6 +742,12 @@ export default function ImagingScreenWeb({ navigation, route }) {
   // 6. PROCESS PAYMENT & CONFIRM
   // --------------------------------------------------
   const handleExecutePayment = async () => {
+    const isGuest = await isGuestUser();
+    if (isGuest) {
+      promptLoginRequired(navigation, { service: 'radiology' });
+      return;
+    }
+
     const chosenDay = appointmentDays[selectedDateIndex] || appointmentDays[0];
     const slotValidation = await validateAndBookSlot({
       date: chosenDay.isoDate,
@@ -1086,15 +1094,10 @@ export default function ImagingScreenWeb({ navigation, route }) {
           Visible & accessible across iOS, Android, and Tablet
       ============================================================ */}
       <View style={styles.pinnedTopAppBar}>
-        <TouchableOpacity
-          style={styles.pinnedBackBtn}
+        <WebBackButton
           onPress={handleGoBack}
-          activeOpacity={0.7}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           accessibilityLabel="Go back to previous screen"
-        >
-          <Ionicons name="arrow-back" size={20} color="#0C3B6B" />
-        </TouchableOpacity>
+        />
 
         <View style={styles.pinnedTitleContainer}>
           <Text style={styles.pinnedTitleText} numberOfLines={1} ellipsizeMode="tail">
@@ -1141,7 +1144,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
           <Ionicons
             name="calendar-outline"
             size={16}
-            color={viewMode === 'my-bookings' ? '#FFFFFF' : '#0369A1'}
+            color={viewMode === 'my-bookings' ? '#FFFFFF' : '#1E3A8A'}
           />
           {width >= 360 && (
             <Text
@@ -1175,9 +1178,9 @@ export default function ImagingScreenWeb({ navigation, route }) {
               Platform.OS === 'web'
                 ? {
                     backgroundImage:
-                      'linear-gradient(135deg, #E0F2FE 0%, #E6F8F2 50%, #F0FDF4 100%)',
+                      'linear-gradient(135deg, #F0FDF9 0%, #F8FAFC 55%, #EEF2FF 100%)',
                   }
-                : { backgroundColor: '#E0F2FE' },
+                : { backgroundColor: '#F8FAFC' },
             ]}
           >
             <View style={styles.heroInnerContainer}>
@@ -1188,7 +1191,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                     <Text style={styles.accreditedTagText}>NABH & NABL Accredited Centres</Text>
                   </View>
                   <View style={styles.pacsTag}>
-                    <Ionicons name="document-text-outline" size={13} color="#0369A1" />
+                    <Ionicons name="document-text-outline" size={13} color="#1E3A8A" />
                     <Text style={styles.pacsTagText}>Digital Reports Online</Text>
                   </View>
                 </View>
@@ -1340,7 +1343,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
               <View style={styles.trustHighlightsSection}>
                 <View style={styles.trustItem}>
                   <View style={[styles.trustIconWrap, { backgroundColor: '#E0F2FE' }]}>
-                    <Ionicons name="shield-checkmark" size={24} color="#0369A1" />
+                    <Ionicons name="shield-checkmark" size={24} color="#1E3A8A" />
                   </View>
                   <View style={styles.trustTextCol}>
                     <Text style={styles.trustTitle}>Certified Radiologists</Text>
@@ -1413,7 +1416,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                   onPress={() => navigateToView('categories')}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="grid-outline" size={15} color="#0369A1" />
+                  <Ionicons name="grid-outline" size={15} color="#1E3A8A" />
                   <Text style={styles.changeCategoryBtnText}>All Categories</Text>
                 </TouchableOpacity>
               </View>
@@ -1550,7 +1553,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                       activeOpacity={0.8}
                       accessibilityLabel="Change selected test"
                     >
-                      <Ionicons name="swap-horizontal" size={13} color="#0369A1" />
+                      <Ionicons name="swap-horizontal" size={13} color="#1E3A8A" />
                       <Text style={styles.changeTestPillBtnText}>Change Scan</Text>
                     </TouchableOpacity>
 
@@ -1577,7 +1580,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                     </Text>
                     <View style={styles.selectedTestHeroBadges}>
                       <View style={styles.heroMiniBadge}>
-                        <Ionicons name="time-outline" size={12} color="#0369A1" />
+                        <Ionicons name="time-outline" size={12} color="#1E3A8A" />
                         <Text style={styles.heroMiniBadgeText}>Duration: {selectedTest.duration}</Text>
                       </View>
                       <View style={styles.heroMiniBadge}>
@@ -1663,7 +1666,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                     <Ionicons
                       name="time"
                       size={13}
-                      color={filterOpen24x7 ? '#FFFFFF' : '#0369A1'}
+                      color={filterOpen24x7 ? '#FFFFFF' : '#1E3A8A'}
                     />
                     <Text style={[styles.filterChipText, filterOpen24x7 && styles.filterChipTextActive]}>
                       Open 24x7
@@ -1763,7 +1766,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                               {provider.area}, {provider.city}
                             </Text>
                             <Text style={styles.providerDot}>•</Text>
-                            <Ionicons name="navigate-outline" size={13} color="#0369A1" />
+                            <Ionicons name="navigate-outline" size={13} color="#1E3A8A" />
                             <Text style={styles.providerDistanceText}>{provider.distance} away</Text>
                             <Text style={styles.providerDot}>•</Text>
                             <Text style={styles.providerTypeText}>{provider.type}</Text>
@@ -1882,7 +1885,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                             onPress={() => handleOpenCentreDetails(provider)}
                             activeOpacity={0.7}
                           >
-                            <Ionicons name="information-circle-outline" size={16} color="#0369A1" />
+                            <Ionicons name="information-circle-outline" size={16} color="#1E3A8A" />
                             <Text style={styles.providerDetailsBtnText}>Details</Text>
                           </TouchableOpacity>
 
@@ -1917,7 +1920,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                         {selectedProvider.address || `${selectedProvider.area}, ${selectedProvider.city}`}
                       </Text>
                       <Text style={styles.centreDot}>•</Text>
-                      <Ionicons name="navigate-outline" size={13} color="#0369A1" />
+                      <Ionicons name="navigate-outline" size={13} color="#1E3A8A" />
                       <Text style={styles.centreDistanceText}>{selectedProvider.distance} away</Text>
                     </View>
                   </View>
@@ -2013,7 +2016,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
 
                   {/* Preparation Guidelines */}
                   <View style={styles.centrePrepBox}>
-                    <Ionicons name="information-circle-outline" size={16} color="#0369A1" />
+                    <Ionicons name="information-circle-outline" size={16} color="#1E3A8A" />
                     <Text style={styles.centrePrepText}>
                       {selectedTest.preparation}
                       {selectedTest.fastingRequired ? ` Requires ${selectedTest.fastingHours} hrs fasting.` : ''}
@@ -2573,7 +2576,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                         {/* Patient Block */}
                         <View style={styles.reviewCard}>
                           <View style={styles.reviewCardHeader}>
-                            <Ionicons name="person-outline" size={16} color="#0369A1" />
+                            <Ionicons name="person-outline" size={16} color="#1E3A8A" />
                             <Text style={styles.reviewCardTitle}>Patient Information</Text>
                             <TouchableOpacity onPress={() => setBookingStep(1)}>
                               <Text style={styles.reviewEditLink}>Edit</Text>
@@ -2615,7 +2618,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
 
                         {/* Clinical Prep Instructions */}
                         <View style={styles.instructionsAlertBox}>
-                          <Ionicons name="alert-circle-outline" size={20} color="#0369A1" />
+                          <Ionicons name="alert-circle-outline" size={20} color="#1E3A8A" />
                           <View style={styles.instructionsAlertCol}>
                             <Text style={styles.instructionsAlertTitle}>Preparation Guidelines</Text>
                             <Text style={styles.instructionsAlertText}>
@@ -2862,7 +2865,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                           <View style={styles.bankPillsGrid}>
                             {['SBI', 'HDFC Bank', 'ICICI Bank', 'Axis Bank', 'Kotak Bank', 'Canara Bank'].map((b) => (
                               <TouchableOpacity key={b} style={styles.bankPill}>
-                                <Ionicons name="business" size={14} color="#0369A1" />
+                                <Ionicons name="business" size={14} color="#1E3A8A" />
                                 <Text style={styles.bankPillText}>{b}</Text>
                               </TouchableOpacity>
                             ))}
@@ -3035,7 +3038,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
 
                 {/* Instructions Box */}
                 <View style={styles.patientArrivalNotice}>
-                  <Ionicons name="information-circle" size={18} color="#0369A1" />
+                  <Ionicons name="information-circle" size={18} color="#1E3A8A" />
                   <Text style={styles.patientArrivalNoticeText}>
                     Please arrive 15 minutes before your scheduled time slot. Carry doctor's prescription and a valid government ID proof.
                   </Text>
@@ -3066,7 +3069,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                     onPress={() => setReceiptModal(latestBooking)}
                     activeOpacity={0.8}
                   >
-                    <Ionicons name="receipt-outline" size={16} color="#0369A1" />
+                    <Ionicons name="receipt-outline" size={16} color="#1E3A8A" />
                     <Text style={styles.confirmReceiptBtnText}>Download Receipt</Text>
                   </TouchableOpacity>
 
@@ -3250,7 +3253,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                           onPress={() => setReceiptModal(b)}
                           activeOpacity={0.7}
                         >
-                          <Ionicons name="receipt-outline" size={14} color="#0369A1" />
+                          <Ionicons name="receipt-outline" size={14} color="#1E3A8A" />
                           <Text style={styles.bookingActionReceiptText}>Receipt</Text>
                         </TouchableOpacity>
 
@@ -3504,7 +3507,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                 {/* Radiologist Signature */}
                 <View style={styles.signatureRow}>
                   <View style={styles.qrSeal}>
-                    <Ionicons name="qr-code" size={40} color="#0369A1" />
+                    <Ionicons name="qr-code" size={40} color="#1E3A8A" />
                     <Text style={styles.qrText}>Digitally Verified</Text>
                   </View>
                   <View style={styles.doctorSignBlock}>
@@ -3797,7 +3800,7 @@ const styles = StyleSheet.create({
   pinnedTitleText: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     lineHeight: 20,
   },
   pinnedCityBadge: {
@@ -3824,12 +3827,12 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   pinnedMyBookingsBtnActive: {
-    backgroundColor: '#0369A1',
+    backgroundColor: '#1E3A8A',
   },
   pinnedMyBookingsBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#0369A1',
+    color: '#1E3A8A',
   },
   pinnedMyBookingsBtnTextActive: {
     color: '#FFFFFF',
@@ -3879,7 +3882,7 @@ const styles = StyleSheet.create({
   centreDetailsTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     marginBottom: 6,
   },
   centreLocationRow: {
@@ -3899,7 +3902,7 @@ const styles = StyleSheet.create({
   centreDistanceText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#0369A1',
+    color: '#1E3A8A',
   },
   centreRatingBox: {
     alignItems: 'flex-end',
@@ -3960,7 +3963,7 @@ const styles = StyleSheet.create({
   centreSectionHeading: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     marginBottom: 10,
   },
   centreFacilitiesList: {
@@ -4000,11 +4003,11 @@ const styles = StyleSheet.create({
   centreTestName: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   centreTestModality: {
     fontSize: 12,
-    color: '#0369A1',
+    color: '#1E3A8A',
     fontWeight: '600',
     marginTop: 2,
   },
@@ -4051,12 +4054,12 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
+    borderColor: '#BFDBFE',
   },
   centrePrepText: {
     flex: 1,
     fontSize: 11,
-    color: '#0369A1',
+    color: '#1E3A8A',
     lineHeight: 16,
   },
   centreActionFooterRow: {
@@ -4108,7 +4111,7 @@ const styles = StyleSheet.create({
     paddingVertical: 28,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#DCE7EC',
+    borderBottomColor: '#E2E8F0',
   },
   heroInnerContainer: {
     maxWidth: 1200,
@@ -4173,17 +4176,17 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
+    borderColor: '#BFDBFE',
     gap: 6,
   },
   myBookingsHeaderBtnActive: {
-    backgroundColor: '#0369A1',
-    borderColor: '#0369A1',
+    backgroundColor: '#1E3A8A',
+    borderColor: '#1E3A8A',
   },
   myBookingsHeaderBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#0369A1',
+    color: '#1E3A8A',
   },
   myBookingsHeaderBtnTextActive: {
     color: '#FFFFFF',
@@ -4235,18 +4238,18 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
+    borderColor: '#BFDBFE',
     gap: 5,
   },
   pacsTagText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#0369A1',
+    color: '#1E3A8A',
   },
   heroHeading: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     marginBottom: 8,
     letterSpacing: -0.5,
   },
@@ -4310,7 +4313,7 @@ const styles = StyleSheet.create({
   popularChipText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#0369A1',
+    color: '#1E3A8A',
   },
 
   // Main Body
@@ -4335,7 +4338,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     letterSpacing: -0.3,
   },
   sectionSubtitle: {
@@ -4424,7 +4427,7 @@ const styles = StyleSheet.create({
   catCardTagline: {
     fontSize: 11.5,
     fontWeight: '700',
-    color: '#0369A1',
+    color: '#1E3A8A',
     marginBottom: 6,
   },
   catCardDescription: {
@@ -4524,7 +4527,7 @@ const styles = StyleSheet.create({
   trustTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     marginBottom: 2,
   },
   trustDesc: {
@@ -4597,7 +4600,7 @@ const styles = StyleSheet.create({
   catBannerTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     marginBottom: 4,
   },
   catBannerDesc: {
@@ -4610,7 +4613,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#BAE6FD',
+    borderColor: '#BFDBFE',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
@@ -4619,7 +4622,7 @@ const styles = StyleSheet.create({
   changeCategoryBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#0369A1',
+    color: '#1E3A8A',
   },
 
   // Tests Grid
@@ -4840,7 +4843,7 @@ const styles = StyleSheet.create({
   changeTestPillBtnText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#0369A1',
+    color: '#1E3A8A',
   },
   viewProtocolBtn: {
     flexDirection: 'row',
@@ -4869,7 +4872,7 @@ const styles = StyleSheet.create({
   selectedTestHeroTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     marginBottom: 3,
     letterSpacing: -0.2,
   },
@@ -4998,8 +5001,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   sortOptionBtnActive: {
-    backgroundColor: '#0369A1',
-    borderColor: '#0369A1',
+    backgroundColor: '#1E3A8A',
+    borderColor: '#1E3A8A',
   },
   sortOptionText: {
     fontSize: 10,
@@ -5016,7 +5019,7 @@ const styles = StyleSheet.create({
   providersListingTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   providersListingHint: {
     fontSize: 12,
@@ -5068,7 +5071,7 @@ const styles = StyleSheet.create({
   providerName: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   providerAccredPill: {
     backgroundColor: '#ECFDF5',
@@ -5101,7 +5104,7 @@ const styles = StyleSheet.create({
   providerDistanceText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#0369A1',
+    color: '#1E3A8A',
   },
   providerTypeText: {
     fontSize: 11,
@@ -5213,7 +5216,7 @@ const styles = StyleSheet.create({
   },
   reportDeliveryBold: {
     fontWeight: '700',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   providerPriceBlock: {
     flexDirection: 'row',
@@ -5257,13 +5260,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
+    borderColor: '#BFDBFE',
     backgroundColor: '#F0F9FF',
   },
   providerDetailsBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#0369A1',
+    color: '#1E3A8A',
   },
   providerBookBtn: {
     flexDirection: 'row',
@@ -5335,7 +5338,7 @@ const styles = StyleSheet.create({
   },
   stepLabelActive: {
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   stepConnector: {
     flex: 1,
@@ -5383,7 +5386,7 @@ const styles = StyleSheet.create({
   wizardStepHeading: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   wizardStepSub: {
     fontSize: 12,
@@ -5454,7 +5457,7 @@ const styles = StyleSheet.create({
   relationBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#0369A1',
+    color: '#1E3A8A',
   },
   patientMetaText: {
     fontSize: 12,
@@ -5489,7 +5492,7 @@ const styles = StyleSheet.create({
   formSectionTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     marginBottom: 12,
   },
   formRow: {
@@ -5625,7 +5628,7 @@ const styles = StyleSheet.create({
   subSectionTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     marginBottom: 10,
   },
   datesScrollRow: {
@@ -5784,7 +5787,7 @@ const styles = StyleSheet.create({
   reviewMainText: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   reviewSubText: {
     fontSize: 12,
@@ -5800,7 +5803,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#BAE6FD',
+    borderColor: '#BFDBFE',
     borderRadius: 12,
     padding: 14,
     gap: 10,
@@ -5811,7 +5814,7 @@ const styles = StyleSheet.create({
   instructionsAlertTitle: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#0369A1',
+    color: '#1E3A8A',
     marginBottom: 4,
   },
   instructionsAlertText: {
@@ -5840,7 +5843,7 @@ const styles = StyleSheet.create({
   summaryCardTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   summaryDivider: {
     height: 1,
@@ -5898,7 +5901,7 @@ const styles = StyleSheet.create({
   summaryTotalLabel: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   summaryTaxesInc: {
     fontSize: 10,
@@ -5956,7 +5959,7 @@ const styles = StyleSheet.create({
   paymentHeading: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   paymentSub: {
     fontSize: 12,
@@ -6005,7 +6008,7 @@ const styles = StyleSheet.create({
   formLabelBold: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   formSub: {
     fontSize: 12,
@@ -6028,7 +6031,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   verifyUpiBtn: {
-    backgroundColor: '#0369A1',
+    backgroundColor: '#1E3A8A',
     paddingHorizontal: 16,
     justifyContent: 'center',
     borderRadius: 8,
@@ -6079,7 +6082,7 @@ const styles = StyleSheet.create({
   bankPillText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#0369A1',
+    color: '#1E3A8A',
   },
   payAtCentreBox: {
     alignItems: 'center',
@@ -6089,7 +6092,7 @@ const styles = StyleSheet.create({
   payAtCentreHeading: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   payAtCentreText: {
     fontSize: 12,
@@ -6122,7 +6125,7 @@ const styles = StyleSheet.create({
   recapCardTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   recapItem: {
     marginBottom: 8,
@@ -6172,7 +6175,7 @@ const styles = StyleSheet.create({
   confirmTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     marginBottom: 6,
   },
   confirmSubtitle: {
@@ -6189,7 +6192,7 @@ const styles = StyleSheet.create({
     gap: 6,
     backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#BAE6FD',
+    borderColor: '#BFDBFE',
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
@@ -6198,12 +6201,12 @@ const styles = StyleSheet.create({
   bookingIdLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#0369A1',
+    color: '#1E3A8A',
   },
   bookingIdValue: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#0369A1',
+    color: '#1E3A8A',
   },
   confirmDetailsBox: {
     width: '100%',
@@ -6250,7 +6253,7 @@ const styles = StyleSheet.create({
   },
   patientArrivalNoticeText: {
     fontSize: 11,
-    color: '#0369A1',
+    color: '#1E3A8A',
     lineHeight: 16,
     flex: 1,
   },
@@ -6267,7 +6270,7 @@ const styles = StyleSheet.create({
     gap: 6,
     backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#BAE6FD',
+    borderColor: '#BFDBFE',
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 8,
@@ -6275,7 +6278,7 @@ const styles = StyleSheet.create({
   confirmReceiptBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#0369A1',
+    color: '#1E3A8A',
   },
   confirmCalendarBtn: {
     flexDirection: 'row',
@@ -6436,7 +6439,7 @@ const styles = StyleSheet.create({
     color: '#059669',
   },
   statusTextCompleted: {
-    color: '#0369A1',
+    color: '#1E3A8A',
   },
   statusTextCancelled: {
     color: '#DC2626',
@@ -6444,7 +6447,7 @@ const styles = StyleSheet.create({
   userBookingTestTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   userBookingCategory: {
     fontSize: 12,
@@ -6486,7 +6489,7 @@ const styles = StyleSheet.create({
   bookingActionReceiptText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#0369A1',
+    color: '#1E3A8A',
   },
   bookingActionRescheduleBtn: {
     flexDirection: 'row',
@@ -6542,7 +6545,7 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   emptyStateSubtitle: {
     fontSize: 12,
@@ -6551,7 +6554,7 @@ const styles = StyleSheet.create({
     maxWidth: 380,
   },
   emptyResetBtn: {
-    backgroundColor: '#0369A1',
+    backgroundColor: '#1E3A8A',
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 8,
@@ -6601,7 +6604,7 @@ const styles = StyleSheet.create({
   modalHeaderTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     marginTop: 2,
   },
   modalCloseBtn: {
@@ -6621,7 +6624,7 @@ const styles = StyleSheet.create({
   modalSectionTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     marginBottom: 4,
   },
   modalSectionText: {
@@ -6712,7 +6715,7 @@ const styles = StyleSheet.create({
   letterheadHospital: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   letterheadSub: {
     fontSize: 11,
@@ -6766,7 +6769,7 @@ const styles = StyleSheet.create({
   findingsHeading: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#0369A1',
+    color: '#1E3A8A',
     letterSpacing: 0.5,
   },
   findingsBody: {
@@ -6785,7 +6788,7 @@ const styles = StyleSheet.create({
   impressionText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     lineHeight: 16,
   },
   signatureRow: {
@@ -6802,7 +6805,7 @@ const styles = StyleSheet.create({
   },
   qrText: {
     fontSize: 9,
-    color: '#0369A1',
+    color: '#1E3A8A',
     fontWeight: '700',
   },
   doctorSignBlock: {
@@ -6811,7 +6814,7 @@ const styles = StyleSheet.create({
   docSignature: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   docReg: {
     fontSize: 10,
@@ -6921,7 +6924,7 @@ const styles = StyleSheet.create({
   receiptTotalLabel: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
   },
   receiptTotalAmount: {
     fontSize: 15,

@@ -242,6 +242,7 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route }) => {
         {/* Page Hero Banner */}
         <View style={styles.innerContainer}>
           <PatientPageBanner
+            onBack={() => navigation?.canGoBack?.() ? navigation.goBack() : navigation?.navigate('Home')}
             title="My Medical Records"
             subtitle="Store, view, and act upon all prescriptions, diagnostic scans, and clinical summaries. Order prescribed medicines or book referred lab tests in one tap."
             badgeText="CENTRAL HEALTH VAULT & ACTIONABLE DOCUMENTS"
@@ -251,16 +252,16 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route }) => {
             pills={[
               {
                 label: `Total Records: ${records.length}`,
-                bgColor: '#DCFCE7',
-                borderColor: '#86EFAC',
-                textColor: '#166534',
+                bgColor: '#ECFDF5',
+                borderColor: '#A7F3D0',
+                textColor: '#008B94',
                 icon: 'shield-checkmark-outline',
               },
               {
                 label: `Prescriptions: ${records.filter((r) => r.recordType === 'Prescription').length}`,
-                bgColor: '#E0F2FE',
-                borderColor: '#BAE6FD',
-                textColor: '#0369A1',
+                bgColor: '#EFF6FF',
+                borderColor: '#BFDBFE',
+                textColor: '#1E3A8A',
                 icon: 'receipt-outline',
               },
             ]}
@@ -1007,12 +1008,12 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 30,
     fontWeight: '900',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     letterSpacing: -0.6,
   },
   pageSubtitle: {
     fontSize: 13.5,
-    color: '#475569',
+    color: '#647488',
     marginTop: 6,
     maxWidth: 680,
     lineHeight: 20,

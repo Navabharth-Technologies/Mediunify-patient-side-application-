@@ -31,6 +31,7 @@ import {
 } from '../../utils/locationHelper';
 
 import colors from '../../theme/colors';
+import { useTheme } from '../../context/ThemeContext';
 import { useCart } from '../../context/CartContext';
 import { saveTransaction } from '../../services/transactionService';
 
@@ -128,6 +129,8 @@ const HomeScreen = ({ navigation, route }) => {
     }, 4000);
     return () => clearInterval(timer);
   }, []);
+
+  const { t, isIndic } = useTheme();
 
   // User & Profile State
   const [userName, setUserName] = useState('Hemanth');
@@ -942,8 +945,8 @@ const HomeScreen = ({ navigation, route }) => {
 
             <TextInput
               ref={searchInputRef}
-              style={styles.searchInput}
-              placeholder="Search doctors, tests, medicines, clinics..."
+              style={[styles.searchInput, isIndic && { fontSize: 12.5 }]}
+              placeholder={t('search_placeholder', 'Search doctors, tests, medicines, clinics...')}
               placeholderTextColor="#64748B"
               value={searchQuery}
               onChangeText={(text) => {
@@ -959,7 +962,7 @@ const HomeScreen = ({ navigation, route }) => {
               clearButtonMode="never"
             />
 
-            {searchQuery.length > 0 ? (
+            {searchQuery.length > 0 && (
               <TouchableOpacity
                 onPress={() => {
                   setSearchQuery('');
@@ -970,15 +973,6 @@ const HomeScreen = ({ navigation, route }) => {
                 accessibilityLabel="Clear Search"
               >
                 <Ionicons name="close-circle" size={19} color="#94A3B8" />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                onPress={handleVoiceSearch}
-                style={styles.searchMicBtn}
-                activeOpacity={0.7}
-                accessibilityLabel="Voice Search"
-              >
-                <Ionicons name="mic-outline" size={19} color="#64748B" />
               </TouchableOpacity>
             )}
           </View>

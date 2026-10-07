@@ -895,6 +895,36 @@ export const ThemeProvider = ({ children }) => {
     return langObj?.[key] || TRANSLATIONS.en?.[key] || fallback || key;
   };
 
+  // Adaptive Typography & Layout system (Section 17A)
+  const isIndic = ['kn', 'hi', 'ta', 'te', 'ml'].includes(language);
+  const isNonEnglish = language !== 'en';
+
+  const getAdaptiveFontSize = (baseSize, options = {}) => {
+    if (!isIndic) return baseSize;
+    const minSize = options.minSize ?? (baseSize > 14 ? baseSize - 1.5 : baseSize - 1);
+    if (options.compact) {
+      return Math.max(minSize, baseSize - (options.scaleDown || 1));
+    }
+    return baseSize;
+  };
+
+  const getAdaptiveLineHeight = (fontSize, customLineHeight) => {
+    if (!isIndic) return customLineHeight || Math.round(fontSize * 1.3);
+    const minLineHeight = Math.round(fontSize * 1.38);
+    return customLineHeight ? Math.max(customLineHeight, minLineHeight) : minLineHeight;
+  };
+
+  const adaptiveTextStyle = (baseStyle = {}, options = {}) => {
+    const rawSize = baseStyle.fontSize || 14;
+    const adaptedSize = getAdaptiveFontSize(rawSize, options);
+    const adaptedLineHeight = getAdaptiveLineHeight(adaptedSize, baseStyle.lineHeight);
+    return {
+      ...baseStyle,
+      fontSize: adaptedSize,
+      lineHeight: adaptedLineHeight,
+    };
+  };
+
   // Dynamic Theme Palette
   const theme = {
     isDark: isDarkMode,
@@ -925,6 +955,11 @@ export const ThemeProvider = ({ children }) => {
         toggleDarkMode,
         language,
         changeLanguage,
+        isIndic,
+        isNonEnglish,
+        getAdaptiveFontSize,
+        getAdaptiveLineHeight,
+        adaptiveTextStyle,
         t,
         notifications,
         updateNotifications,
@@ -947,6 +982,11 @@ export const useTheme = () => {
       toggleDarkMode: () => {},
       language: 'en',
       changeLanguage: () => {},
+      isIndic: false,
+      isNonEnglish: false,
+      getAdaptiveFontSize: (s) => s,
+      getAdaptiveLineHeight: (s, l) => l || Math.round(s * 1.3),
+      adaptiveTextStyle: (s) => s,
       t: (k, fb) => fb || k,
       notifications: { push: true, whatsapp: true, sms: true },
       updateNotifications: () => {},

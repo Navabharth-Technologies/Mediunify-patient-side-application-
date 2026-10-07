@@ -22,6 +22,7 @@ import { showAlert } from '../../utils/alert';
 import doctors from '../../data/doctors';
 import { radiologyLabs } from '../../data/radiologyLabsData';
 import { useCart } from '../../context/CartContext';
+import WebBackButton from '../../components/web/WebBackButton';
 
 // ─── Quick topic chips shown in sidebar & welcome ─────────────────────────
 const QUICK_CATEGORIES = [
@@ -313,7 +314,7 @@ const ChatbotScreenWeb = ({ navigation }) => {
     return (
       <View style={styles.rxAnalysisBox}>
         <View style={styles.rxAnalysisHeader}>
-          <Ionicons name="document-text" size={15} color="#1E40AF" />
+          <Ionicons name="document-text" size={15} color="#1E3A8A" />
           <Text style={styles.rxAnalysisHeaderTitle}>Detected Medicines ({analysis.medicines.length})</Text>
         </View>
         {analysis.medicines.map((med, idx) => (
@@ -448,14 +449,9 @@ const ChatbotScreenWeb = ({ navigation }) => {
 
           {/* Header */}
           <View style={styles.headerBar}>
-            <TouchableOpacity
-              style={styles.backBtn}
+            <WebBackButton
               onPress={() => navigation?.canGoBack?.() ? navigation.goBack() : navigation?.navigate('Home')}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="chevron-back" size={18} color="#1E293B" />
-              <Text style={styles.backBtnText}>Back</Text>
-            </TouchableOpacity>
+            />
 
             <View style={styles.headerInfoCol}>
               <View style={styles.headerTitleRow}>
@@ -581,8 +577,8 @@ const ChatbotScreenWeb = ({ navigation }) => {
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.rxModalOptionBtn} onPress={() => { setShowRxModal(false); setScanningPrescription(true); setIsTyping(true); setTimeout(() => { setScanningPrescription(false); setIsTyping(false); analyzePrescriptionData(PRESCRIPTION_SAMPLES[0]); }, 1200); }} activeOpacity={0.8}>
-                  <View style={[styles.rxOptionIconWrap, { backgroundColor: '#E0F2FE' }]}>
-                    <Ionicons name="flask" size={20} color="#0284C7" />
+                  <View style={[styles.rxOptionIconWrap, { backgroundColor: '#EEF2FF' }]}>
+                    <Ionicons name="flask" size={20} color="#1E3A8A" />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.rxOptionTitle}>Sample: Fever & Infection</Text>
@@ -1034,7 +1030,7 @@ const styles = StyleSheet.create({
     gap: 5,
     marginBottom: 7,
   },
-  rxAnalysisHeaderTitle: { fontSize: 12.5, fontWeight: '800', color: '#1E40AF' },
+  rxAnalysisHeaderTitle: { fontSize: 12.5, fontWeight: '800', color: '#1E3A8A' },
   rxMedCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
@@ -1045,7 +1041,7 @@ const styles = StyleSheet.create({
   },
   rxMedTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
   rxMedName: { fontSize: 12.5, fontWeight: '800', color: '#1E293B' },
-  rxMedType: { fontSize: 10, color: '#0284C7', fontWeight: '700', backgroundColor: '#E0F2FE', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
+  rxMedType: { fontSize: 10, color: '#1E3A8A', fontWeight: '700', backgroundColor: '#EEF2FF', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
   rxMedUse: { fontSize: 11, color: '#475569', lineHeight: 15, marginBottom: 3 },
   rxMedTimingRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   rxMedTimingText: { fontSize: 11, fontWeight: '700', color: '#059669' },

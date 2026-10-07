@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../theme/colors';
+import { useTheme } from '../../context/ThemeContext';
 import WebFooter from '../../components/web/WebFooter';
 import { useCart } from '../../context/CartContext';
 
@@ -259,6 +260,7 @@ const POPULAR_SEARCHES = [
 const GlobalSearchScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const { t, isIndic } = useTheme();
 
   // Search input state
   const [query, setQuery] = useState(route?.params?.query || '');
@@ -782,8 +784,8 @@ const GlobalSearchScreen = ({ navigation, route }) => {
 
             <TextInput
               ref={searchInputRef}
-              style={styles.searchInput}
-              placeholder="Search doctors, tests, medicines, clinics..."
+              style={[styles.searchInput, isIndic && { fontSize: 12.5 }]}
+              placeholder={t('search_placeholder', 'Search doctors, tests, medicines, clinics...')}
               placeholderTextColor="#64748B"
               value={query}
               onChangeText={(text) => {
@@ -799,7 +801,7 @@ const GlobalSearchScreen = ({ navigation, route }) => {
               autoFocus={true}
             />
 
-            {query.length > 0 ? (
+            {query.length > 0 && (
               <TouchableOpacity
                 onPress={() => {
                   setQuery('');
@@ -810,15 +812,6 @@ const GlobalSearchScreen = ({ navigation, route }) => {
                 accessibilityLabel="Clear Search"
               >
                 <Ionicons name="close-circle" size={19} color="#94A3B8" />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                onPress={handleVoiceSearch}
-                style={styles.searchMicBtn}
-                activeOpacity={0.7}
-                accessibilityLabel="Voice Search"
-              >
-                <Ionicons name="mic-outline" size={19} color="#64748B" />
               </TouchableOpacity>
             )}
           </View>

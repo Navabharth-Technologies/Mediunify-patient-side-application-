@@ -25,6 +25,7 @@ import {
 import WebFooter from '../../../components/web/WebFooter';
 import OptimizedImage from '../../../components/common/OptimizedImage';
 import Pagination from '../../../components/common/Pagination';
+import WebBackButton from '../../../components/web/WebBackButton';
 
 // ==================================================
 // 1. HERO ADS SLIDES (Exact HomeScreen.web.js Standard)
@@ -99,8 +100,8 @@ const PHARMACY_HERO_SLIDES = [
     ],
     ctaText: 'Explore Health Devices',
     ctaBg: '#00B894',
-    bgColor: '#F0F9FF',
-    borderColor: '#BAE6FD',
+    bgColor: '#EEF2FF',
+    borderColor: '#BFDBFE',
     image: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=900',
     trustBadge: 'Certified Clinical Accuracy',
     actionType: 'filter-devices',
@@ -177,8 +178,8 @@ export const BROWSE_HEALTH_CONDITIONS = [
     titleSecondary: 'CARE',
     badge: 'EASY BREATHE',
     tagline: 'Inhalers, Cough & Cold',
-    bg: '#0284C7',
-    accentColor: '#0284C7',
+    bg: '#1E3A8A',
+    accentColor: '#1E3A8A',
     image: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=600&auto=format&fit=crop&q=80',
     filterKeywords: ['respiratory', 'breathe', 'inhaler', 'cough', 'cold', 'syrup', 'vicks', 'steam', 'broncho', 'asthma', 'lozenge', 'vapor'],
     categoryFilter: 'Cold & Fever',
@@ -837,13 +838,9 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
       {/* MOBILE TOP HEADER (SHOWN ON MOBILE WEBPAGE WIDTHS) */}
       {!isDesktop && (
         <View style={styles.mobileHeader}>
-          <TouchableOpacity
-            style={styles.headerBackBtn}
+          <WebBackButton
             onPress={() => navigation?.goBack()}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="arrow-back" size={22} color="#1E3A8A" />
-          </TouchableOpacity>
+          />
 
           <View style={styles.headerLocalityBtn}>
             <View style={styles.headerLocalityIconWrap}>
@@ -1816,7 +1813,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   brandPillYellow: {
-    backgroundColor: '#FFE11B',
+    backgroundColor: '#FEF3C7',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 4,
@@ -1824,7 +1821,7 @@ const styles = StyleSheet.create({
   brandPillYellowText: {
     fontSize: 10,
     fontWeight: '900',
-    color: '#0F172A',
+    color: '#D97706',
     letterSpacing: 0.4,
   },
   brandTagFlipkart: {
@@ -2699,7 +2696,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
+    borderColor: '#BFDBFE',
     zIndex: 2,
   },
   pharmacyRxBadgeText: {
@@ -3149,7 +3146,7 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: '#1E3A8A', // Deep navy matching brand palette
     borderTopWidth: 1,
-    borderTopColor: '#1E40AF',
+    borderTopColor: '#1E3A8A',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.18,

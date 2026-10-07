@@ -20,6 +20,7 @@ import {
   getFeedbackList,
   saveFeedbackList,
 } from '../../data/patientDashboardData';
+import { isGuestUser, promptLoginRequired } from '../../utils/authHelper';
 
 const MyFeedbackScreenWeb = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
@@ -28,6 +29,7 @@ const MyFeedbackScreenWeb = ({ navigation, route }) => {
   const [patient, setPatient] = useState(null);
   const [feedbackList, setFeedbackList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isGuestMode, setIsGuestMode] = useState(false);
 
   // Pagination (4 reviews per page)
   const ITEMS_PER_PAGE = 4;
@@ -56,6 +58,15 @@ const MyFeedbackScreenWeb = ({ navigation, route }) => {
   const loadData = async () => {
     setLoading(true);
     try {
+      const guest = await isGuestUser();
+      if (guest) {
+        setIsGuestMode(true);
+        setPatient(null);
+        setFeedbackList([]);
+        setLoading(false);
+        return;
+      }
+      setIsGuestMode(false);
       const p = await getActivePatient();
       setPatient(p);
       const items = await getFeedbackList();
@@ -65,6 +76,15 @@ const MyFeedbackScreenWeb = ({ navigation, route }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleOpenNewFeedback = async () => {
+    const guest = await isGuestUser();
+    if (guest) {
+      promptLoginRequired(navigation, { service: 'profile', message: 'Please login to submit feedback and reviews.' });
+      return;
+    }
+    setIsSubmitModalOpen(true);
   };
 
   const handleAddNewFeedback = async () => {
@@ -128,32 +148,33 @@ const MyFeedbackScreenWeb = ({ navigation, route }) => {
         {/* Page Hero Banner */}
         <View style={styles.innerContainer}>
           <PatientPageBanner
+            onBack={() => navigation?.canGoBack?.() ? navigation.goBack() : navigation?.navigate('Home')}
             title="My Feedback & Reviews"
             subtitle="Review past feedback submitted for doctors, clinics, diagnostics, and pharmacies. Your insights help maintain high medical standards across Karnataka."
             badgeText="PATIENT EXPERIENCE & QUALITY ASSURANCE"
             badgeIcon="star"
             iconName="chatbubbles"
-            theme="green"
+            theme="freshGreen"
             pills={[
               {
                 label: `Submitted Reviews: ${feedbackList.length}`,
-                bgColor: '#DCFCE7',
-                borderColor: '#86EFAC',
-                textColor: '#166534',
+                bgColor: '#EBF8E7',
+                borderColor: '#C2EDB7',
+                textColor: '#15803D',
                 icon: 'star',
               },
               {
                 label: 'Verified Ratings',
-                bgColor: '#FEF3C7',
-                borderColor: '#FDE68A',
-                textColor: '#92400E',
+                bgColor: '#ECFDF5',
+                borderColor: '#A7F3D0',
+                textColor: '#008B94',
                 icon: 'shield-checkmark',
               },
             ]}
             rightContent={
               <TouchableOpacity
                 style={styles.newFeedbackBtn}
-                onPress={() => setIsSubmitModalOpen(true)}
+                onPress={handleOpenNewFeedback}
                 activeOpacity={0.85}
               >
                 <Ionicons name="create-outline" size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
@@ -166,7 +187,26 @@ const MyFeedbackScreenWeb = ({ navigation, route }) => {
         <View style={[styles.innerContainer, { paddingTop: 8, paddingBottom: 60 }]}>
 
           {/* Feedback Items List */}
-          {loading ? (
+          {isGuestMode ? (
+            <View style={styles.emptyCard}>
+              <Ionicons name="chatbubbles-outline" size={48} color="#00B894" />
+              <Text style={styles.emptyTitle}>Login to view your feedback & reviews</Text>
+              <Text style={styles.emptyDesc}>
+                Please sign in to view your past feedback, doctor reviews, and provider responses.
+              </Text>
+              <TouchableOpacity
+                style={[styles.submitFirstBtn, { marginTop: 14 }]}
+                onPress={() => {
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('open-auth-modal'));
+                  }
+                  navigation?.navigate('Login', { openAuthModal: true });
+                }}
+              >
+                <Text style={styles.submitFirstBtnText}>Login</Text>
+              </TouchableOpacity>
+            </View>
+          ) : loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#00B894" />
               <Text style={styles.loadingText}>Loading your feedback history...</Text>
@@ -180,7 +220,7 @@ const MyFeedbackScreenWeb = ({ navigation, route }) => {
               </Text>
               <TouchableOpacity
                 style={styles.submitFirstBtn}
-                onPress={() => setIsSubmitModalOpen(true)}
+                onPress={handleOpenNewFeedback}
               >
                 <Text style={styles.submitFirstBtnText}>Share Your First Experience</Text>
               </TouchableOpacity>
@@ -415,12 +455,12 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 30,
     fontWeight: '900',
-    color: '#0C3B6B',
+    color: '#1E3A8A',
     letterSpacing: -0.6,
   },
   pageSubtitle: {
     fontSize: 13.5,
-    color: '#475569',
+    color: '#647488',
     marginTop: 6,
     maxWidth: 680,
     lineHeight: 20,

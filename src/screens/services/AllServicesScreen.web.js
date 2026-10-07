@@ -14,6 +14,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../context/ThemeContext';
 import AllServicesScreenMobile from './AllServicesScreen';
+import WebBackButton from '../../components/web/WebBackButton';
 
 // ─────────────────────────────────────────────────
 // Brand Palette — consistent with HomeScreen.web.js
@@ -40,7 +41,7 @@ const ALL_SERVICES = [
     iconFamily: 'Ionicons',
     icon: 'videocam-outline',
     iconColor: '#1170CF',
-    iconBg: '#E8F4FD',
+    iconBg: '#EEF2FF',
     accentColor: '#1170CF',
     route: 'VideoConsultation',
     badge: 'Available Now',
@@ -78,9 +79,9 @@ const ALL_SERVICES = [
     subtitle: 'MRI, CT Scan, X-Ray at certified radiology labs',
     iconFamily: 'Ionicons',
     icon: 'scan-outline',
-    iconColor: '#0369A1',
-    iconBg: '#E8F4FD',
-    accentColor: '#0369A1',
+    iconColor: '#1E3A8A',
+    iconBg: '#EEF2FF',
+    accentColor: '#1E3A8A',
     route: 'RadiologyLabs',
     badge: 'Same Day',
     keywords: 'scans scan x-ray radiology mri ct scan ultrasound 2d echo ecg',
@@ -118,7 +119,7 @@ const ALL_SERVICES = [
     iconFamily: 'MaterialCommunityIcons',
     icon: 'domain',
     iconColor: '#1E3A8A',
-    iconBg: '#EEF7FC',
+    iconBg: '#EEF2FF',
     accentColor: '#1E3A8A',
     route: 'HospitalCare',
     badge: 'NABH Certified',
@@ -156,9 +157,9 @@ const ALL_SERVICES = [
     subtitle: 'Compare & buy health insurance plans easily',
     iconFamily: 'Ionicons',
     icon: 'shield-checkmark-outline',
-    iconColor: '#0C3B6B',
-    iconBg: '#EEF7FC',
-    accentColor: '#0C3B6B',
+    iconColor: '#1E3A8A',
+    iconBg: '#EEF2FF',
+    accentColor: '#1E3A8A',
     route: 'HealthInsurance',
     badge: 'Cashless Claims',
     keywords: 'health insurance policy claim cashless hospitalization medical cover tpa',
@@ -283,17 +284,10 @@ const AllServicesScreenWeb = ({ navigation, route }) => {
       {/* ─── PAGE HEADER ─── */}
       <View style={styles.pageHeader}>
         <View style={[styles.pageHeaderInner, { maxWidth: maxContentWidth }]}>
-          <TouchableOpacity
-            style={styles.backBtn}
-            // @ts-ignore
-            className="svc-back-btn"
+          <WebBackButton
             onPress={() => navigation.goBack()}
-            activeOpacity={0.8}
-            accessibilityLabel="Go back"
-          >
-            <Ionicons name="arrow-back" size={20} color={PALETTE.tealDark} />
-            <Text style={styles.backBtnText}>{t('back', 'Back')}</Text>
-          </TouchableOpacity>
+            accessibilityLabel={t('back', 'Back')}
+          />
 
           <View style={styles.headerTitleBlock}>
             <Text style={styles.pageTitle}>{t('all_services', 'All Healthcare Services')}</Text>
@@ -506,7 +500,7 @@ const styles = StyleSheet.create({
           top: 0,
         }
       : {
-          shadowColor: '#0C3B6B',
+          shadowColor: '#1E3A8A',
           shadowOffset: { width: 0, height: 2 },
           shadowOpacity: 0.06,
           shadowRadius: 8,

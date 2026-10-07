@@ -50,11 +50,24 @@ const MODALITY_FILTERS = [
   'Pathology & Blood Tests',
 ];
 
+export const MODALITY_OPTIONS = [
+  { id: 'All Appointments (Lab & Radiology)', label: 'All Tests & Scans', icon: 'layers-outline' },
+  { id: 'Radiology & Scans (MRI, CT, X-Ray, USG)', label: 'Radiology & Scans', icon: 'scan-outline' },
+  { id: 'Pathology & Blood Tests', label: 'Pathology & Blood Tests', icon: 'flask-outline' },
+];
+
 const STATUS_FILTERS = [
   'All Status',
   'Active & Confirmed',
   'Completed',
   'Cancelled',
+];
+
+export const STATUS_OPTIONS = [
+  { id: 'All Status', label: 'All Status', icon: 'apps-outline' },
+  { id: 'Active & Confirmed', label: 'Active & Confirmed', icon: 'time-outline' },
+  { id: 'Completed', label: 'Completed', icon: 'checkmark-circle-outline' },
+  { id: 'Cancelled', label: 'Cancelled', icon: 'close-circle-outline' },
 ];
 
 const SORT_OPTIONS = [
@@ -110,6 +123,44 @@ export const getBookingTypeLabel = (item) => {
   return 'Lab Test';
 };
 
+export const formatShortTestName = (name) => {
+  if (!name) return 'Diagnostic Test';
+  return name
+    .replace(/\s*\(\s*Right\s*\/\s*Left\s*\)/gi, '')
+    .replace(/\s*\(\s*Heart Angio Scan\s*\)/gi, '')
+    .replace(/,\s*/g, ' + ')
+    .trim();
+};
+
+export const formatShortProviderName = (centerName) => {
+  if (!centerName) return 'Diagnostic Centre';
+  const raw = typeof centerName === 'object' ? (centerName?.name || 'Diagnostic Centre') : String(centerName);
+  const parts = raw.split(/[•\-]/);
+  return parts[0].trim();
+};
+
+export const formatShortLocation = (address) => {
+  if (!address) return 'Mysuru';
+  const full = formatAddressString(address);
+  const parts = full.split(',').map((s) => s.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[parts.length - 2]}, ${parts[parts.length - 1]}`;
+  }
+  return full;
+};
+
+export const formatShortInstruction = (instruction) => {
+  if (!instruction) return '';
+  if (/10[-–]12/i.test(instruction) && /fast/i.test(instruction)) {
+    return 'Fasting required: 10–12 hrs';
+  }
+  if (/fast/i.test(instruction)) {
+    return 'Fasting required prior to test';
+  }
+  const firstSentence = instruction.split('.')[0];
+  return firstSentence.length > 50 ? `${firstSentence.slice(0, 48)}...` : firstSentence;
+};
+
 const RESCHEDULE_DATES = [
   'Tomorrow, Oct 01, 2026',
   'Friday, Oct 02, 2026',
@@ -146,6 +197,27 @@ const MyTestsScreenWeb = ({ navigation, route }) => {
   const [selectedStatus, setSelectedStatus] = useState('All Status');
   const [sortBy, setSortBy] = useState('upcoming');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isSortOpen, setIsSortOpen] = useState(false);
+  const [openMenuCardId, setOpenMenuCardId] = useState(null);
+
+  const currentSortOption = useMemo(() => {
+    return SORT_OPTIONS.find((o) => o.id === sortBy) || SORT_OPTIONS[0];
+  }, [sortBy]);
+
+  const isModalityActive = selectedModality !== 'All Appointments (Lab & Radiology)';
+  const isStatusActive = selectedStatus !== 'All Status';
+  const activeFilterCount = (isModalityActive ? 1 : 0) + (isStatusActive ? 1 : 0);
+  const hasFilterOrSortChanged = isModalityActive || isStatusActive || sortBy !== 'upcoming' || searchQuery.trim().length > 0;
+
+  const handleResetFilters = () => {
+    setSelectedModality('All Appointments (Lab & Radiology)');
+    setSelectedStatus('All Status');
+    setSortBy('upcoming');
+    setSearchQuery('');
+    setIsFilterOpen(false);
+    setIsSortOpen(false);
+  };
 
   // Pagination states (8 items per page)
   const ITEMS_PER_PAGE = 8;
@@ -510,12 +582,13 @@ const MyTestsScreenWeb = ({ navigation, route }) => {
         {/* Page Hero Banner */}
         <View style={styles.innerContainer}>
           <PatientPageBanner
+            onBack={() => navigation?.canGoBack?.() ? navigation.goBack() : navigation?.navigate('Home')}
             title="My Tests & Radiology Scans"
             subtitle="Track your active booked tests in real time, view diagnostic scans (MRI, CT, X-Ray, Ultrasound), and download certified doctor-verified laboratory reports."
             badgeText="CENTRAL DIAGNOSTICS & RADIOLOGY VAULT"
             badgeIcon="scan-circle"
             iconName="flask"
-            theme="aqua"
+            theme="navy"
             pills={[
               {
                 label: `Active Bookings: ${appointmentBreakdown.total}`,
@@ -526,9 +599,9 @@ const MyTestsScreenWeb = ({ navigation, route }) => {
               },
               {
                 label: `Verified Reports: ${testReports.length}`,
-                bgColor: '#E0F2FE',
-                borderColor: '#BAE6FD',
-                textColor: '#0369A1',
+                bgColor: '#EFF6FF',
+                borderColor: '#BFDBFE',
+                textColor: '#1E3A8A',
                 icon: 'document-text-outline',
               },
             ]}
@@ -675,104 +748,388 @@ const MyTestsScreenWeb = ({ navigation, route }) => {
           </View>
 
           {/* =========================================================
-              SECONDARY CONTROLS: SEARCH & MODALITY FILTERS
+              SECONDARY CONTROLS: COMPACT SEARCH, FILTER & SORT
           ========================================================= */}
           <View style={styles.secondaryControlsCard}>
-            {/* Search Input */}
+            {/* 1. Search Bar */}
             <View style={styles.searchBar}>
-              <Ionicons name="search-outline" size={18} color="#64748B" style={{ marginRight: 8 }} />
+              <Ionicons name="search-outline" size={17} color="#64748B" style={{ marginRight: 8 }} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search tests (MRI, CT Scan, X-Ray, Blood, CBC, Lipid...) or diagnostic centre..."
+                placeholder="Search tests, scans, or diagnostic centre..."
                 placeholderTextColor="#94A3B8"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
               />
               {searchQuery ? (
-                <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
+                <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 4 }} activeOpacity={0.7}>
                   <Ionicons name="close-circle" size={16} color="#94A3B8" />
                 </TouchableOpacity>
               ) : null}
             </View>
 
-            {/* Filter Chips: Modality and Status */}
-            <View style={{ gap: 8 }}>
-              {/* Modality Chips */}
-              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginRight: 4 }}>MODALITY:</Text>
-                {MODALITY_FILTERS.map((mod) => {
-                  const isSel = selectedModality === mod;
-                  return (
-                    <TouchableOpacity
-                      key={mod}
-                      style={[styles.smallFilterChip, isSel && styles.smallFilterChipActive]}
-                      onPress={() => setSelectedModality(mod)}
+            {/* 2. Controls Action Row */}
+            <View style={styles.controlsRow}>
+              <View style={styles.controlsButtonsGroup}>
+                {/* FILTER BUTTON & DROPDOWN */}
+                <View style={[styles.controlAnchor, { zIndex: isFilterOpen ? 1000 : 10 }]}>
+                  <TouchableOpacity
+                    style={[
+                      styles.filterControlBtn,
+                      (isFilterOpen || activeFilterCount > 0) && styles.filterControlBtnActive,
+                    ]}
+                    onPress={() => {
+                      setIsFilterOpen(!isFilterOpen);
+                      setIsSortOpen(false);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name="options-outline"
+                      size={15}
+                      color={activeFilterCount > 0 || isFilterOpen ? '#1E3A8A' : '#475569'}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text
+                      style={[
+                        styles.filterControlBtnText,
+                        (activeFilterCount > 0 || isFilterOpen) && styles.filterControlBtnTextActive,
+                      ]}
                     >
-                      <Ionicons
-                        name={mod.includes('Radiology') ? 'scan-outline' : mod.includes('Pathology') ? 'flask-outline' : 'layers-outline'}
-                        size={13}
-                        color={isSel ? '#FFFFFF' : '#475569'}
-                        style={{ marginRight: 4 }}
-                      />
-                      <Text style={[styles.smallFilterChipText, isSel && styles.smallFilterChipTextActive]}>
-                        {mod}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+                      Filter
+                    </Text>
+                    {activeFilterCount > 0 && (
+                      <View style={styles.filterCountBadge}>
+                        <Text style={styles.filterCountBadgeText}>{activeFilterCount}</Text>
+                      </View>
+                    )}
+                    <Ionicons
+                      name={isFilterOpen ? 'chevron-up' : 'chevron-down'}
+                      size={13}
+                      color={activeFilterCount > 0 || isFilterOpen ? '#1E3A8A' : '#64748B'}
+                      style={{ marginLeft: 6 }}
+                    />
+                  </TouchableOpacity>
 
-              {/* Status Chips */}
-              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'center', paddingTop: 4 }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginRight: 4 }}>STATUS:</Text>
-                {STATUS_FILTERS.map((st) => {
-                  const isSel = selectedStatus === st;
-                  return (
-                    <TouchableOpacity
-                      key={st}
-                      style={[styles.smallFilterChip, isSel && { backgroundColor: '#00B894', borderColor: '#00B894' }]}
-                      onPress={() => setSelectedStatus(st)}
-                    >
-                      <Ionicons
-                        name={st === 'Completed' ? 'checkmark-circle-outline' : st === 'Cancelled' ? 'close-circle-outline' : 'time-outline'}
-                        size={12}
-                        color={isSel ? '#FFFFFF' : '#475569'}
-                        style={{ marginRight: 4 }}
-                      />
-                      <Text style={[styles.smallFilterChipText, isSel && styles.smallFilterChipTextActive]}>
-                        {st}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+                  {/* Filter Popover Card */}
+                  {isFilterOpen && (
+                    <>
+                      {Platform.OS === 'web' && (
+                        <TouchableOpacity
+                          style={styles.popoverBackdrop}
+                          activeOpacity={1}
+                          onPress={() => setIsFilterOpen(false)}
+                        />
+                      )}
+                      <View style={[styles.popoverCard, styles.filterPopoverCard, !isDesktop && { width: Math.min(width - 48, 440) }]}>
+                        {/* Header */}
+                        <View style={styles.popoverHeader}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Ionicons name="options" size={15} color="#1E3A8A" />
+                            <Text style={styles.popoverHeading}>Filters</Text>
+                          </View>
+                          <TouchableOpacity
+                            onPress={() => setIsFilterOpen(false)}
+                            style={styles.popoverCloseBtn}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons name="close" size={16} color="#64748B" />
+                          </TouchableOpacity>
+                        </View>
 
-              {/* Sort By Chips */}
-              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'center', paddingTop: 4 }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginRight: 4 }}>SORT BY:</Text>
-                {SORT_OPTIONS.map((opt) => {
-                  const isSel = sortBy === opt.id;
-                  return (
-                    <TouchableOpacity
-                      key={opt.id}
-                      style={[styles.smallFilterChip, isSel && styles.smallSortChipActive]}
-                      onPress={() => setSortBy(opt.id)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons
-                        name={opt.icon}
-                        size={12}
-                        color={isSel ? '#FFFFFF' : '#475569'}
-                        style={{ marginRight: 4 }}
-                      />
-                      <Text style={[styles.smallFilterChipText, isSel && styles.smallFilterChipTextActive]}>
-                        {opt.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+                        <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+                          {/* Modality Section */}
+                          <View style={styles.popoverSection}>
+                            <Text style={styles.popoverSectionLabel}>MODALITY</Text>
+                            <View style={styles.popoverPillsWrap}>
+                              {MODALITY_OPTIONS.map((opt) => {
+                                const isSel = selectedModality === opt.id;
+                                return (
+                                  <TouchableOpacity
+                                    key={opt.id}
+                                    style={[styles.popoverPill, isSel && styles.popoverPillSelectedNavy]}
+                                    onPress={() => setSelectedModality(opt.id)}
+                                    activeOpacity={0.8}
+                                  >
+                                    <Ionicons
+                                      name={opt.icon}
+                                      size={13}
+                                      color={isSel ? '#FFFFFF' : '#475569'}
+                                      style={{ marginRight: 5 }}
+                                    />
+                                    <Text style={[styles.popoverPillText, isSel && styles.popoverPillTextSelected]}>
+                                      {opt.label}
+                                    </Text>
+                                  </TouchableOpacity>
+                                );
+                              })}
+                            </View>
+                          </View>
+
+                          {/* Status Section */}
+                          <View style={[styles.popoverSection, { marginTop: 14 }]}>
+                            <Text style={styles.popoverSectionLabel}>STATUS</Text>
+                            <View style={styles.popoverPillsWrap}>
+                              {STATUS_OPTIONS.map((st) => {
+                                const isSel = selectedStatus === st.id;
+                                const isCompleted = st.id === 'Completed';
+                                const isCancelled = st.id === 'Cancelled';
+
+                                let activePillStyle = styles.popoverPillSelectedTeal;
+                                if (isCompleted) activePillStyle = styles.popoverPillSelectedGreen;
+                                if (isCancelled) activePillStyle = styles.popoverPillSelectedCoral;
+                                if (st.id === 'All Status') activePillStyle = styles.popoverPillSelectedNavy;
+
+                                return (
+                                  <TouchableOpacity
+                                    key={st.id}
+                                    style={[styles.popoverPill, isSel && activePillStyle]}
+                                    onPress={() => setSelectedStatus(st.id)}
+                                    activeOpacity={0.8}
+                                  >
+                                    <Ionicons
+                                      name={st.icon}
+                                      size={13}
+                                      color={isSel ? '#FFFFFF' : '#475569'}
+                                      style={{ marginRight: 5 }}
+                                    />
+                                    <Text style={[styles.popoverPillText, isSel && styles.popoverPillTextSelected]}>
+                                      {st.label}
+                                    </Text>
+                                  </TouchableOpacity>
+                                );
+                              })}
+                            </View>
+                          </View>
+                        </ScrollView>
+
+                        {/* Footer */}
+                        <View style={styles.popoverFooter}>
+                          <TouchableOpacity
+                            style={styles.popoverClearBtn}
+                            onPress={() => {
+                              setSelectedModality('All Appointments (Lab & Radiology)');
+                              setSelectedStatus('All Status');
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={styles.popoverClearBtnText}>Clear</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.popoverApplyBtn}
+                            onPress={() => setIsFilterOpen(false)}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={styles.popoverApplyBtnText}>Apply Filters</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </>
+                  )}
+                </View>
+
+                {/* SORT BUTTON & DROPDOWN */}
+                <View style={[styles.controlAnchor, { zIndex: isSortOpen ? 1000 : 9 }]}>
+                  <TouchableOpacity
+                    style={[
+                      styles.filterControlBtn,
+                      isSortOpen && styles.filterControlBtnActive,
+                    ]}
+                    onPress={() => {
+                      setIsSortOpen(!isSortOpen);
+                      setIsFilterOpen(false);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name="swap-vertical-outline"
+                      size={15}
+                      color={isSortOpen ? '#1E3A8A' : '#475569'}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={styles.filterControlBtnText}>
+                      Sort: <Text style={{ fontWeight: '800', color: '#1E3A8A' }}>{currentSortOption.label}</Text>
+                    </Text>
+                    <Ionicons
+                      name={isSortOpen ? 'chevron-up' : 'chevron-down'}
+                      size={13}
+                      color={isSortOpen ? '#1E3A8A' : '#64748B'}
+                      style={{ marginLeft: 6 }}
+                    />
+                  </TouchableOpacity>
+
+                  {/* Sort Popover Card */}
+                  {isSortOpen && (
+                    <>
+                      {Platform.OS === 'web' && (
+                        <TouchableOpacity
+                          style={styles.popoverBackdrop}
+                          activeOpacity={1}
+                          onPress={() => setIsSortOpen(false)}
+                        />
+                      )}
+                      <View style={[styles.popoverCard, styles.sortPopoverCard, !isDesktop && { width: Math.min(width - 48, 340) }]}>
+                        {/* Header */}
+                        <View style={styles.popoverHeader}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Ionicons name="swap-vertical" size={15} color="#1E3A8A" />
+                            <Text style={styles.popoverHeading}>Sort By</Text>
+                          </View>
+                          <TouchableOpacity
+                            onPress={() => setIsSortOpen(false)}
+                            style={styles.popoverCloseBtn}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons name="close" size={16} color="#64748B" />
+                          </TouchableOpacity>
+                        </View>
+
+                        {/* Radio Options List */}
+                        <View style={styles.sortRadioList}>
+                          {SORT_OPTIONS.map((opt) => {
+                            const isSel = sortBy === opt.id;
+                            return (
+                              <TouchableOpacity
+                                key={opt.id}
+                                style={[styles.sortRadioItem, isSel && styles.sortRadioItemActive]}
+                                onPress={() => {
+                                  setSortBy(opt.id);
+                                }}
+                                activeOpacity={0.8}
+                              >
+                                <View style={[styles.sortRadioCircle, isSel && styles.sortRadioCircleActive]}>
+                                  {isSel && <View style={styles.sortRadioDot} />}
+                                </View>
+                                <Ionicons
+                                  name={opt.icon}
+                                  size={15}
+                                  color={isSel ? '#00B894' : '#64748B'}
+                                  style={{ marginRight: 8 }}
+                                />
+                                <Text style={[styles.sortRadioLabel, isSel && styles.sortRadioLabelActive]}>
+                                  {opt.label}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+
+                        {/* Footer */}
+                        <View style={styles.popoverFooter}>
+                          <View style={{ flex: 1 }} />
+                          <TouchableOpacity
+                            style={styles.popoverApplyBtn}
+                            onPress={() => setIsSortOpen(false)}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={styles.popoverApplyBtnText}>Apply</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </>
+                  )}
+                </View>
+
+                {/* RESET BUTTON */}
+                {hasFilterOrSortChanged && (
+                  <TouchableOpacity
+                    style={styles.resetControlBtn}
+                    onPress={handleResetFilters}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons name="refresh-outline" size={14} color="#EF4444" style={{ marginRight: 4 }} />
+                    <Text style={styles.resetControlBtnText}>Reset</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
+
+            {/* 3. Active Filter Chips Row (Removable) */}
+            {(isModalityActive || isStatusActive || searchQuery.trim().length > 0) && (
+              <View style={styles.activeChipsRow}>
+                <Text style={styles.activeChipsHeaderLabel}>Active Filters:</Text>
+
+                {isModalityActive && (
+                  <View style={styles.activeChipPill}>
+                    <Ionicons
+                      name={selectedModality.includes('Radiology') ? 'scan-outline' : 'flask-outline'}
+                      size={12}
+                      color="#1E3A8A"
+                      style={{ marginRight: 4 }}
+                    />
+                    <Text style={styles.activeChipPillText}>
+                      {selectedModality.includes('Radiology') ? 'Radiology & Scans' : 'Pathology & Blood'}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setSelectedModality('All Appointments (Lab & Radiology)')}
+                      style={styles.activeChipRemoveBtn}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="close" size={12} color="#1E3A8A" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {isStatusActive && (
+                  <View
+                    style={[
+                      styles.activeChipPill,
+                      selectedStatus === 'Completed' && { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' },
+                      selectedStatus === 'Cancelled' && { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
+                    ]}
+                  >
+                    <Ionicons
+                      name={
+                        selectedStatus === 'Completed'
+                          ? 'checkmark-circle-outline'
+                          : selectedStatus === 'Cancelled'
+                          ? 'close-circle-outline'
+                          : 'time-outline'
+                      }
+                      size={12}
+                      color={selectedStatus === 'Completed' ? '#059669' : selectedStatus === 'Cancelled' ? '#DC2626' : '#00B894'}
+                      style={{ marginRight: 4 }}
+                    />
+                    <Text
+                      style={[
+                        styles.activeChipPillText,
+                        selectedStatus === 'Completed' && { color: '#059669' },
+                        selectedStatus === 'Cancelled' && { color: '#DC2626' },
+                      ]}
+                    >
+                      {selectedStatus}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setSelectedStatus('All Status')}
+                      style={styles.activeChipRemoveBtn}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name="close"
+                        size={12}
+                        color={selectedStatus === 'Completed' ? '#059669' : selectedStatus === 'Cancelled' ? '#DC2626' : '#00B894'}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {searchQuery.trim().length > 0 && (
+                  <View style={styles.activeChipPill}>
+                    <Ionicons name="search-outline" size={12} color="#64748B" style={{ marginRight: 4 }} />
+                    <Text style={[styles.activeChipPillText, { maxWidth: 180 }]} numberOfLines={1}>
+                      "{searchQuery.trim()}"
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setSearchQuery('')}
+                      style={styles.activeChipRemoveBtn}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="close" size={12} color="#64748B" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
 
           {/* =========================================================
@@ -900,217 +1257,168 @@ const MyTestsScreenWeb = ({ navigation, route }) => {
 
                       return (
                         <View key={test.id} style={styles.bookedCard}>
-                          {/* Top Row: Type Badge + Booking Ref + Live Status */}
-                          <View style={styles.bookedTopRow}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                              {/* Prominent Booking Type Badge */}
+                          {/* 1. Top Header Row: Modality Badge + Booking ID (Left) & Status (Right) */}
+                          <View style={styles.cardHeaderRow}>
+                            <View style={styles.cardHeaderLeft}>
                               <View
                                 style={[
-                                  styles.modalityBadge,
+                                  styles.cardTypePill,
                                   {
                                     backgroundColor: isRadiology ? '#E0F7FA' : isPackage ? '#EFF6FF' : '#E6F8F4',
-                                    borderColor: isRadiology ? '#80DEEA' : isPackage ? '#BFDBFE' : '#A7F3D0',
                                   },
                                 ]}
                               >
                                 <Ionicons
                                   name={isRadiology ? 'scan' : isPackage ? 'medkit' : 'flask'}
-                                  size={13}
-                                  color={isRadiology ? '#00C2CB' : isPackage ? '#1E3A8A' : '#00B894'}
+                                  size={12}
+                                  color={isRadiology ? '#00838F' : isPackage ? '#1E3A8A' : '#00B894'}
                                   style={{ marginRight: 4 }}
                                 />
                                 <Text
                                   style={[
-                                    styles.modalityBadgeText,
-                                    { color: isRadiology ? '#00838F' : isPackage ? '#1E3A8A' : '#00B894', fontWeight: '800' },
+                                    styles.cardTypePillText,
+                                    { color: isRadiology ? '#00838F' : isPackage ? '#1E3A8A' : '#00B894' },
                                   ]}
                                 >
                                   {bType}
                                 </Text>
                               </View>
-
-                              {/* Booking ID */}
-                              <Text style={styles.bookingRefText}>Booking ID: {test.bookingRef || test.id}</Text>
+                              <Text style={styles.cardBookingId}>ID: {test.bookingRef || test.id}</Text>
                             </View>
 
-                            {/* Service Relevant Status Pill */}
-                            <View style={[styles.liveStatusBadge, isCancelled && styles.liveStatusCancelled]}>
-                              <View style={[styles.statusIndicatorDot, isCancelled && { backgroundColor: '#FF7F50' }]} />
-                              <Text style={[styles.liveStatusText, isCancelled && { color: '#FF7F50' }]}>
+                            {/* Status Indicator (Clean Dot + Text, No Heavy Box) */}
+                            <View style={[styles.cardStatusWrap, isCancelled && styles.cardStatusWrapCancelled]}>
+                              <View
+                                style={[
+                                  styles.statusDot,
+                                  { backgroundColor: isCancelled ? '#EF4444' : test.status === 'Completed' ? '#00B894' : '#10B981' },
+                                ]}
+                              />
+                              <Text
+                                style={[
+                                  styles.cardStatusText,
+                                  { color: isCancelled ? '#EF4444' : test.status === 'Completed' ? '#059669' : '#047857' },
+                                ]}
+                              >
                                 {test.status}
                               </Text>
                             </View>
                           </View>
 
-                          {/* Main Row: Test Name, Centre, Schedule */}
-                          <View style={styles.bookedMainRow}>
-                            <View style={{ flex: 1 }}>
-                              <Text style={styles.bookedTestName}>{test.testName}</Text>
-
-                              {/* Category / Modality subtitle */}
-                              <Text style={styles.testCategorySubText}>
-                                Type: {bType} • {test.categoryLabel || test.testCategory || test.modality || 'Diagnostics'}
+                          {/* 2. Main Content Body: Left (Title, Provider, Location) & Right (Date/Time & Price) */}
+                          <View style={styles.cardBodyRow}>
+                            <View style={styles.cardMainInfoCol}>
+                              <Text style={styles.cardTestName} numberOfLines={2}>
+                                {formatShortTestName(test.testName)}
                               </Text>
 
-                              {/* Centre & Department */}
-                              <View style={styles.centreRow}>
-                                <Ionicons name="business" size={15} color="#1E3A8A" style={{ marginRight: 6 }} />
-                                <Text style={styles.centreNameText}>
-                                  {typeof test.centerName === 'object' ? (test.centerName?.name || 'Diagnostic Centre') : String(test.centerName || 'Diagnostic Centre')} • <Text style={{ color: '#64748B' }}>{typeof test.department === 'object' ? '' : String(test.department || '')}</Text>
-                                </Text>
-                              </View>
+                              <Text style={styles.cardProviderName} numberOfLines={1}>
+                                {formatShortProviderName(test.centerName)}
+                              </Text>
 
-                              {/* Appointment Type & Location */}
-                              <View style={styles.locationRow}>
-                                <Ionicons
-                                  name={isHome ? 'home-outline' : 'location-outline'}
-                                  size={14}
-                                  color={isHome ? '#00B894' : '#64748B'}
-                                  style={{ marginRight: 4 }}
-                                />
-                                <Text style={styles.locationText}>{formatAddressString(test.address || test.location)}</Text>
-                                {!isHome && (
-                                  <TouchableOpacity
-                                    style={styles.inlineGetDirectionsBtn}
-                                    onPress={() => handleOpenDirections(test)}
-                                    activeOpacity={0.8}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Get Directions"
-                                  >
-                                    <Ionicons name="navigate" size={12} color="#0D9488" style={{ marginRight: 4 }} />
-                                    <Text style={styles.inlineGetDirectionsBtnText}>Get Directions</Text>
-                                  </TouchableOpacity>
+                              <View style={styles.cardLocationRow}>
+                                <Ionicons name="location-outline" size={13} color="#64748B" style={{ marginRight: 3 }} />
+                                <Text style={styles.cardLocationText} numberOfLines={1}>
+                                  {formatShortLocation(test.address || test.location)}
+                                </Text>
+                                {isHome && (
+                                  <View style={styles.homeVisitBadge}>
+                                    <Text style={styles.homeVisitBadgeText}>Home Visit</Text>
+                                  </View>
                                 )}
                               </View>
-
-                              {/* Instructions Notice */}
-                              {test.instructions && (
-                                <View style={styles.prepNoticeBox}>
-                                  <Ionicons name="alert-circle" size={14} color="#D97706" style={{ marginRight: 6 }} />
-                                  <Text style={styles.prepNoticeText}>{test.instructions}</Text>
-                                </View>
-                              )}
-
-                              {/* Live Phlebotomist Assigned Callout (for home collections) */}
-                              {test.phlebotomist && !isCancelled && (
-                                <View style={styles.phlebotomistBox}>
-                                  <View style={styles.phlebAvatar}>
-                                    <Ionicons name="bicycle" size={18} color="#00B894" />
-                                  </View>
-                                  <View style={{ flex: 1 }}>
-                                    <Text style={styles.phlebTitle}>
-                                      Phlebotomist En Route: <Text style={{ fontWeight: '800' }}>{test.phlebotomist.name}</Text>
-                                    </Text>
-                                    <Text style={styles.phlebEta}>
-                                      Estimated Arrival: {test.phlebotomist.eta} • Vehicle: {test.phlebotomist.vehicle}
-                                    </Text>
-                                  </View>
-                                  <TouchableOpacity
-                                    style={styles.callPhlebBtn}
-                                    onPress={() => showToast(`Calling Phlebotomist ${test.phlebotomist.name} at ${test.phlebotomist.phone}...`)}
-                                  >
-                                    <Ionicons name="call" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
-                                    <Text style={styles.callPhlebBtnText}>Call</Text>
-                                  </TouchableOpacity>
-                                </View>
-                              )}
                             </View>
 
-                            {/* Schedule & Price Box */}
-                            <View style={styles.bookedScheduleBox}>
-                              <View style={styles.slotCard}>
-                                <Text style={styles.slotDateLabel}>APPOINTMENT SLOT</Text>
-                                <Text style={styles.slotDateText}>{test.appointmentDate || test.formattedDate || test.date}</Text>
-                                <Text style={styles.slotTimeText}>{test.timeSlot}</Text>
+                            <View style={styles.cardSchedulePriceCol}>
+                              <View style={styles.scheduleTextRow}>
+                                <Ionicons name="calendar-outline" size={13} color="#1E3A8A" style={{ marginRight: 5 }} />
+                                <Text style={styles.scheduleDateText}>
+                                  {test.appointmentDate || test.formattedDate || test.date}
+                                </Text>
                               </View>
-
-                              <View style={styles.pricePill}>
-                                <Text style={styles.priceAmount}>₹{test.price || test.paidAmount || 0}</Text>
-                                <Text style={styles.paymentStatusText}>{test.paymentStatus}</Text>
+                              <View style={styles.scheduleTimeRow}>
+                                <Ionicons name="time-outline" size={13} color="#0D9488" style={{ marginRight: 5 }} />
+                                <Text style={styles.scheduleTimeText}>{test.timeSlot}</Text>
                               </View>
-
-                              <View style={styles.patientInfoPill}>
-                                <Ionicons name="person" size={11} color="#1E3A8A" style={{ marginRight: 4 }} />
-                                <Text style={styles.patientInfoPillText}>
-                                  {test.patientName} {test.familyMemberName ? `(${test.familyMemberName})` : ''} ({test.gender?.charAt(0) || 'M'}, {test.age || 28}y)
+                              <View style={styles.priceRow}>
+                                <Text style={styles.priceText}>₹{test.price || test.paidAmount || 0}</Text>
+                                <Text style={styles.paymentSubtext}>
+                                  {test.paymentStatus ? `• ${test.paymentStatus.replace('Paid Online via UPI', 'Paid Online').replace('Paid Online via NetBanking', 'Paid Online')}` : '• Paid'}
                                 </Text>
                               </View>
                             </View>
                           </View>
 
-                          {/* Footer Action Buttons */}
-                          <View style={styles.bookedActionsRow}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                              <Ionicons name="shield-checkmark" size={14} color="#00B894" style={{ marginRight: 4 }} />
-                              <Text style={styles.doctorPrescText}>{test.doctorPrescription || 'Diagnostic Specialist Referral'}</Text>
+                          {/* 3. Divider & Patient / Alerts Row */}
+                          <View style={styles.cardMetaDivider} />
+
+                          <View style={styles.cardMetaRow}>
+                            <View style={styles.cardPatientWrap}>
+                              <Ionicons name="person-outline" size={12} color="#64748B" style={{ marginRight: 4 }} />
+                              <Text style={styles.cardPatientText}>
+                                Patient: <Text style={{ fontWeight: '700', color: '#1E293B' }}>{test.patientName}</Text>
+                                {' '}{test.familyMemberName ? `• ${test.familyMemberName}` : '• Self'}
+                              </Text>
                             </View>
 
-                            <View style={styles.actionButtonsGroup}>
-                              {/* Primary View Details Button */}
+                            {test.instructions && (
+                              <View style={styles.compactWarningPill}>
+                                <Ionicons name="warning-outline" size={12} color="#D97706" style={{ marginRight: 4 }} />
+                                <Text style={styles.compactWarningText} numberOfLines={1}>
+                                  {formatShortInstruction(test.instructions)}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+
+                          {/* 4. Compact Phlebotomist Notification (if home collection active) */}
+                          {test.phlebotomist && !isCancelled && (
+                            <View style={styles.compactPhlebBar}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                                <Ionicons name="bicycle" size={14} color="#00B894" />
+                                <Text style={styles.compactPhlebText}>
+                                  Collection in <Text style={{ fontWeight: '800' }}>{test.phlebotomist.eta?.replace(' mins', ' min') || '10 min'}</Text> • {test.phlebotomist.name}
+                                </Text>
+                              </View>
                               <TouchableOpacity
-                                style={[styles.viewSlipBtn, { backgroundColor: '#1E3A8A', borderColor: '#1E3A8A' }]}
-                                onPress={() => setViewingDetails(test)}
+                                style={styles.compactCallBtn}
+                                onPress={() => showToast(`Calling ${test.phlebotomist.name} at ${test.phlebotomist.phone}...`)}
                                 activeOpacity={0.8}
+                              >
+                                <Ionicons name="call" size={11} color="#00B894" style={{ marginRight: 3 }} />
+                                <Text style={styles.compactCallBtnText}>Call</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+
+                          {/* 5. Footer Actions */}
+                          <View style={styles.cardFooterRow}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.referralHintText} numberOfLines={1}>
+                                {test.doctorPrescription || 'Specialist Referral Confirmed'}
+                              </Text>
+                            </View>
+
+                            <View style={styles.cardActionBtnsGroup}>
+                              {/* View Details */}
+                              <TouchableOpacity
+                                style={styles.primaryViewDetailsBtn}
+                                onPress={() => setViewingDetails(test)}
+                                activeOpacity={0.85}
                               >
                                 <Ionicons name="information-circle-outline" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-                                <Text style={[styles.viewSlipBtnText, { color: '#FFFFFF', fontWeight: '700' }]}>View Details</Text>
+                                <Text style={styles.primaryViewDetailsBtnText}>View Details</Text>
                               </TouchableOpacity>
 
-                              {/* Appointment Pass */}
-                              <TouchableOpacity
-                                style={[styles.viewSlipBtn, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}
-                                onPress={() => setViewingSlip(test)}
-                                activeOpacity={0.8}
-                              >
-                                <Ionicons name="receipt-outline" size={14} color="#1E3A8A" style={{ marginRight: 4 }} />
-                                <Text style={[styles.viewSlipBtnText, { color: '#1E3A8A' }]}>Appointment Pass</Text>
-                              </TouchableOpacity>
-
-                              {/* Directions */}
-                              <TouchableOpacity
-                                style={[
-                                  styles.viewSlipBtn,
-                                  !isHome && { backgroundColor: '#F0FDFA', borderColor: '#99F6E4' },
-                                ]}
-                                onPress={() => handleOpenDirections(test)}
-                                activeOpacity={0.8}
-                              >
-                                <Ionicons
-                                  name="navigate"
-                                  size={14}
-                                  color={!isHome ? '#0D9488' : '#1E3A8A'}
-                                  style={{ marginRight: 4 }}
-                                />
-                                <Text
-                                  style={[
-                                    styles.viewSlipBtnText,
-                                    !isHome && { color: '#0D9488', fontWeight: '700' },
-                                  ]}
-                                >
-                                  Get Directions
-                                </Text>
-                              </TouchableOpacity>
-
-                              {/* Reschedule */}
-                              {!isCancelled && test.status !== 'Completed' && test.canReschedule && (
+                              {/* Directions (For diagnostic centres) */}
+                              {!isHome && (
                                 <TouchableOpacity
-                                  style={styles.rescheduleBtn}
-                                  onPress={() => setReschedulingTest(test)}
+                                  style={styles.secondaryDirectionBtn}
+                                  onPress={() => handleOpenDirections(test)}
                                   activeOpacity={0.8}
                                 >
-                                  <Ionicons name="time-outline" size={14} color="#475569" style={{ marginRight: 4 }} />
-                                  <Text style={styles.rescheduleBtnText}>Reschedule</Text>
-                                </TouchableOpacity>
-                              )}
-
-                              {/* Cancel */}
-                              {!isCancelled && test.status !== 'Completed' && test.canCancel && (
-                                <TouchableOpacity
-                                  style={styles.cancelBookingBtn}
-                                  onPress={() => setCancellingTest(test)}
-                                  activeOpacity={0.8}
-                                >
-                                  <Text style={styles.cancelBookingBtnText}>Cancel</Text>
+                                  <Ionicons name="navigate-outline" size={13} color="#0D9488" style={{ marginRight: 4 }} />
+                                  <Text style={styles.secondaryDirectionBtnText}>Directions</Text>
                                 </TouchableOpacity>
                               )}
                             </View>
@@ -1133,7 +1441,7 @@ const MyTestsScreenWeb = ({ navigation, route }) => {
               )}
 
               {/* SECTION 2: COMPLETED TEST REPORTS (RADIOLOGY & PATHOLOGY) */}
-              {(viewMode === 'reports' || viewMode === 'all_appts') && (
+              {viewMode === 'reports' && (
                 <View style={{ gap: 14 }}>
                   <View style={styles.sectionHeaderRow}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1760,17 +2068,6 @@ const MyTestsScreenWeb = ({ navigation, route }) => {
 
             {/* Modal Footer Actions */}
             <View style={styles.detailsModalFooter}>
-              <TouchableOpacity
-                style={styles.detailsSecondaryBtn}
-                onPress={() => {
-                  const item = viewingDetails;
-                  setViewingDetails(null);
-                  setViewingSlip(item);
-                }}
-              >
-                <Ionicons name="receipt-outline" size={15} color="#1E3A8A" style={{ marginRight: 4 }} />
-                <Text style={styles.detailsSecondaryBtnText}>Appointment Pass</Text>
-              </TouchableOpacity>
 
               {viewingDetails?.status !== 'Cancelled' && viewingDetails?.status !== 'Completed' && viewingDetails?.canReschedule && (
                 <TouchableOpacity
@@ -2353,15 +2650,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748B',
   },
-  // Secondary Controls Card
+  // Secondary Controls Card (Compact Redesign)
   secondaryControlsCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    padding: 14,
+    padding: 12,
     marginBottom: 20,
-    gap: 12,
+    gap: 10,
+    position: 'relative',
+    zIndex: 40,
+    boxShadow: '0 2px 8px rgba(15,23,42,0.04)',
   },
   searchBar: {
     flexDirection: 'row',
@@ -2379,32 +2679,276 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     outlineStyle: 'none',
   },
-  smallFilterChip: {
+  controlsRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  controlsButtonsGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  controlAnchor: {
+    position: 'relative',
+  },
+  filterControlBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 9,
     paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  filterControlBtnActive: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#00B894',
+  },
+  filterControlBtnText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  filterControlBtnTextActive: {
+    color: '#1E3A8A',
+    fontWeight: '700',
+  },
+  filterCountBadge: {
+    marginLeft: 6,
+    backgroundColor: '#00B894',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterCountBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
+  resetControlBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 9,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  resetControlBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#EF4444',
+  },
+  popoverBackdrop: {
+    position: Platform.OS === 'web' ? 'fixed' : 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 99,
+  },
+  popoverCard: {
+    position: 'absolute',
+    top: 38,
+    left: 0,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 14,
+    zIndex: 100,
+    boxShadow: '0 12px 28px rgba(15, 23, 42, 0.15), 0 4px 10px rgba(15, 23, 42, 0.08)',
+  },
+  filterPopoverCard: {
+    width: 440,
+    maxWidth: '92vw',
+  },
+  sortPopoverCard: {
+    width: 320,
+    maxWidth: '92vw',
+  },
+  popoverHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 10,
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  popoverHeading: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  popoverCloseBtn: {
+    padding: 4,
+    borderRadius: 6,
+  },
+  popoverSection: {
+    marginBottom: 4,
+  },
+  popoverSectionLabel: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  popoverPillsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  popoverPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 11,
     paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: '#F1F5F9',
+    borderRadius: 18,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  smallFilterChipActive: {
+  popoverPillSelectedNavy: {
     backgroundColor: '#1E3A8A',
     borderColor: '#1E3A8A',
   },
-  smallSortChipActive: {
-    backgroundColor: '#0369A1',
-    borderColor: '#0369A1',
+  popoverPillSelectedTeal: {
+    backgroundColor: '#00B894',
+    borderColor: '#00B894',
   },
-  smallFilterChipText: {
-    fontSize: 12,
+  popoverPillSelectedGreen: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  popoverPillSelectedCoral: {
+    backgroundColor: '#EF4444',
+    borderColor: '#EF4444',
+  },
+  popoverPillText: {
+    fontSize: 11.5,
     fontWeight: '600',
     color: '#475569',
   },
-  smallFilterChipTextActive: {
+  popoverPillTextSelected: {
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  popoverFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  popoverClearBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  popoverClearBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  popoverApplyBtn: {
+    backgroundColor: '#00B894',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 7,
+  },
+  popoverApplyBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  sortRadioList: {
+    gap: 4,
+  },
+  sortRadioItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  sortRadioItemActive: {
+    backgroundColor: '#F0FDF4',
+  },
+  sortRadioCircle: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  sortRadioCircleActive: {
+    borderColor: '#00B894',
+  },
+  sortRadioDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#00B894',
+  },
+  sortRadioLabel: {
+    fontSize: 12.5,
+    color: '#475569',
+    fontWeight: '500',
+  },
+  sortRadioLabelActive: {
+    color: '#0F172A',
+    fontWeight: '700',
+  },
+  activeChipsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  activeChipsHeaderLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    marginRight: 2,
+  },
+  activeChipPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingLeft: 8,
+    paddingRight: 6,
+    paddingVertical: 3,
+    borderRadius: 14,
+    gap: 4,
+  },
+  activeChipPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1E3A8A',
+  },
+  activeChipRemoveBtn: {
+    padding: 2,
+    borderRadius: 8,
   },
   loadingContainer: {
     paddingVertical: 60,
@@ -2474,118 +3018,307 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 420,
   },
-  // Booked Test Card
+  // Booked Test Card (Compact Redesign)
   bookedCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    padding: 18,
-    boxShadow: '0 2px 12px rgba(15,23,42,0.05)',
+    padding: 14,
+    boxShadow: '0 2px 8px rgba(15,23,42,0.03)',
+    gap: 10,
   },
-  bookedTopRow: {
+  cardHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    marginBottom: 12,
+    gap: 8,
   },
-  modalityBadge: {
+  cardHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    gap: 8,
+  },
+  cardTypePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
     borderRadius: 6,
-    borderWidth: 1,
   },
-  modalityBadgeText: {
-    fontSize: 11.5,
-    fontWeight: '700',
+  cardTypePillText: {
+    fontSize: 11,
+    fontWeight: '800',
   },
-  bookingRefText: {
-    fontSize: 11.5,
-    fontFamily: 'monospace',
+  cardBookingId: {
+    fontSize: 11,
     color: '#64748B',
+    fontFamily: 'monospace',
   },
-  liveStatusBadge: {
+  cardStatusWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
     gap: 5,
   },
-  liveStatusCancelled: {
-    backgroundColor: '#FFF2ED',
-    borderColor: '#FFD7C7',
+  cardStatusWrapCancelled: {
+    backgroundColor: '#FEF2F2',
   },
-  statusIndicatorDot: {
+  statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#00B894',
   },
-  liveStatusText: {
+  cardStatusText: {
     fontSize: 11.5,
     fontWeight: '700',
-    color: '#00B894',
   },
-  bookedMainRow: {
+  cardBodyRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     flexWrap: 'wrap',
-    gap: 16,
-    marginBottom: 14,
+    gap: 12,
   },
-  bookedTestName: {
-    fontSize: 16.5,
+  cardMainInfoCol: {
+    flex: 1,
+    minWidth: 260,
+    gap: 3,
+  },
+  cardTestName: {
+    fontSize: 15.5,
     fontWeight: '800',
     color: '#0F172A',
-    marginBottom: 4,
+    lineHeight: 20,
   },
-  centreRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  centreNameText: {
-    fontSize: 13,
+  cardProviderName: {
+    fontSize: 12.5,
     fontWeight: '700',
     color: '#1E3A8A',
   },
-  locationRow: {
+  cardLocationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    flexWrap: 'wrap',
-    gap: 6,
+    marginTop: 1,
   },
-  locationText: {
-    fontSize: 12,
+  cardLocationText: {
+    fontSize: 11.5,
     color: '#64748B',
   },
-  inlineGetDirectionsBtn: {
+  homeVisitBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+    marginLeft: 6,
+  },
+  homeVisitBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#00B894',
+  },
+  cardSchedulePriceCol: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  scheduleTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  scheduleDateText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  scheduleTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  scheduleTimeText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#0D9488',
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginTop: 2,
+    gap: 4,
+  },
+  priceText: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  paymentSubtext: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#00B894',
+  },
+  cardMetaDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 1,
+  },
+  cardMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  cardPatientWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardPatientText: {
+    fontSize: 11.5,
+    color: '#475569',
+  },
+  compactWarningPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  compactWarningText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#B45309',
+  },
+  compactPhlebBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 8,
+  },
+  compactPhlebText: {
+    fontSize: 11.5,
+    color: '#166534',
+  },
+  compactCallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  compactCallBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#166534',
+  },
+  cardFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F8FAFC',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  referralHintText: {
+    fontSize: 11,
+    color: '#94A3B8',
+  },
+  cardActionBtnsGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  primaryViewDetailsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E3A8A',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 7,
+  },
+  primaryViewDetailsBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  secondaryDirectionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F0FDFA',
     borderWidth: 1,
     borderColor: '#99F6E4',
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    marginLeft: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5.5,
+    borderRadius: 7,
   },
-  inlineGetDirectionsBtnText: {
-    fontSize: 11.5,
-    fontWeight: '700',
+  secondaryDirectionBtnText: {
     color: '#0D9488',
+    fontSize: 12,
+    fontWeight: '700',
   },
+  moreActionsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingHorizontal: 10,
+    paddingVertical: 5.5,
+    borderRadius: 7,
+  },
+  moreActionsBtnActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#1E3A8A',
+  },
+  moreActionsBtnText: {
+    color: '#334155',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  cardMenuBackdrop: {
+    position: Platform.OS === 'web' ? 'fixed' : 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 99,
+  },
+  cardDropdownMenu: {
+    position: 'absolute',
+    top: 32,
+    right: 0,
+    width: 175,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    boxShadow: '0 10px 25px rgba(15, 23, 42, 0.12)',
+    paddingVertical: 4,
+    zIndex: 100,
+  },
+  cardMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  cardMenuItemText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  // Details Modal Directions Button
   detailsDirectionsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2600,182 +3333,6 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontWeight: '700',
     color: '#FFFFFF',
-  },
-  prepNoticeBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    borderRadius: 6,
-    padding: 8,
-    marginTop: 4,
-  },
-  prepNoticeText: {
-    fontSize: 12,
-    color: '#92400E',
-    fontWeight: '500',
-    flex: 1,
-  },
-  phlebotomistBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-    borderRadius: 8,
-    padding: 10,
-    marginTop: 8,
-    gap: 10,
-  },
-  phlebAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#E6F8F4',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  phlebTitle: {
-    fontSize: 12.5,
-    color: '#0F172A',
-  },
-  phlebEta: {
-    fontSize: 11.5,
-    color: '#00B894',
-    fontWeight: '600',
-  },
-  callPhlebBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#00B894',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-  },
-  callPhlebBtnText: {
-    color: '#FFFFFF',
-    fontSize: 11.5,
-    fontWeight: '700',
-  },
-  bookedScheduleBox: {
-    alignItems: 'flex-end',
-    gap: 6,
-  },
-  slotCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    alignItems: 'flex-end',
-  },
-  slotDateLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#64748B',
-    letterSpacing: 0.5,
-  },
-  slotDateText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  slotTimeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#1E3A8A',
-  },
-  pricePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  priceAmount: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  paymentStatusText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: '#00B894',
-  },
-  patientInfoPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  patientInfoPillText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#1E40AF',
-  },
-  bookedActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  doctorPrescText: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  actionButtonsGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  viewSlipBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  viewSlipBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#1E3A8A',
-  },
-  rescheduleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  rescheduleBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  cancelBookingBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: '#FFF2ED',
-    borderWidth: 1,
-    borderColor: '#FFD8CC',
-  },
-  cancelBookingBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FF7F50',
   },
   // Completed Report Card
   reportCard: {
