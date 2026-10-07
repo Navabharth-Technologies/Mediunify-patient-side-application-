@@ -11,33 +11,35 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../theme/colors';
+import { useTheme } from '../../context/ThemeContext';
 
 const OUR_SERVICES = [
-  { label: 'Lab Tests', route: 'LabTests' },
-  { label: 'Scans & X-Ray', route: 'Imaging' },
-  { label: 'Consultation', route: 'VideoConsultation' },
-  { label: 'Pharmacy', route: 'Pharmacy' },
-  { label: 'Hospital & Surgery', route: 'HospitalCare' },
-  { label: 'Health Insurance', route: 'HealthInsurance' },
-  { label: 'Ayurveda & Wellness', route: 'AyurvedaWellness' },
-  { label: 'Fertility & IVF Care', route: 'FertilityIvf' },
-  { label: 'Equipment Rental', route: 'EquipmentRental' },
-  { label: 'Emergency', route: 'Emergency' },
+  { labelKey: 'card_lab_tests', label: 'Lab Tests', route: 'LabTests' },
+  { labelKey: 'card_scans_xray', label: 'Scans & X-Ray', route: 'Imaging' },
+  { labelKey: 'card_video_consult', label: 'Consultation', route: 'VideoConsultation' },
+  { labelKey: 'card_order_medicines', label: 'Pharmacy', route: 'Pharmacy' },
+  { labelKey: 'card_surgeries', label: 'Hospital & Surgery', route: 'HospitalCare' },
+  { labelKey: 'card_health_insurance', label: 'Health Insurance', route: 'HealthInsurance' },
+  { labelKey: 'card_ayurveda', label: 'Ayurveda & Wellness', route: 'AyurvedaWellness' },
+  { labelKey: 'card_fertility', label: 'Fertility & IVF Care', route: 'FertilityIvf' },
+  { labelKey: 'card_equipment_rental', label: 'Equipment Rental', route: 'EquipmentRental' },
+  { labelKey: 'card_emergency', label: 'Emergency', route: 'Emergency' },
 ];
 
 const SUPPORT_LINKS = [
-  { label: 'Help Center', route: 'HelpSupport' },
-  { label: 'FAQs', route: 'HelpSupport' },
-  { label: 'Contact Us', route: 'HelpSupport' },
-  { label: 'For Providers', route: 'HelpSupport' },
-  { label: 'For Corporates', route: 'HelpSupport' },
-  { label: 'Terms of Service', route: 'HelpSupport' },
-  { label: 'Privacy Policy', route: 'HelpSupport' },
-  { label: 'Refund Policy', route: 'HelpSupport' },
+  { labelKey: 'help_support', label: 'Help Center', route: 'HelpSupport' },
+  { labelKey: 'help_support', label: 'FAQs', route: 'HelpSupport' },
+  { labelKey: 'help_support', label: 'Contact Us', route: 'HelpSupport' },
+  { labelKey: 'support_providers', label: 'For Providers', route: 'HelpSupport' },
+  { labelKey: 'support_corporates', label: 'For Corporates', route: 'HelpSupport' },
+  { labelKey: 'support_terms', label: 'Terms of Service', route: 'HelpSupport' },
+  { labelKey: 'support_privacy', label: 'Privacy Policy', route: 'HelpSupport' },
+  { labelKey: 'support_privacy', label: 'Refund Policy', route: 'HelpSupport' },
 ];
 
 const WebFooter = ({ navigation, style }) => {
   const { width } = useWindowDimensions();
+  const { t, isIndic } = useTheme();
   const isDesktop = width >= 768;
   const [emailInput, setEmailInput] = useState('');
   const [subscribed, setSubscribed] = useState(false);
@@ -82,13 +84,13 @@ const WebFooter = ({ navigation, style }) => {
                   <Text style={styles.brandTitleAccent}>Unify</Text>
                 </View>
                 <Text style={styles.brandTagline}>
-                  All your healthcare. One intelligent platform.
+                  {t('brand_tagline', 'All your healthcare. One intelligent platform.')}
                 </Text>
               </View>
             </View>
 
-            <Text style={styles.brandDesc}>
-              MediUnify brings together lab tests, consultation, pharmacy, hospital care, insurance and more — to make quality healthcare simple, accessible and intelligent for everyone.
+            <Text style={[styles.brandDesc, isIndic && { lineHeight: 22 }]}>
+              {t('footer_brand_desc', 'MediUnify brings together lab tests, consultation, pharmacy, hospital care, insurance and more — to make quality healthcare simple, accessible and intelligent for everyone.')}
             </Text>
 
             {/* Social Icons */}
@@ -110,7 +112,7 @@ const WebFooter = ({ navigation, style }) => {
 
           {/* Column 2: Our Services */}
           <View style={styles.footerCol}>
-            <Text style={styles.colHeading}>Our Services</Text>
+            <Text style={styles.colHeading}>{t('footer_patient_services', 'Our Services')}</Text>
             {OUR_SERVICES.map((item, i) => (
               <TouchableOpacity
                 key={i}
@@ -118,14 +120,16 @@ const WebFooter = ({ navigation, style }) => {
                 onPress={() => handleNavigate(item.route)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.footerLinkText}>{item.label}</Text>
+                <Text style={styles.footerLinkText}>
+                  {item.labelKey ? t(item.labelKey, item.label) : item.label}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
 
           {/* Column 3: Support */}
           <View style={styles.footerCol}>
-            <Text style={styles.colHeading}>Support</Text>
+            <Text style={styles.colHeading}>{t('footer_support_trust', 'Support')}</Text>
             {SUPPORT_LINKS.map((item, i) => (
               <TouchableOpacity
                 key={i}
@@ -133,7 +137,9 @@ const WebFooter = ({ navigation, style }) => {
                 onPress={() => handleNavigate(item.route)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.footerLinkText}>{item.label}</Text>
+                <Text style={styles.footerLinkText}>
+                  {item.labelKey ? t(item.labelKey, item.label) : item.label}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -198,8 +204,8 @@ const WebFooter = ({ navigation, style }) => {
             BOTTOM STRIP: COPYRIGHT & SCROLL TO TOP
         ============================================================ */}
         <View style={styles.bottomStrip}>
-          <Text style={styles.copyrightText}>
-            © 2025 MediUnify. All rights reserved.
+          <Text style={[styles.copyrightText, isIndic && { lineHeight: 18 }]}>
+            {t('footer_rights', '© 2026 Unnathi Healthcare / MediUnify • All rights reserved.')}
           </Text>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>

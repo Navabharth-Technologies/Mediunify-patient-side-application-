@@ -52,12 +52,15 @@ const PALETTE = {
 const HERO_PRACTO_CARDS = [
   {
     id: 'video-consult',
+    titleKey: 'card_video_consult',
     title: 'Video Consultation',
+    subtitleKey: 'card_video_desc',
     subtitle: 'Connect with expert doctors from the comfort of your home.',
     bgColor: '#E8F4FD',
     gradientTop: 'linear-gradient(135deg, #C9E8F8 0%, #E0F3FD 100%)',
     accentColor: '#1170CF',
     accentBg: '#E8F4FD',
+    availabilityKey: 'service_video_avail',
     availability: "Qualified Doctor's",
     iconFamily: 'MaterialCommunityIcons',
     iconName: 'stethoscope',
@@ -66,12 +69,15 @@ const HERO_PRACTO_CARDS = [
   },
   {
     id: 'lab-tests',
+    titleKey: 'card_lab_tests',
     title: 'Lab Tests',
+    subtitleKey: 'card_lab_desc',
     subtitle: 'Get accurate results with trusted labs. Home sample pickup.',
     bgColor: '#E6F8F2',
     gradientTop: 'linear-gradient(135deg, #C2EEE2 0%, #DCF5EE 100%)',
     accentColor: '#00A878',
     accentBg: '#E6F8F2',
+    availabilityKey: 'service_lab_avail',
     availability: 'Free Home Pickup',
     iconFamily: 'Ionicons',
     iconName: 'home',
@@ -80,12 +86,15 @@ const HERO_PRACTO_CARDS = [
   },
   {
     id: 'pharmacy',
+    titleKey: 'card_order_medicines',
     title: 'Pharmacy',
+    subtitleKey: 'card_medicine_desc',
     subtitle: 'Order medicines and healthcare essentials, delivered fast.',
     bgColor: '#F0EBFF',
     gradientTop: 'linear-gradient(135deg, #DDD4FF 0%, #EDE6FF 100%)',
     accentColor: '#6B46C1',
     accentBg: '#F0EBFF',
+    availabilityKey: 'service_pharmacy_avail',
     availability: 'Fast Delivery',
     iconFamily: 'MaterialCommunityIcons',
     iconName: 'truck-fast',
@@ -94,12 +103,15 @@ const HERO_PRACTO_CARDS = [
   },
   {
     id: 'radiology',
+    titleKey: 'card_scans_xray',
     title: 'Scans & X-Ray',
+    subtitleKey: 'card_scans_desc',
     subtitle: 'Advanced imaging diagnostics with certified radiologists.',
     bgColor: '#E8F4FD',
     gradientTop: 'linear-gradient(135deg, #BFD8F0 0%, #D8ECFA 100%)',
     accentColor: '#1E3A8A',
     accentBg: '#E8F4FD',
+    availabilityKey: 'service_scans_avail',
     availability: 'Same Day Reports',
     iconFamily: 'Ionicons',
     iconName: 'document-text',
@@ -110,14 +122,29 @@ const HERO_PRACTO_CARDS = [
 
 // Popular search tags matching reference design
 const POPULAR_SEARCH_TAGS = [
-  { label: 'Fever', query: 'Fever' },
-  { label: 'General Physician', specialty: 'general-primary' },
-  { label: 'Blood Test', route: 'LabTests' },
-  { label: 'MRI Scan', route: 'Imaging' },
-  { label: 'Cardiologist', specialty: 'cardiology-heart' },
-  { label: 'Pharmacy', route: 'Pharmacy' },
-  { label: 'Hospital', route: 'HospitalCare' },
+  { key: 'tag_fever', label: 'Fever', query: 'Fever' },
+  { key: 'tag_general_physician', label: 'General Physician', specialty: 'general-primary' },
+  { key: 'tag_blood_test', label: 'Blood Test', route: 'LabTests' },
+  { key: 'tag_mri_scan', label: 'MRI Scan', route: 'Imaging' },
+  { key: 'tag_cardiologist', label: 'Cardiologist', specialty: 'cardiology-heart' },
+  { key: 'tag_pharmacy', label: 'Pharmacy', route: 'Pharmacy' },
+  { key: 'tag_hospital', label: 'Hospital', route: 'HospitalCare' },
 ];
+
+const SPECIALTY_TRANSLATIONS = {
+  'general-primary': { title: 'spec_physician_title', sub: 'spec_physician_sub' },
+  'womens-health-group': { title: 'spec_women_title', sub: 'spec_women_sub' },
+  'ivf-fertility-group': { title: 'spec_fertility_title', sub: 'spec_fertility_sub' },
+  'dermatology-skin': { title: 'spec_derma_title', sub: 'spec_derma_sub' },
+  'pediatrics-child-health': { title: 'spec_pedia_title', sub: 'spec_pedia_sub' },
+  'cardiology-heart': { title: 'spec_cardio_title', sub: 'spec_cardio_sub' },
+  'orthopedics-bone-joint': { title: 'spec_ortho_title', sub: 'spec_ortho_sub' },
+  'dental-oral-care': { title: 'spec_dental_title', sub: 'spec_dental_sub' },
+  'psychiatry-mental-health': { title: 'spec_mental_title', sub: 'spec_mental_sub' },
+  'ent-group': { title: 'spec_ent_title', sub: 'spec_ent_sub' },
+  'ophthalmology-group': { title: 'spec_eye_title', sub: 'spec_eye_sub' },
+  'gastroenterology-group': { title: 'spec_gastro_title', sub: 'spec_gastro_sub' },
+};
 
 // Trust Matrix Pillars matching Login Screen design
 const TRUST_PILLARS = [
@@ -594,8 +621,8 @@ const HomeScreenWeb = ({ navigation }) => {
               </View>
 
               {/* 3. Subtitle */}
-              <Text style={styles.heroSubtitle}>
-                Find doctors, book lab tests, order medicines, access Scans & X-Ray and connect with trusted hospitals — all in one place.
+              <Text style={[styles.heroSubtitle, isIndic && { lineHeight: 22 }]}>
+                {t('hero_subtitle', 'Find doctors, book lab tests, order medicines, access Scans & X-Ray and connect with trusted hospitals — all in one place.')}
               </Text>
 
               {/* 4. Unified Search Bar */}
@@ -622,7 +649,7 @@ const HomeScreenWeb = ({ navigation }) => {
                         <Ionicons name="search" size={15} color="#00B894" />
                         <TextInput
                           style={styles.locationSearchInput}
-                          placeholder="Search city, area, locality..."
+                          placeholder={t('location_search_placeholder', 'Search city, area, locality...')}
                           placeholderTextColor="#94A3B8"
                           value={locationSearchText}
                           onChangeText={setLocationSearchText}
@@ -648,7 +675,7 @@ const HomeScreenWeb = ({ navigation }) => {
                           <Ionicons name="locate" size={15} color="#00B894" />
                         )}
                         <Text style={styles.detectLocationText}>
-                          {isDetectingLocation ? 'Detecting your GPS location...' : 'Use Current Location (GPS)'}
+                          {isDetectingLocation ? t('detecting_gps', 'Detecting your GPS location...') : t('use_gps_location', 'Use Current Location (GPS)')}
                         </Text>
                       </TouchableOpacity>
 
@@ -661,7 +688,7 @@ const HomeScreenWeb = ({ navigation }) => {
                           >
                             <Ionicons name="pin" size={14} color="#00B894" style={{ marginRight: 8 }} />
                             <Text style={styles.customLocationText}>
-                              Use <Text style={{ fontWeight: '800' }}>"{locationSearchText.trim()}"</Text>
+                              {t('use_custom_location', 'Use')} <Text style={{ fontWeight: '800' }}>"{locationSearchText.trim()}"</Text>
                             </Text>
                           </TouchableOpacity>
                         )}
@@ -750,7 +777,9 @@ const HomeScreenWeb = ({ navigation }) => {
                       onPress={() => handlePopularTagClick(tag)}
                       activeOpacity={0.75}
                     >
-                      <Text style={styles.popularChipText}>{tag.label}</Text>
+                      <Text style={[styles.popularChipText, isIndic && { lineHeight: 18 }]}>
+                        {t(tag.key, tag.label)}
+                      </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -778,16 +807,18 @@ const HomeScreenWeb = ({ navigation }) => {
                         style={styles.mediAiAvatar}
                         resizeMode="contain"
                       />
-                      <Text style={styles.mediAiTitle}>MediUnify AI</Text>
+                      <Text style={styles.mediAiTitle}>{t('ai_guide_title', 'MediUnify AI')}</Text>
                     </View>
                     <View style={styles.mediAiBadge}>
-                      <Text style={styles.mediAiBadgeText}>Your Health Guide 24/7</Text>
+                      <Text style={styles.mediAiBadgeText}>{t('ai_guide_badge', 'Your Health Guide 24/7')}</Text>
                     </View>
                   </View>
 
-                  <Text style={styles.mediAiQuestion}>Not sure where to start?</Text>
-                  <Text style={styles.mediAiPrompt}>
-                    Tell us what you're experiencing and we'll help you find the right doctor, test or service.
+                  <Text style={[styles.mediAiQuestion, isIndic && { lineHeight: 22 }]}>
+                    {t('ai_guide_question', 'Not sure where to start?')}
+                  </Text>
+                  <Text style={[styles.mediAiPrompt, isIndic && { lineHeight: 18 }]}>
+                    {t('ai_guide_prompt', "Tell us what you're experiencing and we'll help you find the right doctor, test or service.")}
                   </Text>
 
                   <TouchableOpacity
@@ -799,21 +830,29 @@ const HomeScreenWeb = ({ navigation }) => {
                     accessibilityRole="button"
                     accessibilityLabel="Chat with MediUnify AI"
                   >
-                    <Text style={styles.mediAiBtnText}>Chat with MediUnify AI →</Text>
+                    <Text style={[styles.mediAiBtnText, isIndic && { lineHeight: 18 }]}>
+                      {t('chat_with_ai_btn', 'Chat with MediUnify AI →')}
+                    </Text>
                   </TouchableOpacity>
 
                   <View style={styles.mediAiFeaturesList}>
                     <View style={styles.mediAiFeatureItem}>
                       <Ionicons name="checkmark-circle" size={13} color="#00B894" style={{ marginRight: 6 }} />
-                      <Text style={styles.mediAiFeatureText}>Symptom guidance</Text>
+                      <Text style={[styles.mediAiFeatureText, isIndic && { lineHeight: 16 }]}>
+                        {t('ai_feat_symptom', 'Symptom guidance')}
+                      </Text>
                     </View>
                     <View style={styles.mediAiFeatureItem}>
                       <Ionicons name="checkmark-circle" size={13} color="#00B894" style={{ marginRight: 6 }} />
-                      <Text style={styles.mediAiFeatureText}>Service recommendations</Text>
+                      <Text style={[styles.mediAiFeatureText, isIndic && { lineHeight: 16 }]}>
+                        {t('ai_feat_recommend', 'Service recommendations')}
+                      </Text>
                     </View>
                     <View style={styles.mediAiFeatureItem}>
                       <Ionicons name="checkmark-circle" size={13} color="#00B894" style={{ marginRight: 6 }} />
-                      <Text style={styles.mediAiFeatureText}>Care navigation (not a diagnosis)</Text>
+                      <Text style={[styles.mediAiFeatureText, isIndic && { lineHeight: 16 }]}>
+                        {t('ai_feat_navigation', 'Care navigation (not a diagnosis)')}
+                      </Text>
                     </View>
                   </View>
                 </View>
@@ -828,16 +867,18 @@ const HomeScreenWeb = ({ navigation }) => {
                         style={styles.mediAiAvatar}
                         resizeMode="contain"
                       />
-                      <Text style={styles.mediAiTitle}>MediUnify AI</Text>
+                      <Text style={styles.mediAiTitle}>{t('ai_guide_title', 'MediUnify AI')}</Text>
                     </View>
                     <View style={styles.mediAiBadge}>
-                      <Text style={styles.mediAiBadgeText}>Your Health Guide 24/7</Text>
+                      <Text style={styles.mediAiBadgeText}>{t('ai_guide_badge', 'Your Health Guide 24/7')}</Text>
                     </View>
                   </View>
 
-                  <Text style={styles.mediAiQuestion}>Not sure where to start?</Text>
-                  <Text style={styles.mediAiPrompt}>
-                    Tell us what you're experiencing and we'll help you find the right doctor, test or service.
+                  <Text style={[styles.mediAiQuestion, isIndic && { lineHeight: 22 }]}>
+                    {t('ai_guide_question', 'Not sure where to start?')}
+                  </Text>
+                  <Text style={[styles.mediAiPrompt, isIndic && { lineHeight: 18 }]}>
+                    {t('ai_guide_prompt', "Tell us what you're experiencing and we'll help you find the right doctor, test or service.")}
                   </Text>
 
                   <TouchableOpacity
@@ -845,21 +886,29 @@ const HomeScreenWeb = ({ navigation }) => {
                     onPress={() => handleNavigateToService('Chatbot')}
                     activeOpacity={0.88}
                   >
-                    <Text style={styles.mediAiBtnText}>Chat with MediUnify AI →</Text>
+                    <Text style={[styles.mediAiBtnText, isIndic && { lineHeight: 18 }]}>
+                      {t('chat_with_ai_btn', 'Chat with MediUnify AI →')}
+                    </Text>
                   </TouchableOpacity>
 
                   <View style={styles.mediAiFeaturesList}>
                     <View style={styles.mediAiFeatureItem}>
                       <Ionicons name="checkmark-circle" size={13} color="#00B894" style={{ marginRight: 6 }} />
-                      <Text style={styles.mediAiFeatureText}>Symptom guidance</Text>
+                      <Text style={[styles.mediAiFeatureText, isIndic && { lineHeight: 16 }]}>
+                        {t('ai_feat_symptom', 'Symptom guidance')}
+                      </Text>
                     </View>
                     <View style={styles.mediAiFeatureItem}>
                       <Ionicons name="checkmark-circle" size={13} color="#00B894" style={{ marginRight: 6 }} />
-                      <Text style={styles.mediAiFeatureText}>Service recommendations</Text>
+                      <Text style={[styles.mediAiFeatureText, isIndic && { lineHeight: 16 }]}>
+                        {t('ai_feat_recommend', 'Service recommendations')}
+                      </Text>
                     </View>
                     <View style={styles.mediAiFeatureItem}>
                       <Ionicons name="checkmark-circle" size={13} color="#00B894" style={{ marginRight: 6 }} />
-                      <Text style={styles.mediAiFeatureText}>Care navigation (not a diagnosis)</Text>
+                      <Text style={[styles.mediAiFeatureText, isIndic && { lineHeight: 16 }]}>
+                        {t('ai_feat_navigation', 'Care navigation (not a diagnosis)')}
+                      </Text>
                     </View>
                   </View>
                 </View>
@@ -876,11 +925,13 @@ const HomeScreenWeb = ({ navigation }) => {
           {/* Section Header */}
           <View style={styles.serviceCardsHeader}>
             <View style={styles.sectionBadgeWrap}>
-              <Text style={styles.sectionBadge}>OUR SERVICES</Text>
+              <Text style={styles.sectionBadge}>{t('our_services_badge', 'OUR SERVICES')}</Text>
             </View>
-            <Text style={styles.serviceCardsTitle}>{t('services_section_title', 'Everything Healthcare,\nAll in One Place')}</Text>
-            <Text style={styles.serviceCardsSubtitle}>
-              From consultations to home care — seamlessly connected for your health journey.
+            <Text style={[styles.serviceCardsTitle, isIndic && { lineHeight: 32 }]}>
+              {t('services_section_title', 'Everything Healthcare,\nAll in One Place')}
+            </Text>
+            <Text style={[styles.serviceCardsSubtitle, isIndic && { lineHeight: 22 }]}>
+              {t('our_services_subtitle', 'From consultations to home care — seamlessly connected for your health journey.')}
             </Text>
           </View>
 
@@ -919,7 +970,9 @@ const HomeScreenWeb = ({ navigation }) => {
                     ) : (
                       <Ionicons name={card.iconName} size={13} color={card.accentColor} />
                     )}
-                    <Text style={[styles.serviceAvailText, { color: card.accentColor }]}>{card.availability}</Text>
+                    <Text style={[styles.serviceAvailText, { color: card.accentColor }, isIndic && { lineHeight: 16 }]}>
+                      {card.availabilityKey ? t(card.availabilityKey, card.availability) : card.availability}
+                    </Text>
                   </View>
 
                   {/* Uniform Service Photo */}
@@ -938,8 +991,12 @@ const HomeScreenWeb = ({ navigation }) => {
 
                 {/* Card Content */}
                 <View style={styles.practoHeroCardBottom}>
-                  <Text style={[styles.practoHeroCardTitle, isIndic && { lineHeight: 22 }]}>{card.title}</Text>
-                  <Text style={[styles.practoHeroCardSubtitle, isIndic && { lineHeight: 19 }]}>{card.subtitle}</Text>
+                  <Text style={[styles.practoHeroCardTitle, isIndic && { lineHeight: 22 }]}>
+                    {card.titleKey ? t(card.titleKey, card.title) : card.title}
+                  </Text>
+                  <Text style={[styles.practoHeroCardSubtitle, isIndic && { lineHeight: 19 }]}>
+                    {card.subtitleKey ? t(card.subtitleKey, card.subtitle) : card.subtitle}
+                  </Text>
 
                   {/* Book Now CTA Button */}
                   <View
@@ -960,7 +1017,7 @@ const HomeScreenWeb = ({ navigation }) => {
                       // @ts-ignore
                       className="service-card-btn-text"
                     >
-                      {t('book_now', 'Book Now')}
+                      {t('book_now_btn', 'Book Now')}
                     </Text>
                     <Ionicons name="arrow-forward" size={13} color={card.accentColor} style={{ marginLeft: 5 }} />
                   </View>
@@ -1000,13 +1057,13 @@ const HomeScreenWeb = ({ navigation }) => {
           <View style={styles.specialtiesHeaderRow}>
             <View style={{ flex: 1 }}>
               <View style={styles.sectionBadgeWrap}>
-                <Text style={styles.sectionBadge}>VERIFIED CLINICAL DEPARTMENTS</Text>
+                <Text style={styles.sectionBadge}>{t('specialties_badge', 'VERIFIED CLINICAL DEPARTMENTS')}</Text>
               </View>
-              <Text style={styles.specialtiesTitle}>
-                Consult Top Doctors Online for Any Health Concern
+              <Text style={[styles.specialtiesTitle, isIndic && { lineHeight: 32 }]}>
+                {t('specialties_title', 'Consult Top Doctors Online for Any Health Concern')}
               </Text>
-              <Text style={styles.specialtiesSubtitle}>
-                Private online & in-clinic consultations with certified doctors in all specialties
+              <Text style={[styles.specialtiesSubtitle, isIndic && { lineHeight: 22 }]}>
+                {t('specialties_subtitle', 'Private online & in-clinic consultations with certified doctors in all specialties')}
               </Text>
             </View>
 
@@ -1015,7 +1072,7 @@ const HomeScreenWeb = ({ navigation }) => {
               onPress={() => handleNavigateToService('DoctorList')}
               activeOpacity={0.8}
             >
-              <Text style={styles.viewAllBtnText}>View All Specialities</Text>
+              <Text style={styles.viewAllBtnText}>{t('view_all_specialties', 'View All Specialities')}</Text>
               <Ionicons name="arrow-forward" size={14} color={PALETTE.teal} style={{ marginLeft: 6 }} />
             </TouchableOpacity>
           </View>
@@ -1086,13 +1143,13 @@ const HomeScreenWeb = ({ navigation }) => {
                   </View>
 
                   {/* Specialty Title */}
-                  <Text style={[styles.specialtyItemTitle, { color: '#1E3A8A' }]} numberOfLines={1}>
-                    {spec.title}
+                  <Text style={[styles.specialtyItemTitle, { color: '#1E3A8A' }, isIndic && { lineHeight: 20 }]} numberOfLines={1}>
+                    {(SPECIALTY_TRANSLATIONS[spec.id] || SPECIALTY_TRANSLATIONS[spec.specialtyId]) ? t((SPECIALTY_TRANSLATIONS[spec.id] || SPECIALTY_TRANSLATIONS[spec.specialtyId]).title, spec.title) : spec.title}
                   </Text>
 
                   {/* Subtitle / Common Symptoms */}
-                  <Text style={styles.specialtyItemSubtitle} numberOfLines={2}>
-                    {spec.subtitle}
+                  <Text style={[styles.specialtyItemSubtitle, isIndic && { lineHeight: 16 }]} numberOfLines={2}>
+                    {(SPECIALTY_TRANSLATIONS[spec.id] || SPECIALTY_TRANSLATIONS[spec.specialtyId]) ? t((SPECIALTY_TRANSLATIONS[spec.id] || SPECIALTY_TRANSLATIONS[spec.specialtyId]).sub, spec.subtitle) : spec.subtitle}
                   </Text>
 
                   {/* Consult Now CTA */}
@@ -1100,11 +1157,14 @@ const HomeScreenWeb = ({ navigation }) => {
                     style={[
                       styles.consultNowTouch,
                       spec.btnBg ? { backgroundColor: spec.btnBg, borderColor: spec.btnBorder || spec.cardBorder } : null,
+                      isIndic && { paddingHorizontal: 10, minWidth: 84 },
                     ]}
                     // @ts-ignore
                     className="consult-btn-hover"
                   >
-                    <Text style={[styles.consultNowText, spec.btnText ? { color: spec.btnText } : null]}>CONSULT NOW</Text>
+                    <Text style={[styles.consultNowText, spec.btnText ? { color: spec.btnText } : null, isIndic && { fontSize: 10, lineHeight: 14 }]}>
+                      {t('consult_now_btn', 'CONSULT NOW')}
+                    </Text>
                     <Ionicons name="arrow-forward" size={10} color={spec.btnText || PALETTE.teal} style={{ marginLeft: 3 }} />
                   </View>
                 </TouchableOpacity>
@@ -1145,77 +1205,80 @@ const HomeScreenWeb = ({ navigation }) => {
                 <Text style={[styles.brandTitle, { color: '#1E3A8A' }]}>Medi</Text>
                 <Text style={styles.brandTitleAccent}>Unify</Text>
               </View>
-              <Text style={styles.footerBrandDesc}>
-                All your healthcare. One intelligent platform. Connecting millions of patients with India's best verified doctors, diagnostic laboratories, and NABH accredited hospitals.
+              <Text style={[styles.footerBrandDesc, isIndic && { lineHeight: 22 }]}>
+                {t('footer_brand_desc', "All your healthcare. One intelligent platform. Connecting millions of patients with India's best verified doctors, diagnostic laboratories, and NABH accredited hospitals.")}
               </Text>
               <View style={styles.complianceRow}>
                 <View style={styles.compliancePill}>
                   <Ionicons name="shield-checkmark" size={12} color={PALETTE.freshGreen} />
-                  <Text style={styles.compliancePillText}>NABH Compliant</Text>
+                  <Text style={styles.compliancePillText}>{t('compliance_nabh', 'NABH Compliant')}</Text>
                 </View>
                 <View style={styles.compliancePill}>
                   <Ionicons name="lock-closed" size={12} color={PALETTE.aqua} />
-                  <Text style={styles.compliancePillText}>256-Bit SSL</Text>
+                  <Text style={styles.compliancePillText}>{t('compliance_ssl', '256-Bit SSL')}</Text>
                 </View>
                 <View style={styles.compliancePill}>
                   <Ionicons name="ribbon" size={12} color={PALETTE.teal} />
-                  <Text style={styles.compliancePillText}>ISO 27001</Text>
+                  <Text style={styles.compliancePillText}>{t('compliance_iso', 'ISO 27001')}</Text>
                 </View>
               </View>
             </View>
 
             <View style={styles.footerCol}>
-              <Text style={styles.footerColTitle}>Patient Services</Text>
+              <Text style={styles.footerColTitle}>{t('footer_patient_services', 'Patient Services')}</Text>
               <TouchableOpacity onPress={() => handleNavigateToService('FindDoctors')}>
-                <Text style={styles.footerLink}>Find Doctors Near You</Text>
+                <Text style={styles.footerLink}>{t('card_find_doctors', 'Find Doctors Near You')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleNavigateToService('VideoConsultation')}>
-                <Text style={styles.footerLink}>Instant Video Consultation</Text>
+                <Text style={styles.footerLink}>{t('card_video_consult', 'Instant Video Consultation')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleNavigateToService('LabTests')}>
-                <Text style={styles.footerLink}>Book Diagnostic Lab Tests</Text>
+                <Text style={styles.footerLink}>{t('card_lab_tests', 'Book Diagnostic Lab Tests')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleNavigateToService('HospitalCare')}>
-                <Text style={styles.footerLink}>Surgeries & Hospital Care</Text>
+                <Text style={styles.footerLink}>{t('card_surgeries', 'Surgeries & Hospital Care')}</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.footerCol}>
-              <Text style={styles.footerColTitle}>For Healthcare Providers</Text>
-              <TouchableOpacity onPress={() => handleNavigateToService('HelpSupport')}>
-                <Text style={styles.footerLink}>MediUnify for Doctors</Text>
+              <Text style={styles.footerColTitle}>{t('footer_top_specialties', 'Top Specialties')}</Text>
+              <TouchableOpacity onPress={() => handleConsultNow('general-primary')}>
+                <Text style={styles.footerLink}>{t('spec_physician_title', 'General Physician')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleNavigateToService('HelpSupport')}>
-                <Text style={styles.footerLink}>Clinic Management EMR</Text>
+              <TouchableOpacity onPress={() => handleConsultNow('dermatology-skin')}>
+                <Text style={styles.footerLink}>{t('spec_derma_title', 'Dermatologist')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleNavigateToService('HelpSupport')}>
-                <Text style={styles.footerLink}>Hospital Care Partnerships</Text>
+              <TouchableOpacity onPress={() => handleConsultNow('pediatrics-child-health')}>
+                <Text style={styles.footerLink}>{t('spec_pedia_title', 'Pediatrician')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleNavigateToService('HelpSupport')}>
-                <Text style={styles.footerLink}>Diagnostic Lab Network</Text>
+              <TouchableOpacity onPress={() => handleConsultNow('womens-health-group')}>
+                <Text style={styles.footerLink}>{t('spec_women_title', "Women's Health")}</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.footerCol}>
-              <Text style={styles.footerColTitle}>Legal & Security</Text>
+              <Text style={styles.footerColTitle}>{t('footer_support_trust', 'Support & Trust')}</Text>
               <TouchableOpacity onPress={() => handleNavigateToService('HelpSupport')}>
-                <Text style={styles.footerLink}>Privacy Policy & HIPAA</Text>
+                <Text style={styles.footerLink}>{t('support_helpline', '24/7 Patient Helpline')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleNavigateToService('HelpSupport')}>
-                <Text style={styles.footerLink}>Terms of Service</Text>
+                <Text style={styles.footerLink}>{t('support_corporates', 'Corporate Health Plans')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleNavigateToService('HelpSupport')}>
-                <Text style={styles.footerLink}>Patient Grievance Redressal</Text>
+                <Text style={styles.footerLink}>{t('support_providers', 'Join as Doctor or Lab')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleNavigateToService('HelpSupport')}>
-                <Text style={styles.footerLink}>Clinical Quality Protocol</Text>
+                <Text style={styles.footerLink}>{t('support_privacy', 'Privacy Policy & HIPAA')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleNavigateToService('HelpSupport')}>
+                <Text style={styles.footerLink}>{t('support_terms', 'Terms of Service')}</Text>
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={[styles.footerBottomBar, { maxWidth: isDesktop ? 1340 : '96%' }]}>
-            <Text style={styles.footerCopyright}>
-              © {new Date().getFullYear()} MediUnify Healthcare Technologies Pvt. Ltd. All rights reserved.
+            <Text style={[styles.footerCopyright, isIndic && { lineHeight: 18 }]}>
+              {t('footer_rights', '© 2026 MediUnify Healthcare Technologies Pvt. Ltd. All rights reserved.')}
             </Text>
             <View style={styles.footerBottomLinks}>
               <Text style={styles.footerBottomLinkText}>Karnataka, India</Text>

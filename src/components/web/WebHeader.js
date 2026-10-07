@@ -22,6 +22,14 @@ import { REMAINING_SERVICES } from '../../data/remainingServices';
 
 export { REMAINING_SERVICES };
 
+const REMAINING_KEYS = {
+  'nurse': 'card_home_nurse',
+  'equipment': 'card_equipment_rental',
+  'insurance': 'card_health_insurance',
+  'monitor': 'card_health_monitor',
+  'emergency': 'card_emergency',
+};
+
 const NAV_LINKS = [
   { id: 'doctors', label: 'Find Doctors', labelKey: 'nav_find_doctors', route: 'FindDoctors' },
   { id: 'lab-tests', label: 'Lab Tests', labelKey: 'nav_lab_tests', route: 'LabTests' },
@@ -648,7 +656,9 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
                           }}
                           activeOpacity={0.7}
                         >
-                          <Text style={styles.moreServiceMenuText}>{item.title}</Text>
+                          <Text style={[styles.moreServiceMenuText, isIndic && { lineHeight: 18 }]}>
+                            {REMAINING_KEYS[item.id] ? t(REMAINING_KEYS[item.id], item.title) : item.title}
+                          </Text>
                         </TouchableOpacity>
                       ))}
                     </View>

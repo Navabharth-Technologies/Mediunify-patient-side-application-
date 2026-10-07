@@ -21,6 +21,7 @@ import { showAlert } from '../../utils/alert';
 import colors from '../../theme/colors';
 import { safeNavigateToMain } from '../../utils/navigationHelper';
 import { syncLogin, syncRegister, autoMigrateLocalAccountsToServer } from '../../services/dataSyncService';
+import { useTheme } from '../../context/ThemeContext';
 
 const PRE_SEEDED_CREDENTIALS = {
   'user@mediunify.com': {
@@ -70,6 +71,7 @@ const PRE_SEEDED_CREDENTIALS = {
 };
 
 const LoginScreen = ({ navigation }) => {
+  const { t = (k, fb) => fb || k, isIndic } = useTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const isSmallDevice = width < 375 || height < 680;
@@ -403,7 +405,9 @@ const LoginScreen = ({ navigation }) => {
           activeOpacity={0.7}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Text style={styles.guestLinkText}>Continue as Guest</Text>
+          <Text style={[styles.guestLinkText, isIndic && { lineHeight: 18 }]}>
+            {t('guest_continue_btn', 'Continue as Guest')}
+          </Text>
           <Ionicons name="chevron-forward" size={14} color="#007D69" />
         </TouchableOpacity>
       </View>
@@ -448,15 +452,19 @@ const LoginScreen = ({ navigation }) => {
 
             {/* CARD HEADING */}
             <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Sign In</Text>
-              <Text style={styles.cardSubtitle}>
-                Enter your details to access your healthcare account
+              <Text style={[styles.cardTitle, isIndic && { lineHeight: 28 }]}>
+                {t('auth_login_tab', 'Sign In')}
+              </Text>
+              <Text style={[styles.cardSubtitle, isIndic && { lineHeight: 20 }]}>
+                {t('auth_subtitle_login', 'Enter your details to access your healthcare account')}
               </Text>
             </View>
 
             {/* INPUT: EMAIL OR PHONE */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Email or Mobile Number</Text>
+              <Text style={[styles.fieldLabel, isIndic && { lineHeight: 18 }]}>
+                {t('auth_email_phone', 'Email or Mobile Number')}
+              </Text>
               <View style={[styles.inputBox, email ? styles.inputBoxFilled : null]}>
                 <Ionicons
                   name={email.includes('@') ? 'mail-outline' : 'call-outline'}
@@ -466,7 +474,7 @@ const LoginScreen = ({ navigation }) => {
                 />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Email address or 10-digit number"
+                  placeholder={t('auth_email_placeholder', 'Email address or 10-digit number')}
                   placeholderTextColor="#94A3B8"
                   value={email}
                   onChangeText={setEmail}
@@ -494,12 +502,16 @@ const LoginScreen = ({ navigation }) => {
             {/* INPUT: PASSWORD */}
             <View style={styles.fieldGroup}>
               <View style={styles.fieldLabelRow}>
-                <Text style={styles.fieldLabel}>Password</Text>
+                <Text style={[styles.fieldLabel, isIndic && { lineHeight: 18 }]}>
+                  {t('auth_password', 'Password')}
+                </Text>
                 <TouchableOpacity
                   onPress={() => navigation.navigate('ForgotPassword')}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.forgotPassLink}>Forgot password?</Text>
+                  <Text style={[styles.forgotPassLink, isIndic && { lineHeight: 18 }]}>
+                    {t('auth_forgot_pass', 'Forgot password?')}
+                  </Text>
                 </TouchableOpacity>
               </View>
               <View style={[styles.inputBox, password ? styles.inputBoxFilled : null]}>
@@ -511,7 +523,7 @@ const LoginScreen = ({ navigation }) => {
                 />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Enter your password"
+                  placeholder={t('auth_password_placeholder', 'Enter your password')}
                   placeholderTextColor="#94A3B8"
                   value={password}
                   onChangeText={setPassword}
@@ -563,21 +575,29 @@ const LoginScreen = ({ navigation }) => {
               {isLoggingIn ? (
                 <View style={styles.btnRow}>
                   <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.primarySubmitBtnText}>Signing in...</Text>
+                  <Text style={[styles.primarySubmitBtnText, isIndic && { lineHeight: 20 }]}>
+                    {t('auth_signing_in', 'Signing in...')}
+                  </Text>
                 </View>
               ) : (
-                <Text style={styles.primarySubmitBtnText}>Sign In</Text>
+                <Text style={[styles.primarySubmitBtnText, isIndic && { lineHeight: 20 }]}>
+                  {t('auth_sign_in_btn', 'Sign In')}
+                </Text>
               )}
             </TouchableOpacity>
 
             {/* REGISTER PROMPT */}
             <View style={styles.signupFooter}>
-              <Text style={styles.signupFooterText}>Don't have an account? </Text>
+              <Text style={[styles.signupFooterText, isIndic && { lineHeight: 18 }]}>
+                {t('auth_no_account', "Don't have an account? ")}
+              </Text>
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => navigation.navigate('Register')}
               >
-                <Text style={styles.signupFooterLink}>Sign Up</Text>
+                <Text style={[styles.signupFooterLink, isIndic && { lineHeight: 18 }]}>
+                  {t('auth_sign_up', 'Sign Up')}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

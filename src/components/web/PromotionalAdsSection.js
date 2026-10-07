@@ -9,10 +9,12 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../../context/ThemeContext';
 import { PROMOTIONAL_OFFERS } from '../../data/promotionalOffersData';
 
 export default function PromotionalAdsSection({ onNavigate }) {
   const { width } = useWindowDimensions();
+  const { t, isIndic } = useTheme();
   const isDesktop = width >= 1024;
   const isTablet = width >= 768 && width < 1024;
   const isMobile = width < 768;
@@ -66,11 +68,13 @@ export default function PromotionalAdsSection({ onNavigate }) {
         <View style={styles.headerLeft}>
           <View style={styles.badgeWrap}>
             <Ionicons name="sparkles" size={13} color="#059669" style={{ marginRight: 6 }} />
-            <Text style={styles.badgeText}>SPECIAL OFFERS & DEALS</Text>
+            <Text style={styles.badgeText}>{t('special_deals_badge', 'SPECIAL OFFERS & DEALS')}</Text>
           </View>
-          <Text style={styles.sectionTitle}>Exclusive Healthcare Deals & Savings</Text>
-          <Text style={styles.sectionSubtitle}>
-            Limited-time discounts on full body checkups, certified medicines, diagnostic imaging & doctor consultations.
+          <Text style={[styles.sectionTitle, isIndic && { lineHeight: 32 }]}>
+            {t('special_deals_title', 'Exclusive Healthcare Deals & Savings')}
+          </Text>
+          <Text style={[styles.sectionSubtitle, isIndic && { lineHeight: 22 }]}>
+            {t('special_deals_sub', 'Limited-time discounts on full body checkups, certified medicines, diagnostic imaging & doctor consultations.')}
           </Text>
         </View>
 
@@ -79,7 +83,7 @@ export default function PromotionalAdsSection({ onNavigate }) {
           <View style={styles.headerControlsRight}>
             <View style={styles.slideCounterPill}>
               <Text style={styles.slideCounterText}>
-                Offer <Text style={{ fontWeight: '800', color: '#0C3B6B' }}>{currentIndex + 1}</Text> of {totalOffers}
+                {t('offer_pill', 'Offer')} <Text style={{ fontWeight: '800', color: '#0C3B6B' }}>{currentIndex + 1}</Text> {t('of_word', 'of')} {totalOffers}
               </Text>
             </View>
             <View style={styles.miniArrowsWrap}>
@@ -254,9 +258,9 @@ export default function PromotionalAdsSection({ onNavigate }) {
                             style={{ marginRight: 6 }}
                           />
                           <View>
-                            <Text style={styles.couponLabelText}>COUPON CODE</Text>
+                            <Text style={styles.couponLabelText}>{t('coupon_code', 'COUPON CODE')}</Text>
                             <Text style={[styles.couponCodeText, isCopied && styles.couponCodeTextActive]}>
-                              {isCopied ? 'COPIED!' : ad.couponCode}
+                              {isCopied ? t('coupon_copied', 'COPIED!') : ad.couponCode}
                             </Text>
                           </View>
                         </TouchableOpacity>

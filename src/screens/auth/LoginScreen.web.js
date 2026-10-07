@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from '../../theme/colors';
+import { useTheme } from '../../context/ThemeContext';
 import { syncLogin, syncRegister, autoMigrateLocalAccountsToServer } from '../../services/dataSyncService';
 import { safeNavigateToMain } from '../../utils/navigationHelper';
 import { showAlert } from '../../utils/alert';
@@ -32,12 +33,15 @@ import WebHeader from '../../components/web/WebHeader';
 const HERO_CARDS = [
   {
     id: 'video-consult',
+    titleKey: 'card_video_consult',
     title: 'Video Consultation',
+    subtitleKey: 'card_video_desc',
     subtitle: 'Connect with expert doctors from the comfort of your home.',
     bgColor: '#E8F4FD',
     gradientTop: 'linear-gradient(135deg, #C9E8F8 0%, #E0F3FD 100%)',
     accentColor: '#1170CF',
     accentBg: '#E8F4FD',
+    availabilityKey: 'service_video_avail',
     availability: "Qualified Doctor's",
     iconFamily: 'MaterialCommunityIcons',
     iconName: 'stethoscope',
@@ -46,12 +50,15 @@ const HERO_CARDS = [
   },
   {
     id: 'lab-tests',
+    titleKey: 'card_lab_tests',
     title: 'Lab Tests',
+    subtitleKey: 'card_lab_desc',
     subtitle: 'Get accurate results with trusted labs. Home sample pickup.',
     bgColor: '#E6F8F2',
     gradientTop: 'linear-gradient(135deg, #C2EEE2 0%, #DCF5EE 100%)',
     accentColor: '#00A878',
     accentBg: '#E6F8F2',
+    availabilityKey: 'service_lab_avail',
     availability: 'Free Home Pickup',
     iconFamily: 'Ionicons',
     iconName: 'home',
@@ -60,12 +67,15 @@ const HERO_CARDS = [
   },
   {
     id: 'pharmacy',
+    titleKey: 'card_order_medicines',
     title: 'Pharmacy',
+    subtitleKey: 'card_medicine_desc',
     subtitle: 'Order medicines and healthcare essentials, delivered fast.',
     bgColor: '#F0EBFF',
     gradientTop: 'linear-gradient(135deg, #DDD4FF 0%, #EDE6FF 100%)',
     accentColor: '#6B46C1',
     accentBg: '#F0EBFF',
+    availabilityKey: 'service_pharmacy_avail',
     availability: 'Fast Delivery',
     iconFamily: 'MaterialCommunityIcons',
     iconName: 'truck-fast',
@@ -74,12 +84,15 @@ const HERO_CARDS = [
   },
   {
     id: 'radiology',
+    titleKey: 'card_scans_xray',
     title: 'Scans & X-Ray',
+    subtitleKey: 'card_scans_desc',
     subtitle: 'Advanced imaging diagnostics with certified radiologists.',
     bgColor: '#E8F4FD',
     gradientTop: 'linear-gradient(135deg, #BFD8F0 0%, #D8ECFA 100%)',
     accentColor: '#1E3A8A',
     accentBg: '#E8F4FD',
+    availabilityKey: 'service_scans_avail',
     availability: 'Same Day Reports',
     iconFamily: 'Ionicons',
     iconName: 'document-text',
@@ -88,17 +101,31 @@ const HERO_CARDS = [
   },
 ];
 
-
 // Popular search tags matching reference design
 const POPULAR_SEARCH_TAGS = [
-  { label: 'Fever', query: 'Fever' },
-  { label: 'General Physician', specialty: 'general-primary' },
-  { label: 'Blood Test', route: 'LabTests' },
-  { label: 'MRI Scan', route: 'Imaging' },
-  { label: 'Cardiologist', specialty: 'cardiology-heart' },
-  { label: 'Pharmacy', route: 'Pharmacy' },
-  { label: 'Hospital', route: 'HospitalCare' },
+  { key: 'tag_fever', label: 'Fever', query: 'Fever' },
+  { key: 'tag_general_physician', label: 'General Physician', specialty: 'general-primary' },
+  { key: 'tag_blood_test', label: 'Blood Test', route: 'LabTests' },
+  { key: 'tag_mri_scan', label: 'MRI Scan', route: 'Imaging' },
+  { key: 'tag_cardiologist', label: 'Cardiologist', specialty: 'cardiology-heart' },
+  { key: 'tag_pharmacy', label: 'Pharmacy', route: 'Pharmacy' },
+  { key: 'tag_hospital', label: 'Hospital', route: 'HospitalCare' },
 ];
+
+const SPECIALTY_TRANSLATIONS = {
+  'general-primary': { title: 'spec_physician_title', sub: 'spec_physician_sub' },
+  'womens-health-group': { title: 'spec_women_title', sub: 'spec_women_sub' },
+  'ivf-fertility-group': { title: 'spec_fertility_title', sub: 'spec_fertility_sub' },
+  'dermatology-skin': { title: 'spec_derma_title', sub: 'spec_derma_sub' },
+  'pediatrics-child-health': { title: 'spec_pedia_title', sub: 'spec_pedia_sub' },
+  'cardiology-heart': { title: 'spec_cardio_title', sub: 'spec_cardio_sub' },
+  'orthopedics-bone-joint': { title: 'spec_ortho_title', sub: 'spec_ortho_sub' },
+  'dental-oral-care': { title: 'spec_dental_title', sub: 'spec_dental_sub' },
+  'psychiatry-mental-health': { title: 'spec_mental_title', sub: 'spec_mental_sub' },
+  'ent-group': { title: 'spec_ent_title', sub: 'spec_ent_sub' },
+  'ophthalmology-group': { title: 'spec_eye_title', sub: 'spec_eye_sub' },
+  'gastroenterology-group': { title: 'spec_gastro_title', sub: 'spec_gastro_sub' },
+};
 
 const TRUST_PILLARS = [
   {
@@ -141,6 +168,7 @@ import LoginScreenMobile from './LoginScreenMobile';
 
 const LoginScreenWeb = ({ navigation, route = {} }) => {
   const { width } = useWindowDimensions();
+  const { t, language, isIndic } = useTheme();
   const isDesktop = width >= 992;
   const isTablet = width >= 640 && width < 992;
   const isMobile = width < 640;
@@ -986,18 +1014,22 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
               {/* 1. Badge */}
               <View style={styles.trustedBadge}>
                 <Ionicons name="shield-checkmark" size={13} color="#059669" style={{ marginRight: 6 }} />
-                <Text style={styles.trustedBadgeText}>TRUSTED BY PATIENTS ACROSS INDIA</Text>
+                <Text style={styles.trustedBadgeText}>{t('hero_badge', 'TRUSTED BY PATIENTS ACROSS INDIA')}</Text>
               </View>
 
               {/* 2. Main Title */}
               <View style={styles.heroTitleWrap}>
-                <Text style={styles.heroTitleNavy}>Your Healthcare.</Text>
-                <Text style={styles.heroTitleTeal}>One Intelligent Platform.</Text>
+                <Text style={[styles.heroTitleNavy, isIndic && { lineHeight: 46 }]}>
+                  {t('hero_title_navy', 'Your Healthcare.')}
+                </Text>
+                <Text style={[styles.heroTitleTeal, isIndic && { lineHeight: 46 }]}>
+                  {t('hero_title_teal', 'One Intelligent Platform.')}
+                </Text>
               </View>
 
               {/* 3. Subtitle */}
-              <Text style={styles.heroSubtitle}>
-                Find doctors, book lab tests, order medicines, access Scans & X-Ray and connect with trusted hospitals — all in one place.
+              <Text style={[styles.heroSubtitle, isIndic && { lineHeight: 26 }]}>
+                {t('hero_subtitle', 'Find doctors, book lab tests, order medicines, access Scans & X-Ray and connect with trusted hospitals — all in one place.')}
               </Text>
 
               {/* 4. Unified Search Bar */}
@@ -1024,7 +1056,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                         <Ionicons name="search" size={15} color="#00B894" />
                         <TextInput
                           style={styles.locationSearchInput}
-                          placeholder="Search city, area, locality..."
+                          placeholder={t('location_search_placeholder', 'Search city, area, locality...')}
                           placeholderTextColor="#94A3B8"
                           value={locationSearchText}
                           onChangeText={setLocationSearchText}
@@ -1050,7 +1082,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                           <Ionicons name="locate" size={15} color="#00B894" />
                         )}
                         <Text style={styles.detectLocationText}>
-                          {isDetectingLocation ? 'Detecting your GPS location...' : 'Use Current Location (GPS)'}
+                          {isDetectingLocation ? t('detecting_gps', 'Detecting your GPS location...') : t('use_gps_location', 'Use Current Location (GPS)')}
                         </Text>
                       </TouchableOpacity>
 
@@ -1063,7 +1095,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                           >
                             <Ionicons name="pin" size={14} color="#00B894" style={{ marginRight: 8 }} />
                             <Text style={styles.customLocationText}>
-                              Use <Text style={{ fontWeight: '800' }}>"{locationSearchText.trim()}"</Text>
+                              {t('use_custom_location', 'Use')} <Text style={{ fontWeight: '800' }}>"{locationSearchText.trim()}"</Text>
                             </Text>
                           </TouchableOpacity>
                         )}
@@ -1110,7 +1142,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   <Ionicons name="search-outline" size={18} color="#64748B" style={styles.searchIcon} />
                   <TextInput
                     style={styles.searchInput}
-                    placeholder="Search doctors, symptoms, tests, medicines, hospitals or services..."
+                    placeholder={t('search_placeholder', 'Search doctors, symptoms, tests, medicines, hospitals or services...')}
                     placeholderTextColor="#94A3B8"
                     value={searchQuery}
                     onChangeText={setSearchQuery}
@@ -1135,13 +1167,13 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   accessibilityLabel="Search"
                 >
                   <Ionicons name="search" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
-                  <Text style={styles.searchSubmitBtnText}>Search</Text>
+                  <Text style={styles.searchSubmitBtnText}>{t('search_btn', 'Search')}</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Popular Searches Row */}
               <View style={styles.popularSearchesRow}>
-                <Text style={styles.popularSearchesLabel}>Popular searches:</Text>
+                <Text style={styles.popularSearchesLabel}>{t('popular_searches', 'Popular searches:')}</Text>
                 <View style={styles.popularChipsContainer}>
                   {POPULAR_SEARCH_TAGS.map((tag, idx) => (
                     <TouchableOpacity
@@ -1152,7 +1184,9 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                       onPress={() => handlePopularTagClick(tag)}
                       activeOpacity={0.75}
                     >
-                      <Text style={styles.popularChipText}>{tag.label}</Text>
+                      <Text style={[styles.popularChipText, isIndic && { lineHeight: 18 }]}>
+                        {t(tag.key, tag.label)}
+                      </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -1161,15 +1195,17 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
               {/* Guest Exploration Strip */}
               <View style={styles.guestStrip}>
                 <View style={{ flex: 1, minWidth: 220 }}>
-                  <Text style={styles.guestStripHeading}>Explore MediUnify as Guest</Text>
-                  <Text style={styles.guestStripText}>Browse doctors, lab tests, radiology scans and medicine prices with full transparency.</Text>
+                  <Text style={styles.guestStripHeading}>{t('guest_explore_title', 'Explore MediUnify as Guest')}</Text>
+                  <Text style={[styles.guestStripText, isIndic && { lineHeight: 20 }]}>
+                    {t('guest_explore_desc', 'Browse doctors, lab tests, radiology scans and medicine prices with full transparency.')}
+                  </Text>
                 </View>
                 <TouchableOpacity
                   style={styles.guestStripBtn}
                   onPress={handleContinueAsGuest}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.guestStripBtnText}>Continue as Guest →</Text>
+                  <Text style={styles.guestStripBtnText}>{t('guest_continue_btn', 'Continue as Guest →')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1195,16 +1231,18 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                         style={styles.mediAiAvatar}
                         resizeMode="contain"
                       />
-                      <Text style={styles.mediAiTitle}>MediUnify AI</Text>
+                      <Text style={styles.mediAiTitle}>{t('ai_guide_title', 'MediUnify AI')}</Text>
                     </View>
                     <View style={styles.mediAiBadge}>
-                      <Text style={styles.mediAiBadgeText}>Your Health Guide 24/7</Text>
+                      <Text style={styles.mediAiBadgeText}>{t('ai_guide_badge', 'Your Health Guide 24/7')}</Text>
                     </View>
                   </View>
 
-                  <Text style={styles.mediAiQuestion}>Not sure where to start?</Text>
-                  <Text style={styles.mediAiPrompt}>
-                    Tell us what you're experiencing and we'll help you find the right doctor, test or service.
+                  <Text style={[styles.mediAiQuestion, isIndic && { lineHeight: 22 }]}>
+                    {t('ai_guide_question', 'Not sure where to start?')}
+                  </Text>
+                  <Text style={[styles.mediAiPrompt, isIndic && { lineHeight: 18 }]}>
+                    {t('ai_guide_prompt', "Tell us what you're experiencing and we'll help you find the right doctor, test or service.")}
                   </Text>
 
                   <TouchableOpacity
@@ -1216,21 +1254,27 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                     accessibilityRole="button"
                     accessibilityLabel="Chat with MediUnify AI"
                   >
-                    <Text style={styles.mediAiBtnText}>Chat with MediUnify AI →</Text>
+                    <Text style={styles.mediAiBtnText}>{t('ai_guide_btn', 'Chat with MediUnify AI →')}</Text>
                   </TouchableOpacity>
 
                   <View style={styles.mediAiFeaturesList}>
                     <View style={styles.mediAiFeatureItem}>
                       <Ionicons name="checkmark-circle" size={13} color="#00B894" style={{ marginRight: 6 }} />
-                      <Text style={styles.mediAiFeatureText}>Symptom guidance</Text>
+                      <Text style={[styles.mediAiFeatureText, isIndic && { lineHeight: 18 }]}>
+                        {t('ai_feat_symptom', 'Symptom guidance')}
+                      </Text>
                     </View>
                     <View style={styles.mediAiFeatureItem}>
                       <Ionicons name="checkmark-circle" size={13} color="#00B894" style={{ marginRight: 6 }} />
-                      <Text style={styles.mediAiFeatureText}>Service recommendations</Text>
+                      <Text style={[styles.mediAiFeatureText, isIndic && { lineHeight: 18 }]}>
+                        {t('ai_feat_recommend', 'Service recommendations')}
+                      </Text>
                     </View>
                     <View style={styles.mediAiFeatureItem}>
                       <Ionicons name="checkmark-circle" size={13} color="#00B894" style={{ marginRight: 6 }} />
-                      <Text style={styles.mediAiFeatureText}>Care navigation (not a diagnosis)</Text>
+                      <Text style={[styles.mediAiFeatureText, isIndic && { lineHeight: 18 }]}>
+                        {t('ai_feat_navigation', 'Care navigation (not a diagnosis)')}
+                      </Text>
                     </View>
                   </View>
                 </View>
@@ -1245,16 +1289,18 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                         style={styles.mediAiAvatar}
                         resizeMode="contain"
                       />
-                      <Text style={styles.mediAiTitle}>MediUnify AI</Text>
+                      <Text style={styles.mediAiTitle}>{t('ai_guide_title', 'MediUnify AI')}</Text>
                     </View>
                     <View style={styles.mediAiBadge}>
-                      <Text style={styles.mediAiBadgeText}>Your Health Guide 24/7</Text>
+                      <Text style={styles.mediAiBadgeText}>{t('ai_guide_badge', 'Your Health Guide 24/7')}</Text>
                     </View>
                   </View>
 
-                  <Text style={styles.mediAiQuestion}>Not sure where to start?</Text>
-                  <Text style={styles.mediAiPrompt}>
-                    Tell us what you're experiencing and we'll help you find the right doctor, test or service.
+                  <Text style={[styles.mediAiQuestion, isIndic && { lineHeight: 22 }]}>
+                    {t('ai_guide_question', 'Not sure where to start?')}
+                  </Text>
+                  <Text style={[styles.mediAiPrompt, isIndic && { lineHeight: 18 }]}>
+                    {t('ai_guide_prompt', "Tell us what you're experiencing and we'll help you find the right doctor, test or service.")}
                   </Text>
 
                   <TouchableOpacity
@@ -1262,21 +1308,27 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                     onPress={() => handleNavigateToService('Chatbot')}
                     activeOpacity={0.88}
                   >
-                    <Text style={styles.mediAiBtnText}>Chat with MediUnify AI →</Text>
+                    <Text style={styles.mediAiBtnText}>{t('ai_guide_btn', 'Chat with MediUnify AI →')}</Text>
                   </TouchableOpacity>
 
                   <View style={styles.mediAiFeaturesList}>
                     <View style={styles.mediAiFeatureItem}>
                       <Ionicons name="checkmark-circle" size={13} color="#00B894" style={{ marginRight: 6 }} />
-                      <Text style={styles.mediAiFeatureText}>Symptom guidance</Text>
+                      <Text style={[styles.mediAiFeatureText, isIndic && { lineHeight: 18 }]}>
+                        {t('ai_feat_symptom', 'Symptom guidance')}
+                      </Text>
                     </View>
                     <View style={styles.mediAiFeatureItem}>
                       <Ionicons name="checkmark-circle" size={13} color="#00B894" style={{ marginRight: 6 }} />
-                      <Text style={styles.mediAiFeatureText}>Service recommendations</Text>
+                      <Text style={[styles.mediAiFeatureText, isIndic && { lineHeight: 18 }]}>
+                        {t('ai_feat_recommend', 'Service recommendations')}
+                      </Text>
                     </View>
                     <View style={styles.mediAiFeatureItem}>
                       <Ionicons name="checkmark-circle" size={13} color="#00B894" style={{ marginRight: 6 }} />
-                      <Text style={styles.mediAiFeatureText}>Care navigation (not a diagnosis)</Text>
+                      <Text style={[styles.mediAiFeatureText, isIndic && { lineHeight: 18 }]}>
+                        {t('ai_feat_navigation', 'Care navigation (not a diagnosis)')}
+                      </Text>
                     </View>
                   </View>
                 </View>
@@ -1293,11 +1345,13 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
           {/* Section Header */}
           <View style={styles.serviceCardsHeader}>
             <View style={styles.sectionBadgeWrap}>
-              <Text style={styles.sectionBadge}>OUR SERVICES</Text>
+              <Text style={styles.sectionBadge}>{t('our_services_badge', 'OUR SERVICES')}</Text>
             </View>
-            <Text style={styles.serviceCardsTitle}>Everything Healthcare,{`\n`}All in One Place</Text>
-            <Text style={styles.serviceCardsSubtitle}>
-              From consultations to home care — seamlessly connected for your health journey.
+            <Text style={[styles.serviceCardsTitle, isIndic && { lineHeight: 36 }]}>
+              {t('our_services_title', 'Everything Healthcare,\nAll in One Place')}
+            </Text>
+            <Text style={[styles.serviceCardsSubtitle, isIndic && { lineHeight: 22 }]}>
+              {t('our_services_subtitle', 'From consultations to home care — seamlessly connected for your health journey.')}
             </Text>
           </View>
 
@@ -1336,7 +1390,9 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                     ) : (
                       <Ionicons name={card.iconName} size={13} color={card.accentColor} />
                     )}
-                    <Text style={[styles.serviceAvailText, { color: card.accentColor }]}>{card.availability}</Text>
+                    <Text style={[styles.serviceAvailText, { color: card.accentColor }]}>
+                      {card.availabilityKey ? t(card.availabilityKey, card.availability) : card.availability}
+                    </Text>
                   </View>
 
                   {/* Uniform Service Photo */}
@@ -1355,8 +1411,12 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
 
                 {/* Card Content */}
                 <View style={styles.heroCardBottom}>
-                  <Text style={styles.heroCardTitle}>{card.title}</Text>
-                  <Text style={styles.heroCardSubtitle}>{card.subtitle}</Text>
+                  <Text style={[styles.heroCardTitle, isIndic && { lineHeight: 22 }]}>
+                    {card.titleKey ? t(card.titleKey, card.title) : card.title}
+                  </Text>
+                  <Text style={[styles.heroCardSubtitle, isIndic && { lineHeight: 18 }]}>
+                    {card.subtitleKey ? t(card.subtitleKey, card.subtitle) : card.subtitle}
+                  </Text>
 
                   {/* Book Now CTA Button */}
                   <View
@@ -1369,7 +1429,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                       // @ts-ignore
                       className="service-card-btn-text"
                     >
-                      Book Now
+                      {t('book_now_btn', 'Book Now')}
                     </Text>
                     <Ionicons name="arrow-forward" size={13} color={card.accentColor} style={{ marginLeft: 5 }} />
                   </View>
@@ -1392,13 +1452,13 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
           <View style={styles.specialtiesHeaderRow}>
             <View style={{ flex: 1 }}>
               <View style={styles.sectionBadgeWrap}>
-                <Text style={styles.sectionBadge}>VERIFIED CLINICAL DEPARTMENTS</Text>
+                <Text style={styles.sectionBadge}>{t('specialties_badge', 'VERIFIED CLINICAL DEPARTMENTS')}</Text>
               </View>
-              <Text style={styles.specialtiesTitle}>
-                Consult Top Doctors Online for Any Health Concern
+              <Text style={[styles.specialtiesTitle, isIndic && { lineHeight: 34 }]}>
+                {t('specialties_title', 'Consult Top Doctors Online for Any Health Concern')}
               </Text>
-              <Text style={styles.specialtiesSubtitle}>
-                Private online & in-clinic consultations with certified doctors in all specialties
+              <Text style={[styles.specialtiesSubtitle, isIndic && { lineHeight: 22 }]}>
+                {t('specialties_subtitle', 'Private online & in-clinic consultations with certified doctors in all specialties')}
               </Text>
             </View>
 
@@ -1407,7 +1467,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
               onPress={() => handleNavigateToService('DoctorList')}
               activeOpacity={0.8}
             >
-              <Text style={styles.viewAllBtnText}>View All Specialities</Text>
+              <Text style={styles.viewAllBtnText}>{t('view_all_specialties', 'View All Specialities')}</Text>
               <Ionicons name="arrow-forward" size={14} color="#00B894" style={{ marginLeft: 6 }} />
             </TouchableOpacity>
           </View>
@@ -1478,13 +1538,13 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   </View>
 
                   {/* Specialty Title */}
-                  <Text style={[styles.specialtyItemTitle, { color: '#1E3A8A' }]} numberOfLines={1}>
-                    {spec.title}
+                  <Text style={[styles.specialtyItemTitle, { color: '#1E3A8A' }, isIndic && { lineHeight: 22 }]} numberOfLines={1}>
+                    {SPECIALTY_TRANSLATIONS[spec.id]?.title ? t(SPECIALTY_TRANSLATIONS[spec.id].title, spec.title) : spec.title}
                   </Text>
 
                   {/* Subtitle / Common Symptoms */}
-                  <Text style={styles.specialtyItemSubtitle} numberOfLines={2}>
-                    {spec.subtitle}
+                  <Text style={[styles.specialtyItemSubtitle, isIndic && { lineHeight: 18 }]} numberOfLines={2}>
+                    {SPECIALTY_TRANSLATIONS[spec.id]?.sub ? t(SPECIALTY_TRANSLATIONS[spec.id].sub, spec.subtitle) : spec.subtitle}
                   </Text>
 
                   {/* Consult Now CTA */}
@@ -1496,7 +1556,9 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                     // @ts-ignore
                     className="consult-btn-hover"
                   >
-                    <Text style={[styles.consultNowText, spec.btnText ? { color: spec.btnText } : null]}>CONSULT NOW</Text>
+                    <Text style={[styles.consultNowText, spec.btnText ? { color: spec.btnText } : null]}>
+                      {t('consult_now_btn', 'CONSULT NOW')}
+                    </Text>
                     <Ionicons name="arrow-forward" size={10} color={spec.btnText || '#00B894'} style={{ marginLeft: 3 }} />
                   </View>
                 </TouchableOpacity>
@@ -1539,86 +1601,86 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   <Text style={styles.brandTitleAccent}>Unify</Text>
                 </View>
               </View>
-              <Text style={styles.footerBrandDesc}>
-                All your healthcare. One intelligent platform. Connecting millions of patients with India's best verified doctors, diagnostic laboratories, and NABH accredited hospitals.
+              <Text style={[styles.footerBrandDesc, isIndic && { lineHeight: 22 }]}>
+                {t('footer_brand_desc', "All your healthcare. One intelligent platform. Connecting millions of patients with India's best verified doctors, diagnostic laboratories, and NABH accredited hospitals.")}
               </Text>
               <View style={styles.complianceRow}>
                 <View style={styles.compliancePill}>
                   <Ionicons name="shield-checkmark" size={12} color="#7BC96F" />
-                  <Text style={styles.compliancePillText}>NABH Compliant</Text>
+                  <Text style={styles.compliancePillText}>{t('compliance_nabh', 'NABH Compliant')}</Text>
                 </View>
                 <View style={styles.compliancePill}>
                   <Ionicons name="lock-closed" size={12} color="#00C2CB" />
-                  <Text style={styles.compliancePillText}>256-Bit SSL</Text>
+                  <Text style={styles.compliancePillText}>{t('compliance_ssl', '256-Bit SSL')}</Text>
                 </View>
                 <View style={styles.compliancePill}>
                   <Ionicons name="ribbon" size={12} color="#00B894" />
-                  <Text style={styles.compliancePillText}>ISO 27001</Text>
+                  <Text style={styles.compliancePillText}>{t('compliance_iso', 'ISO 27001')}</Text>
                 </View>
               </View>
             </View>
 
             <View style={styles.footerCol}>
-              <Text style={styles.footerColTitle}>Patient Services</Text>
+              <Text style={styles.footerColTitle}>{t('footer_patient_services', 'Patient Services')}</Text>
               <TouchableOpacity onPress={() => handleNavigateToService('FindDoctors')}>
-                <Text style={styles.footerLink}>Find Doctors Near You</Text>
+                <Text style={styles.footerLink}>{t('card_find_doctors', 'Find Doctors Near You')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleNavigateToService('VideoConsultation')}>
-                <Text style={styles.footerLink}>Instant Video Consultation</Text>
+                <Text style={styles.footerLink}>{t('card_video_consult', 'Instant Video Consultation')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleNavigateToService('LabTests')}>
-                <Text style={styles.footerLink}>Book Diagnostic Lab Tests</Text>
+                <Text style={styles.footerLink}>{t('card_lab_tests', 'Book Diagnostic Lab Tests')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleNavigateToService('Pharmacy')}>
-                <Text style={styles.footerLink}>Order Medicines Online</Text>
+                <Text style={styles.footerLink}>{t('card_order_medicines', 'Order Medicines Online')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleNavigateToService('HospitalCare')}>
-                <Text style={styles.footerLink}>Surgeries & Hospital Care</Text>
+                <Text style={styles.footerLink}>{t('card_surgeries', 'Surgeries & Hospital Care')}</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.footerCol}>
-              <Text style={styles.footerColTitle}>Top Specialties</Text>
+              <Text style={styles.footerColTitle}>{t('footer_top_specialties', 'Top Specialties')}</Text>
               <TouchableOpacity onPress={() => handleConsultNow('general-primary')}>
-                <Text style={styles.footerLink}>General Physician</Text>
+                <Text style={styles.footerLink}>{t('spec_physician_title', 'General Physician')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleConsultNow('dermatology-skin')}>
-                <Text style={styles.footerLink}>Dermatologist</Text>
+                <Text style={styles.footerLink}>{t('spec_derma_title', 'Dermatologist')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleConsultNow('pediatrics-child-health')}>
-                <Text style={styles.footerLink}>Pediatrician</Text>
+                <Text style={styles.footerLink}>{t('spec_pedia_title', 'Pediatrician')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleConsultNow('womens-health-group')}>
-                <Text style={styles.footerLink}>Women's Health</Text>
+                <Text style={styles.footerLink}>{t('spec_women_title', "Women's Health")}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleConsultNow('cardiology-heart')}>
-                <Text style={styles.footerLink}>Cardiologist</Text>
+                <Text style={styles.footerLink}>{t('spec_cardio_title', 'Cardiologist')}</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.footerCol}>
-              <Text style={styles.footerColTitle}>Support & Trust</Text>
+              <Text style={styles.footerColTitle}>{t('footer_support_trust', 'Support & Trust')}</Text>
               <TouchableOpacity onPress={() => setInfoModal('security')}>
-                <Text style={styles.footerLink}>24/7 Patient Helpline</Text>
+                <Text style={styles.footerLink}>{t('support_helpline', '24/7 Patient Helpline')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setInfoModal('corporates')}>
-                <Text style={styles.footerLink}>Corporate Health Plans</Text>
+                <Text style={styles.footerLink}>{t('support_corporates', 'Corporate Health Plans')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setInfoModal('providers')}>
-                <Text style={styles.footerLink}>Join as Doctor or Lab</Text>
+                <Text style={styles.footerLink}>{t('support_providers', 'Join as Doctor or Lab')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setInfoModal('security')}>
-                <Text style={styles.footerLink}>Privacy Policy & HIPAA</Text>
+                <Text style={styles.footerLink}>{t('support_privacy', 'Privacy Policy & HIPAA')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setInfoModal('security')}>
-                <Text style={styles.footerLink}>Terms of Service</Text>
+                <Text style={styles.footerLink}>{t('support_terms', 'Terms of Service')}</Text>
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={styles.footerBottomBar}>
-            <Text style={styles.footerBottomText}>
-              © 2026 Unnathi Healthcare / MediUnify • All rights reserved. Registered Telemedicine Network in India.
+            <Text style={[styles.footerBottomText, isIndic && { lineHeight: 18 }]}>
+              {t('footer_rights', '© 2026 Unnathi Healthcare / MediUnify • All rights reserved. Registered Telemedicine Network in India.')}
             </Text>
           </View>
         </footer>
@@ -1648,7 +1710,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   </View>
                 </View>
                 <Text style={styles.brandTagline} numberOfLines={1}>
-                  All your healthcare. One intelligent platform.
+                  {t('brand_tagline', 'All your healthcare. One intelligent platform.')}
                 </Text>
               </View>
               <TouchableOpacity
@@ -1677,7 +1739,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                 }}
               >
                 <Text style={[styles.authTabText, authTab === 'login' && styles.authTabTextActive]}>
-                  Login
+                  {t('auth_login_tab', 'Login')}
                 </Text>
               </TouchableOpacity>
 
@@ -1697,7 +1759,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                 }}
               >
                 <Text style={[styles.authTabText, authTab === 'register' && styles.authTabTextActive]}>
-                  Create Account
+                  {t('auth_create_account', 'Create Account')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1732,10 +1794,10 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   </View>
                 )}
 
-                <Text style={styles.inputLabel}>Email or Mobile Number</Text>
+                <Text style={styles.inputLabel}>{t('auth_email_phone', 'Email or Mobile Number')}</Text>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Enter email or 10-digit mobile number"
+                  placeholder={t('auth_email_phone_ph', 'Enter email or 10-digit mobile number')}
                   placeholderTextColor="#94A3B8"
                   value={email}
                   onChangeText={(val) => {
@@ -1748,11 +1810,11 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   id="user_login_identity"
                 />
 
-                <Text style={[styles.inputLabel, { marginTop: 14 }]}>Password</Text>
+                <Text style={[styles.inputLabel, { marginTop: 14 }]}>{t('auth_password', 'Password')}</Text>
                 <View style={styles.passwordWrap}>
                   <TextInput
                     style={[styles.textInput, { flex: 1, borderWidth: 0 }]}
-                    placeholder="Enter your password"
+                    placeholder={t('auth_password_ph', 'Enter your password')}
                     placeholderTextColor="#94A3B8"
                     value={password}
                     onChangeText={(val) => {
@@ -1783,7 +1845,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   }}
                   style={styles.forgotBtn}
                 >
-                  <Text style={styles.forgotText}>Forgot Password?</Text>
+                  <Text style={styles.forgotText}>{t('auth_forgot_pass', 'Forgot Password?')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -1792,7 +1854,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   disabled={isSubmitting}
                 >
                   <Text style={styles.submitBtnText}>
-                    {isSubmitting ? 'Signing in...' : 'Login'}
+                    {isSubmitting ? t('auth_signing_in', 'Signing in...') : t('auth_sign_in_btn', 'Login')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1812,7 +1874,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                     <Ionicons name="shield-checkmark" size={28} color="#00B894" />
                   </View>
                   <Text style={{ fontSize: 18, fontWeight: '800', color: '#1E3A8A', marginBottom: 4 }}>
-                    Verify Mobile Number
+                    {t('auth_verify_mobile', 'Verify Mobile Number')}
                   </Text>
                   <Text style={{ fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 18 }}>
                     We sent a 6-digit verification code to{'\n'}
@@ -1859,7 +1921,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                 </View>
 
                 {/* OTP Input */}
-                <Text style={styles.inputLabel}>Enter 6-Digit OTP</Text>
+                <Text style={styles.inputLabel}>{t('auth_enter_otp', 'Enter 6-Digit OTP')}</Text>
                 <TextInput
                   style={{
                     height: 52,
@@ -1902,7 +1964,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                     activeOpacity={0.7}
                   >
                     <Text style={{ fontSize: 12, fontWeight: '700', color: otpTimer > 0 ? '#94A3B8' : '#00B894' }}>
-                      {otpTimer > 0 ? `Resend OTP in ${otpTimer}s` : 'Resend OTP via SMS'}
+                      {otpTimer > 0 ? `Resend OTP in ${otpTimer}s` : t('auth_resend_otp', 'Resend OTP via SMS')}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -1926,7 +1988,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   activeOpacity={0.85}
                 >
                   <Text style={styles.submitBtnText}>
-                    {isSubmitting ? 'Verifying...' : 'Verify & Complete Registration'}
+                    {isSubmitting ? 'Verifying...' : t('auth_verify_btn', 'Verify & Complete Registration')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1952,10 +2014,10 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   </View>
                 )}
 
-                <Text style={styles.inputLabel}>Full Name</Text>
+                <Text style={styles.inputLabel}>{t('auth_full_name', 'Full Name')}</Text>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Enter your full name"
+                  placeholder={t('auth_full_name_ph', 'Enter your full name')}
                   placeholderTextColor="#94A3B8"
                   value={regName}
                   onChangeText={(val) => {
@@ -1985,7 +2047,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   id="user_reg_email"
                 />
 
-                <Text style={[styles.inputLabel, { marginTop: 12 }]}>Mobile Number (10 digits)</Text>
+                <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t('auth_mobile_num', 'Mobile Number (10 digits)')}</Text>
                 <TextInput
                   style={styles.textInput}
                   placeholder="9xxxxxxx01"
@@ -2002,11 +2064,11 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   id="user_reg_phone"
                 />
 
-                <Text style={[styles.inputLabel, { marginTop: 12 }]}>Create Password</Text>
+                <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t('auth_create_pass', 'Create Password')}</Text>
                 <View style={styles.passwordWrap}>
                   <TextInput
                     style={[styles.textInput, { flex: 1, borderWidth: 0 }]}
-                    placeholder="Enter a secure password (min 6 characters)"
+                    placeholder={t('auth_create_pass_ph', 'Enter a secure password (min 6 characters)')}
                     placeholderTextColor="#94A3B8"
                     value={regPassword}
                     onChangeText={(val) => {
@@ -2030,11 +2092,11 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   </TouchableOpacity>
                 </View>
 
-                <Text style={[styles.inputLabel, { marginTop: 12 }]}>Confirm Password</Text>
+                <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t('auth_confirm_pass', 'Confirm Password')}</Text>
                 <View style={styles.passwordWrap}>
                   <TextInput
                     style={[styles.textInput, { flex: 1, borderWidth: 0 }]}
-                    placeholder="Re-enter your password to confirm"
+                    placeholder={t('auth_confirm_pass_ph', 'Re-enter your password to confirm')}
                     placeholderTextColor="#94A3B8"
                     value={regConfirmPassword}
                     onChangeText={(val) => {
@@ -2071,7 +2133,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                 )}
 
                 {/* Optional Friend Referral Code Input */}
-                <Text style={[styles.inputLabel, { marginTop: 12 }]}>Have a Referral Code? (Optional)</Text>
+                <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t('auth_referral_code', 'Have a Referral Code? (Optional)')}</Text>
                 <View style={{ position: 'relative' }}>
                   <TextInput
                     style={[styles.textInput, regReferralCode.trim() ? { borderColor: '#00B894', backgroundColor: '#F0FDF4' } : null]}
@@ -2100,7 +2162,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   disabled={isSubmitting}
                 >
                   <Text style={styles.submitBtnText}>
-                    {isSubmitting ? 'Sending OTP...' : 'Register & Verify Mobile →'}
+                    {isSubmitting ? 'Sending OTP...' : t('auth_continue_verify', 'Register & Verify Mobile →')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -2111,7 +2173,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
               onPress={handleContinueAsGuest}
               style={styles.skipGuestModalBtn}
             >
-              <Text style={styles.skipGuestModalText}>Continue as Guest →</Text>
+              <Text style={styles.skipGuestModalText}>{t('guest_continue_btn', 'Continue as Guest →')}</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
