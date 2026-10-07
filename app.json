@@ -16,7 +16,7 @@
       },
       "softwareKeyboardLayoutMode": "resize"
     },
-    "web": { "favicon": "./assets/logo.png", "baseUrl": "/Mediunify-patient-side-application-" },
+    "web": { "favicon": "./assets/logo.png", "baseUrl": "/mediunify-patient" },
     "plugins": [
       "expo-font"
     ]

@@ -13,7 +13,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const BASE_PATH = '/Mediunify-patient-side-application-';
+const appJsonPath = path.join(__dirname, '..', 'app.json');
+const appJson = fs.existsSync(appJsonPath) ? JSON.parse(fs.readFileSync(appJsonPath, 'utf8')) : {};
+const BASE_PATH = (process.env.PUBLIC_URL || appJson.expo?.web?.baseUrl || '/mediunify-patient').replace(/\/$/, '');
 const DIST = path.join(__dirname, '..', 'dist');
 const INDEX_HTML = path.join(DIST, 'index.html');
 
@@ -200,7 +202,7 @@ if (fs.existsSync(jsBundleDir)) {
 
     // Rewrite font asset paths: from node_modules/@expo/vector-icons/.../Fonts/ to assets/fonts/
     content = content.replace(
-      /(?:"|')(?:\/assets|\/Mediunify-patient-side-application-\/assets)?\/node_modules\/@expo\/vector-icons\/build\/vendor\/react-native-vector-icons\/Fonts\/([^"']+\.ttf)(?:"|')/g,
+      /(?:"|')(?:(?:\/[^"']+)?\/assets)?\/node_modules\/@expo\/vector-icons\/build\/vendor\/react-native-vector-icons\/Fonts\/([^"']+\.ttf)(?:"|')/g,
       `"${BASE_PATH}/assets/fonts/$1"`
     );
     content = content.replace(
@@ -210,7 +212,7 @@ if (fs.existsSync(jsBundleDir)) {
 
     // Rewrite navigation asset paths: from node_modules/@react-navigation/elements/... to assets/nav/
     content = content.replace(
-      /(?:"|')(?:\/assets|\/Mediunify-patient-side-application-\/assets)?\/node_modules\/@react-navigation\/elements\/lib\/module\/assets\/([^"']+\.png)(?:"|')/g,
+      /(?:"|')(?:(?:\/[^"']+)?\/assets)?\/node_modules\/@react-navigation\/elements\/lib\/module\/assets\/([^"']+\.png)(?:"|')/g,
       `"${BASE_PATH}/assets/nav/$1"`
     );
     content = content.replace(
@@ -224,7 +226,7 @@ if (fs.existsSync(jsBundleDir)) {
 
     // Catch any remaining /node_modules/ asset paths
     content = content.replace(
-      /(?:"|')(?:\/assets|\/Mediunify-patient-side-application-\/assets)?\/node_modules\/([^"']+)(?:"|')/g,
+      /(?:"|')(?:(?:\/[^"']+)?\/assets)?\/node_modules\/([^"']+)(?:"|')/g,
       `"${BASE_PATH}/assets/$1"`
     );
 

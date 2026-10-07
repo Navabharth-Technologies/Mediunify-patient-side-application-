@@ -2,7 +2,7 @@
   "name": "mediunify-patient",
   "version": "1.0.0",
   "main": "index.js",
-  "homepage": "https://navabharth-technologies.github.io/Mediunify-patient-side-application-",
+  "homepage": "https://hemanthgowdatn2003.github.io/mediunify-patient",
   "scripts": {
     "start": "expo start",
     "server": "node server/syncServer.js",

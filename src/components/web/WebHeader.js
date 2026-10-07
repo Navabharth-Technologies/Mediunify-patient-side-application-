@@ -282,8 +282,13 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
 
     // Direct navigation to Login screen and prevent browser back button returning to private session
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window?.location) {
-      const isGhPages = (window.location.pathname || '').includes('Mediunify-patient-side-application-');
-      const basePath = isGhPages ? '/Mediunify-patient-side-application-/#/login' : '/#/login';
+      const path = window.location.pathname || '';
+      let basePath = '/#/login';
+      if (path.includes('mediunify-patient')) {
+        basePath = '/mediunify-patient/#/login';
+      } else if (path.includes('Mediunify-patient-side-application-')) {
+        basePath = '/Mediunify-patient-side-application-/#/login';
+      }
       try {
         window.location.replace(basePath);
         return;

@@ -5,6 +5,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export const getAppBasePath = () => {
   if (Platform.OS === 'web' && typeof window !== 'undefined' && window?.location) {
     const pathname = window.location.pathname || '';
+    if (pathname.includes('/mediunify-patient')) {
+      return '/mediunify-patient/';
+    }
     if (pathname.includes('/Mediunify-patient-side-application-')) {
       return '/Mediunify-patient-side-application-/';
     }

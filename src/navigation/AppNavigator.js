@@ -18,12 +18,15 @@ export { navigationRef };
 
 const Stack = createNativeStackNavigator();
 
-const BASE_URL = 'https://navabharth-technologies.github.io/Mediunify-patient-side-application-';
-const BASE_PATH = '/Mediunify-patient-side-application-';
+const BASE_URL = 'https://hemanthgowdatn2003.github.io/mediunify-patient';
+const BASE_PATH = '/mediunify-patient';
 
 const linking = {
   prefixes: [
     BASE_URL,
+    'https://hemanthgowdatn2003.github.io',
+    'https://navabharth-technologies.github.io/Mediunify-patient-side-application-',
+    '/mediunify-patient',
     'http://localhost:8081',
     'http://localhost:19006',
     'http://127.0.0.1:8081',
