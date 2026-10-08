@@ -466,6 +466,10 @@ const LoginScreen = ({ navigation }) => {
                   placeholder={t('auth_email_placeholder', 'Email address or 10-digit number')}
                   placeholderTextColor="#94A3B8"
                   value={email}
+                  onChange={(e) => {
+                    const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
+                    setEmail(val);
+                  }}
                   onChangeText={setEmail}
                   onFocus={() => {
                     if (Platform.OS !== 'web') {
@@ -477,6 +481,10 @@ const LoginScreen = ({ navigation }) => {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  autoComplete="username"
+                  textContentType="username"
+                  name="username"
+                  id="login_mobile_identity"
                 />
                 {email.length > 0 && (
                   <TouchableOpacity
@@ -517,6 +525,10 @@ const LoginScreen = ({ navigation }) => {
                   placeholder={t('auth_password_placeholder', 'Enter your password')}
                   placeholderTextColor="#94A3B8"
                   value={password}
+                  onChange={(e) => {
+                    const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
+                    setPassword(val);
+                  }}
                   onChangeText={setPassword}
                   onFocus={() => {
                     if (Platform.OS !== 'web') {
@@ -528,6 +540,10 @@ const LoginScreen = ({ navigation }) => {
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  autoComplete="current-password"
+                  textContentType="password"
+                  name="password"
+                  id="login_mobile_password"
                 />
                 <TouchableOpacity
                   style={styles.eyeBtn}

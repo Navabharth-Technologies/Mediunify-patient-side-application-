@@ -1765,25 +1765,6 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
               {/* Form Fields: LOGIN */}
               {authTab === 'login' ? (
                 <View style={styles.formContainer}>
-                  {/* Offscreen decoy inputs to capture aggressive browser autofill */}
-                  {Platform.OS === 'web' && (
-                    <View
-                      style={{
-                        position: 'absolute',
-                        top: -9999,
-                        left: -9999,
-                        width: 0,
-                        height: 0,
-                        opacity: 0,
-                        overflow: 'hidden',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      <TextInput tabIndex={-1} autoComplete="off" />
-                      <TextInput secureTextEntry tabIndex={-1} autoComplete="new-password" />
-                    </View>
-                  )}
-
                   <Text style={styles.inputLabel}>{t('auth_email_phone', 'Email or Mobile Number')}</Text>
                   <View style={[styles.inputBox, email ? styles.inputBoxFilled : null]}>
                     <Ionicons
@@ -1797,13 +1778,19 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                       placeholder={t('auth_email_phone_ph', 'Email address or 10-digit number')}
                       placeholderTextColor="#94A3B8"
                       value={email}
+                      onChange={(e) => {
+                        const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
+                        userHasTypedRef.current = true;
+                        setEmail(val);
+                      }}
                       onChangeText={(val) => {
                         userHasTypedRef.current = true;
                         setEmail(val);
                       }}
                       autoCapitalize="none"
-                      autoComplete="off"
-                      name="user_login_identity"
+                      autoComplete="username"
+                      textContentType="username"
+                      name="username"
                       id="user_login_identity"
                     />
                   </View>
@@ -1821,13 +1808,19 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                       placeholder={t('auth_password_ph', 'Enter your password')}
                       placeholderTextColor="#94A3B8"
                       value={password}
+                      onChange={(e) => {
+                        const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
+                        userHasTypedRef.current = true;
+                        setPassword(val);
+                      }}
                       onChangeText={(val) => {
                         userHasTypedRef.current = true;
                         setPassword(val);
                       }}
                       secureTextEntry={!showPassword}
-                      autoComplete="new-password"
-                      name="user_login_secret"
+                      autoComplete="current-password"
+                      textContentType="password"
+                      name="password"
                       id="user_login_secret"
                     />
                     <TouchableOpacity
@@ -2000,25 +1993,6 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
               ) : (
                 /* Form Fields: REGISTER */
                 <View style={styles.formContainer}>
-                  {/* Offscreen decoy inputs to capture aggressive browser autofill */}
-                  {Platform.OS === 'web' && (
-                    <View
-                      style={{
-                        position: 'absolute',
-                        top: -9999,
-                        left: -9999,
-                        width: 0,
-                        height: 0,
-                        opacity: 0,
-                        overflow: 'hidden',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      <TextInput tabIndex={-1} autoComplete="off" />
-                      <TextInput secureTextEntry tabIndex={-1} autoComplete="new-password" />
-                    </View>
-                  )}
-
                   {/* 1. Full Name */}
                   <Text style={styles.inputLabel}>{t('auth_full_name', 'Full Name')}</Text>
                   <View style={[styles.inputBox, regName ? styles.inputBoxFilled : null]}>
@@ -2033,13 +2007,19 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                       placeholder={t('auth_full_name_ph', 'Enter your full name')}
                       placeholderTextColor="#94A3B8"
                       value={regName}
+                      onChange={(e) => {
+                        const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
+                        userHasTypedRef.current = true;
+                        setRegName(val);
+                      }}
                       onChangeText={(val) => {
                         userHasTypedRef.current = true;
                         setRegName(val);
                       }}
                       autoCapitalize="words"
-                      autoComplete="off"
-                      name="user_reg_fullname"
+                      autoComplete="name"
+                      textContentType="name"
+                      name="name"
                       id="user_reg_fullname"
                     />
                   </View>
@@ -2058,14 +2038,20 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                       placeholder="Enter your email address"
                       placeholderTextColor="#94A3B8"
                       value={regEmail}
+                      onChange={(e) => {
+                        const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
+                        userHasTypedRef.current = true;
+                        setRegEmail(val);
+                      }}
                       onChangeText={(val) => {
                         userHasTypedRef.current = true;
                         setRegEmail(val);
                       }}
                       autoCapitalize="none"
                       keyboardType="email-address"
-                      autoComplete="off"
-                      name="user_reg_email"
+                      autoComplete="email"
+                      textContentType="emailAddress"
+                      name="email"
                       id="user_reg_email"
                     />
                   </View>
@@ -2094,6 +2080,13 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                       placeholder="10-digit mobile number"
                       placeholderTextColor="#94A3B8"
                       value={regPhone}
+                      onChange={(e) => {
+                        const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
+                        userHasTypedRef.current = true;
+                        const raw = String(val).replace(/[^0-9]/g, '');
+                        const cleaned = raw.length > 10 && raw.startsWith('91') ? raw.slice(2, 12) : raw.slice(0, 10);
+                        setRegPhone(cleaned);
+                      }}
                       onChangeText={(val) => {
                         userHasTypedRef.current = true;
                         const raw = val.replace(/[^0-9]/g, '');
@@ -2102,8 +2095,9 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                       }}
                       keyboardType="number-pad"
                       maxLength={10}
-                      autoComplete="off"
-                      name="user_reg_phone"
+                      autoComplete="tel"
+                      textContentType="telephoneNumber"
+                      name="tel"
                       id="user_reg_phone"
                     />
                     {regPhone.length === 10 && (
@@ -2125,13 +2119,19 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                       placeholder={t('auth_create_pass_ph', 'Enter a secure password (min 6 characters)')}
                       placeholderTextColor="#94A3B8"
                       value={regPassword}
+                      onChange={(e) => {
+                        const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
+                        userHasTypedRef.current = true;
+                        setRegPassword(val);
+                      }}
                       onChangeText={(val) => {
                         userHasTypedRef.current = true;
                         setRegPassword(val);
                       }}
                       secureTextEntry={!showRegPassword}
                       autoComplete="new-password"
-                      name="user_reg_newpwd"
+                      textContentType="newPassword"
+                      name="new-password"
                       id="user_reg_newpwd"
                     />
                     <TouchableOpacity
@@ -2161,13 +2161,19 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                       placeholder={t('auth_confirm_pass_ph', 'Re-enter your password to confirm')}
                       placeholderTextColor="#94A3B8"
                       value={regConfirmPassword}
+                      onChange={(e) => {
+                        const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
+                        userHasTypedRef.current = true;
+                        setRegConfirmPassword(val);
+                      }}
                       onChangeText={(val) => {
                         userHasTypedRef.current = true;
                         setRegConfirmPassword(val);
                       }}
                       secureTextEntry={!showRegConfirmPassword}
                       autoComplete="new-password"
-                      name="user_reg_confirmpwd"
+                      textContentType="newPassword"
+                      name="confirm-password"
                       id="user_reg_confirmpwd"
                     />
                     <TouchableOpacity

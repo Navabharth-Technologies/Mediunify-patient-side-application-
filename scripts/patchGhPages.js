@@ -193,6 +193,22 @@ if (fs.existsSync(INDEX_HTML)) {
       touch-action: manipulation !important;
       pointer-events: auto !important;
     }
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover, 
+    input:-webkit-autofill:focus,
+    input:-webkit-autofill:active,
+    textarea:-webkit-autofill,
+    textarea:-webkit-autofill:hover,
+    textarea:-webkit-autofill:focus,
+    select:-webkit-autofill {
+      -webkit-text-fill-color: #0F172A !important;
+      -webkit-box-shadow: 0 0 0px 1000px #FFFFFF inset !important;
+      box-shadow: 0 0 0px 1000px #FFFFFF inset !important;
+      -webkit-user-select: text !important;
+      user-select: text !important;
+      pointer-events: auto !important;
+      touch-action: manipulation !important;
+    }
   </style>
   <script data-gh-patch="true">
     (function() {

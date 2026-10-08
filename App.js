@@ -94,6 +94,23 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
         touch-action: manipulation !important;
         pointer-events: auto !important;
       }
+      /* Handle browser autofill styling so autofilled text is cleanly visible and always editable */
+      input:-webkit-autofill,
+      input:-webkit-autofill:hover, 
+      input:-webkit-autofill:focus,
+      input:-webkit-autofill:active,
+      textarea:-webkit-autofill,
+      textarea:-webkit-autofill:hover,
+      textarea:-webkit-autofill:focus,
+      select:-webkit-autofill {
+        -webkit-text-fill-color: #0F172A !important;
+        -webkit-box-shadow: 0 0 0px 1000px #FFFFFF inset !important;
+        box-shadow: 0 0 0px 1000px #FFFFFF inset !important;
+        -webkit-user-select: text !important;
+        user-select: text !important;
+        pointer-events: auto !important;
+        touch-action: manipulation !important;
+      }
       @media (max-width: 767px) {
         input, textarea, select {
           font-size: 16px !important; /* Prevents iOS Safari input focus auto-zoom and cursor freeze */
@@ -121,6 +138,16 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
       window.addEventListener('resize', updateAppHeight);
     }
     updateAppHeight();
+
+    // Global listener ensuring autofill events synchronize immediately with React state
+    const syncAutofill = (e) => {
+      const target = e.target;
+      if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) {
+        target.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    };
+    document.addEventListener('animationstart', syncAutofill, true);
+    document.addEventListener('change', syncAutofill, true);
   }
 }
 

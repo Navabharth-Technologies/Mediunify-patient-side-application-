@@ -350,6 +350,10 @@ const RegisterScreen = ({ navigation, route }) => {
                   placeholder="Enter your full name"
                   placeholderTextColor="#94A3B8"
                   value={name}
+                  onChange={(e) => {
+                    const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
+                    setName(val);
+                  }}
                   onChangeText={setName}
                   onFocus={() => {
                     if (Platform.OS !== 'web') {
@@ -360,6 +364,10 @@ const RegisterScreen = ({ navigation, route }) => {
                   }}
                   autoCapitalize="words"
                   autoCorrect={false}
+                  autoComplete="name"
+                  textContentType="name"
+                  name="name"
+                  id="reg_mobile_name"
                 />
                 {name.length > 0 && (
                   <TouchableOpacity
@@ -408,6 +416,10 @@ const RegisterScreen = ({ navigation, route }) => {
                   placeholder="10-digit mobile number"
                   placeholderTextColor="#94A3B8"
                   value={phone}
+                  onChange={(e) => {
+                    const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
+                    handlePhoneChange(val);
+                  }}
                   onChangeText={handlePhoneChange}
                   onFocus={() => {
                     if (Platform.OS !== 'web') {
@@ -418,6 +430,10 @@ const RegisterScreen = ({ navigation, route }) => {
                   }}
                   keyboardType="number-pad"
                   maxLength={10}
+                  autoComplete="tel"
+                  textContentType="telephoneNumber"
+                  name="tel"
+                  id="reg_mobile_phone"
                 />
                 {phone.length === 10 ? (
                   <Ionicons name="checkmark-circle" size={20} color="#007D69" />
@@ -450,6 +466,10 @@ const RegisterScreen = ({ navigation, route }) => {
                   placeholder="Enter your email address"
                   placeholderTextColor="#94A3B8"
                   value={email}
+                  onChange={(e) => {
+                    const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
+                    setEmail(val);
+                  }}
                   onChangeText={setEmail}
                   onFocus={() => {
                     if (Platform.OS !== 'web') {
@@ -461,6 +481,10 @@ const RegisterScreen = ({ navigation, route }) => {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  autoComplete="email"
+                  textContentType="emailAddress"
+                  name="email"
+                  id="reg_mobile_email"
                 />
                 {email.length > 0 && (
                   <TouchableOpacity
@@ -508,6 +532,10 @@ const RegisterScreen = ({ navigation, route }) => {
                   placeholder="Minimum 6 characters"
                   placeholderTextColor="#94A3B8"
                   value={password}
+                  onChange={(e) => {
+                    const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
+                    setPassword(val);
+                  }}
                   onChangeText={setPassword}
                   onFocus={() => {
                     if (Platform.OS !== 'web') {
@@ -519,6 +547,10 @@ const RegisterScreen = ({ navigation, route }) => {
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  autoComplete="new-password"
+                  textContentType="newPassword"
+                  name="new-password"
+                  id="reg_mobile_password"
                 />
                 <TouchableOpacity
                   style={styles.eyeBtn}
@@ -568,6 +600,10 @@ const RegisterScreen = ({ navigation, route }) => {
                   placeholder="Re-enter your password"
                   placeholderTextColor="#94A3B8"
                   value={confirmPassword}
+                  onChange={(e) => {
+                    const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
+                    setConfirmPassword(val);
+                  }}
                   onChangeText={setConfirmPassword}
                   onFocus={() => {
                     if (Platform.OS !== 'web') {
@@ -579,6 +615,10 @@ const RegisterScreen = ({ navigation, route }) => {
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  autoComplete="new-password"
+                  textContentType="newPassword"
+                  name="confirm-password"
+                  id="reg_mobile_confirmpassword"
                 />
                 <TouchableOpacity
                   style={styles.eyeBtn}
