@@ -129,6 +129,14 @@ const linking = {
             path: 'doctors',
             alias: ['doctor-list', 'doctors-list', 'DoctorList', 'doctorlist'],
           },
+          DoctorBooking: {
+            path: 'doctor-booking',
+            alias: ['doctor-booking', 'DoctorBooking', 'doctor_booking'],
+          },
+          DoctorDetails: {
+            path: 'doctor-details',
+            alias: ['doctor-details', 'DoctorDetails', 'doctor_details'],
+          },
           VideoConsultation: 'consultation',
           HospitalCare: 'hospital-care',
           HealthInsurance: 'insurance',
@@ -136,6 +144,7 @@ const linking = {
           Emergency: 'emergency',
           AyurvedaWellness: 'ayurveda-wellness',
           EquipmentRental: 'equipment-rental',
+          AllServices: 'all-services',
           Chatbot: 'chatbot',
           Profile: 'profile',
           Membership: 'membership',

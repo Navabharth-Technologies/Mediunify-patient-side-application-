@@ -117,7 +117,7 @@ const FIND_CARE_ITEMS = [
 const MORE_ITEMS = [
   { label: 'Ask MediUnify AI', route: 'Chatbot', icon: 'sparkles-outline' },
   { label: 'Ayurveda & Wellness', route: 'AyurvedaWellness', icon: 'leaf-outline' },
-  { label: 'Fertility & IVF Care', route: 'FertilityIvf', icon: 'heart-outline' },
+  { label: 'Fertility & IVF Care', route: 'DoctorList', params: { specialty: 'ivf-fertility-group' }, icon: 'heart-outline' },
   { label: 'Medical Equipment Rental', route: 'EquipmentRental', icon: 'fitness-outline' },
   { label: 'Home Care & Nursing', route: 'NurseBooking', icon: 'heart-outline' },
   { label: 'Digital Health Records', route: 'HealthRecords', icon: 'document-text-outline' },
@@ -381,6 +381,10 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
           targetRoute = 'Login';
         }
       } catch (e) {}
+    }
+    if (targetRoute === 'FertilityIvf') {
+      targetRoute = 'DoctorList';
+      params = { ...params, specialty: 'ivf-fertility-group' };
     }
 
     // Navigate smoothly inside MainApp or direct stack

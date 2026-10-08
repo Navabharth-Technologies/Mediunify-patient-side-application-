@@ -27,13 +27,17 @@ import WebBackButton from '../../components/web/WebBackButton';
 // ─── Quick topic chips shown in sidebar & welcome ─────────────────────────
 const QUICK_CATEGORIES = [
   { id: 'fever',     icon: 'thermometer', label: 'Fever & Cold',       prompt: 'I have fever and body pain',              color: '#FF7F50', bg: '#FFF2ED' },
+  { id: 'doctor',    icon: 'person',      label: 'Find a Doctor',      prompt: 'Find best doctor for consultation',       color: '#007D69', bg: '#E6F4F1' },
+  { id: 'lab',       icon: 'flask',       label: 'Book Lab Test',      prompt: 'Book a Lab Test at home',                 color: '#00C2CB', bg: '#E0F7FA' },
+  { id: 'scans',     icon: 'scan',        label: 'Scans & X-Ray',      prompt: 'View Scans & X-Ray diagnostics',          color: '#1E3A8A', bg: '#EBF4FF' },
+  { id: 'meds',      icon: 'medkit',      label: 'Order Medicines',    prompt: 'Order medicines from pharmacy',          color: '#8B5CF6', bg: '#F3E8FF' },
   { id: 'cardio',    icon: 'heart',       label: 'Heart & Chest',      prompt: 'Best Cardiologist for Chest Pain',        color: '#FF7F50', bg: '#FFF2ED' },
-  { id: 'scan',      icon: 'scan',        label: 'Scan Prescription',  prompt: 'Scan My Prescription',                   color: '#00B894', bg: '#E6F8F5' },
-  { id: 'lab',       icon: 'flask',       label: 'Lab Tests & MRI',    prompt: 'Suggest nearby Lab for Blood Test',       color: '#00C2CB', bg: '#E0F7FA' },
-  { id: 'meds',      icon: 'medkit',      label: 'Medicine Advice',    prompt: 'Can I buy Paracetamol?',                 color: '#1E3A8A', bg: '#E0F7FA' },
-  { id: 'ortho',     icon: 'body',        label: 'Joint & Back Pain',  prompt: 'Knee & Joint pain specialist',            color: '#00B894', bg: '#E6F8F5' },
-  { id: 'ayurveda',  icon: 'leaf',        label: 'Ayurveda',           prompt: 'Ayurveda & Panchakarma Therapies',        color: '#7BC96F', bg: '#F2FAF0' },
+  { id: 'nurse',     icon: 'heart',       label: 'Home Nursing',       prompt: 'Book home nursing and care',              color: '#EC4899', bg: '#FCE7F3' },
   { id: 'rent',      icon: 'bed',         label: 'Equipment Rental',   prompt: 'Rent Hospital Bed & Oxygen Concentrator', color: '#64748B', bg: '#F1F5F9' },
+  { id: 'surgery',   icon: 'bandage',     label: 'Surgeries',          prompt: 'Explore surgeries & hospital care',       color: '#0284C7', bg: '#E0F2FE' },
+  { id: 'records',   icon: 'pulse',       label: 'Health Records',     prompt: 'Open health records and vitals',          color: '#10B981', bg: '#ECFDF5' },
+  { id: 'scan',      icon: 'scan',        label: 'Scan Prescription',  prompt: 'Scan My Prescription',                   color: '#00B894', bg: '#E6F8F5' },
+  { id: 'ayurveda',  icon: 'leaf',        label: 'Ayurveda',           prompt: 'Ayurveda & Panchakarma Therapies',        color: '#7BC96F', bg: '#F2FAF0' },
 ];
 
 const PRESCRIPTION_SAMPLES = [
@@ -65,12 +69,12 @@ const INITIAL_MESSAGES = [
     sender: 'bot',
     text: "Hi! I'm MediUnify AI.\n\nHow can I help you today?",
     quickPrompts: [
+      { icon: 'flask-outline',    color: '#00C2CB', bg: '#E0F7FA', text: 'Book a Lab Test' },
+      { icon: 'person-outline',   color: '#007D69', bg: '#E6F4F1', text: 'Find a Doctor' },
+      { icon: 'medkit-outline',   color: '#8B5CF6', bg: '#F3E8FF', text: 'Order Medicine' },
+      { icon: 'scan-outline',     color: '#1E3A8A', bg: '#EBF4FF', text: 'View Scans & X-Ray' },
       { icon: 'fitness-outline',  color: '#FF7F50', bg: '#FFF2ED', text: 'I have fever and body pain' },
-      { icon: 'heart-outline',    color: '#FF7F50', bg: '#FFF2ED', text: 'Chest pain – need a cardiologist' },
-      { icon: 'scan-outline',     color: '#00B894', bg: '#E6F8F5', text: 'Scan my prescription' },
-      { icon: 'flask-outline',    color: '#00C2CB', bg: '#E0F7FA', text: 'Book a blood test' },
-      { icon: 'medkit-outline',   color: '#1E3A8A', bg: '#E0F7FA', text: 'Order medicines' },
-      { icon: 'leaf-outline',     color: '#7BC96F', bg: '#F2FAF0', text: 'Ayurveda & wellness' },
+      { icon: 'heart-outline',    color: '#EC4899', bg: '#FCE7F3', text: 'Book Home Nursing' },
     ],
   },
 ];
@@ -146,7 +150,7 @@ const ChatbotScreenWeb = ({ navigation }) => {
             ]);
           },
         },
-        { title: `Consult ${suggestedDoctor.name}`, icon: 'calendar', action: () => navigation?.navigate('DoctorDetails', { doctor: suggestedDoctor }) },
+        { title: `Book ${suggestedDoctor.name}`, icon: 'calendar', action: () => navigation?.navigate('DoctorBooking', { doctor: suggestedDoctor }) },
       ],
     }]);
   };
@@ -154,90 +158,333 @@ const ChatbotScreenWeb = ({ navigation }) => {
   const processHealthQuery = (query) => {
     const q = query.toLowerCase();
 
-    if (q.includes('scan') || q.includes('prescription') || q.includes('rx')) {
+    // OCR / Prescription
+    if (q.includes('scan') && (q.includes('prescription') || q.includes('rx') || q.includes('my rx'))) {
       handleScanPrescription(); return;
     }
-    if (q.includes('sugar') || q.includes('bp') || q.includes('blood pressure') || q.includes('vitals') || q.includes('bmi')) {
-      const doc = doctors.find(d => d.specialtyKey === 'general') || doctors[0];
-      reply('You can log Blood Sugar, BP, SpO2 & BMI in the app with color-coded alerts.', doc, null, [
-        { title: 'Open Health Records', icon: 'pulse', action: () => navigation?.navigate('HealthRecords') },
-        { title: `Consult ${doc.name}`, icon: 'calendar', action: () => navigation?.navigate('DoctorDetails', { doctor: doc }) },
-      ]); return;
+
+    // 1. LAB TESTS & BLOOD TESTS (Must navigate to existing new LabTests page!)
+    if (
+      q.includes('blood test') ||
+      q.includes('lab test') ||
+      q.includes('lab') ||
+      q.includes('blood') ||
+      q.includes('cbc') ||
+      q.includes('pathology') ||
+      q.includes('thyroid') ||
+      q.includes('lipid') ||
+      q.includes('urine test') ||
+      q.includes('health package')
+    ) {
+      reply(
+        'Book verified diagnostic lab tests with **Free Home Sample Collection** and fast digital reports in your city.',
+        null,
+        null,
+        [
+          { title: 'Book a Lab Test', icon: 'flask', action: () => navigation?.navigate('LabTests') },
+          { title: 'Popular Health Packages', icon: 'shield-checkmark', action: () => navigation?.navigate('LabTests', { category: 'packages' }) },
+          { title: 'Complete Blood Count (CBC)', icon: 'water', action: () => navigation?.navigate('LabTests', { searchTest: 'Complete Blood Count' }) },
+        ]
+      );
+      return;
     }
-    if (q.includes('return') || q.includes('refund') || q.includes('wrong medicine')) {
-      reply('Return medicines via **My Orders → Return Order**. Free pickup within 48 hrs.', null, null, [
-        { title: 'View Orders', icon: 'receipt', action: () => navigation?.navigate('MyMedicineOrders') },
-      ]); return;
+
+    // 2. SCANS & X-RAY / RADIOLOGY / IMAGING (Must navigate to existing new Imaging page!)
+    if (
+      q.includes('scan') ||
+      q.includes('mri') ||
+      q.includes('ct scan') ||
+      q.includes('x-ray') ||
+      q.includes('xray') ||
+      q.includes('ultrasound') ||
+      q.includes('radiology') ||
+      q.includes('radiologist') ||
+      q.includes('imaging')
+    ) {
+      const lab = radiologyLabs[0];
+      reply(
+        'Advanced imaging diagnostics with certified radiologists. Compare prices across top centres in your city with same-day reports.',
+        null,
+        lab,
+        [
+          { title: 'View Scans & X-Ray', icon: 'scan', action: () => navigation?.navigate('Imaging') },
+          { title: 'Book MRI Scan', icon: 'radio', action: () => navigation?.navigate('Imaging', { searchTest: 'MRI Scan' }) },
+          { title: 'Diagnostic Centres', icon: 'business', action: () => navigation?.navigate('Imaging') },
+        ]
+      );
+      return;
     }
-    if (q.includes('ayurved') || q.includes('panchakarma') || q.includes('wellness')) {
-      reply('Book AYUSH-certified Vaidyas for Nadi Pariksha, Panchakarma, and herbal therapies.', null, null, [
-        { title: 'Ayurveda & Wellness', icon: 'leaf', action: () => navigation?.navigate('AyurvedaWellness') },
-      ]); return;
+
+    // 3. MEDICINES / PHARMACY (Must navigate to existing new Pharmacy page!)
+    if (
+      q.includes('medicine') ||
+      q.includes('tablet') ||
+      q.includes('pharmacy') ||
+      q.includes('paracetamol') ||
+      q.includes('antibiotic') ||
+      q.includes('syrup') ||
+      q.includes('order med')
+    ) {
+      reply(
+        'Order genuine medicines and healthcare essentials with doorstep delivery from verified local pharmacies.',
+        null,
+        null,
+        [
+          { title: 'Order Medicine', icon: 'cart', action: () => navigation?.navigate('Pharmacy') },
+          { title: 'View Pharmacy Cart', icon: 'basket', action: () => navigation?.navigate('Cart', { initialTab: 'pharmacy' }) },
+          { title: 'Scan Prescription', icon: 'camera', action: handleScanPrescription },
+        ]
+      );
+      return;
     }
-    if (q.includes('fertility') || q.includes('ivf') || q.includes('conceive') || q.includes('infertility')) {
-      reply('Confidential IVF & fertility care with 0% EMI financing options.', null, null, [
-        { title: 'Fertility & IVF', icon: 'heart', action: () => navigation?.navigate('FertilityIvf') },
-      ]); return;
+
+    // 4. FIND DOCTORS / CONSULTATION
+    if (
+      q.includes('find a doctor') ||
+      q.includes('find doctor') ||
+      q.includes('consultation') ||
+      q.includes('physician') ||
+      q.includes('specialist') ||
+      q.includes('in-clinic') ||
+      q.includes('clinic visit')
+    ) {
+      const doc = doctors[0];
+      reply(
+        'Find and book confirmed appointment slots with verified doctors and top clinics near you.',
+        doc,
+        null,
+        [
+          { title: 'Find Doctors & Specialists', icon: 'search', action: () => navigation?.navigate('DoctorList') },
+          { title: 'In-Clinic Physical Visit', icon: 'business', action: () => navigation?.navigate('DoctorList', { mode: 'physical' }) },
+          { title: 'Online Video Consultation', icon: 'videocam', action: () => navigation?.navigate('VideoConsultation') },
+        ]
+      );
+      return;
     }
+
+    // 5. VIDEO CONSULTATION / ONLINE CONSULT
+    if (q.includes('video') || q.includes('online consult') || q.includes('teleconsult')) {
+      reply(
+        'Connect with verified specialist doctors online within 15 minutes via private HD video consultation.',
+        null,
+        null,
+        [
+          { title: 'Start Video Consultation', icon: 'videocam', action: () => navigation?.navigate('VideoConsultation') },
+        ]
+      );
+      return;
+    }
+
+    // 6. HOME CARE & NURSING (Must navigate to existing new NurseBooking page!)
+    if (q.includes('nurse') || q.includes('nursing') || q.includes('home care') || q.includes('caregiver') || q.includes('elderly')) {
+      reply(
+        'Book certified nurses and trained caregivers for home visits, post-hospitalization recovery, wound care, and elderly assistance.',
+        null,
+        null,
+        [
+          { title: 'Book Home Nursing', icon: 'heart', action: () => navigation?.navigate('NurseBooking') },
+        ]
+      );
+      return;
+    }
+
+    // 7. MEDICAL EQUIPMENT RENTAL (Must navigate to existing new EquipmentRental page!)
     if (q.includes('equipment') || q.includes('wheelchair') || q.includes('oxygen') || q.includes('bed') || q.includes('rent')) {
-      reply('Rent hospital-grade equipment delivered in 2-4 hrs with free technician setup.', null, null, [
-        { title: 'Browse Equipment', icon: 'fitness', action: () => navigation?.navigate('EquipmentRental') },
-      ]); return;
+      reply(
+        'Rent hospital-grade medical equipment (ICU beds, oxygen concentrators, wheelchairs) with free technician setup and sanitization.',
+        null,
+        null,
+        [
+          { title: 'Rent Medical Equipment', icon: 'fitness', action: () => navigation?.navigate('EquipmentRental') },
+        ]
+      );
+      return;
     }
+
+    // 8. SURGERIES & HOSPITAL CARE (Must navigate to existing new HospitalCare page!)
+    if (
+      q.includes('surgery') ||
+      q.includes('surgeries') ||
+      q.includes('hospital') ||
+      q.includes('operation') ||
+      q.includes('cataract') ||
+      q.includes('hernia') ||
+      q.includes('laparoscop')
+    ) {
+      reply(
+        'Planned surgeries with accredited hospital network, dedicated care coordinators, free second opinions, and 0% EMI financing.',
+        null,
+        null,
+        [
+          { title: 'Explore Surgeries', icon: 'medkit', action: () => navigation?.navigate('HospitalCare') },
+        ]
+      );
+      return;
+    }
+
+    // 9. HEALTH RECORDS & VITALS
+    if (q.includes('sugar') || q.includes('bp') || q.includes('blood pressure') || q.includes('vitals') || q.includes('bmi') || q.includes('record') || q.includes('report')) {
+      const doc = doctors.find(d => d.specialtyKey === 'general') || doctors[0];
+      reply(
+        'Log and track your Blood Sugar, BP, SpO2 & BMI, and access digitized medical records anytime in the app.',
+        doc,
+        null,
+        [
+          { title: 'Open Health Records', icon: 'pulse', action: () => navigation?.navigate('HealthRecords') },
+          { title: `Book ${doc.name}`, icon: 'calendar', action: () => navigation?.navigate('DoctorBooking', { doctor: doc }) },
+        ]
+      );
+      return;
+    }
+
+    // 10. APPOINTMENTS & BOOKINGS
+    if (q.includes('appointment') || q.includes('booking') || q.includes('my test')) {
+      reply(
+        'View and manage your upcoming doctor appointments, video consultations, and diagnostic lab tests.',
+        null,
+        null,
+        [
+          { title: 'View Appointments', icon: 'calendar', action: () => navigation?.navigate('MyAppointments') },
+          { title: 'My Tests & Scans', icon: 'flask', action: () => navigation?.navigate('MyTests') },
+        ]
+      );
+      return;
+    }
+
+    // 11. MEDICINE ORDERS & RETURNS
+    if (q.includes('return') || q.includes('refund') || q.includes('order') || q.includes('delivery')) {
+      reply(
+        'Track and manage your medicine orders, or request returns with free doorstep pickup within 48 hours.',
+        null,
+        null,
+        [
+          { title: 'View Medicine Orders', icon: 'receipt', action: () => navigation?.navigate('MyMedicineOrders') },
+          { title: 'Browse Pharmacy', icon: 'cart', action: () => navigation?.navigate('Pharmacy') },
+        ]
+      );
+      return;
+    }
+
+    // 12. AYURVEDA & WELLNESS
+    if (q.includes('ayurved') || q.includes('panchakarma') || q.includes('wellness') || q.includes('vaidya')) {
+      reply(
+        'Book AYUSH-certified Vaidyas for Nadi Pariksha (Pulse Diagnosis), Panchakarma, and holistic herbal therapies.',
+        null,
+        null,
+        [
+          { title: 'Ayurveda & Wellness', icon: 'leaf', action: () => navigation?.navigate('AyurvedaWellness') },
+        ]
+      );
+      return;
+    }
+
+    // 13. FERTILITY & IVF (Navigate to DoctorList with IVF specialty!)
+    if (q.includes('fertility') || q.includes('ivf') || q.includes('conceive') || q.includes('infertility')) {
+      reply(
+        'Confidential IVF & fertility consultations with certified reproductive medicine specialists and 0% EMI financing options.',
+        null,
+        null,
+        [
+          { title: 'Find IVF & Fertility Specialists', icon: 'heart', action: () => navigation?.navigate('DoctorList', { specialty: 'ivf-fertility-group' }) },
+        ]
+      );
+      return;
+    }
+
+    // 14. HEART / CHEST PAIN
     if (q.includes('chest pain') || q.includes('heart') || q.includes('cardio') || q.includes('breathless')) {
       const doc = doctors.find(d => d.specialtyKey === 'cardio') || doctors[1];
       const lab = radiologyLabs[0];
-      reply('For severe chest pain, call 108 immediately. For clinical evaluation & ECG:', doc, lab, [
-        { title: `Book ${doc.name}`, icon: 'heart', action: () => navigation?.navigate('DoctorDetails', { doctor: doc }) },
-        { title: `ECG/Echo at ${lab.name}`, icon: 'flask', action: () => navigation?.navigate('RadiologyLabDetails', { labId: lab.id }) },
-        { title: 'Emergency (108)', icon: 'call', action: () => navigation?.navigate('Emergency') },
-      ]); return;
+      reply(
+        'For severe crushing chest pain, call 108 immediately. For clinical evaluation & ECG:',
+        doc,
+        lab,
+        [
+          { title: `Book ${doc.name}`, icon: 'heart', action: () => navigation?.navigate('DoctorBooking', { doctor: doc }) },
+          { title: 'Find Cardiologists', icon: 'people', action: () => navigation?.navigate('DoctorList', { specialty: 'cardiology-group' }) },
+          { title: 'ECG & 2D Echo', icon: 'pulse', action: () => navigation?.navigate('Imaging', { searchTest: 'ECG' }) },
+          { title: 'Emergency (108)', icon: 'call', action: () => navigation?.navigate('Emergency') },
+        ]
+      );
+      return;
     }
+
+    // 15. SKIN / DERMATOLOGY
     if (q.includes('skin') || q.includes('rash') || q.includes('acne') || q.includes('hair')) {
       const doc = doctors.find(d => d.specialtyKey === 'derma') || doctors[2];
-      reply('Skin rash, acne or hair loss needs a dermatologist assessment.', doc, null, [
-        { title: `Consult ${doc.name}`, icon: 'calendar', action: () => navigation?.navigate('DoctorDetails', { doctor: doc }) },
-      ]); return;
+      reply(
+        'Skin rash, acne or hair loss needs a dermatologist assessment:',
+        doc,
+        null,
+        [
+          { title: `Book ${doc.name}`, icon: 'calendar', action: () => navigation?.navigate('DoctorBooking', { doctor: doc }) },
+          { title: 'Find Dermatologists', icon: 'people', action: () => navigation?.navigate('DoctorList', { specialty: 'dermatology-skin' }) },
+        ]
+      );
+      return;
     }
+
+    // 16. BONES / JOINTS / ORTHO
     if (q.includes('bone') || q.includes('knee') || q.includes('joint') || q.includes('back pain') || q.includes('ortho')) {
       const doc = doctors.find(d => d.specialtyKey === 'ortho') || doctors[3];
       const lab = radiologyLabs[0];
-      reply('Joint or back pain? An X-Ray or MRI helps accurate diagnosis.', doc, lab, [
-        { title: `Book ${doc.name}`, icon: 'calendar', action: () => navigation?.navigate('DoctorDetails', { doctor: doc }) },
-        { title: `X-Ray & MRI at ${lab.name}`, icon: 'flask', action: () => navigation?.navigate('RadiologyLabDetails', { labId: lab.id }) },
-      ]); return;
-    }
-    if (q.includes('lab') || q.includes('test') || q.includes('mri') || q.includes('ct scan') || q.includes('blood test')) {
-      const lab = radiologyLabs[0];
-      reply('NABH & NABL certified labs for blood tests, MRI, CT, X-Ray & home sample collection.', null, lab, [
-        { title: `Book at ${lab.name}`, icon: 'flask', action: () => navigation?.navigate('RadiologyLabDetails', { labId: lab.id }) },
-        { title: 'All Diagnostic Centers', icon: 'business', action: () => navigation?.navigate('RadiologyLabs') },
-      ]); return;
-    }
-    if (q.includes('medicine') || q.includes('tablet') || q.includes('paracetamol') || q.includes('antibiotic')) {
-      const doc = doctors.find(d => d.specialtyKey === 'general') || doctors[0];
-      reply('OTC meds like Paracetamol are fine for mild symptoms. For prescriptions, consult a doctor.', doc, null, [
-        { title: `Consult ${doc.name}`, icon: 'calendar', action: () => navigation?.navigate('DoctorDetails', { doctor: doc }) },
-        { title: 'Browse Pharmacy', icon: 'cart', action: () => navigation?.navigate('Pharmacy') },
-      ]); return;
-    }
-    if (q.includes('fever') || q.includes('cold') || q.includes('cough') || q.includes('headache') || q.includes('sick')) {
-      const doc = doctors.find(d => d.specialtyKey === 'general') || doctors[0];
-      reply('Stay hydrated, rest well, and avoid self-medicating. Our GP can help you quickly.', doc, null, [
-        { title: `Book ${doc.name}`, icon: 'calendar', action: () => navigation?.navigate('DoctorDetails', { doctor: doc }) },
-        { title: 'Order Medicines', icon: 'cart', action: () => navigation?.navigate('Pharmacy') },
-      ]); return;
+      reply(
+        'Joint or back pain? Consult an orthopedic specialist or book an X-Ray / MRI for accurate diagnosis:',
+        doc,
+        lab,
+        [
+          { title: `Book ${doc.name}`, icon: 'calendar', action: () => navigation?.navigate('DoctorBooking', { doctor: doc }) },
+          { title: 'Find Orthopedic Doctors', icon: 'people', action: () => navigation?.navigate('DoctorList', { specialty: 'orthopedics-bone' }) },
+          { title: 'Book X-Ray & MRI', icon: 'scan', action: () => navigation?.navigate('Imaging', { searchTest: 'X-Ray' }) },
+        ]
+      );
+      return;
     }
 
-    // Default
-    const doc = doctors[0];
-    const lab = radiologyLabs[0];
-    reply("I can help with doctors, lab tests, medicines, prescriptions & more. What do you need?", doc, lab, [
-      { title: 'Find Specialists', icon: 'people', action: () => navigation?.navigate('DoctorList') },
-      { title: 'Scan Prescription', icon: 'camera', action: handleScanPrescription },
-      { title: 'Pharmacy', icon: 'medkit', action: () => navigation?.navigate('Pharmacy') },
-      { title: 'Book Lab Tests', icon: 'flask', action: () => navigation?.navigate('RadiologyLabs') },
-    ]);
+    // 17. FEVER / COLD / COUGH
+    if (q.includes('fever') || q.includes('cold') || q.includes('cough') || q.includes('headache') || q.includes('sick')) {
+      const doc = doctors.find(d => d.specialtyKey === 'general') || doctors[0];
+      reply(
+        'Stay hydrated, rest well, and avoid self-medicating. Book a consultation, order medicines, or schedule a routine blood test:',
+        doc,
+        null,
+        [
+          { title: `Book ${doc.name}`, icon: 'calendar', action: () => navigation?.navigate('DoctorBooking', { doctor: doc }) },
+          { title: 'Find General Physicians', icon: 'people', action: () => navigation?.navigate('DoctorList', { specialty: 'general-primary' }) },
+          { title: 'Order Medicines', icon: 'cart', action: () => navigation?.navigate('Pharmacy') },
+          { title: 'Complete Blood Count (CBC)', icon: 'flask', action: () => navigation?.navigate('LabTests', { searchTest: 'Complete Blood Count' }) },
+        ]
+      );
+      return;
+    }
+
+    // 18. EMERGENCY
+    if (q.includes('emergency') || q.includes('ambulance') || q.includes('108') || q.includes('urgent')) {
+      reply(
+        'For life-threatening emergencies, call 108 immediately for free 24x7 ambulance dispatch.',
+        null,
+        null,
+        [
+          { title: 'Emergency Care (108)', icon: 'call', action: () => navigation?.navigate('Emergency') },
+        ]
+      );
+      return;
+    }
+
+    // DEFAULT FALLBACK (Use approved canonical routes!)
+    reply(
+      "I can assist you with doctor visits, video consultations, lab tests, medicines, scans, home nursing, and medical equipment. What would you like to explore?",
+      null,
+      null,
+      [
+        { title: 'Find a Doctor', icon: 'people', action: () => navigation?.navigate('DoctorList') },
+        { title: 'Book a Lab Test', icon: 'flask', action: () => navigation?.navigate('LabTests') },
+        { title: 'Order Medicine', icon: 'cart', action: () => navigation?.navigate('Pharmacy') },
+        { title: 'View Scans & X-Ray', icon: 'scan', action: () => navigation?.navigate('Imaging') },
+        { title: 'Book Home Nursing', icon: 'heart', action: () => navigation?.navigate('NurseBooking') },
+        { title: 'Rent Medical Equipment', icon: 'bed', action: () => navigation?.navigate('EquipmentRental') },
+      ]
+    );
   };
 
   const reply = (text, suggestedDoctor, suggestedLab, actionButtons) => {
@@ -256,22 +503,30 @@ const ChatbotScreenWeb = ({ navigation }) => {
     if (!doc) return null;
     return (
       <View style={styles.cardContainer}>
-        <View style={styles.cardHeaderRow}>
+        <TouchableOpacity
+          style={styles.cardHeaderRow}
+          onPress={() => navigation?.navigate('DoctorBooking', { doctor: doc })}
+          activeOpacity={0.85}
+        >
           <Image source={{ uri: doc.image }} style={styles.cardAvatar} />
           <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={styles.cardDoctorName}>{doc.name}</Text>
             <Text style={styles.cardDoctorSpec}>{doc.specialty}</Text>
             <View style={styles.cardRatingRow}>
               <Ionicons name="star" size={12} color="#F59E0B" />
-              <Text style={styles.cardRatingText}>{doc.rating} · {doc.experience}</Text>
+              <Text style={styles.cardRatingText}>{doc.rating} · {doc.experience || '10+ yrs'}</Text>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
         <View style={styles.cardFooterRow}>
-          <Text style={styles.cardFeeVal}>₹{doc.fee}</Text>
-          <TouchableOpacity style={styles.cardActionBtn} onPress={() => navigation?.navigate('DoctorDetails', { doctor: doc })} activeOpacity={0.85}>
+          <Text style={styles.cardFeeVal}>₹{doc.fee || 500}</Text>
+          <TouchableOpacity
+            style={styles.cardActionBtn}
+            onPress={() => navigation?.navigate('DoctorBooking', { doctor: doc })}
+            activeOpacity={0.85}
+          >
             <Ionicons name="calendar-outline" size={13} color="#FFFFFF" />
-            <Text style={styles.cardActionBtnText}>Book</Text>
+            <Text style={styles.cardActionBtnText}>Book Visit</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -282,27 +537,35 @@ const ChatbotScreenWeb = ({ navigation }) => {
     if (!lab) return null;
     return (
       <View style={styles.cardContainer}>
-        <View style={styles.cardHeaderRow}>
+        <TouchableOpacity
+          style={styles.cardHeaderRow}
+          onPress={() => navigation?.navigate('Imaging', { labId: lab.id })}
+          activeOpacity={0.85}
+        >
           <View style={styles.labIconCircle}>
             <Ionicons name="business" size={20} color={colors.primary} />
           </View>
           <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={styles.cardDoctorName} numberOfLines={1}>{lab.name}</Text>
-            <Text style={styles.cardDoctorSpec}>{lab.area} · {lab.distance}</Text>
+            <Text style={styles.cardDoctorSpec}>{lab.area || 'Mysuru'} · {lab.distance || '2.4 km'}</Text>
             <View style={styles.cardRatingRow}>
               <Ionicons name="star" size={12} color="#F59E0B" />
-              <Text style={styles.cardRatingText}>{lab.rating}</Text>
+              <Text style={styles.cardRatingText}>{lab.rating || '4.8'}</Text>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
         <View style={styles.cardFooterRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Ionicons name="time-outline" size={13} color="#64748B" />
             <Text style={styles.labTimingText}>{lab.openHours || 'Open Today'}</Text>
           </View>
-          <TouchableOpacity style={styles.cardActionBtn} onPress={() => navigation?.navigate('RadiologyLabDetails', { labId: lab.id })} activeOpacity={0.85}>
-            <Ionicons name="flask-outline" size={13} color="#FFFFFF" />
-            <Text style={styles.cardActionBtnText}>View Tests</Text>
+          <TouchableOpacity
+            style={styles.cardActionBtn}
+            onPress={() => navigation?.navigate('Imaging', { labId: lab.id })}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="scan-outline" size={13} color="#FFFFFF" />
+            <Text style={styles.cardActionBtnText}>View Scans</Text>
           </TouchableOpacity>
         </View>
       </View>

@@ -26,23 +26,25 @@ import { useCart } from '../../context/CartContext';
 
 // Horizontally scrollable quick prompt chips
 const QUICK_SUGGESTIONS = [
+  { icon: 'flask-outline', text: 'Book a Lab Test' },
+  { icon: 'person-outline', text: 'Find a Doctor' },
+  { icon: 'medkit-outline', text: 'Order Medicine' },
+  { icon: 'scan-outline', text: 'View Scans & X-Ray' },
   { icon: 'fitness-outline', text: 'I have fever & body pain' },
-  { icon: 'person-outline', text: 'Find a doctor' },
-  { icon: 'flask-outline', text: 'Book a blood test' },
-  { icon: 'medkit-outline', text: 'Order medicines' },
-  { icon: 'home-outline', text: 'Home care' },
-  { icon: 'heart-outline', text: 'Best Cardiologist' },
-  { icon: 'body-outline', text: 'Knee & joint pain' },
-  { icon: 'document-text-outline', text: 'Scan prescription' },
+  { icon: 'heart-outline', text: 'Book Home Nursing' },
+  { icon: 'bed-outline', text: 'Rent Medical Equipment' },
+  { icon: 'videocam-outline', text: 'Online Video Consult' },
+  { icon: 'document-text-outline', text: 'Scan Prescription' },
 ];
 
 // Compact "Try asking" suggestions for initial welcome card
 const COMPACT_TRY_ASKING = [
-  { id: '1', icon: 'heart-outline', color: '#EF4444', bg: '#FEE2E2', title: 'Fever & body pain', query: 'I have fever and body pain' },
-  { id: '2', icon: 'person-outline', color: '#007D69', bg: '#E6F4F1', title: 'Find a doctor', query: 'Find best doctor for consultation' },
-  { id: '3', icon: 'flask-outline', color: '#0284C7', bg: '#E0F2FE', title: 'Book a blood test', query: 'Book a blood test at home' },
-  { id: '4', icon: 'medkit-outline', color: '#10B981', bg: '#D1FAE5', title: 'Order medicines', query: 'Order my medicines from pharmacy' },
-  { id: '5', icon: 'home-outline', color: '#F97316', bg: '#FFEDD5', title: 'Post-surgery home care', query: 'Post-surgery home care and equipment' },
+  { id: '1', icon: 'flask-outline', color: '#00C2CB', bg: '#E0F7FA', title: 'Book a Lab Test', query: 'Book a lab test at home' },
+  { id: '2', icon: 'person-outline', color: '#007D69', bg: '#E6F4F1', title: 'Find a Doctor', query: 'Find best doctor for consultation' },
+  { id: '3', icon: 'medkit-outline', color: '#8B5CF6', bg: '#F3E8FF', title: 'Order Medicine', query: 'Order medicines from pharmacy' },
+  { id: '4', icon: 'scan-outline', color: '#1E3A8A', bg: '#EBF4FF', title: 'View Scans & X-Ray', query: 'View Scans & X-Ray diagnostics' },
+  { id: '5', icon: 'fitness-outline', color: '#EF4444', bg: '#FEE2E2', title: 'Fever & body pain', query: 'I have fever and body pain' },
+  { id: '6', icon: 'heart-outline', color: '#EC4899', bg: '#FCE7F3', title: 'Home Nursing', query: 'Book home nursing and care' },
 ];
 
 // Sample prescription knowledge base for OCR analysis
@@ -261,13 +263,13 @@ const ChatbotScreen = ({ navigation }) => {
                 });
               });
               showAlert('Medicines Added', 'All prescribed medications added to your Cart.');
-              navigation.navigate('Cart');
+              navigation.navigate('Cart', { initialTab: 'pharmacy' });
             },
           },
           {
             title: `👨‍⚕️ Book Follow-up with ${matchedDoctor.name}`,
             icon: 'calendar-outline',
-            action: () => navigation.navigate('DoctorDetails', { doctor: matchedDoctor }),
+            action: () => navigation.navigate('DoctorBooking', { doctor: matchedDoctor }),
           },
         ],
       };
@@ -282,49 +284,44 @@ const ChatbotScreen = ({ navigation }) => {
   const processHealthQuery = (query) => {
     const q = query.toLowerCase();
 
-    // 1. FEVER / COLD / COUGH / PAIN
-    if (q.includes('fever') || q.includes('cold') || q.includes('cough') || q.includes('body pain') || q.includes('headache') || q.includes('flu')) {
-      const physician = doctors.find((d) => d.specialtyKey === 'general') || doctors[0];
+    // OCR / Prescription
+    if (q.includes('scan') && (q.includes('prescription') || q.includes('rx') || q.includes('my rx'))) {
+      handleScanPrescription();
+      return;
+    }
+
+    // 1. LAB TESTS & BLOOD TESTS (Must open existing new LabTests page!)
+    if (
+      q.includes('blood test') ||
+      q.includes('lab test') ||
+      q.includes('lab') ||
+      q.includes('blood') ||
+      q.includes('cbc') ||
+      q.includes('pathology') ||
+      q.includes('thyroid') ||
+      q.includes('lipid') ||
+      q.includes('urine test') ||
+      q.includes('health package')
+    ) {
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: "🌡️ **Fever & Body Ache Guidance**\n\nFever and body ache are common signs that your immune system is responding to a viral or bacterial condition.\n\n• Stay well hydrated with warm water and electrolytes.\n• Get adequate rest.\n• Avoid strenuous physical activities.\n\nFor clinical assessment and safe prescription, we recommend consulting our verified General Physician:",
-        suggestedDoctor: physician,
+        text: '🧪 **Diagnostic Labs & Health Checkups**\n\nWe provide verified diagnostic testing across accredited laboratories in your city with **Free Home Sample Collection** and fast digital reports.',
         actionButtons: [
           {
-            title: `Book ${physician.name} (${physician.fee})`,
-            icon: 'calendar-outline',
-            action: () => navigation.navigate('DoctorDetails', { doctor: physician }),
-          },
-          {
-            title: '🧪 Complete Blood Count (CBC) at Home',
+            title: 'Book a Lab Test',
             icon: 'flask-outline',
             action: () => navigation.navigate('LabTests'),
           },
-        ],
-      };
-      setMessages((prev) => [...prev, botResponse]);
-      return;
-    }
-
-    // 2. CHILD / PEDIATRIC
-    if (q.includes('child') || q.includes('baby') || q.includes('kid') || q.includes('pediatric')) {
-      const pediatrician = doctors.find((d) => d.specialtyKey === 'pediatric') || doctors[0];
-      const botResponse = {
-        id: `bot-${Date.now()}`,
-        sender: 'bot',
-        text: '👶 **Child Health & Pediatric Care**\n\nFor infant or child care, accurate weight-adjusted dosing and specialist pediatric examination is essential for gentle recovery.',
-        suggestedDoctor: pediatrician,
-        actionButtons: [
           {
-            title: `Consult ${pediatrician.name}`,
-            icon: 'person-outline',
-            action: () => navigation.navigate('DoctorDetails', { doctor: pediatrician }),
+            title: 'Popular Health Packages',
+            icon: 'shield-checkmark-outline',
+            action: () => navigation.navigate('LabTests', { category: 'packages' }),
           },
           {
-            title: 'Find More Pediatricians',
-            icon: 'search-outline',
-            action: () => navigation.navigate('DoctorList', { specialty: 'pediatric' }),
+            title: 'Complete Blood Count (CBC)',
+            icon: 'water-outline',
+            action: () => navigation.navigate('LabTests', { searchTest: 'Complete Blood Count' }),
           },
         ],
       };
@@ -332,51 +329,39 @@ const ChatbotScreen = ({ navigation }) => {
       return;
     }
 
-    // 3. CARDIOLOGY / CHEST PAIN / HEART
-    if (q.includes('chest pain') || q.includes('heart') || q.includes('cardio') || q.includes('palpitation') || q.includes('breathless')) {
-      const cardiologist = doctors.find((d) => d.specialtyKey === 'cardio') || doctors[1];
-      const nearbyLab = radiologyLabs[0];
-
-      const botResponse = {
-        id: `bot-${Date.now()}`,
-        sender: 'bot',
-        text: '❤️ **Cardiac & Chest Health Advisory**\n\n*If you are experiencing severe crushing chest pain or left arm numbness, please visit the emergency room immediately.*\n\nFor clinical evaluation, ECG, and 2D Echo, consult our senior Cardiologist:',
-        suggestedDoctor: cardiologist,
-        actionButtons: [
-          {
-            title: `Book ${cardiologist.name} (${cardiologist.fee})`,
-            icon: 'heart-outline',
-            action: () => navigation.navigate('DoctorDetails', { doctor: cardiologist }),
-          },
-          {
-            title: `ECG / 2D Echo at ${nearbyLab.name}`,
-            icon: 'flask-outline',
-            action: () => navigation.navigate('RadiologyLabDetails', { labId: nearbyLab.id }),
-          },
-        ],
-      };
-      setMessages((prev) => [...prev, botResponse]);
-      return;
-    }
-
-    // 4. LAB TESTS / BLOOD TEST
-    if (q.includes('lab') || q.includes('test') || q.includes('blood') || q.includes('scan') || q.includes('mri') || q.includes('x-ray')) {
+    // 2. SCANS & X-RAY / RADIOLOGY / IMAGING (Must open existing new Imaging page!)
+    if (
+      q.includes('scan') ||
+      q.includes('mri') ||
+      q.includes('ct scan') ||
+      q.includes('x-ray') ||
+      q.includes('xray') ||
+      q.includes('ultrasound') ||
+      q.includes('radiology') ||
+      q.includes('radiologist') ||
+      q.includes('imaging')
+    ) {
       const topLab = radiologyLabs[0];
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: '🧪 **Diagnostic Labs & Health Checkups**\n\nWe provide verified diagnostic testing across accredited laboratories in Mysuru with **Free Home Sample Collection** and fast digital reports.',
+        text: '🩻 **Advanced Imaging & Radiology**\n\nCompare certified diagnostic centres for MRI, CT Scans, Ultrasound, and Digital X-Ray with same-day verified digital reports.',
         suggestedLab: topLab,
         actionButtons: [
           {
-            title: 'Book Blood Tests at Home',
-            icon: 'flask-outline',
-            action: () => navigation.navigate('LabTests'),
+            title: 'View Scans & X-Ray',
+            icon: 'scan-outline',
+            action: () => navigation.navigate('Imaging'),
           },
           {
-            title: 'View Diagnostic Centers & Scans',
+            title: 'Book MRI Scan',
+            icon: 'radio-outline',
+            action: () => navigation.navigate('Imaging', { searchTest: 'MRI Scan' }),
+          },
+          {
+            title: 'Diagnostic Centres',
             icon: 'business-outline',
-            action: () => navigation.navigate('RadiologyLabs'),
+            action: () => navigation.navigate('Imaging'),
           },
         ],
       };
@@ -384,20 +369,33 @@ const ChatbotScreen = ({ navigation }) => {
       return;
     }
 
-    // 5. MEDICINES / PHARMACY
-    if (q.includes('medicine') || q.includes('tablet') || q.includes('pharmacy') || q.includes('order') || q.includes('paracetamol')) {
+    // 3. MEDICINES / PHARMACY (Must open existing new Pharmacy page!)
+    if (
+      q.includes('medicine') ||
+      q.includes('tablet') ||
+      q.includes('pharmacy') ||
+      q.includes('paracetamol') ||
+      q.includes('antibiotic') ||
+      q.includes('syrup') ||
+      q.includes('order med')
+    ) {
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
         text: '💊 **Online Pharmacy & Doorstep Delivery**\n\nOrder genuine medicines and healthcare essentials from verified local pharmacies with swift doorstep delivery.',
         actionButtons: [
           {
-            title: 'Open MediUnify Pharmacy',
-            icon: 'medkit-outline',
+            title: 'Order Medicine',
+            icon: 'cart-outline',
             action: () => navigation.navigate('Pharmacy'),
           },
           {
-            title: '📷 Scan Prescription for Auto-Order',
+            title: 'View Pharmacy Cart',
+            icon: 'basket-outline',
+            action: () => navigation.navigate('Cart', { initialTab: 'pharmacy' }),
+          },
+          {
+            title: 'Scan Prescription',
             icon: 'document-text-outline',
             action: () => handleScanPrescription(),
           },
@@ -407,43 +405,35 @@ const ChatbotScreen = ({ navigation }) => {
       return;
     }
 
-    // 6. HOME CARE / NURSE / EQUIPMENT RENTAL
-    if (q.includes('home care') || q.includes('nurse') || q.includes('equipment') || q.includes('bed') || q.includes('wheelchair') || q.includes('oxygen')) {
+    // 4. FIND DOCTORS / CONSULTATION
+    if (
+      q.includes('find a doctor') ||
+      q.includes('find doctor') ||
+      q.includes('consultation') ||
+      q.includes('physician') ||
+      q.includes('specialist') ||
+      q.includes('in-clinic') ||
+      q.includes('clinic visit')
+    ) {
+      const physician = doctors[0];
       const botResponse = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
-        text: '🏠 **Home Healthcare & Equipment Rental**\n\nAccess professional nursing care, elderly assistance, and hospital-grade medical equipment for recovery at home.',
+        text: '👨‍⚕️ **Find Trusted Doctors & Clinics**\n\nConsult highly qualified doctors across 20+ specialties for clinic visits or instant video consultations.',
+        suggestedDoctor: physician,
         actionButtons: [
           {
-            title: 'Rent Hospital Bed & Oxygen',
-            icon: 'bed-outline',
-            action: () => navigation.navigate('EquipmentRental'),
-          },
-          {
-            title: 'Book Home Care Nursing',
-            icon: 'bandage-outline',
-            action: () => navigation.navigate('NurseBooking'),
-          },
-        ],
-      };
-      setMessages((prev) => [...prev, botResponse]);
-      return;
-    }
-
-    // 7. FIND DOCTORS
-    if (q.includes('doctor') || q.includes('consult') || q.includes('appointment')) {
-      const botResponse = {
-        id: `bot-${Date.now()}`,
-        sender: 'bot',
-        text: '👨‍⚕️ **Find Trusted Doctors**\n\nConsult highly qualified doctors across 20+ specialties for clinic visits or instant video consultations.',
-        actionButtons: [
-          {
-            title: 'Search Doctors by Specialty',
+            title: 'Find Doctors & Specialists',
             icon: 'search-outline',
-            action: () => navigation.navigate('FindDoctors'),
+            action: () => navigation.navigate('DoctorList'),
           },
           {
-            title: 'Instant Video Consultation',
+            title: 'In-Clinic Physical Visit',
+            icon: 'business-outline',
+            action: () => navigation.navigate('DoctorList', { mode: 'physical' }),
+          },
+          {
+            title: 'Online Video Consultation',
             icon: 'videocam-outline',
             action: () => navigation.navigate('VideoConsultation'),
           },
@@ -453,22 +443,398 @@ const ChatbotScreen = ({ navigation }) => {
       return;
     }
 
-    // DEFAULT FALLBACK
+    // 5. VIDEO CONSULTATION / ONLINE CONSULT
+    if (q.includes('video') || q.includes('online consult') || q.includes('teleconsult')) {
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: '📹 **Online Video Consultation**\n\nConnect with certified specialist doctors from the comfort of your home within 15 minutes via private HD video consultation.',
+        actionButtons: [
+          {
+            title: 'Start Video Consultation',
+            icon: 'videocam-outline',
+            action: () => navigation.navigate('VideoConsultation'),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // 6. HOME CARE & NURSING (Must open existing new NurseBooking page!)
+    if (q.includes('nurse') || q.includes('nursing') || q.includes('home care') || q.includes('caregiver') || q.includes('elderly')) {
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: '🏠 **Professional Home Nursing & Care**\n\nAccess verified nursing care, post-op recovery, wound dressing, and elderly assistance in the comfort of your home.',
+        actionButtons: [
+          {
+            title: 'Book Home Nursing',
+            icon: 'heart-outline',
+            action: () => navigation.navigate('NurseBooking'),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // 7. MEDICAL EQUIPMENT RENTAL (Must open existing new EquipmentRental page!)
+    if (q.includes('equipment') || q.includes('wheelchair') || q.includes('oxygen') || q.includes('bed') || q.includes('rent')) {
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: '🛏️ **Medical Equipment Rental**\n\nRent sanitized hospital-grade equipment (ICU beds, oxygen concentrators, wheelchairs, CPAP/BiPAP) with free technician setup.',
+        actionButtons: [
+          {
+            title: 'Rent Medical Equipment',
+            icon: 'bed-outline',
+            action: () => navigation.navigate('EquipmentRental'),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // 8. SURGERIES & HOSPITAL CARE (Must open existing new HospitalCare page!)
+    if (
+      q.includes('surgery') ||
+      q.includes('surgeries') ||
+      q.includes('hospital') ||
+      q.includes('operation') ||
+      q.includes('cataract') ||
+      q.includes('hernia') ||
+      q.includes('laparoscop')
+    ) {
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: '🏥 **Planned Surgeries & Hospital Care**\n\nBenefit from top hospital network, dedicated care coordinators, free second opinions, and 0% EMI financing.',
+        actionButtons: [
+          {
+            title: 'Explore Surgeries',
+            icon: 'medkit-outline',
+            action: () => navigation.navigate('HospitalCare'),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // 9. HEALTH RECORDS & VITALS
+    if (q.includes('sugar') || q.includes('bp') || q.includes('blood pressure') || q.includes('vitals') || q.includes('bmi') || q.includes('record') || q.includes('report')) {
+      const physician = doctors.find((d) => d.specialtyKey === 'general') || doctors[0];
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: '📊 **Digital Health Records & Vitals**\n\nTrack your vitals with color-coded safety ranges and view all your certified lab and doctor reports in one place.',
+        suggestedDoctor: physician,
+        actionButtons: [
+          {
+            title: 'Open Health Records',
+            icon: 'pulse-outline',
+            action: () => navigation.navigate('HealthRecords'),
+          },
+          {
+            title: `Book ${physician.name}`,
+            icon: 'calendar-outline',
+            action: () => navigation.navigate('DoctorBooking', { doctor: physician }),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // 10. APPOINTMENTS & BOOKINGS
+    if (q.includes('appointment') || q.includes('booking') || q.includes('my test')) {
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: '📅 **My Appointments & Test Bookings**\n\nCheck live tokens, appointment slots, and real-time status of your upcoming consultations and diagnostic tests.',
+        actionButtons: [
+          {
+            title: 'View Appointments',
+            icon: 'calendar-outline',
+            action: () => navigation.navigate('MyAppointments'),
+          },
+          {
+            title: 'My Tests & Scans',
+            icon: 'flask-outline',
+            action: () => navigation.navigate('MyTests'),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // 11. MEDICINE ORDERS & RETURNS
+    if (q.includes('return') || q.includes('refund') || q.includes('order') || q.includes('delivery')) {
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: '📦 **Medicine Orders & Returns**\n\nTrack your doorstep delivery, reorder prescribed refills, or request hassle-free returns with free pickup.',
+        actionButtons: [
+          {
+            title: 'View Medicine Orders',
+            icon: 'receipt-outline',
+            action: () => navigation.navigate('MyMedicineOrders'),
+          },
+          {
+            title: 'Browse Pharmacy',
+            icon: 'cart-outline',
+            action: () => navigation.navigate('Pharmacy'),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // 12. AYURVEDA & WELLNESS
+    if (q.includes('ayurved') || q.includes('panchakarma') || q.includes('wellness') || q.includes('vaidya')) {
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: '🌿 **Ayurveda & Holistic Wellness**\n\nBook certified Vaidyas for authentic Nadi Pariksha, classical Panchakarma therapies, and herbal remedies.',
+        actionButtons: [
+          {
+            title: 'Ayurveda & Wellness',
+            icon: 'leaf-outline',
+            action: () => navigation.navigate('AyurvedaWellness'),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // 13. FERTILITY & IVF (Navigate to DoctorList with IVF specialty!)
+    if (q.includes('fertility') || q.includes('ivf') || q.includes('conceive') || q.includes('infertility')) {
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: '🌸 **Fertility & IVF Care**\n\nConnect with verified IVF specialists and reproductive medicine experts with confidential second opinions and 0% EMI financing.',
+        actionButtons: [
+          {
+            title: 'Find IVF & Fertility Specialists',
+            icon: 'heart-outline',
+            action: () => navigation.navigate('DoctorList', { specialty: 'ivf-fertility-group' }),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // 14. CARDIOLOGY / CHEST PAIN
+    if (q.includes('chest pain') || q.includes('heart') || q.includes('cardio') || q.includes('palpitation') || q.includes('breathless')) {
+      const cardiologist = doctors.find((d) => d.specialtyKey === 'cardio') || doctors[1];
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: '❤️ **Cardiac & Chest Health Advisory**\n\n*If you are experiencing severe crushing chest pain or left arm numbness, please visit the emergency room immediately.*\n\nFor clinical evaluation, ECG, and 2D Echo, consult our senior Cardiologist:',
+        suggestedDoctor: cardiologist,
+        actionButtons: [
+          {
+            title: `Book ${cardiologist.name} (${cardiologist.fee})`,
+            icon: 'heart-outline',
+            action: () => navigation.navigate('DoctorBooking', { doctor: cardiologist }),
+          },
+          {
+            title: 'Find Cardiologists',
+            icon: 'people-outline',
+            action: () => navigation.navigate('DoctorList', { specialty: 'cardiology-group' }),
+          },
+          {
+            title: 'ECG & 2D Echo',
+            icon: 'pulse-outline',
+            action: () => navigation.navigate('Imaging', { searchTest: 'ECG' }),
+          },
+          {
+            title: 'Emergency (108)',
+            icon: 'call-outline',
+            action: () => navigation.navigate('Emergency'),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // 15. SKIN / DERMATOLOGY
+    if (q.includes('skin') || q.includes('rash') || q.includes('acne') || q.includes('hair')) {
+      const dermatologist = doctors.find((d) => d.specialtyKey === 'derma') || doctors[2];
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: '🧴 **Skin, Hair & Dermatology Care**\n\nConsult certified dermatologists for skin allergies, rash, acne management, and hair loss evaluation.',
+        suggestedDoctor: dermatologist,
+        actionButtons: [
+          {
+            title: `Book ${dermatologist.name}`,
+            icon: 'calendar-outline',
+            action: () => navigation.navigate('DoctorBooking', { doctor: dermatologist }),
+          },
+          {
+            title: 'Find Dermatologists',
+            icon: 'people-outline',
+            action: () => navigation.navigate('DoctorList', { specialty: 'dermatology-skin' }),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // 16. BONES / JOINTS / ORTHOPEDICS
+    if (q.includes('bone') || q.includes('knee') || q.includes('joint') || q.includes('back pain') || q.includes('ortho')) {
+      const orthopedist = doctors.find((d) => d.specialtyKey === 'ortho') || doctors[3];
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: '🦴 **Bone, Joint & Orthopedic Advisory**\n\nFor chronic knee pain, joint swelling, or spinal discomfort, clinical evaluation combined with digital imaging ensures an accurate recovery roadmap.',
+        suggestedDoctor: orthopedist,
+        actionButtons: [
+          {
+            title: `Book ${orthopedist.name}`,
+            icon: 'calendar-outline',
+            action: () => navigation.navigate('DoctorBooking', { doctor: orthopedist }),
+          },
+          {
+            title: 'Find Orthopedic Doctors',
+            icon: 'people-outline',
+            action: () => navigation.navigate('DoctorList', { specialty: 'orthopedics-bone' }),
+          },
+          {
+            title: 'Book X-Ray & MRI',
+            icon: 'scan-outline',
+            action: () => navigation.navigate('Imaging', { searchTest: 'X-Ray' }),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // 17. FEVER / COLD / COUGH / PAIN
+    if (q.includes('fever') || q.includes('cold') || q.includes('cough') || q.includes('body pain') || q.includes('headache') || q.includes('flu') || q.includes('sick')) {
+      const physician = doctors.find((d) => d.specialtyKey === 'general') || doctors[0];
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: "🌡️ **Fever & Body Ache Guidance**\n\nFever and body ache are common signs that your immune system is responding to a viral or bacterial condition.\n\n• Stay well hydrated with warm water and electrolytes.\n• Get adequate rest.\n• Avoid strenuous physical activities.\n\nFor clinical assessment and safe prescription, consult our verified General Physician:",
+        suggestedDoctor: physician,
+        actionButtons: [
+          {
+            title: `Book ${physician.name} (${physician.fee})`,
+            icon: 'calendar-outline',
+            action: () => navigation.navigate('DoctorBooking', { doctor: physician }),
+          },
+          {
+            title: 'Find General Physicians',
+            icon: 'people-outline',
+            action: () => navigation.navigate('DoctorList', { specialty: 'general-primary' }),
+          },
+          {
+            title: 'Order Medicines',
+            icon: 'cart-outline',
+            action: () => navigation.navigate('Pharmacy'),
+          },
+          {
+            title: 'Complete Blood Count (CBC) at Home',
+            icon: 'flask-outline',
+            action: () => navigation.navigate('LabTests', { searchTest: 'Complete Blood Count' }),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // 18. CHILD / PEDIATRIC
+    if (q.includes('child') || q.includes('baby') || q.includes('kid') || q.includes('pediatric')) {
+      const pediatrician = doctors.find((d) => d.specialtyKey === 'pediatric') || doctors[0];
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: '👶 **Child Health & Pediatric Care**\n\nFor infant or child care, accurate weight-adjusted dosing and specialist pediatric examination is essential for gentle recovery.',
+        suggestedDoctor: pediatrician,
+        actionButtons: [
+          {
+            title: `Book ${pediatrician.name}`,
+            icon: 'person-outline',
+            action: () => navigation.navigate('DoctorBooking', { doctor: pediatrician }),
+          },
+          {
+            title: 'Find More Pediatricians',
+            icon: 'search-outline',
+            action: () => navigation.navigate('DoctorList', { specialty: 'pediatrics-child-health' }),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // 19. EMERGENCY
+    if (q.includes('emergency') || q.includes('ambulance') || q.includes('108') || q.includes('urgent')) {
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: '🚨 **24/7 Emergency Care**\n\nFor life-threatening emergencies, call 108 immediately for free 24x7 ambulance dispatch.',
+        actionButtons: [
+          {
+            title: 'Emergency Care (108)',
+            icon: 'call-outline',
+            action: () => navigation.navigate('Emergency'),
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, botResponse]);
+      return;
+    }
+
+    // DEFAULT FALLBACK (Use approved canonical routes!)
     const defaultDoctor = doctors[0];
     const fallbackResponse = {
       id: `bot-${Date.now()}`,
       sender: 'bot',
       text: `I understand you are asking about "${query}".\n\nMediUnify connects you with certified healthcare professionals, diagnostic tests, medicines, and home care. How would you like to proceed?`,
+      suggestedDoctor: defaultDoctor,
       actionButtons: [
         {
-          title: `Consult ${defaultDoctor.name}`,
-          icon: 'calendar-outline',
-          action: () => navigation.navigate('DoctorDetails', { doctor: defaultDoctor }),
+          title: 'Find a Doctor',
+          icon: 'people-outline',
+          action: () => navigation.navigate('DoctorList'),
         },
         {
-          title: 'Explore All Healthcare Services',
-          icon: 'grid-outline',
-          action: () => navigation.navigate('AllServices'),
+          title: 'Book a Lab Test',
+          icon: 'flask-outline',
+          action: () => navigation.navigate('LabTests'),
+        },
+        {
+          title: 'Order Medicine',
+          icon: 'cart-outline',
+          action: () => navigation.navigate('Pharmacy'),
+        },
+        {
+          title: 'View Scans & X-Ray',
+          icon: 'scan-outline',
+          action: () => navigation.navigate('Imaging'),
+        },
+        {
+          title: 'Book Home Nursing',
+          icon: 'heart-outline',
+          action: () => navigation.navigate('NurseBooking'),
+        },
+        {
+          title: 'Rent Medical Equipment',
+          icon: 'bed-outline',
+          action: () => navigation.navigate('EquipmentRental'),
         },
       ],
     };
@@ -480,7 +846,11 @@ const ChatbotScreen = ({ navigation }) => {
     if (!doc) return null;
     return (
       <View style={styles.cardContainer}>
-        <View style={styles.cardHeaderRow}>
+        <TouchableOpacity
+          style={styles.cardHeaderRow}
+          onPress={() => navigation.navigate('DoctorBooking', { doctor: doc })}
+          activeOpacity={0.85}
+        >
           <Image source={{ uri: doc.image }} style={styles.cardAvatar} />
           <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={styles.cardDoctorName}>{doc.name}</Text>
@@ -490,7 +860,7 @@ const ChatbotScreen = ({ navigation }) => {
               <Text style={styles.cardRatingText}>{doc.rating || '4.8'} ({doc.reviews || '120+'})</Text>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
 
         <View style={styles.cardFooterRow}>
           <View>
@@ -500,7 +870,7 @@ const ChatbotScreen = ({ navigation }) => {
 
           <TouchableOpacity
             style={styles.cardActionBtn}
-            onPress={() => navigation.navigate('DoctorDetails', { doctor: doc })}
+            onPress={() => navigation.navigate('DoctorBooking', { doctor: doc })}
             activeOpacity={0.85}
           >
             <Ionicons name="calendar-outline" size={13} color="#FFFFFF" />
@@ -516,29 +886,33 @@ const ChatbotScreen = ({ navigation }) => {
     if (!lab) return null;
     return (
       <View style={styles.cardContainer}>
-        <View style={styles.cardHeaderRow}>
+        <TouchableOpacity
+          style={styles.cardHeaderRow}
+          onPress={() => navigation.navigate('Imaging', { labId: lab.id })}
+          activeOpacity={0.85}
+        >
           <View style={styles.labIconCircle}>
             <Ionicons name="flask" size={20} color="#007D69" />
           </View>
           <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={styles.cardDoctorName}>{lab.name}</Text>
-            <Text style={styles.cardDoctorSpec}>{lab.area || 'Mysuru'} • NABL Accredited</Text>
+            <Text style={styles.cardDoctorSpec}>{lab.area || 'Mysuru'} • Accredited</Text>
             <View style={styles.cardRatingRow}>
               <Ionicons name="shield-checkmark" size={12} color="#00B894" />
-              <Text style={[styles.cardRatingText, { color: '#059669' }]}>Free Home Sample Collection</Text>
+              <Text style={[styles.cardRatingText, { color: '#059669' }]}>Same-Day Digital Reports</Text>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
 
         <View style={styles.cardFooterRow}>
           <Text style={styles.labTimingText}>Reports in 6-12 hrs</Text>
           <TouchableOpacity
             style={[styles.cardActionBtn, { backgroundColor: '#0284C7' }]}
-            onPress={() => navigation.navigate('RadiologyLabDetails', { labId: lab.id })}
+            onPress={() => navigation.navigate('Imaging', { labId: lab.id })}
             activeOpacity={0.85}
           >
-            <Ionicons name="flask-outline" size={13} color="#FFFFFF" />
-            <Text style={styles.cardActionBtnText}>View Tests</Text>
+            <Ionicons name="scan-outline" size={13} color="#FFFFFF" />
+            <Text style={styles.cardActionBtnText}>View Scans</Text>
           </TouchableOpacity>
         </View>
       </View>

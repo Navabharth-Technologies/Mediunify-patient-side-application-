@@ -26,11 +26,12 @@ import WebFooter from '../../../components/web/WebFooter';
 import { getAvailableDates, getSlotsForDate } from '../../../utils/appointmentSlotHelper';
 import { validateAndBookSlot, subscribeToSlotChanges } from '../../../services/slotBookingService';
 import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
+import doctors from '../../../data/doctors';
 
 const DoctorBookingScreen = ({ route, navigation }) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
-  const doctor = route?.params?.doctor;
+  const doctor = route?.params?.doctor || doctors[0];
   const { requireLogin } = useAuthGuard();
 
   const [slotTick, setSlotTick] = useState(0);
