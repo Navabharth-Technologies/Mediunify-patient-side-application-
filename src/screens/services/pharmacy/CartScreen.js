@@ -574,7 +574,22 @@ const CartScreen = ({ navigation, route }) => {
     }
   };
 
-  const ensureLoggedIn = () => true; // Replaced by AuthGuard — kept for compatibility
+  const ensureLoggedIn = useCallback(async (actionDesc = 'proceed with your order') => {
+    try {
+      const stored = await AsyncStorage.getItem('isLoggedIn');
+      const isGuest = await AsyncStorage.getItem('@unnathi_is_guest');
+      if (stored === 'true' && isGuest !== 'true') {
+        return true;
+      }
+    } catch (e) {}
+    return new Promise((resolve) => {
+      requireLogin(
+        () => resolve(true),
+        `Please log in to ${actionDesc}.`,
+        'Login Required'
+      );
+    });
+  }, [requireLogin]);
 
 
   const handleConfirmPharmacyOrder = () => {

@@ -516,19 +516,6 @@ const PharmacyScreen = ({ navigation, route }) => {
   const isTablet = width >= 768;
   const isLargeTablet = width >= 960;
 
-  const safeBottom = Math.max(insets.bottom, 0);
-  // Position cart bar above iOS home indicator, Android navigation bar, or browser controls
-  const cartBarBottom = Math.max(safeBottom + 10, 14);
-  const CART_BAR_HEIGHT = 64;
-  // Ensure the product grid, buttons, and pagination can scroll completely clear of the cart bar
-  const scrollBottomPadding = pharmacyCartCount > 0
-    ? CART_BAR_HEIGHT + cartBarBottom + 32
-    : Math.max(safeBottom, 16) + 24;
-
-  const maxCartWidth = isTablet ? 600 : 520;
-  const cartWidth = Math.min(width - 32, maxCartWidth);
-  const cartLeft = Math.max((width - cartWidth) / 2, 16);
-
   const {
     pharmacyCart,
     pharmacyCartCount,
@@ -539,6 +526,19 @@ const PharmacyScreen = ({ navigation, route }) => {
     selectedAddress,
     updateAddress,
   } = useCart();
+
+  const safeBottom = Math.max(insets.bottom, 0);
+  // Position cart bar above iOS home indicator, Android navigation bar, or browser controls
+  const cartBarBottom = Math.max(safeBottom + 10, 14);
+  const CART_BAR_HEIGHT = 64;
+  // Ensure the product grid, buttons, and pagination can scroll completely clear of the cart bar
+  const scrollBottomPadding = pharmacyCartCount > 0
+    ? CART_BAR_HEIGHT + cartBarBottom + 72
+    : Math.max(safeBottom, 16) + 24;
+
+  const maxCartWidth = isTablet ? 600 : 520;
+  const cartWidth = Math.min(width - 32, maxCartWidth);
+  const cartLeft = Math.max((width - cartWidth) / 2, 16);
 
   // Active Hero Slide Index
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
@@ -1552,6 +1552,11 @@ const PharmacyScreen = ({ navigation, route }) => {
                 />
               )}
             </>
+          )}
+
+          {/* Reserved spacer so product cards never hide behind the floating cart bar */}
+          {pharmacyCartCount > 0 && (
+            <View style={{ height: CART_BAR_HEIGHT + cartBarBottom + 20 }} />
           )}
         </View>
       </ScrollView>

@@ -6,9 +6,6 @@ export const LANGUAGES = [
   { id: 'en', code: 'en', name: 'English', native: 'English', flag: 'EN' },
   { id: 'kn', code: 'kn', name: 'Kannada', native: 'ಕನ್ನಡ', flag: 'KN' },
   { id: 'hi', code: 'hi', name: 'Hindi', native: 'हिन्दी', flag: 'HI' },
-  { id: 'ta', code: 'ta', name: 'Tamil', native: 'தமிழ்', flag: 'TA' },
-  { id: 'te', code: 'te', name: 'Telugu', native: 'తెలుగు', flag: 'TE' },
-  { id: 'ml', code: 'ml', name: 'Malayalam', native: 'മലയാളം', flag: 'ML' },
 ];
 
 export const TRANSLATIONS = {
@@ -1149,6 +1146,16 @@ export const ThemeProvider = ({ children }) => {
       if (!savedLang && Platform.OS === 'web' && typeof localStorage !== 'undefined') {
         savedLang = localStorage.getItem('@unnathi_app_language');
       }
+      // Automatic fallback if previously saved language was Tamil, Telugu, or Malayalam
+      if (savedLang && ['ta', 'te', 'ml'].includes(savedLang)) {
+        savedLang = 'en';
+        await AsyncStorage.setItem('@unnathi_app_language', 'en');
+        if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+          try {
+            localStorage.setItem('@unnathi_app_language', 'en');
+          } catch (e) {}
+        }
+      }
       if (savedLang) {
         setLanguage(savedLang);
       }
@@ -1178,12 +1185,13 @@ export const ThemeProvider = ({ children }) => {
 
   const changeLanguage = async (langCode) => {
     try {
-      setLanguage(langCode);
-      await AsyncStorage.setItem('@unnathi_app_language', langCode);
+      const validCode = ['en', 'kn', 'hi'].includes(langCode) ? langCode : 'en';
+      setLanguage(validCode);
+      await AsyncStorage.setItem('@unnathi_app_language', validCode);
       if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
         try {
-          localStorage.setItem('@unnathi_app_language', langCode);
-          window.dispatchEvent(new CustomEvent('app-language-changed', { detail: langCode }));
+          localStorage.setItem('@unnathi_app_language', validCode);
+          window.dispatchEvent(new CustomEvent('app-language-changed', { detail: validCode }));
         } catch (e) {}
       }
     } catch (e) {
@@ -1217,7 +1225,7 @@ export const ThemeProvider = ({ children }) => {
   };
 
   // Adaptive Typography & Layout system (Section 17A)
-  const isIndic = ['kn', 'hi', 'ta', 'te', 'ml'].includes(language);
+  const isIndic = ['kn', 'hi'].includes(language);
   const isNonEnglish = language !== 'en';
 
   const getAdaptiveFontSize = (baseSize, options = {}) => {

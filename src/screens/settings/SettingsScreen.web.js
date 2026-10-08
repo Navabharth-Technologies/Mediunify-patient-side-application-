@@ -24,7 +24,7 @@ import {
 
 import SettingsScreenMobile from './SettingsScreenMobile';
 
-const LANGUAGES = ['English (India)', 'Kannada (ಕನ್ನಡ)', 'Hindi (हिन्दी)', 'Tamil (தமிழ்)', 'Telugu (తెలుగు)'];
+const LANGUAGES = ['English (India)', 'Kannada (ಕನ್ನಡ)', 'Hindi (हिन्दी)'];
 const COMM_CHANNELS = ['WhatsApp & SMS', 'SMS Only', 'WhatsApp Only', 'Email Only'];
 
 const SettingsScreenWeb = ({ navigation, route }) => {

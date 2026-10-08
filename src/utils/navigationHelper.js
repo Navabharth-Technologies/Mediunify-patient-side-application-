@@ -19,8 +19,13 @@ export const getAppBasePath = () => {
  * Universal safe navigator that works reliably across both Web and Mobile
  * (React Navigation Stack, Web history, and full page fallback)
  */
-export const safeNavigateToMain = async (navigation) => {
+export const safeNavigateToMain = async (navigation, returnTo, returnParams) => {
   let navigated = false;
+
+  const targetRoutes = [{ name: 'MainApp' }];
+  if (returnTo && returnTo !== 'Home' && returnTo !== 'MainApp') {
+    targetRoutes.push({ name: returnTo, params: returnParams });
+  }
 
   if (navigation) {
     // 1. Try parent reset (root AppNavigator)
@@ -28,8 +33,8 @@ export const safeNavigateToMain = async (navigation) => {
       const parent = navigation.getParent?.();
       if (parent?.reset) {
         parent.reset({
-          index: 0,
-          routes: [{ name: 'MainApp' }],
+          index: targetRoutes.length - 1,
+          routes: targetRoutes,
         });
         navigated = true;
         return;
@@ -41,6 +46,11 @@ export const safeNavigateToMain = async (navigation) => {
       const parent = navigation.getParent?.();
       if (parent?.navigate) {
         parent.navigate('MainApp');
+        if (returnTo && returnTo !== 'Home') {
+          setTimeout(() => {
+            try { parent.navigate(returnTo, returnParams); } catch (e) {}
+          }, 100);
+        }
         navigated = true;
         return;
       }
@@ -52,8 +62,8 @@ export const safeNavigateToMain = async (navigation) => {
       if (target?.dispatch) {
         target.dispatch(
           CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'MainApp' }],
+            index: targetRoutes.length - 1,
+            routes: targetRoutes,
           })
         );
         navigated = true;
@@ -65,6 +75,11 @@ export const safeNavigateToMain = async (navigation) => {
     try {
       if (navigation?.navigate) {
         navigation.navigate('MainApp');
+        if (returnTo && returnTo !== 'Home') {
+          setTimeout(() => {
+            try { navigation.navigate(returnTo, returnParams); } catch (e) {}
+          }, 100);
+        }
         navigated = true;
         return;
       }

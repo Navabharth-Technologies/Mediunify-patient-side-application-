@@ -29,6 +29,7 @@ import { useCart } from '../context/CartContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useKeyboardVisibility } from '../utils/keyboardUtils';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 
 // ==================================================
@@ -427,6 +428,22 @@ const MAIN_BOTTOM_NAV_ROUTES = [
   'History',
 ];
 
+// Protected routes requiring authentication — guest users are redirected to login
+const PROTECTED_ROUTES = [
+  'Checkout',
+  'Payment',
+  'DoctorBooking',
+  'VideoBooking',
+  'NurseBooking',
+  'LabBooking',
+  'SurgeryQuoteRequest',
+  'Bookings',
+  'MyAppointments',
+  'MyTests',
+  'MyMedicineOrders',
+  'TransactionHistory',
+];
+
 const MainNavigator = ({
   navigation,
 }) => {
@@ -490,6 +507,22 @@ const MainNavigator = ({
         if (route?.name) {
           setCurrentRoute((prev) => (prev !== route.name ? route.name : prev));
           setCurrentParams(route.params || {});
+
+          // Protected route check: guests cannot directly enter booking/order/history routes
+          if (PROTECTED_ROUTES.includes(route.name)) {
+            AsyncStorage.getItem('isLoggedIn').then((stored) => {
+              AsyncStorage.getItem('@unnathi_is_guest').then((isGuest) => {
+                if (stored !== 'true' || isGuest === 'true') {
+                  if (navigationRef?.isReady?.()) {
+                    navigationRef.navigate('Login', {
+                      returnTo: route.name,
+                      returnParams: route.params,
+                    });
+                  }
+                }
+              });
+            }).catch(() => {});
+          }
         }
       }
     };

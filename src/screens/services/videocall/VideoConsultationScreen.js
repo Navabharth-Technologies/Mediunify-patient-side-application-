@@ -24,7 +24,7 @@ import DoctorBookingModal from '../../../components/booking/DoctorBookingModal';
 import OptimizedImage from '../../../components/common/OptimizedImage';
 import Pagination from '../../../components/common/Pagination';
 
-const LANGUAGES_LIST = ['All', 'English', 'Kannada', 'Hindi', 'Telugu', 'Malayalam'];
+const LANGUAGES_LIST = ['All', 'English', 'Kannada', 'Hindi'];
 
 const VideoConsultationScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();

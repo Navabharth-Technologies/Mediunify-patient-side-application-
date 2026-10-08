@@ -298,7 +298,9 @@ const RegisterScreen = ({ navigation, route }) => {
             isSmallDevice && styles.scrollContentSmall,
             isTablet && styles.scrollContentTablet,
             {
-              paddingBottom: isKeyboardVisible ? (Platform.OS === 'ios' ? 160 : 120) : (isSmallDevice ? 20 : 36),
+              paddingBottom: isKeyboardVisible
+                ? (Platform.OS === 'ios' ? 160 : 120)
+                : Math.max(insets.bottom, 0) + (isSmallDevice ? 24 : 40),
             },
           ]}
           keyboardShouldPersistTaps="handled"

@@ -335,8 +335,10 @@ const LoginScreen = ({ navigation }) => {
         syncRegister(userData, inputPassword);
       } catch (e) {}
 
-      // 5. Navigate to Main App
-      await safeNavigateToMain(navigation);
+      // 5. Navigate to Main App (or return to intended action)
+      const returnTo = route?.params?.returnTo;
+      const returnParams = route?.params?.returnParams;
+      await safeNavigateToMain(navigation, returnTo, returnParams);
     } catch (error) {
       setIsLoggingIn(false);
       console.log('Login storage error:', error);

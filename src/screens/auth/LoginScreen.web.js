@@ -731,7 +731,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
           await AsyncStorage.setItem('isLoggedIn', 'true');
           await AsyncStorage.setItem('@unnathi_is_guest', 'false');
           setShowAuthModal(false);
-          safeNavigateToMain(navigation);
+          safeNavigateToMain(navigation, route?.params?.returnTo, route?.params?.returnParams);
           return;
         } else if (syncRes.status === 401) {
           setIsSubmitting(false);
@@ -788,7 +788,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
 
       setIsSubmitting(false);
       setShowAuthModal(false);
-      safeNavigateToMain(navigation);
+      safeNavigateToMain(navigation, route?.params?.returnTo, route?.params?.returnParams);
     } catch (err) {
       setIsSubmitting(false);
       setErrorMessage('An error occurred during login. Please try again.');
@@ -939,7 +939,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
         `Welcome to MediUnify, ${userData.name}!\n\nYour personal referral code is: ${myReferralCode}\n\nShare it with friends & family to earn ₹250 for every referral who joins!`
       );
 
-      safeNavigateToMain(navigation);
+      safeNavigateToMain(navigation, route?.params?.returnTo, route?.params?.returnParams);
     } catch (err) {
       setIsSubmitting(false);
       setErrorMessage('Could not complete registration. Please try again.');
@@ -1764,417 +1764,427 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
               </TouchableOpacity>
             </View>
 
-            {/* Error Banner */}
-            {errorMessage ? (
-              <View style={styles.errorBox}>
-                <Ionicons name="alert-circle" size={18} color="#FF7F50" />
-                <Text style={styles.errorText}>{errorMessage}</Text>
-              </View>
-            ) : null}
-
-            {/* Form Fields: LOGIN */}
-            {authTab === 'login' ? (
-              <View style={styles.formContainer}>
-                {/* Offscreen decoy inputs to capture aggressive browser autofill */}
-                {Platform.OS === 'web' && (
-                  <View
-                    style={{
-                      position: 'absolute',
-                      top: -9999,
-                      left: -9999,
-                      width: 0,
-                      height: 0,
-                      opacity: 0,
-                      overflow: 'hidden',
-                      pointerEvents: 'none',
-                    }}
-                  >
-                    <TextInput tabIndex={-1} autoComplete="off" />
-                    <TextInput secureTextEntry tabIndex={-1} autoComplete="new-password" />
-                  </View>
-                )}
-
-                <Text style={styles.inputLabel}>{t('auth_email_phone', 'Email or Mobile Number')}</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder={t('auth_email_phone_ph', 'Enter email or 10-digit mobile number')}
-                  placeholderTextColor="#94A3B8"
-                  value={email}
-                  onChangeText={(val) => {
-                    userHasTypedRef.current = true;
-                    setEmail(val);
-                  }}
-                  autoCapitalize="none"
-                  autoComplete="off"
-                  name="user_login_identity"
-                  id="user_login_identity"
-                />
-
-                <Text style={[styles.inputLabel, { marginTop: 14 }]}>{t('auth_password', 'Password')}</Text>
-                <View style={styles.passwordWrap}>
-                  <TextInput
-                    style={[styles.textInput, { flex: 1, borderWidth: 0 }]}
-                    placeholder={t('auth_password_ph', 'Enter your password')}
-                    placeholderTextColor="#94A3B8"
-                    value={password}
-                    onChangeText={(val) => {
-                      userHasTypedRef.current = true;
-                      setPassword(val);
-                    }}
-                    secureTextEntry={!showPassword}
-                    autoComplete="new-password"
-                    name="user_login_secret"
-                    id="user_login_secret"
-                  />
-                  <TouchableOpacity
-                    onPress={() => setShowPassword(!showPassword)}
-                    style={styles.eyeBtn}
-                  >
-                    <Ionicons
-                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                      size={20}
-                      color="#64748B"
-                    />
-                  </TouchableOpacity>
+            {/* Scrollable Form Body */}
+            <ScrollView
+              style={styles.modalScrollBody}
+              contentContainerStyle={styles.modalScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Error Banner */}
+              {errorMessage ? (
+                <View style={styles.errorBox}>
+                  <Ionicons name="alert-circle" size={18} color="#FF7F50" />
+                  <Text style={styles.errorText}>{errorMessage}</Text>
                 </View>
+              ) : null}
 
-                <TouchableOpacity
-                  onPress={() => {
-                    setShowAuthModal(false);
-                    navigation.navigate('ForgotPassword');
-                  }}
-                  style={styles.forgotBtn}
-                >
-                  <Text style={styles.forgotText}>{t('auth_forgot_pass', 'Forgot Password?')}</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
-                  onPress={handleLogin}
-                  disabled={isSubmitting}
-                >
-                  <Text style={styles.submitBtnText}>
-                    {isSubmitting ? t('auth_signing_in', 'Signing in...') : t('auth_sign_in_btn', 'Login')}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ) : isOtpStep ? (
-              /* OTP VERIFICATION STEP */
-              <View style={styles.formContainer}>
-                <View style={{ alignItems: 'center', marginBottom: 14 }}>
-                  <View style={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: 26,
-                    backgroundColor: '#E6F8F4',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: 10,
-                  }}>
-                    <Ionicons name="shield-checkmark" size={28} color="#00B894" />
-                  </View>
-                  <Text style={{ fontSize: 18, fontWeight: '800', color: '#1E3A8A', marginBottom: 4 }}>
-                    {t('auth_verify_mobile', 'Verify Mobile Number')}
-                  </Text>
-                  <Text style={{ fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 18 }}>
-                    We sent a 6-digit verification code to{'\n'}
-                    <Text style={{ fontWeight: '700', color: '#0F172A' }}>+91 {pendingRegData?.cleanPhone10}</Text>
-                  </Text>
-                </View>
-
-                {/* Demo OTP Pill */}
-                <View style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  backgroundColor: '#F0FDF4',
-                  borderWidth: 1,
-                  borderColor: '#BBF7D0',
-                  borderRadius: 10,
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
-                  marginBottom: 14,
-                }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Ionicons name="key-outline" size={14} color="#00B894" />
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#166534' }}>Demo OTP: 123456</Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setOtpValue('123456');
-                      setErrorMessage('');
-                    }}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 4,
-                      backgroundColor: '#00B894',
-                      paddingHorizontal: 9,
-                      paddingVertical: 3.5,
-                      borderRadius: 6,
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="flash" size={11} color="#FFFFFF" />
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFFFFF' }}>Auto-Fill</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* OTP Input */}
-                <Text style={styles.inputLabel}>{t('auth_enter_otp', 'Enter 6-Digit OTP')}</Text>
-                <TextInput
-                  style={{
-                    height: 52,
-                    borderWidth: 1.5,
-                    borderColor: '#00B894',
-                    borderRadius: 12,
-                    backgroundColor: '#FAFCFD',
-                    textAlign: 'center',
-                    fontSize: 22,
-                    fontWeight: '800',
-                    letterSpacing: 8,
-                    color: '#0F172A',
-                    marginBottom: 6,
-                    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
-                  }}
-                  placeholder="123456"
-                  placeholderTextColor="#94A3B8"
-                  value={otpValue}
-                  onChangeText={(text) => {
-                    const cleaned = text.replace(/[^0-9]/g, '').slice(0, 6);
-                    setOtpValue(cleaned);
-                    if (errorMessage) setErrorMessage('');
-                  }}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  autoFocus
-                />
-
-                {/* Timer & Edit Number */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 16 }}>
-                  <TouchableOpacity
-                    onPress={() => {
-                      if (otpTimer === 0) {
-                        setOtpTimer(30);
-                        setErrorMessage('');
-                        showAlert('OTP Resent', `A new verification code 123456 was sent to +91 ${pendingRegData?.cleanPhone10}`);
-                      }
-                    }}
-                    disabled={otpTimer > 0}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: otpTimer > 0 ? '#94A3B8' : '#00B894' }}>
-                      {otpTimer > 0 ? `Resend OTP in ${otpTimer}s` : t('auth_resend_otp', 'Resend OTP via SMS')}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setIsOtpStep(false);
-                      setErrorMessage('');
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#64748B' }}>
-                      ← Edit Number
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Verify Button */}
-                <TouchableOpacity
-                  style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
-                  onPress={handleVerifyOtp}
-                  disabled={isSubmitting}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.submitBtnText}>
-                    {isSubmitting ? 'Verifying...' : t('auth_verify_btn', 'Verify & Complete Registration')}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              /* Form Fields: REGISTER */
-              <View style={styles.formContainer}>
-                {/* Offscreen decoy inputs to capture aggressive browser autofill */}
-                {Platform.OS === 'web' && (
-                  <View
-                    style={{
-                      position: 'absolute',
-                      top: -9999,
-                      left: -9999,
-                      width: 0,
-                      height: 0,
-                      opacity: 0,
-                      overflow: 'hidden',
-                      pointerEvents: 'none',
-                    }}
-                  >
-                    <TextInput tabIndex={-1} autoComplete="off" />
-                    <TextInput secureTextEntry tabIndex={-1} autoComplete="new-password" />
-                  </View>
-                )}
-
-                <Text style={styles.inputLabel}>{t('auth_full_name', 'Full Name')}</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder={t('auth_full_name_ph', 'Enter your full name')}
-                  placeholderTextColor="#94A3B8"
-                  value={regName}
-                  onChangeText={(val) => {
-                    userHasTypedRef.current = true;
-                    setRegName(val);
-                  }}
-                  autoCapitalize="words"
-                  autoComplete="off"
-                  name="user_reg_fullname"
-                  id="user_reg_fullname"
-                />
-
-                <Text style={[styles.inputLabel, { marginTop: 12 }]}>Email Address</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="name@gmail.com"
-                  placeholderTextColor="#94A3B8"
-                  value={regEmail}
-                  onChangeText={(val) => {
-                    userHasTypedRef.current = true;
-                    setRegEmail(val);
-                  }}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  autoComplete="off"
-                  name="user_reg_email"
-                  id="user_reg_email"
-                />
-
-                <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t('auth_mobile_num', 'Mobile Number (10 digits)')}</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="9xxxxxxx01"
-                  placeholderTextColor="#94A3B8"
-                  value={regPhone}
-                  onChangeText={(val) => {
-                    userHasTypedRef.current = true;
-                    setRegPhone(val);
-                  }}
-                  keyboardType="phone-pad"
-                  maxLength={14}
-                  autoComplete="off"
-                  name="user_reg_phone"
-                  id="user_reg_phone"
-                />
-
-                <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t('auth_create_pass', 'Create Password')}</Text>
-                <View style={styles.passwordWrap}>
-                  <TextInput
-                    style={[styles.textInput, { flex: 1, borderWidth: 0 }]}
-                    placeholder={t('auth_create_pass_ph', 'Enter a secure password (min 6 characters)')}
-                    placeholderTextColor="#94A3B8"
-                    value={regPassword}
-                    onChangeText={(val) => {
-                      userHasTypedRef.current = true;
-                      setRegPassword(val);
-                    }}
-                    secureTextEntry={!showRegPassword}
-                    autoComplete="new-password"
-                    name="user_reg_newpwd"
-                    id="user_reg_newpwd"
-                  />
-                  <TouchableOpacity
-                    onPress={() => setShowRegPassword(!showRegPassword)}
-                    style={styles.eyeBtn}
-                  >
-                    <Ionicons
-                      name={showRegPassword ? 'eye-off-outline' : 'eye-outline'}
-                      size={20}
-                      color="#64748B"
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t('auth_confirm_pass', 'Confirm Password')}</Text>
-                <View style={styles.passwordWrap}>
-                  <TextInput
-                    style={[styles.textInput, { flex: 1, borderWidth: 0 }]}
-                    placeholder={t('auth_confirm_pass_ph', 'Re-enter your password to confirm')}
-                    placeholderTextColor="#94A3B8"
-                    value={regConfirmPassword}
-                    onChangeText={(val) => {
-                      userHasTypedRef.current = true;
-                      setRegConfirmPassword(val);
-                    }}
-                    secureTextEntry={!showRegConfirmPassword}
-                    autoComplete="new-password"
-                    name="user_reg_confirmpwd"
-                    id="user_reg_confirmpwd"
-                  />
-                  <TouchableOpacity
-                    onPress={() => setShowRegConfirmPassword(!showRegConfirmPassword)}
-                    style={styles.eyeBtn}
-                  >
-                    <Ionicons
-                      name={showRegConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
-                      size={20}
-                      color="#64748B"
-                    />
-                  </TouchableOpacity>
-                </View>
-                {regConfirmPassword.length > 0 && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                    <Ionicons
-                      name={regPassword === regConfirmPassword ? 'checkmark-circle' : 'alert-circle'}
-                      size={13}
-                      color={regPassword === regConfirmPassword ? '#00B894' : '#FF7F50'}
-                    />
-                    <Text style={{ fontSize: 11.5, fontWeight: '600', color: regPassword === regConfirmPassword ? '#00B894' : '#FF7F50' }}>
-                      {regPassword === regConfirmPassword ? 'Passwords match' : 'Passwords do not match yet'}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Optional Friend Referral Code Input */}
-                <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t('auth_referral_code', 'Have a Referral Code? (Optional)')}</Text>
-                <View style={{ position: 'relative' }}>
-                  <TextInput
-                    style={[styles.textInput, regReferralCode.trim() ? { borderColor: '#00B894', backgroundColor: '#F0FDF4' } : null]}
-                    placeholder="e.g. PRIYA250 (Get ₹250 Welcome Bonus)"
-                    placeholderTextColor="#94A3B8"
-                    value={regReferralCode}
-                    onChangeText={(val) => {
-                      userHasTypedRef.current = true;
-                      setRegReferralCode(val);
-                    }}
-                    autoCapitalize="characters"
-                    autoComplete="off"
-                    name="user_reg_refcode"
-                    id="user_reg_refcode"
-                  />
-                  {regReferralCode.trim().length > 0 && (
-                    <View style={{ position: 'absolute', right: 12, top: 11, backgroundColor: '#00B894', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4 }}>
-                      <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFFFFF' }}>+₹250 BONUS</Text>
+              {/* Form Fields: LOGIN */}
+              {authTab === 'login' ? (
+                <View style={styles.formContainer}>
+                  {/* Offscreen decoy inputs to capture aggressive browser autofill */}
+                  {Platform.OS === 'web' && (
+                    <View
+                      style={{
+                        position: 'absolute',
+                        top: -9999,
+                        left: -9999,
+                        width: 0,
+                        height: 0,
+                        opacity: 0,
+                        overflow: 'hidden',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <TextInput tabIndex={-1} autoComplete="off" />
+                      <TextInput secureTextEntry tabIndex={-1} autoComplete="new-password" />
                     </View>
                   )}
+
+                  <Text style={styles.inputLabel}>{t('auth_email_phone', 'Email or Mobile Number')}</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder={t('auth_email_phone_ph', 'Enter email or 10-digit mobile number')}
+                    placeholderTextColor="#94A3B8"
+                    value={email}
+                    onChangeText={(val) => {
+                      userHasTypedRef.current = true;
+                      setEmail(val);
+                    }}
+                    autoCapitalize="none"
+                    autoComplete="off"
+                    name="user_login_identity"
+                    id="user_login_identity"
+                  />
+
+                  <Text style={[styles.inputLabel, { marginTop: 14 }]}>{t('auth_password', 'Password')}</Text>
+                  <View style={styles.passwordWrap}>
+                    <TextInput
+                      style={[styles.textInput, { flex: 1, borderWidth: 0 }]}
+                      placeholder={t('auth_password_ph', 'Enter your password')}
+                      placeholderTextColor="#94A3B8"
+                      value={password}
+                      onChangeText={(val) => {
+                        userHasTypedRef.current = true;
+                        setPassword(val);
+                      }}
+                      secureTextEntry={!showPassword}
+                      autoComplete="new-password"
+                      name="user_login_secret"
+                      id="user_login_secret"
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowPassword(!showPassword)}
+                      style={styles.eyeBtn}
+                    >
+                      <Ionicons
+                        name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                        size={20}
+                        color="#64748B"
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowAuthModal(false);
+                      navigation.navigate('ForgotPassword');
+                    }}
+                    style={styles.forgotBtn}
+                  >
+                    <Text style={styles.forgotText}>{t('auth_forgot_pass', 'Forgot Password?')}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
+                    onPress={handleLogin}
+                    disabled={isSubmitting}
+                  >
+                    <Text style={styles.submitBtnText}>
+                      {isSubmitting ? t('auth_signing_in', 'Signing in...') : t('auth_sign_in_btn', 'Login')}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
+              ) : isOtpStep ? (
+                /* OTP VERIFICATION STEP */
+                <View style={styles.formContainer}>
+                  <View style={{ alignItems: 'center', marginBottom: 14 }}>
+                    <View style={{
+                      width: 52,
+                      height: 52,
+                      borderRadius: 26,
+                      backgroundColor: '#E6F8F4',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: 10,
+                    }}>
+                      <Ionicons name="shield-checkmark" size={28} color="#00B894" />
+                    </View>
+                    <Text style={{ fontSize: 18, fontWeight: '800', color: '#1E3A8A', marginBottom: 4 }}>
+                      {t('auth_verify_mobile', 'Verify Mobile Number')}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 18 }}>
+                      We sent a 6-digit verification code to{'\n'}
+                      <Text style={{ fontWeight: '700', color: '#0F172A' }}>+91 {pendingRegData?.cleanPhone10}</Text>
+                    </Text>
+                  </View>
 
-                <TouchableOpacity
-                  style={[styles.submitBtn, { marginTop: 18 }, isSubmitting && styles.submitBtnDisabled]}
-                  onPress={handleRegister}
-                  disabled={isSubmitting}
-                >
-                  <Text style={styles.submitBtnText}>
-                    {isSubmitting ? 'Sending OTP...' : t('auth_continue_verify', 'Register & Verify Mobile →')}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
+                  {/* Demo OTP Pill */}
+                  <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    backgroundColor: '#F0FDF4',
+                    borderWidth: 1,
+                    borderColor: '#BBF7D0',
+                    borderRadius: 10,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    marginBottom: 14,
+                  }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Ionicons name="key-outline" size={14} color="#00B894" />
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#166534' }}>Demo OTP: 123456</Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setOtpValue('123456');
+                        setErrorMessage('');
+                      }}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 4,
+                        backgroundColor: '#00B894',
+                        paddingHorizontal: 9,
+                        paddingVertical: 3.5,
+                        borderRadius: 6,
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="flash" size={11} color="#FFFFFF" />
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFFFFF' }}>Auto-Fill</Text>
+                    </TouchableOpacity>
+                  </View>
 
-            {/* Quick Guest Continue */}
-            <TouchableOpacity
-              onPress={handleContinueAsGuest}
-              style={styles.skipGuestModalBtn}
-            >
-              <Text style={styles.skipGuestModalText}>{t('guest_continue_btn', 'Continue as Guest →')}</Text>
-            </TouchableOpacity>
+                  {/* OTP Input */}
+                  <Text style={styles.inputLabel}>{t('auth_enter_otp', 'Enter 6-Digit OTP')}</Text>
+                  <TextInput
+                    style={{
+                      height: 52,
+                      borderWidth: 1.5,
+                      borderColor: '#00B894',
+                      borderRadius: 12,
+                      backgroundColor: '#FAFCFD',
+                      textAlign: 'center',
+                      fontSize: 22,
+                      fontWeight: '800',
+                      letterSpacing: 8,
+                      color: '#0F172A',
+                      marginBottom: 6,
+                      ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+                    }}
+                    placeholder="123456"
+                    placeholderTextColor="#94A3B8"
+                    value={otpValue}
+                    onChangeText={(text) => {
+                      const cleaned = text.replace(/[^0-9]/g, '').slice(0, 6);
+                      setOtpValue(cleaned);
+                      if (errorMessage) setErrorMessage('');
+                    }}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    autoFocus
+                  />
+
+                  {/* Timer & Edit Number */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 16 }}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (otpTimer === 0) {
+                          setOtpTimer(30);
+                          setErrorMessage('');
+                          showAlert('OTP Resent', `A new verification code 123456 was sent to +91 ${pendingRegData?.cleanPhone10}`);
+                        }
+                      }}
+                      disabled={otpTimer > 0}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: otpTimer > 0 ? '#94A3B8' : '#00B894' }}>
+                        {otpTimer > 0 ? `Resend OTP in ${otpTimer}s` : t('auth_resend_otp', 'Resend OTP via SMS')}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setIsOtpStep(false);
+                        setErrorMessage('');
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#64748B' }}>
+                        ← Edit Number
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Verify Button */}
+                  <TouchableOpacity
+                    style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
+                    onPress={handleVerifyOtp}
+                    disabled={isSubmitting}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.submitBtnText}>
+                      {isSubmitting ? 'Verifying...' : t('auth_verify_btn', 'Verify & Complete Registration')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                /* Form Fields: REGISTER */
+                <View style={styles.formContainer}>
+                  {/* Offscreen decoy inputs to capture aggressive browser autofill */}
+                  {Platform.OS === 'web' && (
+                    <View
+                      style={{
+                        position: 'absolute',
+                        top: -9999,
+                        left: -9999,
+                        width: 0,
+                        height: 0,
+                        opacity: 0,
+                        overflow: 'hidden',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <TextInput tabIndex={-1} autoComplete="off" />
+                      <TextInput secureTextEntry tabIndex={-1} autoComplete="new-password" />
+                    </View>
+                  )}
+
+                  <Text style={styles.inputLabel}>{t('auth_full_name', 'Full Name')}</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder={t('auth_full_name_ph', 'Enter your full name')}
+                    placeholderTextColor="#94A3B8"
+                    value={regName}
+                    onChangeText={(val) => {
+                      userHasTypedRef.current = true;
+                      setRegName(val);
+                    }}
+                    autoCapitalize="words"
+                    autoComplete="off"
+                    name="user_reg_fullname"
+                    id="user_reg_fullname"
+                  />
+
+                  <Text style={[styles.inputLabel, { marginTop: 12 }]}>Email Address</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="name@gmail.com"
+                    placeholderTextColor="#94A3B8"
+                    value={regEmail}
+                    onChangeText={(val) => {
+                      userHasTypedRef.current = true;
+                      setRegEmail(val);
+                    }}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    autoComplete="off"
+                    name="user_reg_email"
+                    id="user_reg_email"
+                  />
+
+                  <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t('auth_mobile_num', 'Mobile Number')}</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="9xxxxxxx01"
+                    placeholderTextColor="#94A3B8"
+                    value={regPhone}
+                    onChangeText={(val) => {
+                      userHasTypedRef.current = true;
+                      setRegPhone(val);
+                    }}
+                    keyboardType="phone-pad"
+                    maxLength={14}
+                    autoComplete="off"
+                    name="user_reg_phone"
+                    id="user_reg_phone"
+                  />
+
+                  <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t('auth_create_pass', 'Create Password')}</Text>
+                  <View style={styles.passwordWrap}>
+                    <TextInput
+                      style={[styles.textInput, { flex: 1, borderWidth: 0 }]}
+                      placeholder={t('auth_create_pass_ph', 'Enter a secure password (min 6 characters)')}
+                      placeholderTextColor="#94A3B8"
+                      value={regPassword}
+                      onChangeText={(val) => {
+                        userHasTypedRef.current = true;
+                        setRegPassword(val);
+                      }}
+                      secureTextEntry={!showRegPassword}
+                      autoComplete="new-password"
+                      name="user_reg_newpwd"
+                      id="user_reg_newpwd"
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowRegPassword(!showRegPassword)}
+                      style={styles.eyeBtn}
+                    >
+                      <Ionicons
+                        name={showRegPassword ? 'eye-off-outline' : 'eye-outline'}
+                        size={20}
+                        color="#64748B"
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t('auth_confirm_pass', 'Confirm Password')}</Text>
+                  <View style={styles.passwordWrap}>
+                    <TextInput
+                      style={[styles.textInput, { flex: 1, borderWidth: 0 }]}
+                      placeholder={t('auth_confirm_pass_ph', 'Re-enter your password to confirm')}
+                      placeholderTextColor="#94A3B8"
+                      value={regConfirmPassword}
+                      onChangeText={(val) => {
+                        userHasTypedRef.current = true;
+                        setRegConfirmPassword(val);
+                      }}
+                      secureTextEntry={!showRegConfirmPassword}
+                      autoComplete="new-password"
+                      name="user_reg_confirmpwd"
+                      id="user_reg_confirmpwd"
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowRegConfirmPassword(!showRegConfirmPassword)}
+                      style={styles.eyeBtn}
+                    >
+                      <Ionicons
+                        name={showRegConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                        size={20}
+                        color="#64748B"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  {regConfirmPassword.length > 0 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                      <Ionicons
+                        name={regPassword === regConfirmPassword ? 'checkmark-circle' : 'alert-circle'}
+                        size={13}
+                        color={regPassword === regConfirmPassword ? '#00B894' : '#FF7F50'}
+                      />
+                      <Text style={{ fontSize: 11.5, fontWeight: '600', color: regPassword === regConfirmPassword ? '#00B894' : '#FF7F50' }}>
+                        {regPassword === regConfirmPassword ? 'Passwords match' : 'Passwords do not match yet'}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Optional Friend Referral Code Input */}
+                  <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t('auth_referral_code', 'Referral Code (Optional)')}</Text>
+                  <View style={{ position: 'relative' }}>
+                    <TextInput
+                      style={[styles.textInput, regReferralCode.trim() ? { borderColor: '#00B894', backgroundColor: '#F0FDF4' } : null]}
+                      placeholder="e.g. PRIYA250 (Get ₹250 Welcome Bonus)"
+                      placeholderTextColor="#94A3B8"
+                      value={regReferralCode}
+                      onChangeText={(val) => {
+                        userHasTypedRef.current = true;
+                        setRegReferralCode(val);
+                      }}
+                      autoCapitalize="characters"
+                      autoComplete="off"
+                      name="user_reg_refcode"
+                      id="user_reg_refcode"
+                    />
+                    {regReferralCode.trim().length > 0 && (
+                      <View style={{ position: 'absolute', right: 12, top: 11, backgroundColor: '#00B894', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFFFFF' }}>+₹250 BONUS</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.submitBtn, { marginTop: 18 }, isSubmitting && styles.submitBtnDisabled]}
+                    onPress={handleRegister}
+                    disabled={isSubmitting}
+                    activeOpacity={0.88}
+                  >
+                    <Text style={styles.submitBtnText}>
+                      {isSubmitting ? 'Sending OTP...' : t('auth_continue_verify', 'Continue to Verification')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Quick Guest Continue */}
+              <TouchableOpacity
+                onPress={handleContinueAsGuest}
+                style={styles.skipGuestModalBtn}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.skipGuestModalText}>{t('guest_continue_btn', 'Continue as Guest →')}</Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -3520,8 +3530,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     width: '100%',
     maxWidth: 440,
-    maxHeight: '92%',
-    padding: 28,
+    maxHeight: Platform.OS === 'web' ? 'min(92vh, 780px)' : '92%',
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 16,
     borderWidth: 1,
     borderColor: '#DCE7EC',
     shadowColor: '#1E3A8A',
@@ -3529,7 +3541,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 32,
     elevation: 8,
-    ...(Platform.OS === 'web' ? { overflowY: 'auto' } : {}),
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+  },
+  modalScrollBody: {
+    flexGrow: 1,
+    flexShrink: 1,
+    width: '100%',
+  },
+  modalScrollContent: {
+    paddingBottom: 20,
+    paddingHorizontal: 2,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -3652,15 +3675,19 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   skipGuestModalBtn: {
-    marginTop: 18,
+    marginTop: 14,
+    marginBottom: 6,
     alignSelf: 'center',
-    padding: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   skipGuestModalText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#64748B',
+    fontWeight: '700',
+    color: '#00B894',
+    textAlign: 'center',
   },
   infoModalBody: {
     fontSize: 14,
