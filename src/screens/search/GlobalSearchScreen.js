@@ -262,6 +262,12 @@ const GlobalSearchScreen = ({ navigation, route }) => {
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   const { t, isIndic } = useTheme();
 
+  const searchPlaceholder = width < 360
+    ? t('search_placeholder_short', 'Search doctors, clinics...')
+    : width < 420
+    ? t('search_placeholder_med', 'Search doctors, clinics, tests...')
+    : t('search_placeholder', 'Search doctors, clinics, hospitals, tests...');
+
   // Search input state
   const [query, setQuery] = useState(route?.params?.query || '');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -785,7 +791,7 @@ const GlobalSearchScreen = ({ navigation, route }) => {
             <TextInput
               ref={searchInputRef}
               style={[styles.searchInput, isIndic && { fontSize: 12.5 }]}
-              placeholder={t('search_placeholder', 'Search doctors, tests, medicines, clinics...')}
+              placeholder={searchPlaceholder}
               placeholderTextColor="#64748B"
               value={query}
               onChangeText={(text) => {
@@ -1070,58 +1076,64 @@ const styles = StyleSheet.create({
   searchBarWrapper: {
     paddingHorizontal: 16,
     paddingTop: 10,
-    paddingBottom: 6,
+    paddingBottom: 8,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
   },
   searchBarBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 22,
-    borderWidth: 1,
+    borderRadius: 14,
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
-    paddingHorizontal: 14,
-    height: 48,
+    paddingHorizontal: 10,
+    height: 44,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 3,
-    elevation: 1,
+    elevation: 2,
     gap: 8,
+    width: '100%',
+    overflow: 'hidden',
   },
   searchBarBoxActive: {
     borderColor: '#007D69',
-    borderWidth: 1.5,
     shadowColor: '#007D69',
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 3,
   },
   searchInput: {
     flex: 1,
-    fontSize: 13.5,
+    minWidth: 0,
+    fontSize: 13,
     color: '#0F172A',
-    fontWeight: '600',
+    fontWeight: '500',
     paddingVertical: 0,
     height: '100%',
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
   },
   searchBackIconBtn: {
-    padding: 4,
-    marginRight: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0,
   },
   searchClearBtn: {
-    padding: 4,
+    width: 28,
+    height: 28,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  searchMicBtn: {
-    padding: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexShrink: 0,
   },
 
   // MOBILE SCROLL & SEARCH RESULTS

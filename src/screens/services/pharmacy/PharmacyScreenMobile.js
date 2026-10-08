@@ -12,7 +12,7 @@ import {
   useWindowDimensions,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -511,9 +511,23 @@ export const EXTENDED_PRODUCTS = [
 ];
 
 const PharmacyScreen = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
   const isLargeTablet = width >= 960;
+
+  const safeBottom = Math.max(insets.bottom, 0);
+  // Position cart bar above iOS home indicator, Android navigation bar, or browser controls
+  const cartBarBottom = Math.max(safeBottom + 10, 14);
+  const CART_BAR_HEIGHT = 64;
+  // Ensure the product grid, buttons, and pagination can scroll completely clear of the cart bar
+  const scrollBottomPadding = pharmacyCartCount > 0
+    ? CART_BAR_HEIGHT + cartBarBottom + 32
+    : Math.max(safeBottom, 16) + 24;
+
+  const maxCartWidth = isTablet ? 600 : 520;
+  const cartWidth = Math.min(width - 32, maxCartWidth);
+  const cartLeft = Math.max((width - cartWidth) / 2, 16);
 
   const {
     pharmacyCart,
@@ -832,7 +846,7 @@ const PharmacyScreen = ({ navigation, route }) => {
         contentContainerStyle={[
           styles.scrollContent,
           isTablet && styles.tabletContainerWidth,
-          { paddingBottom: pharmacyCartCount > 0 ? 175 : 135 },
+          { paddingBottom: scrollBottomPadding },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -1419,12 +1433,14 @@ const PharmacyScreen = ({ navigation, route }) => {
                           ? { width: '23.8%' }
                           : isTablet
                           ? { width: '31.8%' }
+                          : width < 360
+                          ? { width: '47.5%' }
                           : { width: '48.2%' },
                       ]}
                     >
                       {/* Discount Badge */}
                       <View style={styles.pharmacyBadge}>
-                        <Text style={styles.pharmacyBadgeText}>
+                        <Text style={styles.pharmacyBadgeText} numberOfLines={1}>
                           {prod.discount ? prod.discount.toUpperCase() : 'FLAT 20% OFF'}
                         </Text>
                       </View>
@@ -1485,7 +1501,7 @@ const PharmacyScreen = ({ navigation, route }) => {
                         <View style={styles.pharmacyPriceRow}>
                           <Text style={styles.pharmacyPrice}>₹{prod.price}</Text>
                           {Boolean(prod.mrp || prod.oldPrice) && (
-                            <Text style={styles.pharmacyMrp}>MRP ₹{prod.mrp || prod.oldPrice}</Text>
+                            <Text style={styles.pharmacyMrp} numberOfLines={1}>MRP ₹{prod.mrp || prod.oldPrice}</Text>
                           )}
                         </View>
 
@@ -1544,16 +1560,27 @@ const PharmacyScreen = ({ navigation, route }) => {
           7. FLOATING BOTTOM CART BAR (MOBILE / TABLET)
       ============================================================ */}
       {pharmacyCartCount > 0 && (
-        <View style={styles.floatingCartBar}>
+        <View
+          style={[
+            styles.floatingCartBar,
+            {
+              bottom: cartBarBottom,
+              left: cartLeft,
+              width: cartWidth,
+            },
+          ]}
+        >
           <View style={styles.cartBarInfo}>
             <View style={styles.cartBarBadge}>
               <Text style={styles.cartBarBadgeText}>{pharmacyCartCount}</Text>
             </View>
-            <View>
-              <Text style={styles.cartBarItems}>
+            <View style={{ flexShrink: 1, minWidth: 0 }}>
+              <Text style={styles.cartBarItems} numberOfLines={1}>
                 {pharmacyCartCount} {pharmacyCartCount === 1 ? 'item' : 'items'} in cart
               </Text>
-              <Text style={styles.cartBarTotal}>Total: ₹{pharmacyFinalTotal}</Text>
+              <Text style={styles.cartBarTotal} numberOfLines={1}>
+                Total: ₹{pharmacyFinalTotal}
+              </Text>
             </View>
           </View>
 
@@ -1561,6 +1588,8 @@ const PharmacyScreen = ({ navigation, route }) => {
             style={styles.cartBarButton}
             onPress={() => navigation?.navigate('Cart', { initialTab: 'pharmacy' })}
             activeOpacity={0.88}
+            accessibilityRole="button"
+            accessibilityLabel="View Cart"
           >
             <Text style={styles.cartBarButtonText}>View Cart</Text>
             <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
@@ -2006,9 +2035,11 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
+    minWidth: 0,
     fontSize: 13,
     color: '#1E293B',
     height: '100%',
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
   },
   searchClearBtn: {
     padding: 4,
@@ -2587,27 +2618,27 @@ const styles = StyleSheet.create({
 
   // FLOATING CART BAR
   floatingCartBar: {
-    position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 88 : 78,
-    left: 16,
-    right: 16,
+    position: Platform.OS === 'web' ? 'fixed' : 'absolute',
     backgroundColor: '#1E3A8A',
     borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
+    elevation: 10,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
+    zIndex: 999,
   },
   cartBarInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flex: 1,
+    marginRight: 8,
   },
   cartBarBadge: {
     width: 32,
@@ -2616,6 +2647,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#00B894',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   cartBarBadgeText: {
     color: '#FFFFFF',
@@ -2624,12 +2656,14 @@ const styles = StyleSheet.create({
   },
   cartBarItems: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '600',
   },
   cartBarTotal: {
     fontSize: 14,
     fontWeight: '900',
     color: '#FFFFFF',
+    marginTop: 1,
   },
   cartBarButton: {
     flexDirection: 'row',
@@ -2637,8 +2671,9 @@ const styles = StyleSheet.create({
     gap: 6,
     backgroundColor: '#00B894',
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingVertical: 9,
+    borderRadius: 10,
+    flexShrink: 0,
   },
   cartBarButtonText: {
     color: '#FFFFFF',

@@ -122,10 +122,10 @@ if (fs.existsSync(INDEX_HTML)) {
   // Mobile application viewport & PWA meta tags
   html = html.replace(
     /<meta name="viewport"[^>]*>/i,
-    `<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    `<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MediUnify" />
     <meta name="application-name" content="MediUnify" />
     <meta name="theme-color" content="#00B894" />
@@ -136,33 +136,32 @@ if (fs.existsSync(INDEX_HTML)) {
   const headAdditions = `
   <style data-gh-font-patch="true">
     ${fontFaceCss}
-    /* Mobile web application native feel optimizations */
+    :root {
+      --app-height: 100dvh;
+    }
+    /* Mobile web application native feel optimizations without freezing viewport */
     @media (max-width: 767px) {
       html, body {
-        position: fixed;
         width: 100%;
-        height: 100%;
+        min-height: 100%;
+        min-height: -webkit-fill-available;
+        min-height: 100dvh;
         margin: 0;
         padding: 0;
-        overflow: hidden;
-        overscroll-behavior: none;
-        -webkit-overscroll-behavior: none;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-y: none;
         -webkit-touch-callout: none;
-        -webkit-user-select: none;
-        user-select: none;
         -webkit-tap-highlight-color: transparent;
       }
       #root {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
         width: 100%;
-        height: 100%;
-        overflow: hidden;
+        min-height: 100%;
+        min-height: -webkit-fill-available;
+        min-height: 100dvh;
         display: flex;
         flex-direction: column;
+        overflow-x: hidden;
       }
       ::-webkit-scrollbar {
         display: none !important;
@@ -184,6 +183,9 @@ if (fs.existsSync(INDEX_HTML)) {
       box-sizing: border-box;
     }
     input, textarea, select {
+      min-width: 0 !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
       font-size: 16px !important;
       -webkit-user-select: auto;
       user-select: auto;

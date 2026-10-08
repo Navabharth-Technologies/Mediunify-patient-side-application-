@@ -2273,9 +2273,11 @@ const styles = StyleSheet.create({
   },
   consoleSearchInput: {
     flex: 1,
+    minWidth: 0,
     fontSize: 14,
     color: '#0F172A',
     paddingVertical: 6,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
   },
   consoleSearchActionBtn: {
     flexDirection: 'row',

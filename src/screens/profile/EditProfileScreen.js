@@ -33,26 +33,13 @@ const BLOOD_GROUPS = [
 ];
 const GENDERS = ['Male', 'Female', 'Other'];
 
+import { useKeyboardVisibility } from '../../utils/keyboardUtils';
+
 const EditProfileScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const passedUser = route?.params?.user || {};
   const scrollViewRef = useRef(null);
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-
-  useEffect(() => {
-    const showSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setIsKeyboardVisible(true)
-    );
-    const hideSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setIsKeyboardVisible(false)
-    );
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
+  const isKeyboardVisible = useKeyboardVisibility();
 
   // Store initial credentials to detect changes requiring OTP verification
   const initialEmail = (passedUser.email || '').trim().toLowerCase();
@@ -1303,9 +1290,12 @@ const styles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
+    minWidth: 0,
     fontSize: 13,
     color: '#0F172A',
     fontWeight: '600',
+    paddingVertical: 0,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
   },
   rowInputs: {
     flexDirection: 'row',

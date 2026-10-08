@@ -28,6 +28,7 @@ import colors from '../theme/colors';
 import { useCart } from '../context/CartContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
+import { useKeyboardVisibility } from '../utils/keyboardUtils';
 
 
 // ==================================================
@@ -440,20 +441,7 @@ const MainNavigator = ({
     currentParams,
     setCurrentParams,
   ] = React.useState({});
-  const [isKeyboardVisible, setIsKeyboardVisible] = React.useState(false);
-
-  useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-    const showSub = Keyboard.addListener(showEvent, () => setIsKeyboardVisible(true));
-    const hideSub = Keyboard.addListener(hideEvent, () => setIsKeyboardVisible(false));
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
+  const isKeyboardVisible = useKeyboardVisibility();
 
   const cartCtx = useCart();
   const radiologyCartCount = cartCtx?.radiologyCartCount || 0;

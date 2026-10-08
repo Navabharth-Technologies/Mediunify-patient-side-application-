@@ -10,7 +10,7 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../../theme/colors';
@@ -42,6 +42,7 @@ import { useAuthGuard } from '../../../context/AuthGuardContext';
 
 const LabTestsScreenWeb = (props) => {
   const { navigation, route } = props;
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
   const isTablet = width >= 768 && width < 1024;
@@ -1670,7 +1671,13 @@ const LabTestsScreenWeb = (props) => {
           </TouchableOpacity>
         </View>
       )}
-      <ScrollView ref={mainScrollRef} style={styles.scrollContainer} contentContainerStyle={{ paddingBottom: 60 }}>
+      <ScrollView
+        ref={mainScrollRef}
+        style={styles.scrollContainer}
+        contentContainerStyle={{
+          paddingBottom: labCartCount > 0 ? (isDesktop ? 100 : Math.max(insets.bottom + 90, 100)) : 60,
+        }}
+      >
         {renderWebBrowse()}
         {activeTab === 'BOOKINGS' && renderWebBookings()}
         {activeTab === 'REPORTS' && renderWebReports()}
@@ -2566,16 +2573,21 @@ const LabTestsScreenWeb = (props) => {
 
       {/* FLOATING LAB CART BAR */}
       {labCartCount > 0 && (
-        <View style={[styles.webFloatingCartBar, !isDesktop && { bottom: 16 }]}>
+        <View
+          style={[
+            styles.webFloatingCartBar,
+            !isDesktop && { bottom: Math.max(insets.bottom + 12, 16) },
+          ]}
+        >
           <View style={styles.floatingCartLeft}>
             <View style={styles.floatingCartIconCircle}>
               <Ionicons name="flask" size={18} color="#FFFFFF" />
             </View>
-            <View>
-              <Text style={styles.floatingCartTitle}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.floatingCartTitle} numberOfLines={1}>
                 {labCartCount} Diagnostic Test{labCartCount > 1 ? 's' : ''} in Cart
               </Text>
-              <Text style={styles.floatingCartSubtitle}>
+              <Text style={styles.floatingCartSubtitle} numberOfLines={1}>
                 Total: ₹{labFinalTotal.toLocaleString('en-IN')} • Doorstep Sample Collection
               </Text>
             </View>
@@ -2698,6 +2710,8 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   floatingCartLeft: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -2709,6 +2723,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#00B894',
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0,
   },
   floatingCartTitle: {
     fontSize: 14,
@@ -2721,6 +2736,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   floatingCartBtn: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -2728,6 +2744,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 8,
+    marginLeft: 8,
   },
   floatingCartBtnText: {
     fontSize: 13,

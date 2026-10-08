@@ -13,7 +13,7 @@ import {
   useWindowDimensions,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showAlert } from '../../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -37,6 +37,7 @@ const CATEGORIES = [
 ];
 
 const PharmacyStoreDetailScreen = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
 
@@ -149,7 +150,7 @@ const PharmacyStoreDetailScreen = ({ navigation, route }) => {
         contentContainerStyle={[
           styles.scrollContent,
           isDesktopWeb && styles.desktopMaxWidth,
-          pharmacyCartCount > 0 && { paddingBottom: 100 },
+          { paddingBottom: pharmacyCartCount > 0 ? 110 + insets.bottom : Math.max(insets.bottom, 24) + 16 },
         ]}
       >
         {/* STORE BANNER CARD */}
@@ -386,7 +387,7 @@ const PharmacyStoreDetailScreen = ({ navigation, route }) => {
 
       {/* FLOATING BOTTOM CART BAR */}
       {pharmacyCartCount > 0 && (
-        <View style={styles.floatingCartBar}>
+        <View style={[styles.floatingCartBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           <View style={styles.floatingCartInner}>
             <View style={styles.floatingCartLeft}>
               <View style={styles.cartCountCircle}>
@@ -681,8 +682,10 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
+    minWidth: 0,
     fontSize: 14,
     color: colors.secondary,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -777,10 +780,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   floatingCartBar: {
-    position: 'absolute',
+    position: Platform.OS === 'web' ? 'fixed' : 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
+    zIndex: 999,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',

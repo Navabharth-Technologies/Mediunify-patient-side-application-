@@ -429,13 +429,15 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
+    minWidth: 0,
     fontSize: 14,
     color: '#0F172A',
     paddingVertical: 0,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
   },
   scrollContent: {
     paddingTop: 16,
-    paddingBottom: 20,
+    paddingBottom: 36,
   },
   countRow: {
     flexDirection: 'row',

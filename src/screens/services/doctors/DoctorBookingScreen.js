@@ -1025,6 +1025,8 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     fontSize: 13,
     color: '#0F172A',
+    minWidth: 0,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
   },
 
   // UPLOAD CONTAINER

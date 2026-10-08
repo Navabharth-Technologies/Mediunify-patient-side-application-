@@ -29,24 +29,11 @@ import {
 const RELATIONSHIPS = ['Spouse', 'Father', 'Mother', 'Son', 'Daughter', 'Sibling', 'Grandparent', 'Other'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
+import { useKeyboardVisibility } from '../../utils/keyboardUtils';
+
 const FamilyProfilesScreen = ({ navigation }) => {
   const modalScrollRef = useRef(null);
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-
-  useEffect(() => {
-    const showSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setIsKeyboardVisible(true)
-    );
-    const hideSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setIsKeyboardVisible(false)
-    );
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
+  const isKeyboardVisible = useKeyboardVisibility();
 
   const [members, setMembers] = useState([]);
   const [isGuestMode, setIsGuestMode] = useState(false);
@@ -1024,6 +1011,8 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     fontWeight: '600',
     marginBottom: 8,
+    minWidth: 0,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
   },
   pillsScroll: {
     flexDirection: 'row',

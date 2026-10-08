@@ -26,7 +26,7 @@ class GlobalErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <View style={{ flex: 1, backgroundColor: '#FEF2F2', padding: 24, justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <View style={{ flex: 1, backgroundColor: '#FEF2F2', padding: 24, justifyContent: 'center', alignItems: 'center', minHeight: Platform.OS === 'web' ? '100dvh' : '100%' }}>
           <View style={{ maxWidth: 800, width: '100%', backgroundColor: '#FFFFFF', padding: 24, borderRadius: 12, borderWidth: 1, borderColor: '#FECACA' }}>
             <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#DC2626', marginBottom: 12 }}>
               Application Render Error
@@ -51,6 +51,81 @@ class GlobalErrorBoundary extends React.Component {
 }
 
 import { preloadCriticalAssets } from './src/utils/assetManager';
+
+// Web-safe dynamic viewport & keyboard layout initializer
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const styleId = 'mediunify-responsive-mobile-web';
+  if (!document.getElementById(styleId)) {
+    const styleEl = document.createElement('style');
+    styleEl.id = styleId;
+    styleEl.innerHTML = `
+      :root {
+        --app-height: 100dvh;
+      }
+      html, body {
+        width: 100%;
+        min-height: 100%;
+        min-height: -webkit-fill-available;
+        min-height: 100dvh;
+        margin: 0;
+        padding: 0;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-y: none;
+        touch-action: manipulation;
+      }
+      #root {
+        width: 100%;
+        min-height: 100%;
+        min-height: -webkit-fill-available;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        overflow-x: hidden;
+      }
+      /* Ensure text inputs never cause horizontal overflow in flex containers */
+      input, textarea, select {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      * {
+        -webkit-tap-highlight-color: transparent;
+        box-sizing: border-box;
+      }
+    `;
+    document.head.appendChild(styleEl);
+  }
+
+  const updateAppHeight = () => {
+    if (typeof window === 'undefined') return;
+    const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    document.documentElement.style.setProperty('--app-height', `${vh}px`);
+  };
+
+  if (typeof window !== 'undefined') {
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateAppHeight);
+      window.visualViewport.addEventListener('scroll', updateAppHeight);
+    } else {
+      window.addEventListener('resize', updateAppHeight);
+    }
+    updateAppHeight();
+
+    // Prevent iOS Safari blank gap upon virtual keyboard dismissal
+    document.addEventListener('focusout', (e) => {
+      const tag = e.target?.tagName;
+      if (['INPUT', 'TEXTAREA'].includes(tag)) {
+        setTimeout(() => {
+          const activeTag = document.activeElement?.tagName;
+          if (!['INPUT', 'TEXTAREA'].includes(activeTag)) {
+            window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+          }
+        }, 100);
+      }
+    });
+  }
+}
 
 export default function App() {
   React.useEffect(() => {

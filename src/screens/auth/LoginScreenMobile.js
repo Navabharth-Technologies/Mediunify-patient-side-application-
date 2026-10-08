@@ -70,6 +70,8 @@ const PRE_SEEDED_CREDENTIALS = {
   },
 };
 
+import { useKeyboardVisibility } from '../../utils/keyboardUtils';
+
 const LoginScreen = ({ navigation }) => {
   const { t = (k, fb) => fb || k, isIndic } = useTheme();
   const insets = useSafeAreaInsets();
@@ -78,22 +80,7 @@ const LoginScreen = ({ navigation }) => {
   const isTablet = width >= 600;
   const scrollViewRef = useRef(null);
 
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-
-  useEffect(() => {
-    const showSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setIsKeyboardVisible(true)
-    );
-    const hideSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setIsKeyboardVisible(false)
-    );
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
+  const isKeyboardVisible = useKeyboardVisibility();
 
   // On Android, ensure status bar area is never overlapped even if insets report 0
   const androidExtraTop = Platform.OS === 'android' && insets.top === 0 ? (StatusBar.currentHeight || 24) : 0;
@@ -746,10 +733,12 @@ const styles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
+    minWidth: 0,
     fontSize: 14,
     color: '#0F172A',
     fontWeight: '500',
     paddingVertical: 0,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
   },
   clearBtn: {
     padding: 4,

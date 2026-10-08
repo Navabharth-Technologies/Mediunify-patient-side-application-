@@ -21,6 +21,8 @@ import colors from '../../theme/colors';
 import { safeNavigateToMain } from '../../utils/navigationHelper';
 import { syncRegister } from '../../services/dataSyncService';
 
+import { useKeyboardVisibility } from '../../utils/keyboardUtils';
+
 const OTPScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -35,7 +37,7 @@ const OTPScreen = ({ navigation, route }) => {
   const [countdown, setCountdown] = useState(30);
   const [canResend, setCanResend] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const isKeyboardVisible = useKeyboardVisibility();
 
   const inputRefs = useRef([]);
   const scrollViewRef = useRef(null);
@@ -43,21 +45,6 @@ const OTPScreen = ({ navigation, route }) => {
   const passedUser = route?.params?.userData || {};
   const passedCreds = route?.params?.credentials || {};
   const phoneNumber = passedUser?.phone || (passedCreds?.phone ? `+91 ${passedCreds.phone}` : '+91 98765 43210');
-
-  useEffect(() => {
-    const showSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setIsKeyboardVisible(true)
-    );
-    const hideSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setIsKeyboardVisible(false)
-    );
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
 
   useEffect(() => {
     let interval = null;

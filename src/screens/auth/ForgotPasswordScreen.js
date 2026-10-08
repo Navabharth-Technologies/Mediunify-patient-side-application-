@@ -19,6 +19,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { showAlert } from '../../utils/alert';
 import colors from '../../theme/colors';
 
+import { useKeyboardVisibility } from '../../utils/keyboardUtils';
+
 const ForgotPasswordScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -26,22 +28,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
   const isTablet = width >= 600;
   const scrollViewRef = useRef(null);
 
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-
-  useEffect(() => {
-    const showSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setIsKeyboardVisible(true)
-    );
-    const hideSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setIsKeyboardVisible(false)
-    );
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
+  const isKeyboardVisible = useKeyboardVisibility();
 
   const androidExtraTop = Platform.OS === 'android' && insets.top === 0 ? (StatusBar.currentHeight || 24) : 0;
 
@@ -481,9 +468,11 @@ const styles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
+    minWidth: 0,
     fontSize: 14,
     color: '#0F172A',
     paddingVertical: 0,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
   },
   eyeBtn: {
     padding: 4,
