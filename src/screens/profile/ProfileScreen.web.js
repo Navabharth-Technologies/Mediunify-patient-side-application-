@@ -25,6 +25,7 @@ import WebFooter from '../../components/web/WebFooter';
 import ProfileScreenMobile from './ProfileScreenMobile';
 
 const ProfileScreenWeb = ({ navigation, route }) => {
+  const { width } = useWindowDimensions();
   const { isDarkMode, language, changeLanguage, LANGUAGES, t } = useTheme();
   const currentLang = LANGUAGES.find((l) => l.code === language) || LANGUAGES[0];
   const isDesktop = width >= 992;
