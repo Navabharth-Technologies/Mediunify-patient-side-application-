@@ -78,8 +78,12 @@ const RegisterScreen = ({ navigation, route }) => {
 
   // Strictly accept numeric digits and cap at exactly 10 digits
   const handlePhoneChange = (text) => {
-    const raw = text.replace(/[^0-9]/g, '');
-    const cleaned = raw.length > 10 && raw.startsWith('91') ? raw.slice(2, 12) : raw.slice(0, 10);
+    const raw = String(text || '').replace(/[^0-9]/g, '');
+    let cleaned = raw;
+    if (cleaned.length > 10 && cleaned.startsWith('91')) {
+      cleaned = cleaned.slice(2);
+    }
+    cleaned = cleaned.slice(0, 10);
     setPhone(cleaned);
   };
 
@@ -304,7 +308,7 @@ const RegisterScreen = ({ navigation, route }) => {
             },
           ]}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
+          keyboardDismissMode={Platform.OS === 'web' ? 'none' : 'on-drag'}
           automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           showsVerticalScrollIndicator={false}
           bounces={false}
@@ -350,10 +354,6 @@ const RegisterScreen = ({ navigation, route }) => {
                   placeholder="Enter your full name"
                   placeholderTextColor="#94A3B8"
                   value={name}
-                  onChange={(e) => {
-                    const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
-                    setName(val);
-                  }}
                   onChangeText={setName}
                   onFocus={() => {
                     if (Platform.OS !== 'web') {
@@ -365,6 +365,7 @@ const RegisterScreen = ({ navigation, route }) => {
                   autoCapitalize="words"
                   autoCorrect={false}
                   autoComplete="name"
+                  type="text"
                   textContentType="name"
                   name="name"
                   id="reg_mobile_name"
@@ -416,10 +417,6 @@ const RegisterScreen = ({ navigation, route }) => {
                   placeholder="10-digit mobile number"
                   placeholderTextColor="#94A3B8"
                   value={phone}
-                  onChange={(e) => {
-                    const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
-                    handlePhoneChange(val);
-                  }}
                   onChangeText={handlePhoneChange}
                   onFocus={() => {
                     if (Platform.OS !== 'web') {
@@ -428,8 +425,9 @@ const RegisterScreen = ({ navigation, route }) => {
                       }, 100);
                     }
                   }}
-                  keyboardType="number-pad"
-                  maxLength={10}
+                  keyboardType="phone-pad"
+                  inputMode="tel"
+                  type="tel"
                   autoComplete="tel"
                   textContentType="telephoneNumber"
                   name="tel"
@@ -466,10 +464,6 @@ const RegisterScreen = ({ navigation, route }) => {
                   placeholder="Enter your email address"
                   placeholderTextColor="#94A3B8"
                   value={email}
-                  onChange={(e) => {
-                    const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
-                    setEmail(val);
-                  }}
                   onChangeText={setEmail}
                   onFocus={() => {
                     if (Platform.OS !== 'web') {
@@ -479,6 +473,8 @@ const RegisterScreen = ({ navigation, route }) => {
                     }
                   }}
                   keyboardType="email-address"
+                  inputMode="email"
+                  type="email"
                   autoCapitalize="none"
                   autoCorrect={false}
                   autoComplete="email"
@@ -532,10 +528,6 @@ const RegisterScreen = ({ navigation, route }) => {
                   placeholder="Minimum 6 characters"
                   placeholderTextColor="#94A3B8"
                   value={password}
-                  onChange={(e) => {
-                    const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
-                    setPassword(val);
-                  }}
                   onChangeText={setPassword}
                   onFocus={() => {
                     if (Platform.OS !== 'web') {
@@ -548,8 +540,9 @@ const RegisterScreen = ({ navigation, route }) => {
                   autoCapitalize="none"
                   autoCorrect={false}
                   autoComplete="new-password"
+                  type="password"
                   textContentType="newPassword"
-                  name="new-password"
+                  name="password"
                   id="reg_mobile_password"
                 />
                 <TouchableOpacity
@@ -600,10 +593,6 @@ const RegisterScreen = ({ navigation, route }) => {
                   placeholder="Re-enter your password"
                   placeholderTextColor="#94A3B8"
                   value={confirmPassword}
-                  onChange={(e) => {
-                    const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
-                    setConfirmPassword(val);
-                  }}
                   onChangeText={setConfirmPassword}
                   onFocus={() => {
                     if (Platform.OS !== 'web') {
@@ -616,6 +605,7 @@ const RegisterScreen = ({ navigation, route }) => {
                   autoCapitalize="none"
                   autoCorrect={false}
                   autoComplete="new-password"
+                  type="password"
                   textContentType="newPassword"
                   name="confirm-password"
                   id="reg_mobile_confirmpassword"
@@ -666,6 +656,11 @@ const RegisterScreen = ({ navigation, route }) => {
                   }}
                   autoCapitalize="characters"
                   autoCorrect={false}
+                  autoComplete="off"
+                  type="text"
+                  textContentType="none"
+                  name="referral"
+                  id="reg_mobile_referral"
                 />
                 {referralCode.length > 0 && (
                   <View style={styles.appliedTag}>
@@ -894,6 +889,10 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 50,
+    ...(Platform.OS === 'web' ? {
+      cursor: 'text',
+      pointerEvents: 'auto',
+    } : {}),
   },
   inputBoxFilled: {
     borderColor: '#007D69',

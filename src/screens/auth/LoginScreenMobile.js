@@ -96,6 +96,8 @@ const LoginScreen = ({ navigation }) => {
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
+  const isPhoneMode = /^[0-9+\s()-]+$/.test(email.trim()) && email.trim().length > 0;
+
   useEffect(() => {
     try {
       autoMigrateLocalAccountsToServer();
@@ -410,15 +412,14 @@ const LoginScreen = ({ navigation }) => {
           ref={scrollViewRef}
           contentContainerStyle={[
             styles.scrollContent,
-            {
-              justifyContent: canCenterVertically ? 'center' : 'flex-start',
-              paddingBottom: isKeyboardVisible ? (Platform.OS === 'ios' ? 140 : 100) : (isSmallDevice ? 16 : 24),
-            },
             isSmallDevice && styles.scrollContentSmall,
             isTablet && styles.scrollContentTablet,
+            {
+              paddingBottom: isKeyboardVisible ? (Platform.OS === 'ios' ? 140 : 100) : (isSmallDevice ? 16 : 24),
+            },
           ]}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
+          keyboardDismissMode={Platform.OS === 'web' ? 'none' : 'on-drag'}
           automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           showsVerticalScrollIndicator={false}
           bounces={false}
@@ -466,10 +467,6 @@ const LoginScreen = ({ navigation }) => {
                   placeholder={t('auth_email_placeholder', 'Email address or 10-digit number')}
                   placeholderTextColor="#94A3B8"
                   value={email}
-                  onChange={(e) => {
-                    const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
-                    setEmail(val);
-                  }}
                   onChangeText={setEmail}
                   onFocus={() => {
                     if (Platform.OS !== 'web') {
@@ -478,12 +475,14 @@ const LoginScreen = ({ navigation }) => {
                       }, 100);
                     }
                   }}
-                  keyboardType="email-address"
+                  keyboardType={isPhoneMode ? 'phone-pad' : 'email-address'}
+                  inputMode={isPhoneMode ? 'tel' : 'email'}
+                  type={isPhoneMode ? 'tel' : 'email'}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  autoComplete="username"
-                  textContentType="username"
-                  name="username"
+                  autoComplete={isPhoneMode ? 'tel' : 'email'}
+                  textContentType={isPhoneMode ? 'telephoneNumber' : 'emailAddress'}
+                  name={isPhoneMode ? 'tel' : 'email'}
                   id="login_mobile_identity"
                 />
                 {email.length > 0 && (
@@ -525,10 +524,6 @@ const LoginScreen = ({ navigation }) => {
                   placeholder={t('auth_password_placeholder', 'Enter your password')}
                   placeholderTextColor="#94A3B8"
                   value={password}
-                  onChange={(e) => {
-                    const val = e?.nativeEvent?.text ?? e?.target?.value ?? '';
-                    setPassword(val);
-                  }}
                   onChangeText={setPassword}
                   onFocus={() => {
                     if (Platform.OS !== 'web') {
@@ -541,6 +536,7 @@ const LoginScreen = ({ navigation }) => {
                   autoCapitalize="none"
                   autoCorrect={false}
                   autoComplete="current-password"
+                  type="password"
                   textContentType="password"
                   name="password"
                   id="login_mobile_password"
@@ -745,6 +741,10 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 50,
+    ...(Platform.OS === 'web' ? {
+      cursor: 'text',
+      pointerEvents: 'auto',
+    } : {}),
   },
   inputBoxFilled: {
     borderColor: '#007D69',

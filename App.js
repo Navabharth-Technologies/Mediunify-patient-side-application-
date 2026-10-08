@@ -138,16 +138,6 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
       window.addEventListener('resize', updateAppHeight);
     }
     updateAppHeight();
-
-    // Global listener ensuring autofill events synchronize immediately with React state
-    const syncAutofill = (e) => {
-      const target = e.target;
-      if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) {
-        target.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    };
-    document.addEventListener('animationstart', syncAutofill, true);
-    document.addEventListener('change', syncAutofill, true);
   }
 }
 
