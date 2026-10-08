@@ -352,9 +352,11 @@ const RegisterScreen = ({ navigation, route }) => {
                   value={name}
                   onChangeText={setName}
                   onFocus={() => {
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-                    }, 100);
+                    if (Platform.OS !== 'web') {
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+                      }, 100);
+                    }
                   }}
                   autoCapitalize="words"
                   autoCorrect={false}
@@ -408,9 +410,11 @@ const RegisterScreen = ({ navigation, route }) => {
                   value={phone}
                   onChangeText={handlePhoneChange}
                   onFocus={() => {
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 80 : 100, animated: true });
-                    }, 100);
+                    if (Platform.OS !== 'web') {
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 80 : 100, animated: true });
+                      }, 100);
+                    }
                   }}
                   keyboardType="number-pad"
                   maxLength={10}
@@ -448,9 +452,11 @@ const RegisterScreen = ({ navigation, route }) => {
                   value={email}
                   onChangeText={setEmail}
                   onFocus={() => {
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 140 : 160, animated: true });
-                    }, 100);
+                    if (Platform.OS !== 'web') {
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 140 : 160, animated: true });
+                      }, 100);
+                    }
                   }}
                   keyboardType="email-address"
                   autoCapitalize="none"
@@ -504,9 +510,11 @@ const RegisterScreen = ({ navigation, route }) => {
                   value={password}
                   onChangeText={setPassword}
                   onFocus={() => {
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 200 : 220, animated: true });
-                    }, 100);
+                    if (Platform.OS !== 'web') {
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 200 : 220, animated: true });
+                      }, 100);
+                    }
                   }}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
@@ -562,9 +570,11 @@ const RegisterScreen = ({ navigation, route }) => {
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   onFocus={() => {
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 260 : 280, animated: true });
-                    }, 100);
+                    if (Platform.OS !== 'web') {
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 260 : 280, animated: true });
+                      }, 100);
+                    }
                   }}
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
@@ -608,9 +618,11 @@ const RegisterScreen = ({ navigation, route }) => {
                   value={referralCode}
                   onChangeText={setReferralCode}
                   onFocus={() => {
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 320 : 340, animated: true });
-                    }, 100);
+                    if (Platform.OS !== 'web') {
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 320 : 340, animated: true });
+                      }, 100);
+                    }
                   }}
                   autoCapitalize="characters"
                   autoCorrect={false}
@@ -861,11 +873,16 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     minWidth: 0,
-    fontSize: 14,
+    fontSize: 15,
     color: '#0F172A',
     fontWeight: '500',
     paddingVertical: 0,
-    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+    height: '100%',
+    ...(Platform.OS === 'web' ? {
+      outlineStyle: 'none',
+      userSelect: 'text',
+      WebkitUserSelect: 'text',
+    } : {}),
   },
   clearBtn: {
     padding: 4,

@@ -182,7 +182,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
                   value={email}
                   onChangeText={setEmail}
                   onFocus={() => {
-                    if (!isTablet) {
+                    if (!isTablet && Platform.OS !== 'web') {
                       setTimeout(() => {
                         scrollViewRef.current?.scrollTo({ y: 0, animated: true });
                       }, 100);
@@ -216,7 +216,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
                   value={newPassword}
                   onChangeText={setNewPassword}
                   onFocus={() => {
-                    if (!isTablet) {
+                    if (!isTablet && Platform.OS !== 'web') {
                       setTimeout(() => {
                         scrollViewRef.current?.scrollTo({ y: 100, animated: true });
                       }, 100);
@@ -257,7 +257,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   onFocus={() => {
-                    if (!isTablet) {
+                    if (!isTablet && Platform.OS !== 'web') {
                       setTimeout(() => {
                         scrollViewRef.current?.scrollTo({ y: 180, animated: true });
                       }, 100);
@@ -469,10 +469,15 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     minWidth: 0,
-    fontSize: 14,
+    fontSize: 15,
     color: '#0F172A',
     paddingVertical: 0,
-    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+    height: '100%',
+    ...(Platform.OS === 'web' ? {
+      outlineStyle: 'none',
+      userSelect: 'text',
+      WebkitUserSelect: 'text',
+    } : {}),
   },
   eyeBtn: {
     padding: 4,

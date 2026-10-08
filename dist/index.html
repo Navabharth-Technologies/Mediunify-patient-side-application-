@@ -193,13 +193,16 @@
       -webkit-tap-highlight-color: transparent;
       box-sizing: border-box;
     }
-    input, textarea, select {
+    input, textarea, select, [contenteditable="true"] {
       min-width: 0 !important;
       max-width: 100% !important;
       box-sizing: border-box !important;
       font-size: 16px !important;
-      -webkit-user-select: auto;
-      user-select: auto;
+      -webkit-user-select: text !important;
+      user-select: text !important;
+      -webkit-touch-callout: default !important;
+      touch-action: manipulation !important;
+      pointer-events: auto !important;
     }
   </style>
   <script data-gh-patch="true">
@@ -243,6 +246,6 @@
     </noscript>
     <!-- The root element for your Expo app. -->
     <div id="root"></div>
-  <script src="/mediunify-patient/_expo/static/js/web/index-11e215ed4562a5f88f790ad04aed39a6.js" defer></script>
+  <script src="/mediunify-patient/_expo/static/js/web/index-6fd9b1f61822b4f3e2f478751929da2e.js" defer></script>
 </body>
 </html>

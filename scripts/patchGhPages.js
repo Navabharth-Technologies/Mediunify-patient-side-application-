@@ -182,13 +182,16 @@ if (fs.existsSync(INDEX_HTML)) {
       -webkit-tap-highlight-color: transparent;
       box-sizing: border-box;
     }
-    input, textarea, select {
+    input, textarea, select, [contenteditable="true"] {
       min-width: 0 !important;
       max-width: 100% !important;
       box-sizing: border-box !important;
       font-size: 16px !important;
-      -webkit-user-select: auto;
-      user-select: auto;
+      -webkit-user-select: text !important;
+      user-select: text !important;
+      -webkit-touch-callout: default !important;
+      touch-action: manipulation !important;
+      pointer-events: auto !important;
     }
   </style>
   <script data-gh-patch="true">

@@ -83,11 +83,21 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
         flex-direction: column;
         overflow-x: hidden;
       }
-      /* Ensure text inputs never cause horizontal overflow in flex containers */
-      input, textarea, select {
+      /* Ensure text inputs are fully selectable, tap-responsive and never blocked by parent user-select */
+      input, textarea, select, [contenteditable="true"] {
         min-width: 0 !important;
         max-width: 100% !important;
         box-sizing: border-box !important;
+        -webkit-user-select: text !important;
+        user-select: text !important;
+        -webkit-touch-callout: default !important;
+        touch-action: manipulation !important;
+        pointer-events: auto !important;
+      }
+      @media (max-width: 767px) {
+        input, textarea, select {
+          font-size: 16px !important; /* Prevents iOS Safari input focus auto-zoom and cursor freeze */
+        }
       }
       * {
         -webkit-tap-highlight-color: transparent;
@@ -111,19 +121,6 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
       window.addEventListener('resize', updateAppHeight);
     }
     updateAppHeight();
-
-    // Prevent iOS Safari blank gap upon virtual keyboard dismissal
-    document.addEventListener('focusout', (e) => {
-      const tag = e.target?.tagName;
-      if (['INPUT', 'TEXTAREA'].includes(tag)) {
-        setTimeout(() => {
-          const activeTag = document.activeElement?.tagName;
-          if (!['INPUT', 'TEXTAREA'].includes(activeTag)) {
-            window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
-          }
-        }, 100);
-      }
-    });
   }
 }
 

@@ -39,6 +39,7 @@ import {
 } from '../../../data/novusPackagesData';
 import { useCart } from '../../../context/CartContext';
 import { useAuthGuard } from '../../../context/AuthGuardContext';
+import LabTestsScreenMobile from './LabTestsScreenMobile';
 
 const LabTestsScreenWeb = (props) => {
   const { navigation, route } = props;
@@ -4614,4 +4615,12 @@ const styles = StyleSheet.create({
   },
 });
 
-export default LabTestsScreenWeb;
+const LabTestsScreenResponsive = (props) => {
+  const { width } = useWindowDimensions();
+  if (width < 768) {
+    return <LabTestsScreenMobile {...props} />;
+  }
+  return <LabTestsScreenWeb {...props} />;
+};
+
+export default LabTestsScreenResponsive;

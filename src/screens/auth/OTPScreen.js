@@ -373,9 +373,11 @@ const OTPScreen = ({ navigation, route }) => {
                     onKeyPress={(e) => handleKeyPress(e, index)}
                     onFocus={() => {
                       setFocusedIndex(index);
-                      setTimeout(() => {
-                        scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 100 : 130, animated: true });
-                      }, 100);
+                      if (Platform.OS !== 'web') {
+                        setTimeout(() => {
+                          scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 100 : 130, animated: true });
+                        }, 100);
+                      }
                     }}
                     onBlur={() => setFocusedIndex(-1)}
                     keyboardType="number-pad"
@@ -630,6 +632,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     color: '#1E3A8A',
+    ...(Platform.OS === 'web' ? {
+      outlineStyle: 'none',
+      userSelect: 'text',
+      WebkitUserSelect: 'text',
+    } : {}),
   },
   otpBoxSmall: {
     width: 38,

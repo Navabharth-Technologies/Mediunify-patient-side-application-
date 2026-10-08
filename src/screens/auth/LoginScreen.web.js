@@ -292,32 +292,15 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
       setRegPassword('');
       setRegConfirmPassword('');
       setRegReferralCode('');
-      setErrorMessage('');
-
-      // Chrome/Edge password managers attempt to autofill credentials right after DOM render.
-      // Clear values if user hasn't typed anything yet to ensure boxes start completely blank.
-      if (Platform.OS === 'web') {
-        const wipeAutofill = () => {
-          if (!userHasTypedRef.current) {
-            setEmail('');
-            setPassword('');
-            setRegName('');
-            setRegEmail('');
-            setRegPhone('');
-            setRegPassword('');
-            setRegConfirmPassword('');
-            setRegReferralCode('');
-          }
-        };
-        const t1 = setTimeout(wipeAutofill, 50);
-        const t2 = setTimeout(wipeAutofill, 150);
-        const t3 = setTimeout(wipeAutofill, 300);
-        return () => {
-          clearTimeout(t1);
-          clearTimeout(t2);
-          clearTimeout(t3);
-        };
-      }
+      // Guarantee fields start clean without interfering with subsequent user keystrokes
+      setEmail('');
+      setPassword('');
+      setRegName('');
+      setRegEmail('');
+      setRegPhone('');
+      setRegPassword('');
+      setRegConfirmPassword('');
+      setRegReferralCode('');
     }
   }, [showAuthModal, authTab]);
 
@@ -3753,7 +3736,7 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     minWidth: 0,
-    fontSize: 14,
+    fontSize: 15,
     color: '#0F172A',
     fontWeight: '500',
     paddingVertical: 0,
@@ -3761,6 +3744,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderWidth: 0,
     outlineStyle: 'none',
+    userSelect: 'text',
+    WebkitUserSelect: 'text',
   },
   bonusBadge: {
     backgroundColor: '#00B894',

@@ -468,9 +468,11 @@ const LoginScreen = ({ navigation }) => {
                   value={email}
                   onChangeText={setEmail}
                   onFocus={() => {
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-                    }, 100);
+                    if (Platform.OS !== 'web') {
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+                      }, 100);
+                    }
                   }}
                   keyboardType="email-address"
                   autoCapitalize="none"
@@ -517,9 +519,11 @@ const LoginScreen = ({ navigation }) => {
                   value={password}
                   onChangeText={setPassword}
                   onFocus={() => {
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 100 : 120, animated: true });
-                    }, 100);
+                    if (Platform.OS !== 'web') {
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollTo({ y: isSmallDevice ? 100 : 120, animated: true });
+                      }, 100);
+                    }
                   }}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
@@ -736,11 +740,16 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     minWidth: 0,
-    fontSize: 14,
+    fontSize: 15,
     color: '#0F172A',
     fontWeight: '500',
     paddingVertical: 0,
-    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+    height: '100%',
+    ...(Platform.OS === 'web' ? {
+      outlineStyle: 'none',
+      userSelect: 'text',
+      WebkitUserSelect: 'text',
+    } : {}),
   },
   clearBtn: {
     padding: 4,
