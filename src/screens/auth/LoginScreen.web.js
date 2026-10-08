@@ -1802,25 +1802,39 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   )}
 
                   <Text style={styles.inputLabel}>{t('auth_email_phone', 'Email or Mobile Number')}</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder={t('auth_email_phone_ph', 'Enter email or 10-digit mobile number')}
-                    placeholderTextColor="#94A3B8"
-                    value={email}
-                    onChangeText={(val) => {
-                      userHasTypedRef.current = true;
-                      setEmail(val);
-                    }}
-                    autoCapitalize="none"
-                    autoComplete="off"
-                    name="user_login_identity"
-                    id="user_login_identity"
-                  />
+                  <View style={[styles.inputBox, email ? styles.inputBoxFilled : null]}>
+                    <Ionicons
+                      name={email.includes('@') ? 'mail-outline' : 'call-outline'}
+                      size={18}
+                      color={email ? '#00B894' : '#94A3B8'}
+                      style={styles.inputPrefixIcon}
+                    />
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder={t('auth_email_phone_ph', 'Email address or 10-digit number')}
+                      placeholderTextColor="#94A3B8"
+                      value={email}
+                      onChangeText={(val) => {
+                        userHasTypedRef.current = true;
+                        setEmail(val);
+                      }}
+                      autoCapitalize="none"
+                      autoComplete="off"
+                      name="user_login_identity"
+                      id="user_login_identity"
+                    />
+                  </View>
 
                   <Text style={[styles.inputLabel, { marginTop: 14 }]}>{t('auth_password', 'Password')}</Text>
-                  <View style={styles.passwordWrap}>
+                  <View style={[styles.inputBox, password ? styles.inputBoxFilled : null]}>
+                    <Ionicons
+                      name="lock-closed-outline"
+                      size={18}
+                      color={password ? '#00B894' : '#94A3B8'}
+                      style={styles.inputPrefixIcon}
+                    />
                     <TextInput
-                      style={[styles.textInput, { flex: 1, borderWidth: 0 }]}
+                      style={styles.textInput}
                       placeholder={t('auth_password_ph', 'Enter your password')}
                       placeholderTextColor="#94A3B8"
                       value={password}
@@ -1836,10 +1850,11 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                     <TouchableOpacity
                       onPress={() => setShowPassword(!showPassword)}
                       style={styles.eyeBtn}
+                      activeOpacity={0.7}
                     >
                       <Ionicons
                         name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                        size={20}
+                        size={19}
                         color="#64748B"
                       />
                     </TouchableOpacity>
@@ -2021,60 +2036,109 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                     </View>
                   )}
 
+                  {/* 1. Full Name */}
                   <Text style={styles.inputLabel}>{t('auth_full_name', 'Full Name')}</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder={t('auth_full_name_ph', 'Enter your full name')}
-                    placeholderTextColor="#94A3B8"
-                    value={regName}
-                    onChangeText={(val) => {
-                      userHasTypedRef.current = true;
-                      setRegName(val);
-                    }}
-                    autoCapitalize="words"
-                    autoComplete="off"
-                    name="user_reg_fullname"
-                    id="user_reg_fullname"
-                  />
-
-                  <Text style={[styles.inputLabel, { marginTop: 12 }]}>Email Address</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="name@gmail.com"
-                    placeholderTextColor="#94A3B8"
-                    value={regEmail}
-                    onChangeText={(val) => {
-                      userHasTypedRef.current = true;
-                      setRegEmail(val);
-                    }}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    autoComplete="off"
-                    name="user_reg_email"
-                    id="user_reg_email"
-                  />
-
-                  <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t('auth_mobile_num', 'Mobile Number')}</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="9xxxxxxx01"
-                    placeholderTextColor="#94A3B8"
-                    value={regPhone}
-                    onChangeText={(val) => {
-                      userHasTypedRef.current = true;
-                      setRegPhone(val);
-                    }}
-                    keyboardType="phone-pad"
-                    maxLength={14}
-                    autoComplete="off"
-                    name="user_reg_phone"
-                    id="user_reg_phone"
-                  />
-
-                  <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t('auth_create_pass', 'Create Password')}</Text>
-                  <View style={styles.passwordWrap}>
+                  <View style={[styles.inputBox, regName ? styles.inputBoxFilled : null]}>
+                    <Ionicons
+                      name="person-outline"
+                      size={18}
+                      color={regName ? '#00B894' : '#94A3B8'}
+                      style={styles.inputPrefixIcon}
+                    />
                     <TextInput
-                      style={[styles.textInput, { flex: 1, borderWidth: 0 }]}
+                      style={styles.textInput}
+                      placeholder={t('auth_full_name_ph', 'Enter your full name')}
+                      placeholderTextColor="#94A3B8"
+                      value={regName}
+                      onChangeText={(val) => {
+                        userHasTypedRef.current = true;
+                        setRegName(val);
+                      }}
+                      autoCapitalize="words"
+                      autoComplete="off"
+                      name="user_reg_fullname"
+                      id="user_reg_fullname"
+                    />
+                  </View>
+
+                  {/* 2. Email Address */}
+                  <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t('auth_email', 'Email Address')}</Text>
+                  <View style={[styles.inputBox, regEmail ? styles.inputBoxFilled : null]}>
+                    <Ionicons
+                      name="mail-outline"
+                      size={18}
+                      color={regEmail ? '#00B894' : '#94A3B8'}
+                      style={styles.inputPrefixIcon}
+                    />
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="Enter your email address"
+                      placeholderTextColor="#94A3B8"
+                      value={regEmail}
+                      onChangeText={(val) => {
+                        userHasTypedRef.current = true;
+                        setRegEmail(val);
+                      }}
+                      autoCapitalize="none"
+                      keyboardType="email-address"
+                      autoComplete="off"
+                      name="user_reg_email"
+                      id="user_reg_email"
+                    />
+                  </View>
+
+                  {/* 3. Mobile Number */}
+                  <View style={[styles.fieldLabelRow, { marginTop: 12 }]}>
+                    <Text style={styles.inputLabel}>{t('auth_mobile_num', 'Mobile Number')}</Text>
+                    {regPhone.length > 0 && (
+                      <Text style={[styles.counterText, regPhone.length === 10 ? styles.counterTextSuccess : styles.counterTextWarning]}>
+                        {regPhone.length}/10 digits
+                      </Text>
+                    )}
+                  </View>
+                  <View style={[styles.inputBox, regPhone.length === 10 ? styles.inputBoxValid : regPhone ? styles.inputBoxFilled : null]}>
+                    <View style={styles.countryCodeBadge}>
+                      <Text style={styles.countryCodeText}>+91</Text>
+                    </View>
+                    <Ionicons
+                      name="call-outline"
+                      size={18}
+                      color={regPhone.length === 10 ? '#00B894' : '#94A3B8'}
+                      style={styles.inputPrefixIcon}
+                    />
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="10-digit mobile number"
+                      placeholderTextColor="#94A3B8"
+                      value={regPhone}
+                      onChangeText={(val) => {
+                        userHasTypedRef.current = true;
+                        const raw = val.replace(/[^0-9]/g, '');
+                        const cleaned = raw.length > 10 && raw.startsWith('91') ? raw.slice(2, 12) : raw.slice(0, 10);
+                        setRegPhone(cleaned);
+                      }}
+                      keyboardType="number-pad"
+                      maxLength={10}
+                      autoComplete="off"
+                      name="user_reg_phone"
+                      id="user_reg_phone"
+                    />
+                    {regPhone.length === 10 && (
+                      <Ionicons name="checkmark-circle" size={18} color="#00B894" />
+                    )}
+                  </View>
+
+                  {/* 4. Create Password */}
+                  <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t('auth_create_pass', 'Create Password')}</Text>
+                  <View style={[styles.inputBox, regPassword ? styles.inputBoxFilled : null]}>
+                    <Ionicons
+                      name="lock-closed-outline"
+                      size={18}
+                      color={regPassword ? '#00B894' : '#94A3B8'}
+                      style={styles.inputPrefixIcon}
+                    />
+                    <TextInput
+                      style={styles.textInput}
                       placeholder={t('auth_create_pass_ph', 'Enter a secure password (min 6 characters)')}
                       placeholderTextColor="#94A3B8"
                       value={regPassword}
@@ -2090,19 +2154,27 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                     <TouchableOpacity
                       onPress={() => setShowRegPassword(!showRegPassword)}
                       style={styles.eyeBtn}
+                      activeOpacity={0.7}
                     >
                       <Ionicons
                         name={showRegPassword ? 'eye-off-outline' : 'eye-outline'}
-                        size={20}
+                        size={19}
                         color="#64748B"
                       />
                     </TouchableOpacity>
                   </View>
 
+                  {/* 5. Confirm Password */}
                   <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t('auth_confirm_pass', 'Confirm Password')}</Text>
-                  <View style={styles.passwordWrap}>
+                  <View style={[styles.inputBox, regConfirmPassword ? styles.inputBoxFilled : null]}>
+                    <Ionicons
+                      name="shield-checkmark-outline"
+                      size={18}
+                      color={regConfirmPassword ? '#00B894' : '#94A3B8'}
+                      style={styles.inputPrefixIcon}
+                    />
                     <TextInput
-                      style={[styles.textInput, { flex: 1, borderWidth: 0 }]}
+                      style={styles.textInput}
                       placeholder={t('auth_confirm_pass_ph', 'Re-enter your password to confirm')}
                       placeholderTextColor="#94A3B8"
                       value={regConfirmPassword}
@@ -2118,10 +2190,11 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                     <TouchableOpacity
                       onPress={() => setShowRegConfirmPassword(!showRegConfirmPassword)}
                       style={styles.eyeBtn}
+                      activeOpacity={0.7}
                     >
                       <Ionicons
                         name={showRegConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
-                        size={20}
+                        size={19}
                         color="#64748B"
                       />
                     </TouchableOpacity>
@@ -2139,11 +2212,17 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                     </View>
                   )}
 
-                  {/* Optional Friend Referral Code Input */}
+                  {/* 6. Referral Code (Optional) */}
                   <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t('auth_referral_code', 'Referral Code (Optional)')}</Text>
-                  <View style={{ position: 'relative' }}>
+                  <View style={[styles.inputBox, regReferralCode.trim() ? styles.inputBoxFilled : null]}>
+                    <Ionicons
+                      name="pricetag-outline"
+                      size={18}
+                      color={regReferralCode.trim() ? '#00B894' : '#94A3B8'}
+                      style={styles.inputPrefixIcon}
+                    />
                     <TextInput
-                      style={[styles.textInput, regReferralCode.trim() ? { borderColor: '#00B894', backgroundColor: '#F0FDF4' } : null]}
+                      style={styles.textInput}
                       placeholder="e.g. PRIYA250 (Get ₹250 Welcome Bonus)"
                       placeholderTextColor="#94A3B8"
                       value={regReferralCode}
@@ -2157,8 +2236,8 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                       id="user_reg_refcode"
                     />
                     {regReferralCode.trim().length > 0 && (
-                      <View style={{ position: 'absolute', right: 12, top: 11, backgroundColor: '#00B894', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4 }}>
-                        <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFFFFF' }}>+₹250 BONUS</Text>
+                      <View style={styles.bonusBadge}>
+                        <Text style={styles.bonusBadgeText}>+₹250 BONUS</Text>
                       </View>
                     )}
                   </View>
@@ -3619,27 +3698,85 @@ const styles = StyleSheet.create({
     color: '#1E3A8A',
     marginBottom: 6,
   },
-  textInput: {
-    backgroundColor: '#FAFCFD',
-    borderWidth: 1,
-    borderColor: '#DCE7EC',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#1E3A8A',
-    outlineStyle: 'none',
-  },
-  passwordWrap: {
+  fieldLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FAFCFD',
-    borderWidth: 1,
-    borderColor: '#DCE7EC',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  counterText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  counterTextSuccess: {
+    color: '#00B894',
+  },
+  counterTextWarning: {
+    color: '#F59E0B',
+  },
+  countryCodeBadge: {
+    backgroundColor: '#F0FDF9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 8,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+  },
+  countryCodeText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#00B894',
+  },
+  inputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 48,
+  },
+  inputBoxFilled: {
+    borderColor: '#00B894',
+    backgroundColor: '#FFFFFF',
+  },
+  inputBoxValid: {
+    borderColor: '#00B894',
+    backgroundColor: '#FFFFFF',
+  },
+  inputPrefixIcon: {
+    marginRight: 10,
+  },
+  textInput: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '500',
+    paddingVertical: 0,
+    height: '100%',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    outlineStyle: 'none',
+  },
+  bonusBadge: {
+    backgroundColor: '#00B894',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 4,
+    marginLeft: 6,
+  },
+  bonusBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   eyeBtn: {
-    paddingHorizontal: 12,
+    paddingLeft: 8,
+    paddingRight: 2,
     paddingVertical: 8,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
