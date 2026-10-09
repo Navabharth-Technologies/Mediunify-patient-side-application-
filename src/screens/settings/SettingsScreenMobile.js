@@ -307,7 +307,7 @@ const SettingsScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         <Text style={[styles.headerTitle, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
-          Settings
+          {t('settings', 'Settings')}
         </Text>
 
         <View style={{ width: 36 }} />
@@ -329,7 +329,7 @@ const SettingsScreen = ({ navigation }) => {
           {/* ==================================================
               SECTION 1: ACCOUNT
           ================================================== */}
-          <Text style={styles.sectionHeaderTitle}>ACCOUNT</Text>
+          <Text style={styles.sectionHeaderTitle}>{t('settings_account', 'ACCOUNT')}</Text>
           <View style={[styles.groupCard, { backgroundColor: theme.card || '#FFFFFF', borderColor: theme.border || '#E2E8F0' }]}>
             {/* 👤 Personal Information */}
             <TouchableOpacity
@@ -346,7 +346,7 @@ const SettingsScreen = ({ navigation }) => {
                   <Ionicons name="person-outline" size={18} color="#2563EB" />
                 </View>
                 <Text style={[styles.settingName, { color: theme.text || '#0F172A' }]}>
-                  Personal Information
+                  {t('personal_info', 'Personal Information')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
@@ -369,7 +369,7 @@ const SettingsScreen = ({ navigation }) => {
                   <Ionicons name="people-outline" size={18} color="#0D9488" />
                 </View>
                 <Text style={[styles.settingName, { color: theme.text || '#0F172A' }]}>
-                  Family Members
+                  {t('family_members', 'Family Members')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
@@ -388,7 +388,7 @@ const SettingsScreen = ({ navigation }) => {
                   <Ionicons name="location-outline" size={18} color="#EA580C" />
                 </View>
                 <Text style={[styles.settingName, { color: theme.text || '#0F172A' }]}>
-                  Address
+                  {t('address', 'Address')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
@@ -411,7 +411,7 @@ const SettingsScreen = ({ navigation }) => {
                   <Ionicons name="ribbon-outline" size={18} color="#D97706" />
                 </View>
                 <Text style={[styles.settingName, { color: theme.text || '#0F172A' }]}>
-                  Membership
+                  {t('membership', 'Membership')}
                 </Text>
               </View>
               <View style={styles.badgeRightWrap}>
@@ -427,7 +427,7 @@ const SettingsScreen = ({ navigation }) => {
           {/* ==================================================
               SECTION 2: PREFERENCES
           ================================================== */}
-          <Text style={styles.sectionHeaderTitle}>PREFERENCES</Text>
+          <Text style={styles.sectionHeaderTitle}>{t('settings_preferences', 'PREFERENCES')}</Text>
           <View style={[styles.groupCard, { backgroundColor: theme.card || '#FFFFFF', borderColor: theme.border || '#E2E8F0' }]}>
             {/* 🔔 Notifications */}
             <TouchableOpacity
@@ -440,12 +440,12 @@ const SettingsScreen = ({ navigation }) => {
                   <Ionicons name="notifications-outline" size={18} color="#059669" />
                 </View>
                 <Text style={[styles.settingName, { color: theme.text || '#0F172A' }]}>
-                  Notifications
+                  {t('notifications', 'Notifications')}
                 </Text>
               </View>
               <View style={styles.badgeRightWrap}>
                 <Text style={[styles.statusText, { color: isNotificationsOn ? '#00B894' : '#94A3B8' }]}>
-                  {isNotificationsOn ? 'On' : 'Off'}
+                  {isNotificationsOn ? t('status_on', 'On') : t('status_off', 'Off')}
                 </Text>
                 <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
               </View>
@@ -464,7 +464,7 @@ const SettingsScreen = ({ navigation }) => {
                   <Ionicons name="globe-outline" size={18} color="#00B894" />
                 </View>
                 <Text style={[styles.settingName, { color: theme.text || '#0F172A' }]}>
-                  Language
+                  {t('language', 'Language')}
                 </Text>
               </View>
               <View style={styles.badgeRightWrap}>
@@ -488,7 +488,7 @@ const SettingsScreen = ({ navigation }) => {
                   <Ionicons name="options-outline" size={18} color="#4F46E5" />
                 </View>
                 <Text style={[styles.settingName, { color: theme.text || '#0F172A' }]}>
-                  App Preferences
+                  {t('app_preferences', 'App Preferences')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
@@ -498,7 +498,7 @@ const SettingsScreen = ({ navigation }) => {
           {/* ==================================================
               SECTION 3: PRIVACY & SECURITY
           ================================================== */}
-          <Text style={styles.sectionHeaderTitle}>PRIVACY & SECURITY</Text>
+          <Text style={styles.sectionHeaderTitle}>{t('privacy_security', 'PRIVACY & SECURITY')}</Text>
           <View style={[styles.groupCard, { backgroundColor: theme.card || '#FFFFFF', borderColor: theme.border || '#E2E8F0' }]}>
             {/* 🔒 Privacy */}
             <TouchableOpacity
@@ -511,7 +511,7 @@ const SettingsScreen = ({ navigation }) => {
                   <Ionicons name="shield-checkmark-outline" size={18} color="#0284C7" />
                 </View>
                 <Text style={[styles.settingName, { color: theme.text || '#0F172A' }]}>
-                  Privacy
+                  {t('privacy', 'Privacy')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
@@ -530,12 +530,12 @@ const SettingsScreen = ({ navigation }) => {
                   <Ionicons name="finger-print-outline" size={18} color="#16A34A" />
                 </View>
                 <Text style={[styles.settingName, { color: theme.text || '#0F172A' }]}>
-                  Security
+                  {t('security', 'Security')}
                 </Text>
               </View>
               <View style={styles.badgeRightWrap}>
                 <Text style={[styles.statusText, { color: biometricEnabled ? '#00B894' : '#94A3B8' }]}>
-                  {biometricEnabled ? 'Biometric On' : 'Standard'}
+                  {biometricEnabled ? t('biometric_on', 'Biometric On') : t('security_standard', 'Standard')}
                 </Text>
                 <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
               </View>
@@ -554,7 +554,7 @@ const SettingsScreen = ({ navigation }) => {
                   <Ionicons name="key-outline" size={18} color="#9333EA" />
                 </View>
                 <Text style={[styles.settingName, { color: theme.text || '#0F172A' }]}>
-                  Login & Security
+                  {t('login_security', 'Login & Security')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
@@ -564,7 +564,7 @@ const SettingsScreen = ({ navigation }) => {
           {/* ==================================================
               SECTION 4: SUPPORT
           ================================================== */}
-          <Text style={styles.sectionHeaderTitle}>SUPPORT</Text>
+          <Text style={styles.sectionHeaderTitle}>{t('support', 'SUPPORT')}</Text>
           <View style={[styles.groupCard, { backgroundColor: theme.card || '#FFFFFF', borderColor: theme.border || '#E2E8F0' }]}>
             {/* ❓ Help & Support */}
             <TouchableOpacity
@@ -581,7 +581,7 @@ const SettingsScreen = ({ navigation }) => {
                   <Ionicons name="help-circle-outline" size={18} color="#D97706" />
                 </View>
                 <Text style={[styles.settingName, { color: theme.text || '#0F172A' }]}>
-                  Help & Support
+                  {t('help_support', 'Help & Support')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
@@ -600,7 +600,7 @@ const SettingsScreen = ({ navigation }) => {
                   <Ionicons name="information-circle-outline" size={18} color="#3B82F6" />
                 </View>
                 <Text style={[styles.settingName, { color: theme.text || '#0F172A' }]}>
-                  About MediUnify
+                  {t('about_mediunify', 'About MediUnify')}
                 </Text>
               </View>
               <View style={styles.badgeRightWrap}>
@@ -622,7 +622,7 @@ const SettingsScreen = ({ navigation }) => {
             onPress={handleLogout}
           >
             <Ionicons name="log-out-outline" size={19} color="#EF4444" style={{ marginRight: 8 }} />
-            <Text style={styles.logoutButtonText}>Log Out</Text>
+            <Text style={styles.logoutButtonText}>{t('logout', 'Log Out')}</Text>
           </TouchableOpacity>
 
           <Text style={[styles.versionFooterText, { color: theme.textSecondary || '#94A3B8' }]}>
@@ -645,10 +645,10 @@ const SettingsScreen = ({ navigation }) => {
             <View style={styles.modalHeader}>
               <View>
                 <Text style={[styles.modalTitle, { color: theme.text || '#0F172A' }]}>
-                  Select Language
+                  {t('select_language', 'Select Language')}
                 </Text>
                 <Text style={[styles.modalSub, { color: theme.textSecondary || '#64748B' }]}>
-                  Choose your preferred regional language
+                  {t('choose_language', 'Choose your preferred regional language')}
                 </Text>
               </View>
               <TouchableOpacity

@@ -10,9 +10,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import colors from '../theme/colors';
+import { useTheme } from '../context/ThemeContext';
 
 const MainTabNavigator = ({ navigation, state }) => {
-
+  const { t } = useTheme();
   const currentRoute = state?.routes?.[state.index]?.name;
 
   const goTo = (routeName) => {
@@ -58,7 +59,7 @@ const MainTabNavigator = ({ navigation, state }) => {
               styles.activeBottomText,
           ]}
         >
-          Home
+          {t('nav_home', 'Home')}
         </Text>
 
       </TouchableOpacity>
@@ -96,7 +97,7 @@ const MainTabNavigator = ({ navigation, state }) => {
               styles.activeBottomText,
           ]}
         >
-          In-Person
+          {t('service_in_clinic', 'In-Person')}
         </Text>
 
       </TouchableOpacity>
@@ -139,7 +140,7 @@ const MainTabNavigator = ({ navigation, state }) => {
               styles.activeBottomText,
           ]}
         >
-          Video
+          {t('service_video_consult', 'Video')}
         </Text>
 
       </TouchableOpacity>
@@ -181,7 +182,7 @@ const MainTabNavigator = ({ navigation, state }) => {
               styles.activeBottomText,
           ]}
         >
-          Account
+          {t('nav_account', 'Account')}
         </Text>
 
       </TouchableOpacity>

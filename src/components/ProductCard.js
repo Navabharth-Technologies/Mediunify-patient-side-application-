@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../context/CartContext';
+import { useTheme } from '../context/ThemeContext';
 import colors from '../theme/colors';
 
 const getCategoryIcon = (category) => {
@@ -35,6 +36,7 @@ const getCategoryIcon = (category) => {
 };
 
 const ProductCard = ({ product, navigation, store = null, onPress = null }) => {
+  const { t, isIndic } = useTheme();
   const { cart, pharmacyCart, addToCart, increaseQuantity, decreaseQuantity, selectedPharmacyStore } = useCart();
 
   const currentStore = store || selectedPharmacyStore;
@@ -130,7 +132,7 @@ const ProductCard = ({ product, navigation, store = null, onPress = null }) => {
           }}
         >
           <Ionicons name="cart-outline" size={15} color={colors.white} />
-          <Text style={styles.addText}>Add</Text>
+          <Text style={[styles.addText, isIndic && { lineHeight: 16 }]}>{t('common.add', 'Add')}</Text>
         </TouchableOpacity>
       ) : (
         <View style={styles.quantityContainer}>

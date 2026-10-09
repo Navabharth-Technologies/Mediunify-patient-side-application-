@@ -12,45 +12,42 @@ import {
 } from '@expo/vector-icons';
 
 import colors from '../theme/colors';
-
+import { useTheme } from '../context/ThemeContext';
 
 const PharmacyCategoryCard = ({
   category,
   onPress,
 }) => {
+  const { t, isIndic } = useTheme();
 
   return (
-
     <TouchableOpacity
       style={styles.card}
       activeOpacity={0.8}
       onPress={onPress}
     >
-
       <View
         style={styles.iconContainer}
       >
-
         <Ionicons
           name={category.icon}
           size={28}
           color={colors.primary}
         />
-
       </View>
 
       <Text
-        style={styles.name}
+        style={[styles.name, isIndic && { lineHeight: 18 }]}
         numberOfLines={2}
       >
-        {category.name}
+        {category.name ? t(category.name, category.name) : ''}
       </Text>
 
       <Text
-        style={styles.description}
+        style={[styles.description, isIndic && { lineHeight: 16 }]}
         numberOfLines={2}
       >
-        {category.description}
+        {category.description ? t(category.description, category.description) : ''}
       </Text>
 
     </TouchableOpacity>

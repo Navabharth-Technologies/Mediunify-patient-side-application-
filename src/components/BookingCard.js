@@ -2,11 +2,13 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../theme/colors';
+import { useTheme } from '../context/ThemeContext';
 
 const BookingCard = ({ booking }) => {
+  const { t } = useTheme();
   return (
     <View style={styles.card}>
-      <Text style={styles.type}>{booking.type}</Text>
+      <Text style={styles.type}>{booking.type ? t(booking.type, booking.type) : ''}</Text>
 
       <Text style={styles.title}>
         {booking.title}
@@ -24,7 +26,7 @@ const BookingCard = ({ booking }) => {
 
       <View style={styles.statusBox}>
         <Text style={styles.status}>
-          {booking.status}
+          {booking.status ? t(booking.status, booking.status) : ''}
         </Text>
       </View>
     </View>

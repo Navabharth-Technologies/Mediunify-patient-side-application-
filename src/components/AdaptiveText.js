@@ -5,7 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 /**
  * AdaptiveText Component (Section 17A: Automatic Font Resizing & Layout Alignment)
  * 
- * Automatically adapts typography and line height based on the active language.
+ * Automatically adapts typography, line height and localized content based on active language.
  * Prevents vertical diacritic clipping (Kannada/Hindi matras) and prevents
  * horizontal text overflows by safely adjusting font size and line height.
  */
@@ -17,9 +17,10 @@ const AdaptiveText = ({
   scaleDown = 1,
   allowWrap = true,
   numberOfLines,
+  autoTranslate = true,
   ...restProps
 }) => {
-  const { isIndic, getAdaptiveFontSize, getAdaptiveLineHeight } = useTheme();
+  const { isIndic, getAdaptiveFontSize, getAdaptiveLineHeight, t } = useTheme();
 
   const flattenedStyle = StyleSheet.flatten(style) || {};
   const baseFontSize = flattenedStyle.fontSize || 14;
@@ -31,6 +32,11 @@ const AdaptiveText = ({
   const adaptedLineHeight = isIndic
     ? getAdaptiveLineHeight(adaptedFontSize, flattenedStyle.lineHeight)
     : flattenedStyle.lineHeight;
+
+  let renderedContent = children;
+  if (autoTranslate && typeof children === 'string' && children.trim()) {
+    renderedContent = t(children);
+  }
 
   return (
     <Text
@@ -45,7 +51,7 @@ const AdaptiveText = ({
         },
       ]}
     >
-      {children}
+      {renderedContent}
     </Text>
   );
 };

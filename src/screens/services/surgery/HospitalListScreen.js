@@ -24,10 +24,12 @@ import {
   reverseGeocodeWebSafe,
   geocodeWebSafe,
 } from '../../../utils/locationHelper';
+import { useTheme } from '../../../context/ThemeContext';
 
 const HospitalListScreen = ({ navigation }) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const { t } = useTheme();
 
   const [hospitals, setHospitals] = useState([]);
   const [filteredHospitals, setFilteredHospitals] = useState([]);
@@ -955,7 +957,7 @@ const HospitalListScreen = ({ navigation }) => {
             <Text
               style={styles.feeText}
             >
-              Consultation from ₹
+              {t('Consultation from ₹')}
               {item.fee}
             </Text>
 
@@ -1014,7 +1016,7 @@ const HospitalListScreen = ({ navigation }) => {
                   styles.buttonText
                 }
               >
-                Call
+                {t('Call')}
               </Text>
 
             </TouchableOpacity>
@@ -1045,7 +1047,7 @@ const HospitalListScreen = ({ navigation }) => {
                   styles.buttonText
                 }
               >
-                Navigate
+                {t('Navigate')}
               </Text>
 
             </TouchableOpacity>
@@ -1099,7 +1101,7 @@ const HospitalListScreen = ({ navigation }) => {
           <Text
             style={styles.headerTitle}
           >
-            Hospital Care
+            {t('Hospital Care')}
           </Text>
 
 
@@ -1126,8 +1128,8 @@ const HospitalListScreen = ({ navigation }) => {
             style={styles.loadingTitle}
           >
             {searchingLocation
-              ? 'Searching location...'
-              : 'Finding nearby hospitals...'}
+              ? t('Searching location...')
+              : t('Finding nearby hospitals...')}
           </Text>
 
 
@@ -1136,7 +1138,7 @@ const HospitalListScreen = ({ navigation }) => {
               styles.loadingSubtitle
             }
           >
-            Please wait
+            {t('Please wait...')}
           </Text>
 
         </View>
@@ -1163,7 +1165,7 @@ const HospitalListScreen = ({ navigation }) => {
           >
             <Ionicons name="arrow-back" size={24} color="#263238" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Hospital Care</Text>
+          <Text style={styles.headerTitle}>{t('Hospital Care')}</Text>
           <TouchableOpacity style={styles.refreshButton} onPress={getCurrentLocation}>
             <Ionicons name="locate-outline" size={23} color="#1976D2" />
           </TouchableOpacity>
@@ -1175,12 +1177,12 @@ const HospitalListScreen = ({ navigation }) => {
       {/* LOCATION SEARCH (MOBILE ONLY) */}
       {!isDesktopWeb && (
         <View style={styles.searchSection}>
-          <Text style={styles.searchTitle}>Find hospitals near a location</Text>
+          <Text style={styles.searchTitle}>{t('Find hospitals near a location')}</Text>
           <View style={styles.searchContainer}>
             <Ionicons name="search-outline" size={21} color="#78909C" />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search city or area"
+              placeholder={t('Search city or area')}
               placeholderTextColor="#90A4AE"
               value={searchText}
               onChangeText={setSearchText}
@@ -1199,7 +1201,7 @@ const HospitalListScreen = ({ navigation }) => {
 
           <TouchableOpacity style={styles.currentLocationButton} onPress={getCurrentLocation}>
             <Ionicons name="navigate-outline" size={17} color="#1976D2" />
-            <Text style={styles.currentLocationText}>Use My Current Location</Text>
+            <Text style={styles.currentLocationText}>{t('Use My Current Location')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -1241,7 +1243,7 @@ const HospitalListScreen = ({ navigation }) => {
                 styles.locationTitle
               }
             >
-              Searching around
+              {t('Searching around')}
             </Text>
 
 
@@ -1283,7 +1285,7 @@ const HospitalListScreen = ({ navigation }) => {
         <Text
           style={styles.filterTitle}
         >
-          Sort hospitals
+          {t('Sort hospitals')}
         </Text>
 
 
@@ -1292,22 +1294,22 @@ const HospitalListScreen = ({ navigation }) => {
           data={[
             {
               id: 'nearest',
-              label: 'Nearest',
+              label: t('Nearest'),
               icon: 'location-outline',
             },
             {
               id: 'rating',
-              label: 'Highest Fee',
+              label: t('Highest Fee'),
               icon: 'cash-outline',
             },
             {
               id: 'fee',
-              label: 'Lowest Fee',
+              label: t('Lowest Fee'),
               icon: 'cash-outline',
             },
             {
               id: 'farthest',
-              label: 'Farthest',
+              label: t('Farthest'),
               icon: 'swap-vertical-outline',
             },
           ]}
@@ -1375,14 +1377,14 @@ const HospitalListScreen = ({ navigation }) => {
           style={styles.resultText}
         >
           {filteredHospitals.length}{' '}
-          hospitals found
+          {t('hospitals found')}
         </Text>
 
 
         <Text
           style={styles.resultSubText}
         >
-          Within 10 km
+          {t('Within 10 km')}
         </Text>
 
       </View>
@@ -1411,7 +1413,7 @@ const HospitalListScreen = ({ navigation }) => {
               styles.emptyTitle
             }
           >
-            No hospitals found
+            {t('No hospitals found')}
           </Text>
 
 
@@ -1420,9 +1422,7 @@ const HospitalListScreen = ({ navigation }) => {
               styles.emptyText
             }
           >
-            Try searching for another
-            location or use your current
-            location.
+            {t('Try searching for another location or use your current location.')}
           </Text>
 
 
@@ -1440,7 +1440,7 @@ const HospitalListScreen = ({ navigation }) => {
                 styles.retryButtonText
               }
             >
-              Use My Location
+              {t('Use My Location')}
             </Text>
 
           </TouchableOpacity>

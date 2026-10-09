@@ -25,6 +25,7 @@ import { LAB_PACKAGES } from '../../../data/labTestData';
 import WebFooter from '../../../components/web/WebFooter';
 import { useAuthGuard } from '../../../context/AuthGuardContext';
 import { saveTransaction } from '../../../services/transactionService';
+import { useTheme } from '../../../context/ThemeContext';
 import {
   getSlotStatus,
   validateAndBookSlot,
@@ -303,6 +304,7 @@ const DEFAULT_MOCKUP_ITEMS = [
 ];
 
 const CartScreen = ({ navigation, route }) => {
+  const { t, isIndic } = useTheme();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
   const { requireLogin } = useAuthGuard();
@@ -1246,7 +1248,7 @@ const CartScreen = ({ navigation, route }) => {
           <View style={styles.breadcrumbWrap}>
             <View style={styles.breadcrumbInner}>
               <TouchableOpacity onPress={() => navigation.navigate('Home')} activeOpacity={0.7}>
-                <Text style={styles.breadcrumbLink}>Home</Text>
+                <Text style={styles.breadcrumbLink}>{t('Home')}</Text>
               </TouchableOpacity>
               <Ionicons name="chevron-forward" size={13} color="#94A3B8" />
               <TouchableOpacity
@@ -1254,11 +1256,11 @@ const CartScreen = ({ navigation, route }) => {
                 activeOpacity={0.7}
               >
                 <Text style={styles.breadcrumbLink}>
-                  {activeCartTab === 'radiology' ? 'Radiology & Imaging Scans' : activeCartTab === 'lab' ? 'Lab Tests & Diagnostics' : 'Pharmacy'}
+                  {activeCartTab === 'radiology' ? t('navigation.scans_xray', 'Radiology & Imaging Scans') : activeCartTab === 'lab' ? t('navigation.lab_tests', 'Lab Tests & Diagnostics') : t('pharmacy.pharmacy_title', 'Pharmacy')}
                 </Text>
               </TouchableOpacity>
               <Ionicons name="chevron-forward" size={13} color="#94A3B8" />
-              <Text style={styles.breadcrumbActive}>Shopping Cart</Text>
+              <Text style={[styles.breadcrumbActive, isIndic && { lineHeight: 16 }]}>{t('pharmacy.cart_title', 'Shopping Cart')}</Text>
             </View>
           </View>
         ) : (
@@ -1271,19 +1273,19 @@ const CartScreen = ({ navigation, route }) => {
               <Ionicons name="arrow-back" size={22} color="#0F172A" />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
-              <Text style={styles.mobileHeaderTitle}>
+              <Text style={[styles.mobileHeaderTitle, isIndic && { lineHeight: 20 }]}>
                 {activeCartTab === 'radiology'
-                  ? 'Radiology & Scans Cart'
+                  ? t('Radiology & Scans Cart')
                   : activeCartTab === 'lab'
-                  ? 'Diagnostic & Lab Cart'
-                  : 'Pharmacy Cart'}
+                  ? t('Diagnostic & Lab Cart')
+                  : t('Pharmacy Cart')}
               </Text>
-              <Text style={styles.mobileHeaderSub}>
+              <Text style={[styles.mobileHeaderSub, isIndic && { lineHeight: 16 }]}>
                 {activeCartTab === 'radiology'
-                  ? (radiologyCart.length > 0 ? `${radiologyCart.length} scan${radiologyCart.length > 1 ? 's' : ''} added` : '0 scans added')
+                  ? (radiologyCart.length > 0 ? `${radiologyCart.length} ${t('scans added')}` : t('0 scans added'))
                   : activeCartTab === 'lab'
-                  ? (labCart.length > 0 ? `${labCart.length} test${labCart.length > 1 ? 's' : ''} added` : '0 tests added')
-                  : (items.length > 0 ? `${items.length} item${items.length > 1 ? 's' : ''} added` : '0 items')}
+                  ? (labCart.length > 0 ? `${labCart.length} ${t('tests added')}` : t('0 tests added'))
+                  : (items.length > 0 ? `${items.length} ${t('items added')}` : t('0 items'))}
               </Text>
             </View>
             <TouchableOpacity
@@ -1291,7 +1293,7 @@ const CartScreen = ({ navigation, route }) => {
               style={styles.mobileAddMoreBtn}
               activeOpacity={0.7}
             >
-              <Text style={styles.mobileAddMoreText}>+ Add More</Text>
+              <Text style={[styles.mobileAddMoreText, isIndic && { lineHeight: 14 }]}>{t('+ Add More')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1322,7 +1324,7 @@ const CartScreen = ({ navigation, route }) => {
                 adjustsFontSizeToFit
                 minimumFontScale={0.8}
               >
-                Pharmacy
+                {t('pharmacy.pharmacy_title', 'Pharmacy')}
               </Text>
               <View
                 style={[
@@ -1364,7 +1366,7 @@ const CartScreen = ({ navigation, route }) => {
                 adjustsFontSizeToFit
                 minimumFontScale={0.8}
               >
-                Lab Tests
+                {t('navigation.lab_tests', 'Lab Tests')}
               </Text>
               <View
                 style={[
@@ -1401,12 +1403,13 @@ const CartScreen = ({ navigation, route }) => {
                 style={[
                   styles.cartCategoryTabText,
                   activeCartTab === 'radiology' && styles.cartCategoryTabTextActiveRad,
+                  isIndic && { lineHeight: 16 },
                 ]}
                 numberOfLines={1}
                 adjustsFontSizeToFit
                 minimumFontScale={0.8}
               >
-                Radiology
+                {t('navigation.scans_xray', 'Radiology')}
               </Text>
               <View
                 style={[

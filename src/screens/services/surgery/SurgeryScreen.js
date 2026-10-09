@@ -20,6 +20,7 @@ import { showAlert } from '../../../utils/alert';
 import WebFooter from '../../../components/web/WebFooter';
 import { surgerySpecialties, surgeryHospitals } from '../../../data/surgeryHospitalsData';
 import { useAuthGuard } from '../../../context/AuthGuardContext';
+import { useTheme } from '../../../context/ThemeContext';
 
 const SURGERY_LIST = [
   'General Surgery Consultation',
@@ -59,6 +60,7 @@ const SurgeryScreen = ({ navigation }) => {
   const isDesktopWeb = Platform.OS === 'web' && width >= 992;
   const isTablet = width >= 600 && width < 992;
   const { requireLogin } = useAuthGuard();
+  const { t } = useTheme();
 
   // Form State
   const [selectedSurgery, setSelectedSurgery] = useState('');
@@ -245,7 +247,7 @@ const SurgeryScreen = ({ navigation }) => {
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={{ fontSize: 17, fontWeight: '800', color: '#0F172A' }} numberOfLines={1}>
-            Surgery
+            {t('Surgery')}
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
             <TouchableOpacity
@@ -260,7 +262,7 @@ const SurgeryScreen = ({ navigation }) => {
             {isDesktopWeb && (
               <View style={styles.liveVerifiedPill}>
                 <View style={styles.livePulseDot} />
-                <Text style={styles.liveVerifiedPillText}>24/7 Verified Care</Text>
+                <Text style={styles.liveVerifiedPillText}>{t('24/7 Verified Care')}</Text>
               </View>
             )}
           </View>
@@ -286,30 +288,30 @@ const SurgeryScreen = ({ navigation }) => {
               {/* Hero Banner Card */}
               <View style={[styles.heroBannerCard, !isDesktopWeb && styles.heroBannerCardMobile]}>
                 <Text style={styles.heroHeadline}>
-                  Surgical Care, <Text style={styles.heroHeadlineAccent}>Near You</Text>
+                  {t('Surgical Care')}, <Text style={styles.heroHeadlineAccent}>{t('Near You')}</Text>
                 </Text>
 
                 {/* Trust Badges */}
                 <View style={styles.heroValuePropsRow}>
                   <View style={[styles.heroValueItem, !isDesktopWeb && styles.heroValueItemMobile]}>
                     <Ionicons name="shield-checkmark" size={12} color="#0D9488" />
-                    <Text style={styles.heroValueText}>NABH Accredited</Text>
+                    <Text style={styles.heroValueText}>{t('NABH Accredited')}</Text>
                   </View>
                   <View style={[styles.heroValueItem, !isDesktopWeb && styles.heroValueItemMobile]}>
                     <Ionicons name="pricetag-outline" size={11} color="#0D9488" />
-                    <Text style={styles.heroValueText}>Fixed Prices</Text>
+                    <Text style={styles.heroValueText}>{t('Fixed Prices')}</Text>
                   </View>
                   <View style={[styles.heroValueItem, !isDesktopWeb && styles.heroValueItemMobile]}>
                     <Ionicons name="checkmark-circle" size={12} color="#0D9488" />
-                    <Text style={styles.heroValueText}>Cashless Insurance</Text>
+                    <Text style={styles.heroValueText}>{t('Cashless Insurance')}</Text>
                   </View>
                 </View>
 
                 {/* Quick Consultation Form */}
                 <View style={[styles.quickFormCard, !isDesktopWeb && styles.quickFormCardMobile]}>
-                  <Text style={styles.quickFormTitle}>Book a Free Callback</Text>
+                  <Text style={styles.quickFormTitle}>{t('Book a Free Callback')}</Text>
                   <Text style={styles.quickFormSubtitle}>
-                    Free hospital & price advice in 15 mins.
+                    {t('Free hospital & price advice in 15 mins.')}
                   </Text>
 
                   {/* Form Fields Grid with Clean Gaps */}
@@ -330,7 +332,7 @@ const SurgeryScreen = ({ navigation }) => {
                             ]}
                             numberOfLines={1}
                           >
-                            {selectedSurgery || 'Select Procedure'}
+                            {selectedSurgery ? t(selectedSurgery) : t('Select Procedure')}
                           </Text>
                         </View>
                         <Ionicons name="chevron-down" size={18} color="#64748B" />
@@ -347,7 +349,7 @@ const SurgeryScreen = ({ navigation }) => {
                         <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
                           <Ionicons name="location-outline" size={17} color="#00B894" />
                           <Text style={styles.dropdownFieldText} numberOfLines={1}>
-                            {selectedCity ? `City: ${selectedCity}` : 'Select City'}
+                            {selectedCity ? `${t('City')}: ${selectedCity}` : t('Select City')}
                           </Text>
                         </View>
                         <Ionicons name="chevron-down" size={18} color="#64748B" />
@@ -360,7 +362,7 @@ const SurgeryScreen = ({ navigation }) => {
                         <Ionicons name="person-outline" size={16} color="#00B894" style={{ marginRight: 8 }} />
                         <TextInput
                           style={styles.quickTextInput}
-                          placeholder="Patient Name"
+                          placeholder={t('Patient Name')}
                           placeholderTextColor="#94A3B8"
                           value={name}
                           onChangeText={setName}
@@ -374,7 +376,7 @@ const SurgeryScreen = ({ navigation }) => {
                         <Ionicons name="call-outline" size={16} color="#00B894" style={{ marginRight: 8 }} />
                         <TextInput
                           style={styles.quickTextInput}
-                          placeholder="Mobile Number"
+                          placeholder={t('Mobile Number')}
                           placeholderTextColor="#94A3B8"
                           value={mobileNumber}
                           onChangeText={setMobileNumber}
@@ -393,7 +395,7 @@ const SurgeryScreen = ({ navigation }) => {
                     disabled={loading}
                   >
                     <Text style={styles.quickSubmitBtnText}>
-                      {loading ? 'Submitting...' : 'Get Free Callback'}
+                      {loading ? t('Submitting...') : t('Get Free Callback')}
                     </Text>
                   </TouchableOpacity>
 
@@ -401,11 +403,11 @@ const SurgeryScreen = ({ navigation }) => {
                   <View style={styles.quickContactRow}>
                     <TouchableOpacity style={styles.quickContactBtn} onPress={handleCall} activeOpacity={0.8}>
                       <Ionicons name="call" size={13} color="#0D9488" />
-                      <Text style={styles.quickContactBtnText}>Call Helpline</Text>
+                      <Text style={styles.quickContactBtnText}>{t('Call Helpline')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.quickContactBtn} onPress={handleWhatsApp} activeOpacity={0.8}>
                       <Ionicons name="logo-whatsapp" size={13} color="#16A34A" />
-                      <Text style={[styles.quickContactBtnText, { color: '#16A34A' }]}>WhatsApp</Text>
+                      <Text style={[styles.quickContactBtnText, { color: '#16A34A' }]}>{t('WhatsApp')}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -415,22 +417,22 @@ const SurgeryScreen = ({ navigation }) => {
               <View style={styles.statsGrid}>
                 <View style={styles.statBox}>
                   <Text style={styles.statValue}>2L+</Text>
-                  <Text style={styles.statLabel}>Surgeries</Text>
+                  <Text style={styles.statLabel}>{t('Surgeries')}</Text>
                 </View>
                 <View style={styles.statDivider} />
                 <View style={styles.statBox}>
                   <Text style={styles.statValue}>4.9★</Text>
-                  <Text style={styles.statLabel}>Rating</Text>
+                  <Text style={styles.statLabel}>{t('Rating')}</Text>
                 </View>
                 <View style={styles.statDivider} />
                 <View style={styles.statBox}>
                   <Text style={styles.statValue}>1,000+</Text>
-                  <Text style={styles.statLabel}>Hospitals</Text>
+                  <Text style={styles.statLabel}>{t('Hospitals')}</Text>
                 </View>
                 <View style={styles.statDivider} />
                 <View style={styles.statBox}>
                   <Text style={styles.statValue}>15 min</Text>
-                  <Text style={styles.statLabel}>Callback</Text>
+                  <Text style={styles.statLabel}>{t('Callback')}</Text>
                 </View>
               </View>
             </View>
@@ -444,28 +446,28 @@ const SurgeryScreen = ({ navigation }) => {
                 >
                   <Ionicons name="arrow-back" size={18} color="#0D9488" />
                   <Text style={{ fontSize: 13, fontWeight: '700', color: '#0D9488', marginLeft: 4 }}>
-                    Back to Surgery Care
+                    {t('Back to Surgery Care')}
                   </Text>
                 </TouchableOpacity>
-                <Text style={styles.sectionMainTitle}>My Quotes</Text>
+                <Text style={styles.sectionMainTitle}>{t('My Quotes')}</Text>
                 <Text style={styles.sectionSubtitle}>
-                  Track your surgery cost estimates
+                  {t('Track your surgery cost estimates')}
                 </Text>
               </View>
 
               {surgeryRequests.length === 0 ? (
                 <View style={styles.emptyQuotesCard}>
                   <Ionicons name="clipboard-outline" size={44} color="#94A3B8" />
-                  <Text style={styles.emptyQuotesTitle}>No Quotes Yet</Text>
+                  <Text style={styles.emptyQuotesTitle}>{t('No Quotes Yet')}</Text>
                   <Text style={styles.emptyQuotesSubtitle}>
-                    Request a free price quote with no obligations.
+                    {t('Request a free price quote with no obligations.')}
                   </Text>
                   <TouchableOpacity
                     style={styles.exploreNowBtn}
                     onPress={() => setActiveTab('explore')}
                     activeOpacity={0.85}
                   >
-                    <Text style={styles.exploreNowBtnText}>Explore Surgeries</Text>
+                    <Text style={styles.exploreNowBtnText}>{t('Explore Surgeries')}</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -477,7 +479,7 @@ const SurgeryScreen = ({ navigation }) => {
                           <Text style={styles.quoteIdText}>{req.id}</Text>
                         </View>
                         <View style={styles.quoteStatusPill}>
-                          <Text style={styles.quoteStatusText}>{req.status || 'Under Review'}</Text>
+                          <Text style={styles.quoteStatusText}>{t(req.status || 'Under Review')}</Text>
                         </View>
                       </View>
 
@@ -486,16 +488,16 @@ const SurgeryScreen = ({ navigation }) => {
 
                       <View style={styles.quoteDetailsRow}>
                         <Text style={styles.quoteDetailText}>
-                          👤 Patient: <Text style={{ fontWeight: '700' }}>{req.patientName}</Text>
+                          👤 {t('Patient')}: <Text style={{ fontWeight: '700' }}>{req.patientName}</Text>
                         </Text>
                         <Text style={styles.quoteDetailText}>
-                          📅 Date: <Text style={{ fontWeight: '700' }}>{req.preferredDate || 'Flexible'}</Text>
+                          📅 {t('Date')}: <Text style={{ fontWeight: '700' }}>{req.preferredDate ? t(req.preferredDate) : t('Flexible')}</Text>
                         </Text>
                       </View>
 
                       <View style={styles.quoteEstimateBox}>
-                        <Text style={styles.quoteEstimateLabel}>Estimated Cost</Text>
-                        <Text style={styles.quoteEstimateVal}>{req.indicativeEstimate || 'Pending Review'}</Text>
+                        <Text style={styles.quoteEstimateLabel}>{t('Estimated Cost')}</Text>
+                        <Text style={styles.quoteEstimateVal}>{t(req.indicativeEstimate || 'Pending Review')}</Text>
                       </View>
 
                       <View style={styles.quoteActionsRow}>
@@ -505,7 +507,7 @@ const SurgeryScreen = ({ navigation }) => {
                           activeOpacity={0.8}
                         >
                           <Ionicons name="call" size={13} color="#1E3A8A" />
-                          <Text style={styles.quoteCallBtnText}>Call Care Coordinator</Text>
+                          <Text style={styles.quoteCallBtnText}>{t('Call Care Coordinator')}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -514,7 +516,7 @@ const SurgeryScreen = ({ navigation }) => {
                           activeOpacity={0.8}
                         >
                           <Ionicons name="logo-whatsapp" size={13} color="#16A34A" />
-                          <Text style={styles.quoteWhatsAppBtnText}>WhatsApp</Text>
+                          <Text style={styles.quoteWhatsAppBtnText}>{t('WhatsApp')}</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -545,7 +547,7 @@ const SurgeryScreen = ({ navigation }) => {
         >
           <View style={styles.modalContentCard} onStartShouldSetResponder={() => true}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Surgery Procedure</Text>
+              <Text style={styles.modalTitle}>{t('Select Surgery Procedure')}</Text>
               <TouchableOpacity onPress={() => setSurgeryModalVisible(false)}>
                 <Ionicons name="close" size={22} color="#64748B" />
               </TouchableOpacity>
@@ -597,7 +599,7 @@ const SurgeryScreen = ({ navigation }) => {
         >
           <View style={styles.modalContentCard} onStartShouldSetResponder={() => true}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select City</Text>
+              <Text style={styles.modalTitle}>{t('Select City')}</Text>
               <TouchableOpacity onPress={() => setCityModalVisible(false)}>
                 <Ionicons name="close" size={22} color="#64748B" />
               </TouchableOpacity>

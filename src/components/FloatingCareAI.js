@@ -13,17 +13,16 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import colors from '../theme/colors';
-
+import { useTheme } from '../context/ThemeContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } =
   Dimensions.get('window');
 
-
 const BUTTON_SIZE = 64;
 const EDGE_MARGIN = 15;
 
-
 const FloatingCareAI = ({ onPress }) => {
+  const { t } = useTheme();
 
   // ==================================================
   // INITIAL POSITION
@@ -293,7 +292,7 @@ const FloatingCareAI = ({ onPress }) => {
       <View style={styles.label}>
 
         <Text style={styles.labelText}>
-          AI Care
+          {t('ai_care', 'AI Care')}
         </Text>
 
       </View>

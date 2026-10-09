@@ -10,8 +10,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { navigationRef } from '../../navigation/navigationRef';
+import { useTheme } from '../../context/ThemeContext';
 
 const FloatingAiBotIcon = () => {
+  const { t } = useTheme();
   if (Platform.OS !== 'web') return null;
 
   const { width } = useWindowDimensions();
@@ -164,7 +166,7 @@ const FloatingAiBotIcon = () => {
           <View style={styles.popupHeader}>
             <View style={styles.popupBadge}>
               <View style={styles.popupGreenDot} />
-              <Text style={styles.popupBadgeText}>Online · 24/7</Text>
+              <Text style={styles.popupBadgeText}>{t('online_24_7', 'Online · 24/7')}</Text>
             </View>
             <TouchableOpacity
               onPress={() => setShowPopup(false)}
@@ -185,13 +187,13 @@ const FloatingAiBotIcon = () => {
             accessibilityRole="button"
             accessibilityLabel="Chat with MediUnify AI"
           >
-            <Text style={styles.popupTitle}>Hi! I'm MediUnify AI</Text>
+            <Text style={styles.popupTitle}>{t('bot_greeting', "Hi! I'm MediUnify AI")}</Text>
             <Text style={styles.popupDesc}>
-              How can I help you today? Ask about symptoms, medicines or doctors.
+              {t('bot_help_prompt', 'How can I help you today? Ask about symptoms, medicines or doctors.')}
             </Text>
 
             <View style={styles.popupCta}>
-              <Text style={styles.popupCtaText}>Tap to chat</Text>
+              <Text style={styles.popupCtaText}>{t('tap_to_chat', 'Tap to chat')}</Text>
               <Ionicons name="arrow-forward" size={12} color="#00B894" />
             </View>
           </TouchableOpacity>

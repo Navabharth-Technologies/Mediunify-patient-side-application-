@@ -1156,8 +1156,8 @@ const HomeScreen = ({ navigation, route }) => {
         <View style={styles.hubSection}>
           <View style={styles.hubHeaderRow}>
             <View>
-              <Text style={styles.hubTitle}>Care Hub</Text>
-              <Text style={styles.hubSubtitle}>Instant & Secure</Text>
+              <Text style={styles.hubTitle}>{t('care_hub', 'Care Hub')}</Text>
+              <Text style={styles.hubSubtitle}>{t('instant_secure', 'Instant & Secure')}</Text>
             </View>
 
             {/* Orange / Peach Pill Reward Badge */}
@@ -1169,7 +1169,7 @@ const HomeScreen = ({ navigation, route }) => {
               <View style={styles.rewardIconBadge}>
                 <Ionicons name="gift" size={10} color="#FFFFFF" />
               </View>
-              <Text style={styles.rewardsPillText}>Invite Friends + Get Rewards</Text>
+              <Text style={styles.rewardsPillText}>{t('invite_friends', 'Invite Friends + Get Rewards')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -1184,7 +1184,9 @@ const HomeScreen = ({ navigation, route }) => {
               <View style={styles.actionCircle}>
                 <Ionicons name="videocam-outline" size={26} color="#007D69" />
               </View>
-              <Text style={styles.actionLabel}>Video Call{'\n'}Consultation</Text>
+              <Text style={[styles.actionLabel, isIndic && { fontSize: 10, lineHeight: 14 }]}>
+                {t('service_video_consult', 'Video Call Consultation')}
+              </Text>
             </TouchableOpacity>
 
             {/* 2. Lab Tests */}
@@ -1196,7 +1198,9 @@ const HomeScreen = ({ navigation, route }) => {
               <View style={styles.actionCircle}>
                 <Ionicons name="flask-outline" size={25} color="#007D69" />
               </View>
-              <Text style={styles.actionLabel}>Lab{'\n'}Tests</Text>
+              <Text style={[styles.actionLabel, isIndic && { fontSize: 10, lineHeight: 14 }]}>
+                {t('card_lab_tests', 'Lab Tests')}
+              </Text>
             </TouchableOpacity>
 
             {/* 3. Care Wallet */}
@@ -1208,7 +1212,9 @@ const HomeScreen = ({ navigation, route }) => {
               <View style={styles.actionCircle}>
                 <MaterialCommunityIcons name="wallet-outline" size={26} color="#007D69" />
               </View>
-              <Text style={styles.actionLabel}>Care{'\n'}Wallet</Text>
+              <Text style={[styles.actionLabel, isIndic && { fontSize: 10, lineHeight: 14 }]}>
+                {t('care_wallet', 'Care Wallet')}
+              </Text>
             </TouchableOpacity>
 
             {/* 4. Health Records */}
@@ -1220,7 +1226,9 @@ const HomeScreen = ({ navigation, route }) => {
               <View style={styles.actionCircle}>
                 <Ionicons name="documents-outline" size={25} color="#007D69" />
               </View>
-              <Text style={styles.actionLabel}>Health{'\n'}Records</Text>
+              <Text style={[styles.actionLabel, isIndic && { fontSize: 10, lineHeight: 14 }]}>
+                {t('health_records', 'Health Records')}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -1236,8 +1244,8 @@ const HomeScreen = ({ navigation, route }) => {
                 <Ionicons name="shield-checkmark" size={17} color="#007D69" />
               </View>
               <View style={{ flex: 1, marginLeft: 8 }}>
-                <Text style={styles.highlightTitle} numberOfLines={1}>Smart Health Checkups</Text>
-                <Text style={styles.highlightSub} numberOfLines={1}>Save up to 50% on tests</Text>
+                <Text style={styles.highlightTitle} numberOfLines={1}>{t('smart_checkups', 'Smart Health Checkups')}</Text>
+                <Text style={styles.highlightSub} numberOfLines={1}>{t('save_up_to_50', 'Save up to 50% on tests')}</Text>
               </View>
               <Ionicons name="chevron-forward" size={15} color="#007D69" />
             </TouchableOpacity>
@@ -1256,11 +1264,11 @@ const HomeScreen = ({ navigation, route }) => {
                 />
               </View>
               <View style={{ flex: 1, marginLeft: 8 }}>
-                <Text style={styles.highlightTitle} numberOfLines={1}>Membership</Text>
+                <Text style={styles.highlightTitle} numberOfLines={1}>{t('membership', 'Membership')}</Text>
                 <Text style={styles.highlightSub} numberOfLines={1}>
                   {activeMembership
-                    ? `${activeMembership.tierName} Member • View Benefits →`
-                    : 'Explore Memberships →'}
+                    ? `${activeMembership.tierName} ${t('member_view_benefits', 'Member • View Benefits →')}`
+                    : t('explore_memberships', 'Explore Memberships →')}
                 </Text>
               </View>
               <Ionicons
@@ -1281,12 +1289,12 @@ const HomeScreen = ({ navigation, route }) => {
         ============================================================ */}
         <View style={styles.billsSection}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.billsSectionTitle}>Healthcare & Services</Text>
+            <Text style={styles.billsSectionTitle}>{t('healthcare_services', 'Healthcare & Services')}</Text>
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => navigation.navigate('AllServices', { city: selectedCity, location: locationName })}
             >
-              <Text style={styles.viewAllLink}>View All →</Text>
+              <Text style={styles.viewAllLink}>{t('view_all_arrow', 'View All →')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -1300,7 +1308,9 @@ const HomeScreen = ({ navigation, route }) => {
               <View style={styles.billTileIconBox}>
                 <MaterialCommunityIcons name="hospital-building" size={26} color="#007D69" />
               </View>
-              <Text style={styles.billTileText}>In-Clinic{'\n'}Visit</Text>
+              <Text style={[styles.billTileText, isIndic && { fontSize: 11, lineHeight: 15 }]}>
+                {t('service_in_clinic', 'In-Clinic Visit')}
+              </Text>
             </TouchableOpacity>
 
             {/* Tile 2: Home Nursing & Caregiver */}
@@ -1312,7 +1322,9 @@ const HomeScreen = ({ navigation, route }) => {
               <View style={styles.billTileIconBox}>
                 <MaterialCommunityIcons name="home-heart" size={26} color="#007D69" />
               </View>
-              <Text style={styles.billTileText}>Home Nursing &{'\n'}Caregiver</Text>
+              <Text style={[styles.billTileText, isIndic && { fontSize: 11, lineHeight: 15 }]}>
+                {t('card_home_nurse', 'Home Nursing & Caregiver')}
+              </Text>
             </TouchableOpacity>
 
             {/* Tile 3: Scans & X-Ray */}
@@ -1324,7 +1336,9 @@ const HomeScreen = ({ navigation, route }) => {
               <View style={styles.billTileIconBox}>
                 <Ionicons name="scan-outline" size={25} color="#007D69" />
               </View>
-              <Text style={styles.billTileText}>Scans &{'\n'}X-Ray</Text>
+              <Text style={[styles.billTileText, isIndic && { fontSize: 11, lineHeight: 15 }]}>
+                {t('card_scans_xray', 'Scans & X-Ray')}
+              </Text>
             </TouchableOpacity>
 
             {/* Tile 4: Order Medicine */}
@@ -1336,7 +1350,9 @@ const HomeScreen = ({ navigation, route }) => {
               <View style={styles.billTileIconBox}>
                 <MaterialCommunityIcons name="pill" size={26} color="#007D69" />
               </View>
-              <Text style={styles.billTileText}>Order{'\n'}Medicine</Text>
+              <Text style={[styles.billTileText, isIndic && { fontSize: 11, lineHeight: 15 }]}>
+                {t('card_order_medicines', 'Order Medicine')}
+              </Text>
             </TouchableOpacity>
 
             {/* Tablet-Only Services: 4 More Services */}
@@ -1351,7 +1367,9 @@ const HomeScreen = ({ navigation, route }) => {
                   <View style={styles.billTileIconBox}>
                     <MaterialCommunityIcons name="domain" size={26} color="#007D69" />
                   </View>
-                  <Text style={styles.billTileText}>Hospital &{'\n'}Surgery</Text>
+                  <Text style={[styles.billTileText, isIndic && { fontSize: 11, lineHeight: 15 }]}>
+                    {t('card_surgeries', 'Hospital & Surgery')}
+                  </Text>
                 </TouchableOpacity>
 
                 {/* Tile 6: Equipment Rental */}
@@ -1363,7 +1381,9 @@ const HomeScreen = ({ navigation, route }) => {
                   <View style={styles.billTileIconBox}>
                     <MaterialCommunityIcons name="wheelchair-accessibility" size={26} color="#007D69" />
                   </View>
-                  <Text style={styles.billTileText}>Equipment{'\n'}Rental</Text>
+                  <Text style={[styles.billTileText, isIndic && { fontSize: 11, lineHeight: 15 }]}>
+                    {t('card_equipment_rental', 'Equipment Rental')}
+                  </Text>
                 </TouchableOpacity>
 
                 {/* Tile 7: Ayurveda & Wellness */}
@@ -1375,7 +1395,9 @@ const HomeScreen = ({ navigation, route }) => {
                   <View style={styles.billTileIconBox}>
                     <Ionicons name="leaf-outline" size={25} color="#007D69" />
                   </View>
-                  <Text style={styles.billTileText}>Ayurveda &{'\n'}Wellness</Text>
+                  <Text style={[styles.billTileText, isIndic && { fontSize: 11, lineHeight: 15 }]}>
+                    {t('card_ayurveda', 'Ayurveda & Wellness')}
+                  </Text>
                 </TouchableOpacity>
 
                 {/* Tile 8: Health Insurance */}
@@ -1387,7 +1409,9 @@ const HomeScreen = ({ navigation, route }) => {
                   <View style={styles.billTileIconBox}>
                     <Ionicons name="shield-checkmark-outline" size={25} color="#007D69" />
                   </View>
-                  <Text style={styles.billTileText}>Health{'\n'}Insurance</Text>
+                  <Text style={[styles.billTileText, isIndic && { fontSize: 11, lineHeight: 15 }]}>
+                    {t('card_health_insurance', 'Health Insurance')}
+                  </Text>
                 </TouchableOpacity>
               </>
             )}
@@ -1396,15 +1420,10 @@ const HomeScreen = ({ navigation, route }) => {
 
         {/* ============================================================
             5. SPECIALIZED CARE & PROGRAMS (SINGLE BANNER ROTATING CAROUSEL)
-            - Show ONLY ONE promotional banner at a time
-            - Automatically rotates every 4 seconds
-            - Swipeable manually
-            - Fixed height (140px) to prevent screen jumps
-            - Pagination dots at bottom
         ============================================================ */}
         <View style={styles.programsSection}>
           <View style={styles.programsHeaderRow}>
-            <Text style={styles.programsTitle}>Specialized Care & Programs</Text>
+            <Text style={styles.programsTitle}>{t('specialized_care_programs', 'Specialized Care & Programs')}</Text>
           </View>
 
           <FlatList
@@ -1442,21 +1461,23 @@ const HomeScreen = ({ navigation, route }) => {
                   <View style={styles.programCardHeader}>
                     <View style={[styles.programPillBadge, { backgroundColor: item.pillBg }]}>
                       <Text style={[styles.programPillText, { color: item.pillColor }]}>
-                        {item.pillText}
+                        {t(item.pillText, item.pillText)}
                       </Text>
                     </View>
-                    <Text style={styles.programPrice}>{item.priceText}</Text>
+                    <Text style={styles.programPrice}>{t(item.priceText, item.priceText)}</Text>
                   </View>
 
-                  <Text style={styles.programCardTitle} numberOfLines={1}>
-                    {item.title}
+                  <Text style={[styles.programCardTitle, isIndic && { lineHeight: 22 }]} numberOfLines={1}>
+                    {t(item.title, item.title)}
                   </Text>
-                  <Text style={styles.programCardSubtitle} numberOfLines={2}>
-                    {item.subtitle}
+                  <Text style={[styles.programCardSubtitle, isIndic && { lineHeight: 18 }]} numberOfLines={2}>
+                    {t(item.subtitle, item.subtitle)}
                   </Text>
 
                   <View style={styles.programCardFooter}>
-                    <Text style={styles.programActionText}>{item.badgeText} →</Text>
+                    <Text style={[styles.programActionText, isIndic && { lineHeight: 18 }]}>
+                      {t(item.badgeText, item.badgeText)} →
+                    </Text>
                     <View style={styles.programCircleArrow}>
                       <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
                     </View>
@@ -1509,8 +1530,8 @@ const HomeScreen = ({ navigation, route }) => {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalTitle}>Emergency & 24x7 Support</Text>
-                <Text style={styles.modalSubtitle}>Immediate medical transport & assistance</Text>
+                <Text style={styles.modalTitle}>{t('emergency_support', 'Emergency & 24x7 Support')}</Text>
+                <Text style={styles.modalSubtitle}>{t('emergency_sub', 'Immediate medical transport & assistance')}</Text>
               </View>
               <TouchableOpacity onPress={() => setEmergencyModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#64748B" />
@@ -1530,8 +1551,8 @@ const HomeScreen = ({ navigation, route }) => {
                 <Ionicons name="medical" size={22} color="#FFFFFF" />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.emergencyCardTitle}>Call 108 Ambulance SOS</Text>
-                <Text style={styles.emergencyCardSub}>Government Emergency Medical Services (Free)</Text>
+                <Text style={styles.emergencyCardTitle}>{t('call_108', 'Call 108 Ambulance SOS')}</Text>
+                <Text style={styles.emergencyCardSub}>{t('govt_emergency', 'Government Emergency Medical Services (Free)')}</Text>
               </View>
               <View style={[styles.callPill, { backgroundColor: '#FFF2ED' }]}>
                 <Ionicons name="call" size={13} color="#FF7F50" />
@@ -1552,12 +1573,12 @@ const HomeScreen = ({ navigation, route }) => {
                 <Ionicons name="headset" size={22} color="#FFFFFF" />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.emergencyCardTitle}>24x7 Doctor Helpline</Text>
-                <Text style={styles.emergencyCardSub}>Speak with an on-duty general physician</Text>
+                <Text style={styles.emergencyCardTitle}>{t('support_helpline', '24x7 Doctor Helpline')}</Text>
+                <Text style={styles.emergencyCardSub}>{t('doctor_helpline_sub', 'Speak with an on-duty general physician')}</Text>
               </View>
               <View style={[styles.callPill, { backgroundColor: '#E0F7F4' }]}>
                 <Ionicons name="call" size={13} color="#007D69" />
-                <Text style={[styles.callPillText, { color: '#007D69' }]}>Call</Text>
+                <Text style={[styles.callPillText, { color: '#007D69' }]}>{t('call_btn', 'Call')}</Text>
               </View>
             </TouchableOpacity>
           </View>

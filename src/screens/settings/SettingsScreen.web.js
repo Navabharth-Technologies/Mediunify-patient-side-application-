@@ -21,15 +21,21 @@ import {
   getPatientSettings,
   savePatientSettings,
 } from '../../data/patientDashboardData';
+import { useTheme } from '../../context/ThemeContext';
 
 import SettingsScreenMobile from './SettingsScreenMobile';
 
-const LANGUAGES = ['English (India)', 'Kannada (ಕನ್ನಡ)', 'Hindi (हिन्दी)'];
+const LANGUAGES = [
+  { code: 'en', label: 'English (India)' },
+  { code: 'kn', label: 'Kannada (ಕನ್ನಡ)' },
+  { code: 'hi', label: 'Hindi (हिन्दी)' },
+];
 const COMM_CHANNELS = ['WhatsApp & SMS', 'SMS Only', 'WhatsApp Only', 'Email Only'];
 
 const SettingsScreenWeb = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
+  const { language, changeLanguage, t, isIndic } = useTheme();
 
   const [patient, setPatient] = useState(null);
   const [settings, setSettings] = useState(null);
@@ -335,18 +341,21 @@ const SettingsScreenWeb = ({ navigation, route }) => {
               </View>
 
               <View style={{ marginTop: 14 }}>
-                <Text style={styles.inputSectionLabel}>Preferred Language</Text>
+                <Text style={styles.inputSectionLabel}>{t('language', 'Preferred Language')}</Text>
                 <View style={styles.pillsRow}>
                   {LANGUAGES.map((lang) => {
-                    const isSel = settings.preferences?.language?.includes(lang.split(' ')[0]);
+                    const isSel = language === lang.code;
                     return (
                       <TouchableOpacity
-                        key={lang}
+                        key={lang.code}
                         style={[styles.prefChip, isSel && styles.prefChipActive]}
-                        onPress={() => handleUpdatePreference('language', lang)}
+                        onPress={() => {
+                          changeLanguage(lang.code);
+                          handleUpdatePreference('language', lang.label);
+                        }}
                       >
                         <Text style={[styles.prefChipText, isSel && styles.prefChipTextActive]}>
-                          {lang}
+                          {lang.label}
                         </Text>
                       </TouchableOpacity>
                     );

@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import WebFooter from '../../../components/web/WebFooter';
+import { useTheme } from '../../../context/ThemeContext';
 
 const CONSULTATION_TYPES = [
   {
@@ -116,6 +117,7 @@ const FindDoctorsScreen = ({ navigation }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 980;
   const isTablet = width >= 640 && width < 980;
+  const { t, isIndic } = useTheme();
 
   useEffect(() => {
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
@@ -172,7 +174,7 @@ const FindDoctorsScreen = ({ navigation }) => {
           >
             <Ionicons name="arrow-back" size={20} color="#0F172A" />
           </TouchableOpacity>
-          <Text style={styles.mobileHeaderTitle}>Find Doctors</Text>
+          <Text style={styles.mobileHeaderTitle}>{t('nav_find_doctors', 'Find Doctors')}</Text>
           <View style={{ width: 40 }} />
         </View>
       )}
@@ -207,7 +209,7 @@ const FindDoctorsScreen = ({ navigation }) => {
               >
                 {/* Popularity Badge */}
                 <View style={styles.badgeTopWrap}>
-                  <Text style={styles.badgeTopText}>{card.popularBadge}</Text>
+                  <Text style={styles.badgeTopText}>{t(card.popularBadge, card.popularBadge)}</Text>
                 </View>
 
                 {/* Hero Card Image */}
@@ -221,7 +223,7 @@ const FindDoctorsScreen = ({ navigation }) => {
                   <View style={[styles.cardTagPill, { backgroundColor: card.tagBg }]}>
                     <Ionicons name={card.tagIcon} size={13} color={card.tagColor} />
                     <Text style={[styles.cardTagText, { color: card.tagColor }]}>
-                      {card.tag}
+                      {t(card.tag, card.tag)}
                     </Text>
                   </View>
                 </View>
@@ -229,12 +231,12 @@ const FindDoctorsScreen = ({ navigation }) => {
                 {/* Card Main Body */}
                 <View style={styles.cardBody}>
                   <View style={styles.cardTitleRow}>
-                    <Text style={styles.cardTitle}>{card.title}</Text>
-                    <Text style={styles.pricePill}>{card.priceText}</Text>
+                    <Text style={[styles.cardTitle, isIndic && { lineHeight: 22 }]}>{t(card.title, card.title)}</Text>
+                    <Text style={styles.pricePill}>{t(card.priceText, card.priceText)}</Text>
                   </View>
 
-                  <Text style={styles.cardSubtitle}>
-                    {card.subtitle}
+                  <Text style={[styles.cardSubtitle, isIndic && { lineHeight: 18 }]}>
+                    {t(card.subtitle, card.subtitle)}
                   </Text>
 
                   {/* Feature Checkpoints */}
@@ -242,7 +244,7 @@ const FindDoctorsScreen = ({ navigation }) => {
                     {card.features.map((feat, idx) => (
                       <View key={idx} style={styles.featureItem}>
                         <Ionicons name="checkmark-circle" size={16} color="#059669" style={{ marginTop: 2 }} />
-                        <Text style={styles.featureItemText}>{feat}</Text>
+                        <Text style={[styles.featureItemText, isIndic && { lineHeight: 16 }]}>{t(feat, feat)}</Text>
                       </View>
                     ))}
                   </View>
@@ -256,7 +258,7 @@ const FindDoctorsScreen = ({ navigation }) => {
                       activeOpacity={0.88}
                       onPress={() => handleSelectOption(card)}
                     >
-                      <Text style={styles.actionBtnText}>{card.btnText}</Text>
+                      <Text style={[styles.actionBtnText, isIndic && { lineHeight: 18 }]}>{t(card.btnText, card.btnText)}</Text>
                       <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
                     </TouchableOpacity>
                   </View>

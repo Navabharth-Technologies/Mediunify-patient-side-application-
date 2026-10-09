@@ -7,11 +7,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../theme/colors';
+import { useTheme } from '../context/ThemeContext';
 
 const LabPackageCard = ({
   packageData,
   navigation,
 }) => {
+  const { t, isIndic } = useTheme();
+
   const handleBookPackage = () => {
     navigation.navigate('LabBooking', {
       selectedTests: [packageData],
@@ -51,14 +54,16 @@ const LabPackageCard = ({
       {/* HOME COLLECTION BADGE */}
       <View style={styles.homeBadge}>
         <Ionicons name="home" size={10} color="#059669" />
-        <Text style={styles.homeBadgeText}>Home Collection</Text>
+        <Text style={[styles.homeBadgeText, isIndic && { lineHeight: 14 }]}>
+          {t('lab.home_sample_pickup', 'Home Collection')}
+        </Text>
       </View>
 
       {/* PACKAGE TITLE */}
-      <Text style={styles.title} numberOfLines={1}>
+      <Text style={[styles.title, isIndic && { lineHeight: 20 }]} numberOfLines={1}>
         {packageData.title}
       </Text>
-      <Text style={styles.subtitle} numberOfLines={1}>
+      <Text style={[styles.subtitle, isIndic && { lineHeight: 16 }]} numberOfLines={1}>
         {packageData.subtitle}
       </Text>
 
@@ -69,8 +74,8 @@ const LabPackageCard = ({
           size={14}
           color={colors.success}
         />
-        <Text style={styles.tests}>
-          {packageData.tests} Included
+        <Text style={[styles.tests, isIndic && { lineHeight: 16 }]}>
+          {packageData.tests} {t('lab.test_includes', 'Included')}
         </Text>
       </View>
 
@@ -79,14 +84,18 @@ const LabPackageCard = ({
         <Text style={styles.price}>
           {packageData.priceStr || `₹${packageData.price}`}
         </Text>
-        <Text style={styles.oldPrice}>
-          {packageData.oldPrice}
-        </Text>
-        <View style={styles.discountBox}>
-          <Text style={styles.discount}>
-            {packageData.discount}
+        {packageData.oldPrice && (
+          <Text style={styles.oldPrice}>
+            {packageData.oldPrice}
           </Text>
-        </View>
+        )}
+        {packageData.discount && (
+          <View style={styles.discountBox}>
+            <Text style={styles.discount}>
+              {packageData.discount}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* BOOK BUTTON */}
@@ -95,11 +104,14 @@ const LabPackageCard = ({
         activeOpacity={0.85}
         onPress={handleBookPackage}
       >
-        <Text style={styles.buttonText}>Book Package</Text>
+        <Text style={[styles.buttonText, isIndic && { lineHeight: 18 }]}>
+          {t('common.book_now', 'Book Package')}
+        </Text>
         <Ionicons
           name="arrow-forward"
           size={14}
           color={colors.white}
+          style={{ marginLeft: 6 }}
         />
       </TouchableOpacity>
     </TouchableOpacity>
@@ -108,149 +120,132 @@ const LabPackageCard = ({
 
 const styles = StyleSheet.create({
   card: {
-    width: 230,
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 14,
-    marginRight: 12,
+    padding: 16,
+    width: 260,
+    marginRight: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    elevation: 3,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.06,
-    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    alignItems: 'center',
+    marginBottom: 10,
   },
-
   iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
   },
-
   brandContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-
   brand: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '900',
-    letterSpacing: 0.8,
-    color: colors.secondary,
-  },
-
-  labs: {
-    marginLeft: 3,
-    fontSize: 9,
-    fontWeight: '900',
-    color: colors.primary,
+    color: '#0F172A',
     letterSpacing: 0.5,
   },
-
+  labs: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#00B894',
+    marginLeft: 3,
+    letterSpacing: 0.5,
+  },
   homeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
     alignSelf: 'flex-start',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginTop: 4,
-    marginBottom: 6,
-    gap: 3,
+    marginBottom: 8,
   },
   homeBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
+    fontSize: 10,
+    fontWeight: '700',
     color: '#059669',
+    marginLeft: 4,
   },
-
   title: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
-    color: colors.secondary,
+    color: '#0F172A',
+    marginBottom: 2,
   },
-
   subtitle: {
     fontSize: 12,
-    fontWeight: '600',
-    color: colors.slate,
-    marginTop: 1,
+    color: '#64748B',
+    marginBottom: 10,
   },
-
   testsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
-    gap: 4,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
   },
-
   tests: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.secondary,
+    color: '#334155',
+    marginLeft: 4,
   },
-
   priceRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    marginTop: 8,
-    gap: 6,
+    alignItems: 'center',
+    marginBottom: 12,
   },
-
   price: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '900',
-    color: colors.secondary,
+    color: '#0F172A',
   },
-
   oldPrice: {
-    fontSize: 11,
-    color: colors.slate,
+    fontSize: 13,
+    color: '#94A3B8',
     textDecorationLine: 'line-through',
+    marginLeft: 6,
   },
-
   discountBox: {
-    paddingHorizontal: 5,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
-    backgroundColor: '#E7F8EF',
+    marginLeft: 6,
   },
-
   discount: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: colors.success,
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#D97706',
   },
-
   button: {
-    height: 38,
-    marginTop: 12,
-    borderRadius: 8,
-    backgroundColor: colors.primary,
+    backgroundColor: '#00B894',
+    borderRadius: 12,
+    paddingVertical: 10,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    alignItems: 'center',
   },
-
   buttonText: {
     fontSize: 13,
-    fontWeight: '700',
-    color: colors.white,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });
 

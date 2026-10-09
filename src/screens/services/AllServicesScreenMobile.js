@@ -267,11 +267,11 @@ const AllServicesScreen = ({ navigation, route }) => {
         <View style={styles.countRow}>
           <Text style={styles.countText}>
             {filteredServices.length}{' '}
-            {filteredServices.length === 1 ? 'service available' : 'services available'}
+            {t('services_available', filteredServices.length === 1 ? 'service available' : 'services available')}
           </Text>
           {searchQuery.trim().length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
-              <Text style={styles.clearSearchLink}>Clear search</Text>
+              <Text style={styles.clearSearchLink}>{t('clear_search', 'Clear search')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -279,16 +279,16 @@ const AllServicesScreen = ({ navigation, route }) => {
         {filteredServices.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="search-outline" size={44} color="#94A3B8" />
-            <Text style={styles.emptyTitle}>No matching service found</Text>
+            <Text style={styles.emptyTitle}>{t('no_matching_service', 'No matching service found')}</Text>
             <Text style={styles.emptySub}>
-              Try searching for Doctor, Medicine, Lab Tests, Scan, or Nursing
+              {t('try_searching_again', 'Try searching for Doctor, Medicine, Lab Tests, Scan, or Nursing')}
             </Text>
             <TouchableOpacity
               style={styles.emptyResetBtn}
               onPress={() => setSearchQuery('')}
               activeOpacity={0.8}
             >
-              <Text style={styles.emptyResetBtnText}>View All Services</Text>
+              <Text style={styles.emptyResetBtnText}>{t('view_services', 'View All Services')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -346,7 +346,7 @@ const AllServicesScreen = ({ navigation, route }) => {
                   adjustsFontSizeToFit={true}
                   minimumFontScale={0.82}
                 >
-                  {service.title}
+                  {t(service.title, service.title)}
                 </Text>
               </TouchableOpacity>
             ))}

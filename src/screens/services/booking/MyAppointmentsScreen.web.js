@@ -44,6 +44,7 @@ import {
   getAppointmentDynamicStatus,
   getStatusBadgeConfig,
 } from '../../../utils/appointmentDateUtils';
+import { useTheme } from '../../../context/ThemeContext';
 
 const STATUS_FILTERS = ['All', 'Upcoming', 'Today', 'Completed', 'Cancelled', 'Rescheduled'];
 const ITEMS_PER_PAGE = 4;
@@ -93,6 +94,7 @@ export const renderSafeText = (val, fallback = '') => {
 };
 
 const MyAppointmentsScreenWeb = ({ navigation, route }) => {
+  const { t, isIndic } = useTheme();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
   const isTablet = width >= 768 && width < 1024;
@@ -460,10 +462,10 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
           <View style={[styles.innerContainer, styles.breadcrumbContent]}>
             <TouchableOpacity onPress={() => navigation?.navigate('Home')} activeOpacity={0.7} style={styles.breadcrumbItem}>
               <Ionicons name="home-outline" size={14} color="#64748B" />
-              <Text style={styles.breadcrumbText}>Home</Text>
+              <Text style={styles.breadcrumbText}>{t('Home')}</Text>
             </TouchableOpacity>
             <Ionicons name="chevron-forward" size={12} color="#94A3B8" />
-            <Text style={styles.breadcrumbActive}>My Physical Appointments</Text>
+            <Text style={[styles.breadcrumbActive, isIndic && { lineHeight: 18 }]}>{t('booking.my_appointments', 'My Physical Appointments')}</Text>
           </View>
         </View>
 
@@ -471,40 +473,40 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
         <View style={styles.innerContainer}>
           <PatientPageBanner
             onBack={() => navigation?.canGoBack?.() ? navigation.goBack() : navigation?.navigate('Home')}
-            title="My Appointments"
+            title={t('booking.my_appointments', 'My Appointments')}
             subtitle={
-              <Text style={styles.pageSubtitle}>
-                Manage your physical walk-in visits at hospitals, partner clinics, and diagnostic centres. (Online video consultations are managed under{' '}
+              <Text style={[styles.pageSubtitle, isIndic && { lineHeight: 20 }]}>
+                {t('Manage your physical walk-in visits at hospitals, partner clinics, and diagnostic centres.')} ({t('Online video consultations are managed under')}{' '}
                 <Text
                   style={{ color: '#008B94', fontWeight: '700', cursor: 'pointer' }}
                   onPress={() => navigation?.navigate('MyOnlineConsultations')}
                 >
-                  My Online Consultations
+                  {t('navigation.my_online_consultations', 'My Online Consultations')}
                 </Text>
                 ).
               </Text>
             }
-            badgeText="IN-PERSON VISITS • CLINICS & HOSPITALS"
+            badgeText={t('IN-PERSON VISITS • CLINICS & HOSPITALS')}
             badgeIcon="business"
             iconName="calendar"
             theme="teal"
             pills={[
               {
-                label: `Upcoming: ${statusCounts.Upcoming} Visits`,
+                label: `${t('booking.upcoming', 'Upcoming')}: ${statusCounts.Upcoming} ${t('Visits')}`,
                 bgColor: '#ECFDF5',
                 borderColor: '#A7F3D0',
                 textColor: '#008B94',
                 icon: 'checkmark-circle',
               },
               {
-                label: `Today: ${statusCounts.Today}`,
+                label: `${t('Today')}: ${statusCounts.Today}`,
                 bgColor: '#EFF6FF',
                 borderColor: '#BFDBFE',
                 textColor: '#1E3A8A',
                 icon: 'today-outline',
               },
               {
-                label: `Completed: ${statusCounts.Completed}`,
+                label: `${t('booking.completed', 'Completed')}: ${statusCounts.Completed}`,
                 bgColor: '#EBF8E7',
                 borderColor: '#C2EDB7',
                 textColor: '#15803D',
@@ -518,7 +520,7 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
                 activeOpacity={0.85}
               >
                 <Ionicons name="add-circle-outline" size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.bookDoctorBtnText}>Book In-Clinic Visit</Text>
+                <Text style={[styles.bookDoctorBtnText, isIndic && { lineHeight: 18 }]}>{t('doctors.book_in_clinic', 'Book In-Clinic Visit')}</Text>
               </TouchableOpacity>
             }
           />
@@ -533,7 +535,7 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
               <Ionicons name="search-outline" size={18} color="#64748B" style={{ marginRight: 8 }} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search by clinic, hospital, doctor name, department, or appointment ID..."
+                placeholder={t('Search by clinic, hospital, doctor name, department, or appointment ID...')}
                 placeholderTextColor="#94A3B8"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -566,8 +568,8 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
                     }}
                     activeOpacity={0.75}
                   >
-                    <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
-                      {status} ({count})
+                    <Text style={[styles.filterChipText, active && styles.filterChipTextActive, isIndic && { lineHeight: 16 }]}>
+                      {t(status, status)} ({count})
                     </Text>
                   </TouchableOpacity>
                 );
@@ -581,9 +583,9 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
               <View style={[styles.emptyIconCircle, { backgroundColor: '#E6F8F4' }]}>
                 <Ionicons name="calendar-outline" size={42} color="#00B894" />
               </View>
-              <Text style={styles.emptyTitle}>Login to view your appointments</Text>
-              <Text style={styles.emptyDesc}>
-                Please sign in to access your upcoming consultations, in-clinic visits, and medical prescriptions.
+              <Text style={[styles.emptyTitle, isIndic && { lineHeight: 22 }]}>{t('auth.login_required', 'Login to view your appointments')}</Text>
+              <Text style={[styles.emptyDesc, isIndic && { lineHeight: 18 }]}>
+                {t('Please sign in to access your upcoming consultations, in-clinic visits, and medical prescriptions.')}
               </Text>
               <TouchableOpacity
                 style={[styles.bookDoctorBtn, { marginTop: 18, alignSelf: 'center', paddingHorizontal: 32 }]}
@@ -596,24 +598,24 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
                 activeOpacity={0.85}
               >
                 <Ionicons name="log-in-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.bookDoctorBtnText}>Login</Text>
+                <Text style={styles.bookDoctorBtnText}>{t('auth.login', 'Login')}</Text>
               </TouchableOpacity>
             </View>
           ) : loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#00B894" />
-              <Text style={styles.loadingText}>Fetching your physical appointments...</Text>
+              <Text style={[styles.loadingText, isIndic && { lineHeight: 18 }]}>{t('common.loading', 'Fetching your physical appointments...')}</Text>
             </View>
           ) : filteredAppointments.length === 0 ? (
             <View style={styles.emptyCard}>
               <View style={styles.emptyIconCircle}>
                 <Ionicons name="calendar-outline" size={42} color="#94A3B8" />
               </View>
-              <Text style={styles.emptyTitle}>No appointments found for you or your family members.</Text>
-              <Text style={styles.emptyDesc}>
+              <Text style={[styles.emptyTitle, isIndic && { lineHeight: 22 }]}>{t('booking.no_appointments_found', 'No appointments found for you or your family members.')}</Text>
+              <Text style={[styles.emptyDesc, isIndic && { lineHeight: 18 }]}>
                 {searchQuery || selectedStatus !== 'All'
-                  ? 'No physical visits match your search criteria. Try resetting filters.'
-                  : 'Appointments booked by you or for your linked family members will appear here.'}
+                  ? t('No physical visits match your search criteria. Try resetting filters.')
+                  : t('Appointments booked by you or for your linked family members will appear here.')}
               </Text>
               <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
                 {(searchQuery || selectedStatus !== 'All') && (
@@ -624,7 +626,7 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
                       setSelectedStatus('All');
                     }}
                   >
-                    <Text style={styles.resetFilterBtnText}>Clear Filters</Text>
+                    <Text style={[styles.resetFilterBtnText, isIndic && { lineHeight: 16 }]}>{t('common.clear_all', 'Clear Filters')}</Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity
@@ -633,7 +635,7 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
                   activeOpacity={0.85}
                 >
                   <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                  <Text style={styles.bookDoctorBtnText}>Book In-Clinic Visit</Text>
+                  <Text style={[styles.bookDoctorBtnText, isIndic && { lineHeight: 18 }]}>{t('doctors.book_in_clinic', 'Book In-Clinic Visit')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -713,8 +715,8 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
                     <View style={styles.patientMetaRow}>
                       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                         <Ionicons name="person-outline" size={13} color="#64748B" style={{ marginRight: 4 }} />
-                        <Text style={styles.patientMetaText}>
-                          Patient:{' '}
+                        <Text style={[styles.patientMetaText, isIndic && { lineHeight: 16 }]}>
+                          {t('doctors.patient_details', 'Patient:')}{' '}
                           <Text style={{ fontWeight: '700', color: '#0F172A' }}>
                             {typeof appt.patient === 'string'
                               ? appt.patient
@@ -722,7 +724,7 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
                           </Text>
                         </Text>
                       </View>
-                      <Text style={styles.bookingDateText}>Booked on: {bookingDateLabel}</Text>
+                      <Text style={[styles.bookingDateText, isIndic && { lineHeight: 14 }]}>{t('Booked on:')} {bookingDateLabel}</Text>
                     </View>
 
                     {/* Action Buttons Row */}
@@ -737,7 +739,7 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
                           activeOpacity={0.8}
                         >
                           <Ionicons name="document-text-outline" size={15} color="#1E3A8A" style={{ marginRight: 4 }} />
-                          <Text style={styles.detailsBtnText}>View Details</Text>
+                          <Text style={[styles.detailsBtnText, isIndic && { lineHeight: 16 }]}>{t('common.view_details', 'View Details')}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -749,7 +751,7 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
                           activeOpacity={0.8}
                         >
                           <Ionicons name="navigate-outline" size={15} color="#00B894" style={{ marginRight: 4 }} />
-                          <Text style={styles.directionsBtnText}>Get Directions</Text>
+                          <Text style={[styles.directionsBtnText, isIndic && { lineHeight: 16 }]}>{t('booking.view_directions', 'Get Directions')}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -761,7 +763,7 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
                           activeOpacity={0.8}
                         >
                           <Ionicons name="call-outline" size={14} color="#64748B" style={{ marginRight: 4 }} />
-                          <Text style={styles.contactBtnText}>Contact Centre</Text>
+                          <Text style={[styles.contactBtnText, isIndic && { lineHeight: 16 }]}>{t('Contact Centre')}</Text>
                         </TouchableOpacity>
                       </View>
 
@@ -777,7 +779,7 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
                             activeOpacity={0.8}
                           >
                             <Ionicons name="calendar-outline" size={14} color="#D97706" style={{ marginRight: 4 }} />
-                            <Text style={styles.rescheduleBtnText}>Reschedule</Text>
+                            <Text style={[styles.rescheduleBtnText, isIndic && { lineHeight: 16 }]}>{t('booking.reschedule_btn', 'Reschedule')}</Text>
                           </TouchableOpacity>
 
                           <TouchableOpacity
@@ -789,7 +791,7 @@ const MyAppointmentsScreenWeb = ({ navigation, route }) => {
                             activeOpacity={0.8}
                           >
                             <Ionicons name="close-circle-outline" size={14} color="#EF4444" style={{ marginRight: 4 }} />
-                            <Text style={styles.cancelBtnText}>Cancel</Text>
+                            <Text style={[styles.cancelBtnText, isIndic && { lineHeight: 16 }]}>{t('common.cancel', 'Cancel')}</Text>
                           </TouchableOpacity>
                         </View>
                       )}

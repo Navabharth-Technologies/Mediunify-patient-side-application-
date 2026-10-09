@@ -1070,8 +1070,8 @@ const ProfileScreen = ({ navigation, route }) => {
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Ionicons name="location-outline" size={22} color="#0D9488" />
-                <Text style={[styles.modalTitle, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
-                  My Address
+                <Text style={[styles.modalTitle, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }, isIndic && { lineHeight: 22 }]}>
+                  {t('address', 'My Address')}
                 </Text>
               </View>
               <TouchableOpacity
@@ -1083,7 +1083,7 @@ const ProfileScreen = ({ navigation, route }) => {
             </View>
 
             <View style={styles.addressModalBody}>
-              <Text style={styles.addressInputLabel}>Delivery & Healthcare Address</Text>
+              <Text style={[styles.addressInputLabel, isIndic && { lineHeight: 16 }]}>{t('Delivery & Healthcare Address')}</Text>
               <TextInput
                 style={[
                   styles.addressTextInput,
@@ -1095,7 +1095,7 @@ const ProfileScreen = ({ navigation, route }) => {
                 ]}
                 value={addressInput}
                 onChangeText={setAddressInput}
-                placeholder="Enter house/flat, street, area, city, pincode"
+                placeholder={t('Enter house/flat, street, area, city, pincode')}
                 placeholderTextColor="#94A3B8"
                 multiline
                 numberOfLines={3}

@@ -23,8 +23,10 @@ import { safeNavigateToMain } from '../../utils/navigationHelper';
 import { autoMigrateLocalAccountsToServer } from '../../services/dataSyncService';
 
 import { useKeyboardVisibility } from '../../utils/keyboardUtils';
+import { useTheme } from '../../context/ThemeContext';
 
 const RegisterScreen = ({ navigation, route }) => {
+  const { t, isIndic } = useTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const isSmallDevice = width < 375 || height < 680;
@@ -285,7 +287,9 @@ const RegisterScreen = ({ navigation, route }) => {
           activeOpacity={0.7}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Text style={styles.guestLinkText}>Continue as Guest</Text>
+          <Text style={[styles.guestLinkText, isIndic && { lineHeight: 18 }]}>
+            {t('auth.continue_as_guest', 'Continue as Guest')}
+          </Text>
           <Ionicons name="chevron-forward" size={14} color="#007D69" />
         </TouchableOpacity>
       </View>
@@ -331,16 +335,18 @@ const RegisterScreen = ({ navigation, route }) => {
 
             {/* CARD HEADING */}
             <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Create Account</Text>
-              <Text style={styles.cardSubtitle}>
-                Sign up to book appointments, manage lab tests & view medical records
+              <Text style={[styles.cardTitle, isIndic && { lineHeight: 28 }]}>
+                {t('auth.create_account', 'Create Account')}
+              </Text>
+              <Text style={[styles.cardSubtitle, isIndic && { lineHeight: 20 }]}>
+                {t('auth.register_subtitle', 'Sign up to book appointments, manage lab tests & view medical records')}
               </Text>
             </View>
 
             {/* FIELD 1: FULL NAME */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>
-                Full Name <Text style={styles.requiredMark}>*</Text>
+              <Text style={[styles.fieldLabel, isIndic && { lineHeight: 18 }]}>
+                {t('auth.full_name', 'Full Name')} <Text style={styles.requiredMark}>*</Text>
               </Text>
               <View style={[styles.inputBox, name ? styles.inputBoxFilled : null]}>
                 <Ionicons
@@ -351,7 +357,7 @@ const RegisterScreen = ({ navigation, route }) => {
                 />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Enter your full name"
+                  placeholder={t('auth.full_name_ph', 'Enter your full name')}
                   placeholderTextColor="#94A3B8"
                   value={name}
                   onChangeText={setName}
@@ -385,8 +391,8 @@ const RegisterScreen = ({ navigation, route }) => {
             {/* FIELD 2: MOBILE NUMBER (10 DIGITS) */}
             <View style={styles.fieldGroup}>
               <View style={styles.fieldLabelRow}>
-                <Text style={styles.fieldLabel}>
-                  Mobile Number <Text style={styles.requiredMark}>*</Text>
+                <Text style={[styles.fieldLabel, isIndic && { lineHeight: 18 }]}>
+                  {t('auth.mobile_number', 'Mobile Number')} <Text style={styles.requiredMark}>*</Text>
                 </Text>
                 <Text
                   style={[
@@ -394,7 +400,7 @@ const RegisterScreen = ({ navigation, route }) => {
                     phone.length === 10 ? styles.counterTextSuccess : phone.length > 0 ? styles.counterTextWarning : null,
                   ]}
                 >
-                  {phone.length}/10 digits
+                  {phone.length}/10 {t('auth.digits', 'digits')}
                 </Text>
               </View>
               <View
@@ -414,7 +420,7 @@ const RegisterScreen = ({ navigation, route }) => {
                 />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="10-digit mobile number"
+                  placeholder={t('auth.mobile_ph', '10-digit mobile number')}
                   placeholderTextColor="#94A3B8"
                   value={phone}
                   onChangeText={handlePhoneChange}
@@ -449,8 +455,8 @@ const RegisterScreen = ({ navigation, route }) => {
 
             {/* FIELD 3: EMAIL ADDRESS */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>
-                Email Address <Text style={styles.requiredMark}>*</Text>
+              <Text style={[styles.fieldLabel, isIndic && { lineHeight: 18 }]}>
+                {t('auth.email_address', 'Email Address')} <Text style={styles.requiredMark}>*</Text>
               </Text>
               <View style={[styles.inputBox, email ? styles.inputBoxFilled : null]}>
                 <Ionicons
@@ -461,7 +467,7 @@ const RegisterScreen = ({ navigation, route }) => {
                 />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Enter your email address"
+                  placeholder={t('auth.email_ph', 'Enter your email address')}
                   placeholderTextColor="#94A3B8"
                   value={email}
                   onChangeText={setEmail}
@@ -497,8 +503,8 @@ const RegisterScreen = ({ navigation, route }) => {
             {/* FIELD 4: PASSWORD */}
             <View style={styles.fieldGroup}>
               <View style={styles.fieldLabelRow}>
-                <Text style={styles.fieldLabel}>
-                  Password <Text style={styles.requiredMark}>*</Text>
+                <Text style={[styles.fieldLabel, isIndic && { lineHeight: 18 }]}>
+                  {t('auth.password', 'Password')} <Text style={styles.requiredMark}>*</Text>
                 </Text>
                 {password.length > 0 && (
                   <Text
@@ -507,7 +513,7 @@ const RegisterScreen = ({ navigation, route }) => {
                       password.length >= 6 ? styles.counterTextSuccess : styles.counterTextWarning,
                     ]}
                   >
-                    {password.length >= 6 ? 'Strong' : `${password.length}/6 chars`}
+                    {password.length >= 6 ? t('auth.strong', 'Strong') : `${password.length}/6 ${t('auth.chars', 'chars')}`}
                   </Text>
                 )}
               </View>
@@ -525,7 +531,7 @@ const RegisterScreen = ({ navigation, route }) => {
                 />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Minimum 6 characters"
+                  placeholder={t('auth.password_ph', 'Minimum 6 characters')}
                   placeholderTextColor="#94A3B8"
                   value={password}
                   onChangeText={setPassword}
@@ -563,17 +569,17 @@ const RegisterScreen = ({ navigation, route }) => {
             {/* FIELD 5: CONFIRM PASSWORD */}
             <View style={styles.fieldGroup}>
               <View style={styles.fieldLabelRow}>
-                <Text style={styles.fieldLabel}>
-                  Confirm Password <Text style={styles.requiredMark}>*</Text>
+                <Text style={[styles.fieldLabel, isIndic && { lineHeight: 18 }]}>
+                  {t('auth.confirm_password', 'Confirm Password')} <Text style={styles.requiredMark}>*</Text>
                 </Text>
                 {isPasswordMatch && (
                   <View style={styles.matchedBadge}>
                     <Ionicons name="checkmark-circle" size={14} color="#007D69" />
-                    <Text style={styles.matchedBadgeText}>Passwords Match</Text>
+                    <Text style={styles.matchedBadgeText}>{t('auth.passwords_match', 'Passwords Match')}</Text>
                   </View>
                 )}
                 {isPasswordMismatch && (
-                  <Text style={styles.counterTextWarning}>Mismatch</Text>
+                  <Text style={styles.counterTextWarning}>{t('auth.mismatch', 'Mismatch')}</Text>
                 )}
               </View>
               <View
@@ -590,7 +596,7 @@ const RegisterScreen = ({ navigation, route }) => {
                 />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Re-enter your password"
+                  placeholder={t('auth.confirm_password_ph', 'Re-enter your password')}
                   placeholderTextColor="#94A3B8"
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
@@ -628,10 +634,12 @@ const RegisterScreen = ({ navigation, route }) => {
             {/* FIELD 6: REFERRAL CODE (OPTIONAL) */}
             <View style={styles.fieldGroup}>
               <View style={styles.fieldLabelRow}>
-                <Text style={styles.fieldLabel}>Referral Code (Optional)</Text>
+                <Text style={[styles.fieldLabel, isIndic && { lineHeight: 18 }]}>
+                  {t('auth.referral_code_optional', 'Referral Code (Optional)')}
+                </Text>
                 <View style={styles.bonusHintBadge}>
                   <Ionicons name="gift-outline" size={13} color="#007D69" />
-                  <Text style={styles.bonusHintBadgeText}>₹250 Bonus</Text>
+                  <Text style={styles.bonusHintBadgeText}>₹250 {t('common.bonus', 'Bonus')}</Text>
                 </View>
               </View>
               <View style={[styles.inputBox, referralCode ? styles.inputBoxFilled : null]}>
@@ -643,7 +651,7 @@ const RegisterScreen = ({ navigation, route }) => {
                 />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Enter referral code"
+                  placeholder={t('auth.referral_ph', 'Enter referral code')}
                   placeholderTextColor="#94A3B8"
                   value={referralCode}
                   onChangeText={setReferralCode}
@@ -664,7 +672,7 @@ const RegisterScreen = ({ navigation, route }) => {
                 />
                 {referralCode.length > 0 && (
                   <View style={styles.appliedTag}>
-                    <Text style={styles.appliedTagText}>BONUS READY</Text>
+                    <Text style={styles.appliedTagText}>{t('auth.bonus_ready', 'BONUS READY')}</Text>
                   </View>
                 )}
               </View>
@@ -679,9 +687,10 @@ const RegisterScreen = ({ navigation, route }) => {
               <View style={[styles.checkboxBox, agreedToTerms && styles.checkboxBoxChecked]}>
                 {agreedToTerms && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
               </View>
-              <Text style={styles.termsText}>
-                I agree to the <Text style={styles.termsLink}>Terms of Service</Text> and{' '}
-                <Text style={styles.termsLink}>Privacy Policy</Text>.
+              <Text style={[styles.termsText, isIndic && { lineHeight: 20 }]}>
+                {t('auth.terms_agree', 'I agree to the')}{' '}
+                <Text style={styles.termsLink}>{t('auth.terms_of_service', 'Terms of Service')}</Text> {t('auth.and', 'and')}{' '}
+                <Text style={styles.termsLink}>{t('auth.privacy_policy', 'Privacy Policy')}</Text>.
               </Text>
             </TouchableOpacity>
 
@@ -709,11 +718,15 @@ const RegisterScreen = ({ navigation, route }) => {
               {isRegistering ? (
                 <View style={styles.btnRow}>
                   <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.primarySubmitBtnText}>Creating Account...</Text>
+                  <Text style={[styles.primarySubmitBtnText, isIndic && { lineHeight: 22 }]}>
+                    {t('auth.creating_account', 'Creating Account...')}
+                  </Text>
                 </View>
               ) : (
                 <View style={styles.btnRow}>
-                  <Text style={styles.primarySubmitBtnText}>Create Account</Text>
+                  <Text style={[styles.primarySubmitBtnText, isIndic && { lineHeight: 22 }]}>
+                    {t('auth.create_account', 'Create Account')}
+                  </Text>
                   <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
                 </View>
               )}
@@ -721,12 +734,16 @@ const RegisterScreen = ({ navigation, route }) => {
 
             {/* SIGN IN FOOTER */}
             <View style={styles.loginFooter}>
-              <Text style={styles.loginFooterText}>Already have an account? </Text>
+              <Text style={[styles.loginFooterText, isIndic && { lineHeight: 20 }]}>
+                {t('auth.already_have_account', 'Already have an account?')}{' '}
+              </Text>
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => navigation.navigate('Login')}
               >
-                <Text style={styles.loginFooterLink}>Sign In</Text>
+                <Text style={[styles.loginFooterLink, isIndic && { lineHeight: 20 }]}>
+                  {t('auth.sign_in', 'Sign In')}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

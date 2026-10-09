@@ -1,6 +1,5 @@
 import React from 'react';
 import { Ionicons } from '@expo/vector-icons';
-
 import {
   View,
   Text,
@@ -8,6 +7,7 @@ import {
   TouchableOpacity,
   Image,
 } from 'react-native';
+import { useTheme } from '../context/ThemeContext';
 
 const ServiceCard = ({
   title,
@@ -17,6 +17,9 @@ const ServiceCard = ({
   iconColor = '#1565C0',
   onPress,
 }) => {
+  const { t, isIndic } = useTheme();
+  const renderedTitle = typeof title === 'string' ? t(title) : title;
+
   return (
     <TouchableOpacity
       style={styles.container}
@@ -45,8 +48,8 @@ const ServiceCard = ({
         )}
       </View>
 
-      <Text style={styles.title}>
-        {title}
+      <Text style={[styles.title, isIndic && { lineHeight: 16 }]}>
+        {renderedTitle}
       </Text>
     </TouchableOpacity>
   );
@@ -58,7 +61,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 22,
   },
-
   iconContainer: {
     width: 60,
     height: 60,
@@ -68,13 +70,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     overflow: 'hidden',
   },
-
   image: {
     width: 52,
     height: 52,
     resizeMode: 'contain',
   },
-
   title: {
     fontSize: 12,
     fontWeight: '600',

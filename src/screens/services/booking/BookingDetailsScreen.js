@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import { syncActiveUser } from '../../../services/dataSyncService';
 import WebFooter from '../../../components/web/WebFooter';
+import { useTheme } from '../../../context/ThemeContext';
 import {
   getSlotStatus,
   validateAndBookSlot,
@@ -53,6 +54,7 @@ const RESCHEDULE_SLOTS = {
 };
 
 const BookingDetailsScreen = ({ navigation, route }) => {
+  const { t, isIndic } = useTheme();
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   const appointment = route?.params?.appointment;
@@ -725,7 +727,7 @@ const BookingDetailsScreen = ({ navigation, route }) => {
           <Ionicons name="arrow-back" size={22} color={colors.secondary} />
         </TouchableOpacity>
 
-        <Text style={styles.title}>{isVideo ? 'Video Consultation' : 'Appointment Details'}</Text>
+        <Text style={[styles.title, isIndic && { lineHeight: 22 }]}>{isVideo ? t('home.card_video_consult', 'Video Consultation') : t('Appointment Details')}</Text>
 
         <TouchableOpacity
           style={styles.headerShareBtn}
@@ -747,14 +749,14 @@ const BookingDetailsScreen = ({ navigation, route }) => {
         {isDesktopWeb && (
           <View style={styles.breadcrumbsRow}>
             <TouchableOpacity onPress={() => navigation.navigate('Home')}>
-              <Text style={styles.breadcrumbLink}>Home</Text>
+              <Text style={styles.breadcrumbLink}>{t('Home')}</Text>
             </TouchableOpacity>
             <Text style={styles.breadcrumbSlash}>/</Text>
             <TouchableOpacity onPress={() => navigation.navigate('MyAppointments')}>
-              <Text style={styles.breadcrumbLink}>My Appointments</Text>
+              <Text style={styles.breadcrumbLink}>{t('booking.my_appointments', 'My Appointments')}</Text>
             </TouchableOpacity>
             <Text style={styles.breadcrumbSlash}>/</Text>
-            <Text style={styles.breadcrumbCurrent}>Booking #{appointment.tokenNumber || appointment.id}</Text>
+            <Text style={styles.breadcrumbCurrent}>{t('Booking')} #{appointment.tokenNumber || appointment.id}</Text>
           </View>
         )}
 
@@ -766,13 +768,13 @@ const BookingDetailsScreen = ({ navigation, route }) => {
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
               <View style={styles.tokenRow}>
-                <Text style={styles.cancelledTitle}>Cancelled</Text>
+                <Text style={[styles.cancelledTitle, isIndic && { lineHeight: 20 }]}>{t('booking.cancelled', 'Cancelled')}</Text>
                 <View style={styles.cancelledBadge}>
-                  <Text style={styles.cancelledBadgeText}>CANCELLED</Text>
+                  <Text style={styles.cancelledBadgeText}>{t('booking.cancelled', 'CANCELLED')}</Text>
                 </View>
               </View>
-              <Text style={styles.cancelledSubtitle}>
-                This booking has been cancelled.
+              <Text style={[styles.cancelledSubtitle, isIndic && { lineHeight: 16 }]}>
+                {t('This booking has been cancelled.')}
               </Text>
             </View>
           </View>
@@ -785,11 +787,11 @@ const BookingDetailsScreen = ({ navigation, route }) => {
                 </Text>
                 <View style={[styles.confirmedBadge, isRescheduled && styles.rescheduledBadge]}>
                   <Text style={[styles.confirmedBadgeText, isRescheduled && styles.rescheduledBadgeText]}>
-                    {currentStatus.toUpperCase()}
+                    {t(currentStatus, currentStatus).toUpperCase()}
                   </Text>
                 </View>
               </View>
-              <Text style={styles.bookingIdText}>Booking ID: {appointment.id || 'BK-7890'}</Text>
+              <Text style={styles.bookingIdText}>{t('booking.appointment_id', 'Booking ID')}: {appointment.id || 'BK-7890'}</Text>
             </View>
             <View style={[styles.statusIconCircle, isRescheduled && styles.statusIconCircleRescheduled]}>
               <Ionicons

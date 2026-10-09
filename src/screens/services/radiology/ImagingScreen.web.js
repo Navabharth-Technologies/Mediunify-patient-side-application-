@@ -22,6 +22,7 @@ import { showAlert } from '../../../utils/alert';
 import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
 import WebFooter from '../../../components/web/WebFooter';
 import WebBackButton from '../../../components/web/WebBackButton';
+import { useTheme } from '../../../context/ThemeContext';
 import {
   RADIOLOGY_CATEGORIES,
   RADIOLOGY_TESTS,
@@ -63,6 +64,7 @@ const POPULAR_SEARCH_CHIPS = [
 ];
 
 export default function ImagingScreenWeb({ navigation, route }) {
+  const { t, isIndic } = useTheme();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
   const isTablet = width >= 768 && width < 1024;
@@ -1100,28 +1102,28 @@ export default function ImagingScreenWeb({ navigation, route }) {
         />
 
         <View style={styles.pinnedTitleContainer}>
-          <Text style={styles.pinnedTitleText} numberOfLines={1} ellipsizeMode="tail">
+          <Text style={[styles.pinnedTitleText, isIndic && { lineHeight: 20 }]} numberOfLines={1} ellipsizeMode="tail">
             {viewMode === 'categories'
-              ? 'Scan & X-Ray'
+              ? t('navigation.scans_xray', 'Scan & X-Ray')
               : viewMode === 'tests'
-              ? selectedCategory?.name || 'Select Scan'
+              ? selectedCategory?.name ? t(selectedCategory.name, selectedCategory.name) : t('Select Scan')
               : viewMode === 'providers'
-              ? 'Choose Centre'
+              ? t('Choose Centre')
               : viewMode === 'centre-details'
-              ? 'Centre Details'
+              ? t('Centre Details')
               : viewMode === 'booking'
               ? bookingStep === 1
-                ? 'Select Patient'
+                ? t('doctors.select_patient', 'Select Patient')
                 : bookingStep === 2
-                ? 'Select Date & Time'
-                : 'Review Booking'
+                ? t('doctors.select_date_time', 'Select Date & Time')
+                : t('Review Booking')
               : viewMode === 'payment'
-              ? 'Payment'
+              ? t('common.price', 'Payment')
               : viewMode === 'confirmation'
-              ? 'Confirmed'
+              ? t('booking.confirmed', 'Confirmed')
               : viewMode === 'my-bookings'
-              ? 'My Bookings'
-              : 'Scan & X-Ray'}
+              ? t('booking.my_appointments', 'My Bookings')
+              : t('navigation.scans_xray', 'Scan & X-Ray')}
           </Text>
           <View style={styles.pinnedCityBadge}>
             <Ionicons name="location-sharp" size={10} color="#00B894" />

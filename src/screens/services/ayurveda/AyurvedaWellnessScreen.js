@@ -31,6 +31,7 @@ import {
   cancelBookedSlot,
   subscribeToSlotChanges,
 } from '../../../services/slotBookingService';
+import { useTheme } from '../../../context/ThemeContext';
 
 const ASYNC_KEY_BOOKINGS = '@unnathi_ayurveda_bookings';
 const ASYNC_KEY_REQUESTS = '@unnathi_ayurveda_callback_requests';
@@ -39,6 +40,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 992;
   const isTablet = width >= 768 && width < 992;
+  const { t } = useTheme();
 
   // Root Navigation View: 'DISCOVERY' | 'DETAILS' | 'APPOINTMENTS' | 'REQUESTS'
   const [activeView, setActiveView] = useState('DISCOVERY');
@@ -668,7 +670,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
           <View style={styles.modalSheetHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Ionicons name="options-outline" size={20} color="#059669" style={{ marginRight: 8 }} />
-              <Text style={styles.modalSheetTitle}>Filter Ayurveda Centres</Text>
+              <Text style={styles.modalSheetTitle}>{t('Filter Ayurveda Centres')}</Text>
             </View>
             <TouchableOpacity onPress={() => setIsFilterModalOpen(false)}>
               <Ionicons name="close" size={24} color="#475569" />
@@ -677,7 +679,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
 
           <ScrollView style={styles.filterScrollView} showsVerticalScrollIndicator={false}>
             {/* 1. Location */}
-            <Text style={styles.filterSectionTitle}>Location / City</Text>
+            <Text style={styles.filterSectionTitle}>{t('Location / City')}</Text>
             <View style={styles.filterChipRow}>
               {['All', 'Mysuru', 'Bengaluru'].map((city) => (
                 <TouchableOpacity
@@ -694,14 +696,14 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                       filterLocation === city && styles.filterChipTextActive,
                     ]}
                   >
-                    {city === 'All' ? 'All Locations' : `${city}`}
+                    {city === 'All' ? t('All Locations') : `${city}`}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             {/* 2. Services */}
-            <Text style={styles.filterSectionTitle}>Main Services</Text>
+            <Text style={styles.filterSectionTitle}>{t('Main Services')}</Text>
             <View style={styles.filterChipRow}>
               {[
                 'All',
@@ -726,14 +728,14 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                       filterService === srv && styles.filterChipTextActive,
                     ]}
                   >
-                    {srv}
+                    {srv === 'All' ? t('All') : t(srv)}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             {/* 3. Consultation Available */}
-            <Text style={styles.filterSectionTitle}>Consultation Available</Text>
+            <Text style={styles.filterSectionTitle}>{t('Consultation Available')}</Text>
             <View style={styles.filterChipRow}>
               {['All', 'Available Only'].map((opt) => (
                 <TouchableOpacity
@@ -750,14 +752,14 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                       filterConsultation === opt && styles.filterChipTextActive,
                     ]}
                   >
-                    {opt === 'All' ? 'All Centres' : 'Vaidya Consult Available'}
+                    {opt === 'All' ? t('All Centres') : t('Doctor Consultation Available')}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             {/* 4. Therapy Available */}
-            <Text style={styles.filterSectionTitle}>Therapies Available</Text>
+            <Text style={styles.filterSectionTitle}>{t('Therapies Available')}</Text>
             <View style={styles.filterChipRow}>
               {['All', 'Available Only'].map((opt) => (
                 <TouchableOpacity
@@ -774,14 +776,14 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                       filterTherapy === opt && styles.filterChipTextActive,
                     ]}
                   >
-                    {opt === 'All' ? 'All' : 'Therapies Offered'}
+                    {opt === 'All' ? t('All') : t('Therapies Offered')}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             {/* 5. Price Range */}
-            <Text style={styles.filterSectionTitle}>Starting Price Range</Text>
+            <Text style={styles.filterSectionTitle}>{t('Starting Price Range')}</Text>
             <View style={styles.filterChipRow}>
               {['All', 'Under ₹500', '₹500 - ₹1,500', 'Above ₹1,500'].map((range) => (
                 <TouchableOpacity
@@ -798,14 +800,14 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                       filterPriceRange === range && styles.filterChipTextActive,
                     ]}
                   >
-                    {range}
+                    {range === 'All' ? t('All') : range}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             {/* 6. Rating */}
-            <Text style={styles.filterSectionTitle}>Minimum Rating</Text>
+            <Text style={styles.filterSectionTitle}>{t('Minimum Rating')}</Text>
             <View style={styles.filterChipRow}>
               {['All', '4.5+ Only', '4.8+ Only'].map((rate) => (
                 <TouchableOpacity
@@ -822,7 +824,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                       filterRating === rate && styles.filterChipTextActive,
                     ]}
                   >
-                    {rate === 'All' ? 'All Ratings' : `${rate}/5`}
+                    {rate === 'All' ? t('All Ratings') : `${rate}/5`}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -832,13 +834,13 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
           {/* Filter Footer */}
           <View style={styles.filterFooterRow}>
             <TouchableOpacity style={styles.filterClearBtn} onPress={clearAllFilters}>
-              <Text style={styles.filterClearBtnText}>Clear All</Text>
+              <Text style={styles.filterClearBtnText}>{t('Clear All')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.filterApplyBtn}
               onPress={() => setIsFilterModalOpen(false)}
             >
-              <Text style={styles.filterApplyBtnText}>Apply Filters ({activeFiltersCount})</Text>
+              <Text style={styles.filterApplyBtnText}>{t('Apply Filters')} ({activeFiltersCount})</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2510,7 +2512,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                     onPress={() => setDirectionsModalCentre(c)}
                   >
                     <Ionicons name="navigate" size={16} color="#059669" style={{ marginRight: 6 }} />
-                    <Text style={styles.locActionBtnText}>Get Directions</Text>
+                    <Text style={styles.locActionBtnText}>{t('Get Directions')}</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -2518,7 +2520,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                     onPress={() => setContactModalCentre(c)}
                   >
                     <Ionicons name="call" size={16} color="#059669" style={{ marginRight: 6 }} />
-                    <Text style={styles.locActionBtnText}>Contact Centre</Text>
+                    <Text style={styles.locActionBtnText}>{t('Contact Centre')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -2531,7 +2533,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
         {/* Dynamic Sticky Bottom CTA Bar */}
         <View style={styles.stickyCtaBar}>
           <View style={styles.stickyCtaPriceWrap}>
-            <Text style={styles.stickyCtaLabel}>Starting from</Text>
+            <Text style={styles.stickyCtaLabel}>{t('Starting from')}</Text>
             <Text style={styles.stickyCtaValue}>{c.startingPrice}</Text>
           </View>
 
@@ -2542,7 +2544,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
               onPress={() => handleOpenBooking(c)}
             >
               <Ionicons name="calendar-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <Text style={styles.stickyPrimaryBtnText}>Book Appointment</Text>
+              <Text style={styles.stickyPrimaryBtnText}>{t('Book Appointment')}</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
@@ -2550,7 +2552,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
               onPress={() => handleOpenCallback(c)}
             >
               <Ionicons name="call-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <Text style={styles.stickyPrimaryBtnText}>Request Callback</Text>
+              <Text style={styles.stickyPrimaryBtnText}>{t('Request Callback')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -2579,11 +2581,11 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
             onPress={() => setActiveView('DISCOVERY')}
           >
             <Ionicons name="arrow-back" size={20} color="#0F172A" />
-            <Text style={styles.detailsBackBtnText}>Back to Centres</Text>
+            <Text style={styles.detailsBackBtnText}>{t('Back to Centres')}</Text>
           </TouchableOpacity>
-          <Text style={[styles.viewHeroTitle, { marginTop: 12 }]}>My Ayurveda Appointments</Text>
+          <Text style={[styles.viewHeroTitle, { marginTop: 12 }]}>{t('My Ayurveda Appointments')}</Text>
           <Text style={styles.viewHeroSub}>
-            Track scheduled consultations, therapy sessions, and booking status
+            {t('Track scheduled consultations, therapy sessions, and booking status')}
           </Text>
         </View>
 
@@ -2606,7 +2608,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                     appointmentTab === tab && styles.subTabItemTextActive,
                   ]}
                 >
-                  {tab} ({count})
+                  {t(tab)} ({count})
                 </Text>
               </TouchableOpacity>
             );
@@ -2617,17 +2619,17 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
         {filteredAppts.length === 0 ? (
           <View style={styles.emptyStateBox}>
             <Ionicons name="calendar-clear-outline" size={48} color="#94A3B8" />
-            <Text style={styles.emptyStateTitle}>No {appointmentTab} Appointments</Text>
+            <Text style={styles.emptyStateTitle}>{t('No Appointments')}</Text>
             <Text style={styles.emptyStateSub}>
               {appointmentTab === 'Upcoming'
-                ? 'You do not have any upcoming Ayurveda visits scheduled right now.'
-                : `No ${appointmentTab.toLowerCase()} Ayurveda appointments found.`}
+                ? t('You do not have any upcoming visits scheduled right now.')
+                : `${t('No')} ${t(appointmentTab).toLowerCase()} ${t('appointments found')}.`}
             </Text>
             <TouchableOpacity
               style={styles.emptyStateBtn}
               onPress={() => setActiveView('DISCOVERY')}
             >
-              <Text style={styles.emptyStateBtnText}>Explore Ayurveda Centres</Text>
+              <Text style={styles.emptyStateBtnText}>{t('Explore Ayurveda Centres')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -2654,7 +2656,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                       item.status === 'Cancelled' && styles.statusBadgeTextCancelled,
                     ]}
                   >
-                    {item.status}
+                    {t(item.status)}
                   </Text>
                 </View>
               </View>
@@ -2663,21 +2665,21 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                 <View style={styles.apptMetaLine}>
                   <Ionicons name="person-outline" size={15} color="#059669" />
                   <Text style={styles.apptMetaText}>
-                    <Text style={{ fontWeight: '600' }}>Vaidya: </Text>
+                    <Text style={{ fontWeight: '600' }}>{t('Vaidya')}: </Text>
                     {item.practitioner}
                   </Text>
                 </View>
                 <View style={styles.apptMetaLine}>
                   <Ionicons name="calendar-outline" size={15} color="#059669" />
                   <Text style={styles.apptMetaText}>
-                    <Text style={{ fontWeight: '600' }}>Schedule: </Text>
-                    {item.date} at {item.time}
+                    <Text style={{ fontWeight: '600' }}>{t('Schedule')}: </Text>
+                    {item.date} {t('at')} {item.time}
                   </Text>
                 </View>
                 <View style={styles.apptMetaLine}>
                   <Ionicons name="location-outline" size={15} color="#059669" />
                   <Text style={styles.apptMetaText}>
-                    <Text style={{ fontWeight: '600' }}>Location: </Text>
+                    <Text style={{ fontWeight: '600' }}>{t('Location')}: </Text>
                     {item.location}
                   </Text>
                 </View>
@@ -2685,14 +2687,14 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
 
               <View style={styles.apptCardFooter}>
                 <View>
-                  <Text style={styles.apptCardToken}>Token: {item.tokenNumber}</Text>
-                  <Text style={styles.apptCardFee}>Fee: {item.fee}</Text>
+                  <Text style={styles.apptCardToken}>{t('Token')}: {item.tokenNumber}</Text>
+                  <Text style={styles.apptCardFee}>{t('Fee')}: {item.fee}</Text>
                 </View>
                 <TouchableOpacity
                   style={styles.apptViewDetailsBtn}
                   onPress={() => setSelectedApptDetail(item)}
                 >
-                  <Text style={styles.apptViewDetailsText}>View Details</Text>
+                  <Text style={styles.apptViewDetailsText}>{t('View Details')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -2728,11 +2730,11 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
             onPress={() => setActiveView('DISCOVERY')}
           >
             <Ionicons name="arrow-back" size={20} color="#0F172A" />
-            <Text style={styles.detailsBackBtnText}>Back to Centres</Text>
+            <Text style={styles.detailsBackBtnText}>{t('Back to Centres')}</Text>
           </TouchableOpacity>
-          <Text style={[styles.viewHeroTitle, { marginTop: 12 }]}>My Ayurveda Requests</Text>
+          <Text style={[styles.viewHeroTitle, { marginTop: 12 }]}>{t('My Ayurveda Requests')}</Text>
           <Text style={styles.viewHeroSub}>
-            Enquiries and callback requests submitted to specialized retreats and ashrams
+            {t('Enquiries and callback requests submitted to specialized retreats and ashrams')}
           </Text>
         </View>
 
@@ -2763,7 +2765,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                     requestStatusFilter === status && styles.filterChipTextActive,
                   ]}
                 >
-                  {status} ({count})
+                  {status === 'All' ? t('All') : t(status)} ({count})
                 </Text>
               </TouchableOpacity>
             );
@@ -2774,15 +2776,15 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
         {filteredRequests.length === 0 ? (
           <View style={styles.emptyStateBox}>
             <Ionicons name="call-outline" size={48} color="#94A3B8" />
-            <Text style={styles.emptyStateTitle}>No {requestStatusFilter} Requests</Text>
+            <Text style={styles.emptyStateTitle}>{t('No Requests Found')}</Text>
             <Text style={styles.emptyStateSub}>
-              You do not have any callback requests in this status.
+              {t('You do not have any callback requests in this status.')}
             </Text>
             <TouchableOpacity
               style={styles.emptyStateBtn}
               onPress={() => setActiveView('DISCOVERY')}
             >
-              <Text style={styles.emptyStateBtnText}>Browse Retreats & Ashrams</Text>
+              <Text style={styles.emptyStateBtnText}>{t('Browse Retreats & Ashrams')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -2811,7 +2813,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                       req.status === 'Closed' && styles.statusBadgeTextClosed,
                     ]}
                   >
-                    {req.status}
+                    {t(req.status)}
                   </Text>
                 </View>
               </View>
@@ -2820,33 +2822,33 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                 <View style={styles.apptMetaLine}>
                   <Ionicons name="calendar-outline" size={15} color="#0284C7" />
                   <Text style={styles.apptMetaText}>
-                    <Text style={{ fontWeight: '600' }}>Request Date: </Text>
+                    <Text style={{ fontWeight: '600' }}>{t('Request Date')}: </Text>
                     {req.requestDate}
                   </Text>
                 </View>
                 <View style={styles.apptMetaLine}>
                   <Ionicons name="time-outline" size={15} color="#0284C7" />
                   <Text style={styles.apptMetaText}>
-                    <Text style={{ fontWeight: '600' }}>Preferred Date & Slot: </Text>
+                    <Text style={{ fontWeight: '600' }}>{t('Preferred Date & Slot')}: </Text>
                     {req.preferredDate} ({req.preferredTime})
                   </Text>
                 </View>
                 <View style={styles.apptMetaLine}>
                   <Ionicons name="chatbubble-ellipses-outline" size={15} color="#0284C7" />
                   <Text style={styles.apptMetaText} numberOfLines={1}>
-                    <Text style={{ fontWeight: '600' }}>Update: </Text>
+                    <Text style={{ fontWeight: '600' }}>{t('Update')}: </Text>
                     {req.lastUpdated}
                   </Text>
                 </View>
               </View>
 
               <View style={styles.apptCardFooter}>
-                <Text style={styles.apptCardToken}>Patient: {req.patientName}</Text>
+                <Text style={styles.apptCardToken}>{t('Patient')}: {req.patientName}</Text>
                 <TouchableOpacity
                   style={[styles.apptViewDetailsBtn, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}
                   onPress={() => setSelectedReqDetail(req)}
                 >
-                  <Text style={[styles.apptViewDetailsText, { color: '#0284C7' }]}>View Details</Text>
+                  <Text style={[styles.apptViewDetailsText, { color: '#0284C7' }]}>{t('View Details')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -2881,9 +2883,9 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
             <Ionicons name="arrow-back" size={22} color="#0F172A" />
           </TouchableOpacity>
           <View style={{ flex: 1, marginLeft: 8 }}>
-            <Text style={styles.mainTitle}>Ayurveda & Wellness</Text>
+            <Text style={styles.mainTitle}>{t('Ayurveda & Wellness')}</Text>
             <Text style={styles.mainSubtitle}>
-              Find the right centre for your wellness needs
+              {t('Find the right centre for your wellness needs')}
             </Text>
           </View>
         </View>
@@ -2895,7 +2897,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
           <Ionicons name="search" size={20} color="#64748B" style={{ marginRight: 8 }} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search Ayurvedic doctors, Vaidyas, centres or therapies..."
+            placeholder={t('Search Ayurvedic doctors, Vaidyas, centres or therapies...')}
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -2931,10 +2933,10 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
       {/* Active Filter Indicators Bar */}
       {activeFiltersCount > 0 && (
         <View style={styles.activeFilterPillsRow}>
-          <Text style={styles.activeFilterLabel}>Active Filters:</Text>
+          <Text style={styles.activeFilterLabel}>{t('Active Filters:')}</Text>
           {selectedPopularService && (
             <View style={styles.activeFilterPill}>
-              <Text style={styles.activeFilterPillText}>{selectedPopularService}</Text>
+              <Text style={styles.activeFilterPillText}>{t(selectedPopularService)}</Text>
               <TouchableOpacity onPress={() => setSelectedPopularService(null)}>
                 <Ionicons name="close" size={14} color="#059669" />
               </TouchableOpacity>
@@ -2950,14 +2952,14 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
           )}
           {filterService !== 'All' && (
             <View style={styles.activeFilterPill}>
-              <Text style={styles.activeFilterPillText}>{filterService}</Text>
+              <Text style={styles.activeFilterPillText}>{t(filterService)}</Text>
               <TouchableOpacity onPress={() => setFilterService('All')}>
                 <Ionicons name="close" size={14} color="#059669" />
               </TouchableOpacity>
             </View>
           )}
           <TouchableOpacity onPress={clearAllFilters} style={styles.clearAllFiltersLink}>
-            <Text style={styles.clearAllFiltersLinkText}>Clear All</Text>
+            <Text style={styles.clearAllFiltersLinkText}>{t('Clear All')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -2965,8 +2967,8 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
       {/* Popular Services Section */}
       <View style={styles.sectionHeaderRow}>
         <View>
-          <Text style={styles.sectionTitle}>Popular Services</Text>
-          <Text style={styles.sectionSub}>Select a category to filter verified centres</Text>
+          <Text style={styles.sectionTitle}>{t('Popular Services')}</Text>
+          <Text style={styles.sectionSub}>{t('Select a category to filter verified centres')}</Text>
         </View>
       </View>
 
@@ -3007,7 +3009,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                     isSelected && { color: '#059669', fontWeight: '700' },
                   ]}
                 >
-                  {isSelected ? 'Filtered' : 'Explore →'}
+                  {isSelected ? t('Filtered') : `${t('Explore')} →`}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -3018,7 +3020,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
       {/* Featured Centres Section */}
       <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
         <View>
-          <Text style={styles.sectionTitle}>Featured Centres</Text>
+          <Text style={styles.sectionTitle}>{t('Featured Centres')}</Text>
           <Text style={styles.sectionSub}>
             Showing {filteredCentres.length} accredited Ayurvedic hospitals and wellness sanatoria
           </Text>
@@ -3029,13 +3031,13 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
       {filteredCentres.length === 0 ? (
         <View style={styles.noResultsBox}>
           <Ionicons name="search-outline" size={52} color="#94A3B8" />
-          <Text style={styles.noResultsTitle}>No Centres Found</Text>
+          <Text style={styles.noResultsTitle}>{t('No Centres Found')}</Text>
           <Text style={styles.noResultsSub}>
             We couldn't find any centres matching "{searchQuery || 'your filter criteria'}".
             Try searching for "Panchakarma", "Shirodhara", "Mysuru", or clear your filters.
           </Text>
           <TouchableOpacity style={styles.resetSearchBtn} onPress={clearAllFilters}>
-            <Text style={styles.resetSearchBtnText}>Reset Search & Filters</Text>
+            <Text style={styles.resetSearchBtnText}>{t('Reset Search & Filters')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -3068,7 +3070,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                       style={{ marginRight: 4 }}
                     />
                     <Text style={styles.bookingTypePillText}>
-                      {centre.directBooking ? 'Direct Booking' : 'Callback Enquiry'}
+                      {centre.directBooking ? t('Direct Booking') : t('Callback Enquiry')}
                     </Text>
                   </View>
                 </View>
@@ -3104,14 +3106,14 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                     <Ionicons name="checkmark-circle" size={14} color="#059669" />
                     <Text style={styles.highlightLineText}>
                       {centre.consultationAvailable
-                        ? 'Doctor Consultation Available'
-                        : 'Consultation on request'}
+                        ? t('Doctor Consultation Available')
+                        : t('Consultation on request')}
                     </Text>
                   </View>
                   <View style={styles.highlightLine}>
                     <Ionicons name="checkmark-circle" size={14} color="#059669" />
                     <Text style={styles.highlightLineText}>
-                      {centre.therapiesCount}+ Classical Therapies Available
+                      {centre.therapiesCount}+ {t('Classical Therapies Available')}
                     </Text>
                   </View>
                 </View>
@@ -3119,7 +3121,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                 {/* Footer Pricing & CTA */}
                 <View style={styles.centreCardFooter}>
                   <View>
-                    <Text style={styles.centreFeeLabel}>Starting price / Fee</Text>
+                    <Text style={styles.centreFeeLabel}>{t('Starting price / Fee')}</Text>
                     <Text style={styles.centreFeeValue}>{centre.startingPrice}</Text>
                   </View>
 
@@ -3127,7 +3129,7 @@ const AyurvedaWellnessScreen = ({ navigation, route }) => {
                     style={styles.viewCentreBtn}
                     onPress={() => handleOpenCentre(centre)}
                   >
-                    <Text style={styles.viewCentreBtnText}>View Centre</Text>
+                    <Text style={styles.viewCentreBtnText}>{t('View Centre')}</Text>
                     <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>

@@ -23,6 +23,7 @@ import colors from '../../theme/colors';
 import doctors from '../../data/doctors';
 import { radiologyLabs } from '../../data/radiologyLabsData';
 import { useCart } from '../../context/CartContext';
+import { useTheme } from '../../context/ThemeContext';
 
 // Horizontally scrollable quick prompt chips
 const QUICK_SUGGESTIONS = [
@@ -93,6 +94,7 @@ const INITIAL_MESSAGES = [
 const ChatbotScreen = ({ navigation }) => {
   const { width } = useWindowDimensions();
   const isTablet = width >= 600;
+  const { t, isIndic } = useTheme();
 
   const { addToCart } = useCart();
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
@@ -1073,7 +1075,7 @@ const ChatbotScreen = ({ navigation }) => {
 
               <View style={styles.headerTitleCol}>
                 <Text style={styles.headerTitle}>MediUnify AI</Text>
-                <Text style={styles.headerSubtitle}>Your personal health assistant</Text>
+                <Text style={styles.headerSubtitle}>{t('bot_subtitle', 'Your personal health assistant')}</Text>
               </View>
 
               <TouchableOpacity
@@ -1101,7 +1103,9 @@ const ChatbotScreen = ({ navigation }) => {
                   activeOpacity={0.8}
                 >
                   <Ionicons name={sug.icon} size={13} color="#007D69" style={{ marginRight: 4 }} />
-                  <Text style={styles.suggestionChipText}>{sug.text}</Text>
+                  <Text style={[styles.suggestionChipText, isIndic && { lineHeight: 16 }]}>
+                    {t(sug.text, sug.text)}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -1133,12 +1137,12 @@ const ChatbotScreen = ({ navigation }) => {
                       {scanningPrescription ? (
                         <View style={styles.scanningRow}>
                           <ActivityIndicator size="small" color="#007D69" />
-                          <Text style={styles.typingText}>Scanning Prescription OCR...</Text>
+                          <Text style={styles.typingText}>{t('scanning_prescription', 'Scanning prescription…')}</Text>
                         </View>
                       ) : (
                         <View style={styles.scanningRow}>
                           <ActivityIndicator size="small" color="#007D69" />
-                          <Text style={styles.typingText}>MediUnify AI is typing...</Text>
+                          <Text style={styles.typingText}>{t('typing', 'Typing…')}</Text>
                         </View>
                       )}
                     </View>
@@ -1168,8 +1172,8 @@ const ChatbotScreen = ({ navigation }) => {
                 </TouchableOpacity>
 
                 <TextInput
-                  style={styles.textInput}
-                  placeholder="Ask MediUnify AI..."
+                  style={[styles.textInput, isIndic && { fontSize: 13 }]}
+                  placeholder={t('chat_placeholder_mobile', 'Ask MediUnify AI...')}
                   placeholderTextColor="#94A3B8"
                   value={inputText}
                   onChangeText={setInputText}
@@ -1206,7 +1210,7 @@ const ChatbotScreen = ({ navigation }) => {
               <View style={styles.disclaimerRow}>
                 <Ionicons name="information-circle-outline" size={12} color="#64748B" />
                 <Text style={styles.disclaimerText}>
-                  AI guidance is not a substitute for professional medical advice.
+                  {t('ai_disclaimer_short', 'AI guidance is not a substitute for professional medical advice.')}
                 </Text>
               </View>
             </View>

@@ -328,12 +328,12 @@ const AllServicesScreenWeb = ({ navigation, route }) => {
                 <Ionicons name="grid" size={14} color={PALETTE.tealDark} />
                 <Text style={styles.resultsBadgeText}>
                   {filteredServices.length}{' '}
-                  {filteredServices.length === 1 ? 'service' : 'services'}
+                  {t('services_count', filteredServices.length === 1 ? 'service' : 'services')}
                 </Text>
               </View>
               {searchQuery.trim().length > 0 && (
                 <Text style={styles.resultsQuery}>
-                  {' matching '}
+                  {t('matching_query', ' matching ')}
                   <Text style={{ fontWeight: '800', color: PALETTE.navyBlue }}>
                     &ldquo;{searchQuery}&rdquo;
                   </Text>
@@ -342,7 +342,7 @@ const AllServicesScreenWeb = ({ navigation, route }) => {
             </View>
             {searchQuery.trim().length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
-                <Text style={styles.clearLink}>Clear search</Text>
+                <Text style={styles.clearLink}>{t('clear_search', 'Clear search')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -353,10 +353,9 @@ const AllServicesScreenWeb = ({ navigation, route }) => {
               <View style={styles.emptyIconWrap}>
                 <Ionicons name="search-outline" size={42} color="#94A3B8" />
               </View>
-              <Text style={styles.emptyTitle}>No services found</Text>
+              <Text style={styles.emptyTitle}>{t('no_services_found', 'No services found')}</Text>
               <Text style={styles.emptySub}>
-                Try searching for &quot;Doctor&quot;, &quot;Lab Test&quot;, &quot;Surgery&quot;,
-                &quot;Nursing&quot;, &quot;Pharmacy&quot; or &quot;Scan&quot;.
+                {t('try_searching_again', 'Try searching for "Doctor", "Lab Test", "Surgery", "Nursing", "Pharmacy" or "Scan".')}
               </Text>
               <TouchableOpacity
                 style={styles.emptyResetBtn}
@@ -364,7 +363,7 @@ const AllServicesScreenWeb = ({ navigation, route }) => {
                 activeOpacity={0.85}
               >
                 <Ionicons name="refresh" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.emptyResetText}>View All Services</Text>
+                <Text style={styles.emptyResetText}>{t('view_services', 'View All Services')}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -408,16 +407,16 @@ const AllServicesScreenWeb = ({ navigation, route }) => {
                       ]}
                     >
                       <Text style={[styles.serviceBadgeText, { color: service.accentColor }]}>
-                        {service.badge}
+                        {t(service.badge, service.badge)}
                       </Text>
                     </View>
                   </View>
 
                   {/* Card Body */}
                   <View style={styles.cardContent}>
-                    <Text style={styles.cardTitle}>{service.title}</Text>
+                    <Text style={styles.cardTitle}>{t(service.title, service.title)}</Text>
                     <Text style={styles.cardSubtitle} numberOfLines={2}>
-                      {service.subtitle}
+                      {t(service.subtitle, service.subtitle)}
                     </Text>
                   </View>
 
@@ -433,7 +432,7 @@ const AllServicesScreenWeb = ({ navigation, route }) => {
                       ]}
                     >
                       <Text style={[styles.bookBtnText, { color: service.accentColor }]}>
-                        Book Now
+                        {t('book_now_btn', 'Book Now')}
                       </Text>
                       <Ionicons
                         name="arrow-forward"

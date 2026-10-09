@@ -26,10 +26,12 @@ import {
 } from '../../data/patientDashboardData';
 
 import HealthRecordsScreenMobile from './HealthRecordsScreen';
+import { useTheme } from '../../context/ThemeContext';
 
 const RECORD_TABS = ['All Records', 'Lab Reports', 'Radiology & Scans', 'Prescriptions', 'Other Records'];
 
 const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
+  const { t, isIndic } = useTheme();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
   const isTablet = width >= 768 && width < 1024;
@@ -234,10 +236,10 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
           <View style={[styles.innerContainer, styles.breadcrumbContent]}>
             <TouchableOpacity onPress={() => navigation?.navigate('Home')} activeOpacity={0.7} style={styles.breadcrumbItem}>
               <Ionicons name="home-outline" size={14} color="#64748B" />
-              <Text style={styles.breadcrumbText}>Home</Text>
+              <Text style={styles.breadcrumbText}>{t('Home')}</Text>
             </TouchableOpacity>
             <Ionicons name="chevron-forward" size={12} color="#94A3B8" />
-            <Text style={styles.breadcrumbActive}>My Medical Records & Prescriptions</Text>
+            <Text style={styles.breadcrumbActive}>{t('My Medical Records & Prescriptions')}</Text>
           </View>
         </View>
 
@@ -245,22 +247,22 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
         <View style={styles.innerContainer}>
           <PatientPageBanner
             onBack={() => navigation?.canGoBack?.() ? navigation.goBack() : navigation?.navigate('Home')}
-            title="My Medical Records"
-            subtitle="Store, view, and act upon all prescriptions, diagnostic scans, and clinical summaries. Order prescribed medicines or book referred lab tests in one tap."
-            badgeText="CENTRAL HEALTH VAULT & ACTIONABLE DOCUMENTS"
+            title={t('My Medical Records')}
+            subtitle={t('Store, view, and act upon all prescriptions, diagnostic scans, and clinical summaries. Order prescribed medicines or book referred lab tests in one tap.')}
+            badgeText={t('CENTRAL HEALTH VAULT & ACTIONABLE DOCUMENTS')}
             badgeIcon="folder-open"
             iconName="document-text"
             theme="teal"
             pills={[
               {
-                label: `Total Records: ${records.length}`,
+                label: `${t('Total Records')}: ${records.length}`,
                 bgColor: '#ECFDF5',
                 borderColor: '#A7F3D0',
                 textColor: '#008B94',
                 icon: 'shield-checkmark-outline',
               },
               {
-                label: `Prescriptions: ${records.filter((r) => r.recordType === 'Prescription').length}`,
+                label: `${t('Prescriptions')}: ${records.filter((r) => r.recordType === 'Prescription').length}`,
                 bgColor: '#EFF6FF',
                 borderColor: '#BFDBFE',
                 textColor: '#1E3A8A',
@@ -274,7 +276,7 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
                 activeOpacity={0.85}
               >
                 <Ionicons name="cloud-upload" size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.uploadDocBtnText}>Upload New Document</Text>
+                <Text style={styles.uploadDocBtnText}>{t('Upload New Document')}</Text>
               </TouchableOpacity>
             }
           />
@@ -306,7 +308,7 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
                     activeOpacity={0.8}
                   >
                     <Text style={[styles.tabBtnText, active && styles.tabBtnTextActive]}>
-                      {tab} ({count})
+                      {t(tab)} ({count})
                     </Text>
                   </TouchableOpacity>
                 );
@@ -319,7 +321,7 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
                 <Ionicons name="search-outline" size={18} color="#64748B" style={{ marginRight: 8 }} />
                 <TextInput
                   style={styles.searchInput}
-                  placeholder="Search records by document name, doctor, clinic, or medicine..."
+                  placeholder={t('Search records by document name, doctor, clinic, or medicine...')}
                   placeholderTextColor="#94A3B8"
                   value={searchQuery}
                   onChangeText={setSearchQuery}
@@ -333,13 +335,13 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
 
               {/* Family Dropdown / Buttons */}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569' }}>Family Member:</Text>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569' }}>{t('Family Member:')}</Text>
                 <TouchableOpacity
                   style={[styles.memberChip, selectedFamilyMember === 'all' && styles.memberChipActive]}
                   onPress={() => setSelectedFamilyMember('all')}
                 >
                   <Text style={[styles.memberChipText, selectedFamilyMember === 'all' && styles.memberChipTextActive]}>
-                    All ({records.length})
+                    {t('All')} ({records.length})
                   </Text>
                 </TouchableOpacity>
                 {familyMembers.map((m) => {
@@ -367,9 +369,9 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
               <View style={[styles.emptyIconCircle, { backgroundColor: '#E6F8F4' }]}>
                 <Ionicons name="document-text-outline" size={42} color="#00B894" />
               </View>
-              <Text style={styles.emptyTitle}>Login to view your medical records</Text>
+              <Text style={styles.emptyTitle}>{t('Login to view your medical records')}</Text>
               <Text style={styles.emptyDesc}>
-                Please sign in to access your digital prescriptions, clinical summaries, and diagnostic reports.
+                {t('Please login to continue')}
               </Text>
               <TouchableOpacity
                 style={[styles.uploadFab, { marginTop: 18, alignSelf: 'center', paddingHorizontal: 32 }]}
@@ -382,24 +384,24 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
                 activeOpacity={0.85}
               >
                 <Ionicons name="log-in-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.uploadFabText}>Login</Text>
+                <Text style={styles.uploadFabText}>{t('Login')}</Text>
               </TouchableOpacity>
             </View>
           ) : loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#00B894" />
-              <Text style={styles.loadingText}>Loading your clinical records...</Text>
+              <Text style={styles.loadingText}>{t('Loading your clinical records...')}</Text>
             </View>
           ) : filteredRecords.length === 0 ? (
             <View style={styles.emptyCard}>
               <View style={styles.emptyIconCircle}>
                 <Ionicons name="folder-open-outline" size={42} color="#94A3B8" />
               </View>
-              <Text style={styles.emptyTitle}>No medical documents found</Text>
+              <Text style={styles.emptyTitle}>{t('No medical documents found')}</Text>
               <Text style={styles.emptyDesc}>
                 {searchQuery || activeTab !== 'All Records' || selectedFamilyMember !== 'all'
-                  ? 'No records match your selected criteria. Try resetting your search or filter.'
-                  : 'You do not have any uploaded or generated medical records yet.'}
+                  ? t('No data found')
+                  : t('no_records')}
               </Text>
             </View>
           ) : (
@@ -414,7 +416,7 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                         <View style={[styles.typeBadge, { backgroundColor: badge.bg, borderColor: badge.border }]}>
                           <Ionicons name={badge.icon} size={13} color={badge.text} style={{ marginRight: 4 }} />
-                          <Text style={[styles.typeBadgeText, { color: badge.text }]}>{record.recordType}</Text>
+                          <Text style={[styles.typeBadgeText, { color: badge.text }]}>{t(record.recordType)}</Text>
                         </View>
                         <Text style={styles.recordId}>{record.id}</Text>
                       </View>
@@ -506,7 +508,7 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
                           activeOpacity={0.85}
                         >
                           <Ionicons name="cart" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
-                          <Text style={styles.orderMedsActionBtnText}>Order Medicines →</Text>
+                          <Text style={styles.orderMedsActionBtnText}>{t('Order Medicines →')}</Text>
                         </TouchableOpacity>
                       </View>
                     )}
@@ -517,7 +519,7 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                             <Ionicons name="flask" size={16} color="#2563EB" />
                             <Text style={[styles.actionBoxTitle, { color: '#1E40AF' }]}>
-                              Referred Lab Test: {record.referredTest.testName}
+                              {t('Referred Lab Test')}: {record.referredTest.testName}
                             </Text>
                           </View>
                           <Text style={styles.actionBoxSubtitle}>{record.referredTest.reason}</Text>
@@ -529,7 +531,7 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
                           activeOpacity={0.85}
                         >
                           <Ionicons name="calendar" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
-                          <Text style={styles.bookLabActionBtnText}>Book Lab Test →</Text>
+                          <Text style={styles.bookLabActionBtnText}>{t('Book Lab Test →')}</Text>
                         </TouchableOpacity>
                       </View>
                     )}
@@ -545,7 +547,7 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
                           activeOpacity={0.8}
                         >
                           <Ionicons name="eye-outline" size={14} color="#1E3A8A" style={{ marginRight: 4 }} />
-                          <Text style={styles.viewDocBtnText}>View Document</Text>
+                          <Text style={styles.viewDocBtnText}>{t('View Document')}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -554,7 +556,7 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
                           activeOpacity={0.8}
                         >
                           <Ionicons name="cloud-download-outline" size={14} color="#00B894" style={{ marginRight: 4 }} />
-                          <Text style={styles.downloadDocBtnText}>Download</Text>
+                          <Text style={styles.downloadDocBtnText}>{t('Download')}</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -677,7 +679,7 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
 
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setViewingRecord(null)}>
-                <Text style={styles.modalCancelBtnText}>Close</Text>
+                <Text style={styles.modalCancelBtnText}>{t('Close')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.modalPrimaryBtn}
@@ -687,7 +689,7 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
                 }}
               >
                 <Ionicons name="download-outline" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.modalPrimaryBtnText}>Download PDF</Text>
+                <Text style={styles.modalPrimaryBtnText}>{t('Download PDF')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -704,7 +706,7 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
               <View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons name="cart" size={18} color="#00B894" />
-                  <Text style={styles.modalTitle}>Order Prescribed Medicines</Text>
+                  <Text style={styles.modalTitle}>{t('Order Prescribed Medicines')}</Text>
                 </View>
                 <Text style={styles.modalSubtitle}>From {orderMedsRecord?.doctorName}</Text>
               </View>
@@ -806,11 +808,11 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
 
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setOrderMedsRecord(null)}>
-                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                <Text style={styles.modalCancelBtnText}>{t('Cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalPrimaryBtn} onPress={handleConfirmOrderMedicines}>
                 <Ionicons name="cart-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.modalPrimaryBtnText}>Add to Cart & Checkout</Text>
+                <Text style={styles.modalPrimaryBtnText}>{t('Add to Cart & Checkout')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -827,7 +829,7 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
               <View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons name="flask" size={18} color="#2563EB" />
-                  <Text style={styles.modalTitle}>Book Referred Lab Test</Text>
+                  <Text style={styles.modalTitle}>{t('Book Referred Lab Test')}</Text>
                 </View>
                 <Text style={styles.modalSubtitle}>{bookLabRecord?.referredTest?.testName}</Text>
               </View>
@@ -898,11 +900,11 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
 
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setBookLabRecord(null)}>
-                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                <Text style={styles.modalCancelBtnText}>{t('Cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalPrimaryBtn} onPress={handleConfirmBookLab}>
                 <Ionicons name="checkmark-circle-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.modalPrimaryBtnText}>Confirm Slot Booking</Text>
+                <Text style={styles.modalPrimaryBtnText}>{t('Confirm Slot Booking')}</Text>
               </TouchableOpacity>
             </View>
           </View>

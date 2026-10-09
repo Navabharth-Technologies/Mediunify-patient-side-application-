@@ -2,8 +2,10 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../theme/colors';
+import { useTheme } from '../context/ThemeContext';
 
 const MedicineCard = ({ medicine, onPress }) => {
+  const { t } = useTheme();
   return (
     <TouchableOpacity style={styles.card} onPress={onPress}>
       <View style={styles.imageBox}>
@@ -12,7 +14,7 @@ const MedicineCard = ({ medicine, onPress }) => {
 
       <View style={styles.info}>
         <Text style={styles.name}>{medicine.name}</Text>
-        <Text style={styles.type}>{medicine.type}</Text>
+        <Text style={styles.type}>{medicine.type ? t(medicine.type, medicine.type) : ''}</Text>
         <Text style={styles.price}>₹{medicine.price}</Text>
       </View>
     </TouchableOpacity>

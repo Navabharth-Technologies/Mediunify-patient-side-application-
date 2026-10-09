@@ -1,13 +1,12 @@
 import React from 'react';
-
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
-
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../context/ThemeContext';
 
 const Header = ({
   title,
@@ -16,11 +15,14 @@ const Header = ({
   onBackPress,
   showBack = false,
 }) => {
+  const { t, isIndic } = useTheme();
+
+  const renderedTitle = typeof title === 'string' ? t(title) : title;
+  const renderedSubtitle = typeof subtitle === 'string' ? t(subtitle) : subtitle;
+
   return (
     <View style={styles.container}>
-
       <View style={styles.leftContainer}>
-
         {showBack && (
           <TouchableOpacity
             style={styles.backButton}
@@ -35,21 +37,17 @@ const Header = ({
         )}
 
         <View>
-
-          <Text style={styles.title}>
-            {title}
+          <Text style={[styles.title, isIndic && { lineHeight: 28 }]}>
+            {renderedTitle}
           </Text>
 
           {subtitle && (
-            <Text style={styles.subtitle}>
-              {subtitle}
+            <Text style={[styles.subtitle, isIndic && { lineHeight: 18 }]}>
+              {renderedSubtitle}
             </Text>
           )}
-
         </View>
-
       </View>
-
 
       {onNotificationPress && (
         <TouchableOpacity
@@ -63,13 +61,11 @@ const Header = ({
           />
         </TouchableOpacity>
       )}
-
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-
   container: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -78,13 +74,11 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     backgroundColor: '#FFFFFF',
   },
-
   leftContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-
   backButton: {
     width: 40,
     height: 40,
@@ -92,28 +86,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 10,
   },
-
   title: {
     fontSize: 21,
     fontWeight: '800',
     color: '#263238',
   },
-
   subtitle: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#78909C',
-    marginTop: 3,
+    marginTop: 2,
   },
-
   notificationButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: '#F5F7F8',
+    width: 40,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
-
 });
 
 export default Header;

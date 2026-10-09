@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { INITIAL_MEDICAL_RECORDS, INITIAL_TEST_REPORTS } from '../../data/patientDashboardData';
+import { useTheme } from '../../context/ThemeContext';
 
 const CATEGORY_TABS = [
   { id: 'all',        label: 'All',          icon: 'documents-outline' },
@@ -53,11 +54,11 @@ function iconForCategory(cat) {
   }
 }
 
-function statusForRecord(rec) {
-  if (rec.recordType === 'Prescription')      return { text: 'Active Rx',   color: '#0D9488', bg: '#F0FDFA' };
-  if (rec.recordType === 'Lab Report')        return { text: 'Completed',   color: '#059669', bg: '#ECFDF5' };
-  if (rec.recordType === 'Diagnostic Report') return { text: 'Reviewed',    color: '#7C3AED', bg: '#EDE9FE' };
-  return { text: 'Filed', color: '#64748B', bg: '#F1F5F9' };
+function statusForRecord(rec, t = (k) => k) {
+  if (rec.recordType === 'Prescription')      return { text: t('Active Rx'),   color: '#0D9488', bg: '#F0FDFA' };
+  if (rec.recordType === 'Lab Report')        return { text: t('Completed'),   color: '#059669', bg: '#ECFDF5' };
+  if (rec.recordType === 'Diagnostic Report') return { text: t('Reviewed'),    color: '#7C3AED', bg: '#EDE9FE' };
+  return { text: t('Filed'), color: '#64748B', bg: '#F1F5F9' };
 }
 
 function fmtDate(d) {
@@ -85,6 +86,7 @@ function matchDate(d, filter) {
 }
 
 const HealthRecordsScreen = ({ navigation }) => {
+  const { t, isIndic } = useTheme();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
 
@@ -145,7 +147,7 @@ const HealthRecordsScreen = ({ navigation }) => {
   const dashboardRecords = useMemo(() =>
     INITIAL_MEDICAL_RECORDS.map((rec) => {
       const cat = buildCategory(rec);
-      const st  = statusForRecord(rec);
+      const st  = statusForRecord(rec, t);
       return {
         id: rec.id, title: rec.name, category: cat,
         patientId: rec.patientId || 'self', patientName: rec.patientName || 'Self',
@@ -162,7 +164,7 @@ const HealthRecordsScreen = ({ navigation }) => {
         pharmacyOptions: rec.pharmacyOptions || [],
         recordType: rec.recordType, _source: 'dashboard',
       };
-    }), []);
+    }), [t]);
 
   const labReportRecords = useMemo(() =>
     INITIAL_TEST_REPORTS.filter((r) => r.reportAvailable).map((rep) => ({
@@ -170,7 +172,7 @@ const HealthRecordsScreen = ({ navigation }) => {
       patientId: rep.patientId || 'self', patientName: rep.patientName || 'Self',
       doctor: '', facility: rep.labName || '',
       date: rep.testDate || rep.reportDate || '', fileSize: rep.fileSize || '',
-      status: rep.normalStatus || 'Completed',
+      status: t(rep.normalStatus || 'Completed'),
       statusColor: rep.normalStatus === 'Normal' ? '#059669' : rep.normalStatus === 'Borderline' ? '#D97706' : '#0284C7',
       statusBg:    rep.normalStatus === 'Normal' ? '#ECFDF5' : rep.normalStatus === 'Borderline' ? '#FEF3C7' : '#E0F2FE',
       summary: rep.doctorNotes || `${rep.modalityType || ''} • ${rep.sampleType || ''}`,
@@ -178,7 +180,7 @@ const HealthRecordsScreen = ({ navigation }) => {
       hasMedicines: false, medicines: [], parameters: rep.parameters || [],
       hasReferredTest: false, referredTest: null,
       recordType: 'Lab Report', _source: 'testReports',
-    })), []);
+    })), [t]);
 
   const doctorSuggestions = useMemo(() =>
     INITIAL_MEDICAL_RECORDS.filter((r) => r.hasReferredTest && r.referredTest).map((rec) => ({
@@ -186,13 +188,13 @@ const HealthRecordsScreen = ({ navigation }) => {
       patientId: rec.patientId || 'self', patientName: rec.patientName || 'Self',
       doctor: rec.doctorName || '', facility: rec.facilityName || '',
       date: rec.date || '', fileSize: '',
-      status: 'Recommended', statusColor: '#D97706', statusBg: '#FEF3C7',
+      status: t('Recommended'), statusColor: '#D97706', statusBg: '#FEF3C7',
       summary: `Reason: ${rec.referredTest.reason || 'Doctor recommended lab test'}`,
       ...iconForCategory('suggestion'),
       hasMedicines: false, medicines: [], parameters: [],
       hasReferredTest: true, referredTest: rec.referredTest,
       recordType: 'Suggestion', _source: 'suggestion',
-    })), []);
+    })), [t]);
 
   const uploadedRecords = useMemo(() =>
     userUploaded.map((r) => ({ ...r, ...iconForCategory(r.category || 'other'), _source: 'uploaded' })), [userUploaded]);
@@ -214,11 +216,11 @@ const HealthRecordsScreen = ({ navigation }) => {
       ).length;
       const rawName = isSelf ? (primaryDisplayName || 'You') : (m.name || '').split(' ')[0];
       return {
-        id: m.id, name: rawName, relation: isSelf ? 'My Records' : (m.relation || 'Family'),
+        id: m.id, name: rawName, relation: isSelf ? t('My Records') : t(m.relation || 'Family'),
         initials: rawName.slice(0, 2).toUpperCase(), count, isSelf,
       };
     });
-  }, [familyMembers, allRecords, primaryDisplayName]);
+  }, [familyMembers, allRecords, primaryDisplayName, t]);
 
   const categoryCounts = useMemo(() => {
     const base = allRecords.filter((r) => {
@@ -323,7 +325,7 @@ const HealthRecordsScreen = ({ navigation }) => {
           </TouchableOpacity>
           <TouchableOpacity style={styles.viewBtn} onPress={() => openDetail(rec)} activeOpacity={0.85}>
             <Ionicons name="eye" size={13} color="#FFF" />
-            <Text style={styles.viewBtnText}>View</Text>
+            <Text style={styles.viewBtnText}>{t('View')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -335,7 +337,7 @@ const HealthRecordsScreen = ({ navigation }) => {
           activeOpacity={0.88}
         >
           <Ionicons name="flask-outline" size={14} color="#FFF" />
-          <Text style={styles.bookTestBtnText}>Book Recommended Test</Text>
+          <Text style={styles.bookTestBtnText}>{t('Book Recommended Test')}</Text>
           <Ionicons name="arrow-forward" size={13} color="#FFF" />
         </TouchableOpacity>
       )}
@@ -360,15 +362,15 @@ const HealthRecordsScreen = ({ navigation }) => {
           <Ionicons name="arrow-back" size={20} color="#0F172A" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Health Records</Text>
+          <Text style={styles.headerTitle}>{t('Health Records')}</Text>
           <View style={styles.headerSubRow}>
             <View style={styles.liveDot} />
-            <Text style={styles.headerSubText}>ABHA Verified • Private & Secure</Text>
+            <Text style={styles.headerSubText}>{t('ABHA Verified • Private & Secure')}</Text>
           </View>
         </View>
         <TouchableOpacity style={styles.uploadHeaderBtn} onPress={() => setUploadModalVisible(true)} activeOpacity={0.85}>
           <Ionicons name="cloud-upload" size={14} color="#FFF" />
-          <Text style={styles.uploadHeaderBtnText}>Upload</Text>
+          <Text style={styles.uploadHeaderBtnText}>{t('Upload')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -379,11 +381,11 @@ const HealthRecordsScreen = ({ navigation }) => {
           <View style={styles.sectionRow}>
             <View style={styles.sectionLabelRow}>
               <Ionicons name="people" size={15} color="#0F766E" />
-              <Text style={styles.sectionLabel}>Select Patient</Text>
+              <Text style={styles.sectionLabel}>{t('Select Patient')}</Text>
             </View>
             <TouchableOpacity style={styles.manageFamilyBtn} onPress={() => navigation.navigate('FamilyProfiles')} activeOpacity={0.8}>
               <Ionicons name="add" size={12} color="#0F766E" />
-              <Text style={styles.manageFamilyText}>Manage Family</Text>
+              <Text style={styles.manageFamilyText}>{t('Manage Family')}</Text>
             </TouchableOpacity>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.familyScroll}>
@@ -404,8 +406,8 @@ const HealthRecordsScreen = ({ navigation }) => {
             })}
             <TouchableOpacity style={styles.addFamilyChip} onPress={() => navigation.navigate('FamilyProfiles')} activeOpacity={0.8}>
               <View style={styles.addFamilyCircle}><Ionicons name="person-add" size={15} color="#0F766E" /></View>
-              <Text style={styles.addFamilyText}>+ Add</Text>
-              <Text style={styles.addFamilySub}>Member</Text>
+              <Text style={styles.addFamilyText}>+ {t('Add')}</Text>
+              <Text style={styles.addFamilySub}>{t('Member')}</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -416,7 +418,7 @@ const HealthRecordsScreen = ({ navigation }) => {
             <Ionicons name="search" size={16} color="#94A3B8" />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search doctor, lab, test, prescription..."
+              placeholder={t('Search doctor, lab, test, prescription...')}
               placeholderTextColor="#94A3B8"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -430,7 +432,7 @@ const HealthRecordsScreen = ({ navigation }) => {
           </View>
           <TouchableOpacity style={styles.dateFilterPill} onPress={() => setDateModalVisible(true)} activeOpacity={0.8}>
             <Ionicons name="calendar-outline" size={13} color="#0F766E" />
-            <Text style={styles.dateFilterText}>{DATE_FILTERS.find((d) => d.id === dateFilter)?.label || 'All Time'}</Text>
+            <Text style={styles.dateFilterText}>{t(DATE_FILTERS.find((d) => d.id === dateFilter)?.label || 'All Time')}</Text>
             <Ionicons name="chevron-down" size={12} color="#0F766E" />
           </TouchableOpacity>
         </View>
@@ -442,7 +444,7 @@ const HealthRecordsScreen = ({ navigation }) => {
             return (
               <TouchableOpacity key={tab.id} style={[styles.categoryPill, isActive && styles.categoryPillActive]} onPress={() => setSelectedCategory(tab.id)} activeOpacity={0.8}>
                 <Ionicons name={tab.icon} size={13} color={isActive ? '#FFF' : '#64748B'} />
-                <Text style={[styles.categoryPillText, isActive && styles.categoryPillTextActive]}>{tab.label}</Text>
+                <Text style={[styles.categoryPillText, isActive && styles.categoryPillTextActive]}>{t(tab.label)}</Text>
                 <View style={[styles.categoryCount, isActive && styles.categoryCountActive]}>
                   <Text style={[styles.categoryCountText, isActive && styles.categoryCountTextActive]}>{categoryCounts[tab.id] || 0}</Text>
                 </View>
@@ -454,10 +456,10 @@ const HealthRecordsScreen = ({ navigation }) => {
         {/* RECORDS */}
         <View style={[styles.recordsWrap, isTablet && styles.recordsWrapTablet]}>
           <View style={styles.recordsHeader}>
-            <Text style={styles.recordsHeaderText}>{filteredRecords.length} {filteredRecords.length === 1 ? 'Record' : 'Records'}</Text>
+            <Text style={styles.recordsHeaderText}>{filteredRecords.length} {filteredRecords.length === 1 ? t('Record') : t('Records')}</Text>
             <TouchableOpacity style={styles.syncBtn} onPress={handleSync} disabled={isSyncing} activeOpacity={0.8}>
               {isSyncing ? <ActivityIndicator size="small" color="#0F766E" /> : <Ionicons name="sync" size={14} color="#0F766E" />}
-              <Text style={styles.syncBtnText}>{isSyncing ? 'Syncing...' : 'Sync'}</Text>
+              <Text style={styles.syncBtnText}>{isSyncing ? t('Syncing...') : t('Sync')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -468,8 +470,8 @@ const HealthRecordsScreen = ({ navigation }) => {
                 {searchQuery
                   ? `No records matching "${searchQuery}"`
                   : selectedCategory !== 'all'
-                  ? `No ${CATEGORY_TABS.find((t) => t.id === selectedCategory)?.label} found`
-                  : 'No health records found'}
+                  ? `No ${t(CATEGORY_TABS.find((t) => t.id === selectedCategory)?.label || '')} found`
+                  : t('No health records found')}
               </Text>
               <Text style={styles.emptySub}>
                 {selectedPatientId !== 'self' && selectedPatientId !== selfMemberId
@@ -478,7 +480,7 @@ const HealthRecordsScreen = ({ navigation }) => {
               </Text>
               <TouchableOpacity style={styles.emptyUploadBtn} onPress={() => setUploadModalVisible(true)} activeOpacity={0.85}>
                 <Ionicons name="cloud-upload" size={14} color="#FFF" />
-                <Text style={styles.emptyUploadBtnText}>Upload Document</Text>
+                <Text style={styles.emptyUploadBtnText}>{t('Upload Document')}</Text>
               </TouchableOpacity>
             </View>
           ) : isTablet ? (
@@ -522,22 +524,22 @@ const HealthRecordsScreen = ({ navigation }) => {
                 </View>
 
                 <View style={styles.infoGrid}>
-                  {!!activeRecord.doctor   && <View style={styles.infoItem}><Text style={styles.infoLabel}>Doctor</Text><Text style={styles.infoValue}>{activeRecord.doctor}</Text></View>}
-                  {!!activeRecord.facility && <View style={styles.infoItem}><Text style={styles.infoLabel}>Facility</Text><Text style={styles.infoValue}>{activeRecord.facility}</Text></View>}
-                  {!!activeRecord.date     && <View style={styles.infoItem}><Text style={styles.infoLabel}>Date</Text><Text style={styles.infoValue}>{fmtDate(activeRecord.date) || activeRecord.date}</Text></View>}
-                  {!!activeRecord.fileSize && <View style={styles.infoItem}><Text style={styles.infoLabel}>File</Text><Text style={styles.infoValue}>{activeRecord.fileSize}</Text></View>}
+                  {!!activeRecord.doctor   && <View style={styles.infoItem}><Text style={styles.infoLabel}>{t('Doctor')}</Text><Text style={styles.infoValue}>{activeRecord.doctor}</Text></View>}
+                  {!!activeRecord.facility && <View style={styles.infoItem}><Text style={styles.infoLabel}>{t('Facility')}</Text><Text style={styles.infoValue}>{activeRecord.facility}</Text></View>}
+                  {!!activeRecord.date     && <View style={styles.infoItem}><Text style={styles.infoLabel}>{t('Date')}</Text><Text style={styles.infoValue}>{fmtDate(activeRecord.date) || activeRecord.date}</Text></View>}
+                  {!!activeRecord.fileSize && <View style={styles.infoItem}><Text style={styles.infoLabel}>{t('File')}</Text><Text style={styles.infoValue}>{activeRecord.fileSize}</Text></View>}
                 </View>
 
                 {!!activeRecord.summary && (
                   <View style={styles.detailSummaryBox}>
-                    <Text style={styles.detailSectionTitle}>Summary</Text>
+                    <Text style={styles.detailSectionTitle}>{t('Summary')}</Text>
                     <Text style={styles.detailSummaryText}>{activeRecord.summary}</Text>
                   </View>
                 )}
 
                 {activeRecord.hasMedicines && activeRecord.medicines?.length > 0 && (
                   <View style={styles.detailSection}>
-                    <Text style={styles.detailSectionTitle}>Prescribed Medicines</Text>
+                    <Text style={styles.detailSectionTitle}>{t('Prescribed Medicines')}</Text>
                     {activeRecord.medicines.map((med, i) => (
                       <View key={med.id || i} style={styles.medicineRow}>
                         <View style={styles.medicineIcon}><Ionicons name="medkit-outline" size={14} color="#0D9488" /></View>
@@ -551,14 +553,14 @@ const HealthRecordsScreen = ({ navigation }) => {
                     ))}
                     <TouchableOpacity style={styles.orderMedsBtn} onPress={() => { setDetailVisible(false); navigation.navigate('Pharmacy'); }} activeOpacity={0.88}>
                       <Ionicons name="cart-outline" size={15} color="#FFF" />
-                      <Text style={styles.orderMedsBtnText}>Order from Pharmacy</Text>
+                      <Text style={styles.orderMedsBtnText}>{t('Order from Pharmacy')}</Text>
                     </TouchableOpacity>
                   </View>
                 )}
 
                 {activeRecord.parameters?.length > 0 && (
                   <View style={styles.detailSection}>
-                    <Text style={styles.detailSectionTitle}>Test Results</Text>
+                    <Text style={styles.detailSectionTitle}>{t('Test Results')}</Text>
                     {activeRecord.parameters.map((p, i) => {
                       const isNormal = p.status?.toLowerCase() === 'normal';
                       const isHigh   = p.status?.toLowerCase() === 'high';
@@ -580,7 +582,7 @@ const HealthRecordsScreen = ({ navigation }) => {
 
                 {activeRecord.hasReferredTest && activeRecord.referredTest && (
                   <View style={styles.detailSection}>
-                    <Text style={styles.detailSectionTitle}>Doctor Recommendation</Text>
+                    <Text style={styles.detailSectionTitle}>{t('Doctor Recommendation')}</Text>
                     <View style={styles.suggestionBox}>
                       <Ionicons name="bulb" size={18} color="#D97706" />
                       <View style={{ flex: 1, marginLeft: 10 }}>
@@ -590,7 +592,7 @@ const HealthRecordsScreen = ({ navigation }) => {
                     </View>
                     <TouchableOpacity style={styles.bookTestModalBtn} onPress={() => { setDetailVisible(false); navigation.navigate('LabTests'); }} activeOpacity={0.88}>
                       <Ionicons name="flask-outline" size={15} color="#FFF" />
-                      <Text style={styles.bookTestModalBtnText}>Book This Test Now</Text>
+                      <Text style={styles.bookTestModalBtnText}>{t('Book This Test Now')}</Text>
                       <Ionicons name="arrow-forward" size={14} color="#FFF" />
                     </TouchableOpacity>
                   </View>
@@ -599,11 +601,11 @@ const HealthRecordsScreen = ({ navigation }) => {
                 <View style={styles.detailActions}>
                   <TouchableOpacity style={styles.detailDownloadBtn} onPress={() => { setDetailVisible(false); showToast('Document downloaded to device.'); }} activeOpacity={0.88}>
                     <Ionicons name="download-outline" size={16} color="#0F766E" />
-                    <Text style={styles.detailDownloadBtnText}>Download</Text>
+                    <Text style={styles.detailDownloadBtnText}>{t('Download')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.detailShareBtn} onPress={() => { setDetailVisible(false); handleShare(activeRecord); }} activeOpacity={0.88}>
                     <Ionicons name="share-social-outline" size={16} color="#FFF" />
-                    <Text style={styles.detailShareBtnText}>Share</Text>
+                    <Text style={styles.detailShareBtnText}>{t('Share')}</Text>
                   </TouchableOpacity>
                 </View>
               </ScrollView>
@@ -616,10 +618,10 @@ const HealthRecordsScreen = ({ navigation }) => {
       <Modal visible={dateModalVisible} transparent animationType="fade" onRequestClose={() => setDateModalVisible(false)}>
         <TouchableOpacity style={styles.backdropOverlay} activeOpacity={1} onPress={() => setDateModalVisible(false)}>
           <View style={styles.dateFilterModal} onStartShouldSetResponder={() => true}>
-            <Text style={styles.dateFilterModalTitle}>Filter by Date</Text>
+            <Text style={styles.dateFilterModalTitle}>{t('Filter by Date')}</Text>
             {DATE_FILTERS.map((df) => (
               <TouchableOpacity key={df.id} style={styles.dateFilterItem} onPress={() => { setDateFilter(df.id); setDateModalVisible(false); }} activeOpacity={0.8}>
-                <Text style={[styles.dateFilterItemText, dateFilter === df.id && styles.dateFilterItemTextActive]}>{df.label}</Text>
+                <Text style={[styles.dateFilterItemText, dateFilter === df.id && styles.dateFilterItemTextActive]}>{t(df.label)}</Text>
                 {dateFilter === df.id && <Ionicons name="checkmark-circle" size={18} color="#0F766E" />}
               </TouchableOpacity>
             ))}
@@ -635,7 +637,7 @@ const HealthRecordsScreen = ({ navigation }) => {
             <View style={styles.uploadModalHeader}>
               <View>
                 <Text style={styles.uploadModalTag}>DIGITAL HEALTH LOCKER</Text>
-                <Text style={styles.uploadModalTitle}>Upload Health Document</Text>
+                <Text style={styles.uploadModalTitle}>{t('Upload Health Document')}</Text>
               </View>
               <TouchableOpacity style={styles.closeBtn} onPress={() => setUploadModalVisible(false)} activeOpacity={0.7}>
                 <Ionicons name="close" size={20} color="#64748B" />
@@ -643,7 +645,7 @@ const HealthRecordsScreen = ({ navigation }) => {
             </View>
             <Text style={styles.uploadModalSub}>Select patient and document type to securely store.</Text>
 
-            <Text style={styles.uploadSectionLabel}>Select Patient:</Text>
+            <Text style={styles.uploadSectionLabel}>{t('Select Patient:')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
               {familyMembers.map((m) => {
                 const isSelf = m.id === 'self' || m.isPrimary || m.relation === 'Self';

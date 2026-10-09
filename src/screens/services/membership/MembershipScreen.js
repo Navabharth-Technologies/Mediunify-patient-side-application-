@@ -21,6 +21,7 @@ import {
 import { saveTransaction } from '../../../services/transactionService';
 import { showAlert } from '../../../utils/alert';
 import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
+import { useTheme } from '../../../context/ThemeContext';
 
 const PAYMENT_METHODS = [
   { id: 'upi-gpay', name: 'Google Pay / PhonePe / UPI', icon: 'flash-outline', iconType: 'ionicons' },
@@ -30,6 +31,7 @@ const PAYMENT_METHODS = [
 ];
 
 const MembershipScreen = ({ navigation }) => {
+  const { t, isIndic } = useTheme();
   const { width } = useWindowDimensions();
   const isTablet = width >= 600;
   const isDesktop = width >= 1024;
@@ -212,8 +214,8 @@ const MembershipScreen = ({ navigation }) => {
           <Ionicons name="arrow-back" size={22} color="#0F172A" />
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>MediUnify Membership</Text>
-          <Text style={styles.headerSub}>Get more benefits with your membership</Text>
+          <Text style={[styles.headerTitle, isIndic && { lineHeight: 22 }]}>{t('profile.membership', 'MediUnify Membership')}</Text>
+          <Text style={[styles.headerSub, isIndic && { lineHeight: 18 }]}>{t('Get more benefits with your membership')}</Text>
         </View>
         <View style={{ width: 36 }} />
       </View>
@@ -237,24 +239,24 @@ const MembershipScreen = ({ navigation }) => {
                   <Ionicons name="ribbon" size={22} color="#007D69" />
                 </View>
                 <View>
-                  <Text style={styles.myMembershipLabel}>My Membership</Text>
+                  <Text style={[styles.myMembershipLabel, isIndic && { lineHeight: 16 }]}>{t('profile.membership', 'My Membership')}</Text>
                   <Text style={styles.myMembershipTier}>{activeMembership.tierName}</Text>
                 </View>
               </View>
               <View style={styles.statusPillActive}>
                 <View style={styles.statusDotActive} />
-                <Text style={styles.statusPillActiveText}>Active</Text>
+                <Text style={styles.statusPillActiveText}>{t('Active')}</Text>
               </View>
             </View>
 
             <View style={styles.validityRow}>
               <View style={styles.validityCol}>
-                <Text style={styles.validityLabel}>Started</Text>
+                <Text style={[styles.validityLabel, isIndic && { lineHeight: 14 }]}>{t('Started')}</Text>
                 <Text style={styles.validityValue}>{formatDate(activeMembership.activatedAt)}</Text>
               </View>
               <View style={styles.validityDivider} />
               <View style={styles.validityCol}>
-                <Text style={styles.validityLabel}>Valid Until</Text>
+                <Text style={[styles.validityLabel, isIndic && { lineHeight: 14 }]}>{t('profile.valid_until', 'Valid Until')}</Text>
                 <Text style={styles.validityValue}>{formatDate(activeMembership.expiresAt)}</Text>
               </View>
               <View style={styles.validityDivider} />

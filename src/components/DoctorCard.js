@@ -7,11 +7,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import OptimizedImage from './common/OptimizedImage';
+import { useTheme } from '../context/ThemeContext';
 
 const DoctorCard = ({
   doctor,
   onPress,
 }) => {
+  const { t, isIndic } = useTheme();
+
   return (
     <TouchableOpacity
       style={styles.card}
@@ -37,74 +40,56 @@ const DoctorCard = ({
         )}
 
         <View style={styles.doctorInfo}>
-
           <Text style={styles.doctorName}>
             {doctor.name}
           </Text>
 
-          <Text style={styles.specialization}>
-            {doctor.specialization}
+          <Text style={[styles.specialization, isIndic && { lineHeight: 18 }]}>
+            {t(doctor.specialization, doctor.specialization)}
           </Text>
 
           <View style={styles.experienceRow}>
-
             <Ionicons
               name="briefcase-outline"
               size={14}
               color="#78909C"
             />
-
-            <Text style={styles.experience}>
-              {doctor.experience} experience
+            <Text style={[styles.experience, isIndic && { lineHeight: 16 }]}>
+              {doctor.experience} {t('common.experience', 'experience')}
             </Text>
-
           </View>
-
         </View>
-
       </View>
-
 
       <View style={styles.divider} />
 
-
       <View style={styles.bottomRow}>
-
         <View style={styles.locationContainer}>
-
           <Ionicons
             name="location-outline"
             size={16}
             color="#78909C"
           />
-
-          <Text style={styles.location}>
+          <Text style={[styles.location, isIndic && { lineHeight: 16 }]}>
             {doctor.location}
           </Text>
-
         </View>
 
         <Text style={styles.fee}>
           ₹{doctor.fee}
         </Text>
-
       </View>
 
-
       <View style={styles.availabilityRow}>
-
         <View style={styles.availableContainer}>
-
           <View style={styles.availableDot} />
-
-          <Text style={styles.availableText}>
-            Available
+          <Text style={[styles.availableText, isIndic && { lineHeight: 16 }]}>
+            {t('common.available', 'Available')}
           </Text>
-
         </View>
 
-        <Text style={styles.viewProfile}>
-          View Profile
+        <Text style={[styles.viewProfile, isIndic && { lineHeight: 16 }]}>
+          {t('common.view_details', 'View Profile')}
         </Text>
 
         <Ionicons
@@ -112,15 +97,12 @@ const DoctorCard = ({
           size={17}
           color="#2E7D32"
         />
-
       </View>
-
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
@@ -129,99 +111,88 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ECEFF1',
   },
-
   topRow: {
     flexDirection: 'row',
   },
-
   doctorImage: {
     width: 75,
     height: 75,
     borderRadius: 18,
   },
-
   imagePlaceholder: {
     width: 75,
     height: 75,
     borderRadius: 18,
-    backgroundColor: '#E8F5E9',
+    backgroundColor: '#E0F2F1',
     justifyContent: 'center',
     alignItems: 'center',
   },
-
   doctorInfo: {
     flex: 1,
-    marginLeft: 14,
+    marginLeft: 15,
     justifyContent: 'center',
   },
-
   doctorName: {
     fontSize: 17,
     fontWeight: '800',
     color: '#263238',
-    marginBottom: 4,
   },
-
   specialization: {
-    fontSize: 13,
-    color: '#2E7D32',
-    fontWeight: '600',
-    marginBottom: 7,
+    fontSize: 14,
+    color: '#007D69',
+    marginTop: 4,
+    fontWeight: '700',
   },
-
   experienceRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 6,
   },
-
   experience: {
     fontSize: 12,
     color: '#78909C',
     marginLeft: 5,
+    fontWeight: '600',
   },
-
   divider: {
     height: 1,
     backgroundColor: '#ECEFF1',
-    marginVertical: 14,
+    marginVertical: 12,
   },
-
   bottomRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-
   locationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
   },
-
   location: {
-    fontSize: 12,
-    color: '#607D8B',
+    fontSize: 13,
+    color: '#546E7A',
     marginLeft: 5,
+    fontWeight: '600',
   },
-
   fee: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '800',
     color: '#263238',
   },
-
   availabilityRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 15,
+    justifyContent: 'space-between',
+    marginTop: 12,
+    backgroundColor: '#F1F8E9',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
-
   availableContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
   },
-
   availableDot: {
     width: 8,
     height: 8,
@@ -229,20 +200,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#43A047',
     marginRight: 6,
   },
-
   availableText: {
     fontSize: 12,
-    color: '#43A047',
-    fontWeight: '600',
-  },
-
-  viewProfile: {
-    fontSize: 12,
-    color: '#2E7D32',
     fontWeight: '700',
-    marginRight: 4,
+    color: '#2E7D32',
   },
-
+  viewProfile: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#2E7D32',
+  },
 });
 
 export default DoctorCard;

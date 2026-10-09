@@ -146,11 +146,11 @@ const WebFooter = ({ navigation, style }) => {
 
           {/* Column 4: Download App */}
           <View style={styles.footerCol}>
-            <Text style={styles.colHeading}>Download App</Text>
+            <Text style={styles.colHeading}>{t('app_download', 'Download App')}</Text>
             <TouchableOpacity style={styles.storeBadge} activeOpacity={0.85}>
               <Ionicons name="logo-google-playstore" size={20} color="#FFFFFF" />
               <View>
-                <Text style={styles.storeBadgeSmall}>GET IT ON</Text>
+                <Text style={styles.storeBadgeSmall}>{t('get_it_on', 'GET IT ON')}</Text>
                 <Text style={styles.storeBadgeLarge}>Google Play</Text>
               </View>
             </TouchableOpacity>
@@ -158,7 +158,7 @@ const WebFooter = ({ navigation, style }) => {
             <TouchableOpacity style={[styles.storeBadge, { marginTop: 10 }]} activeOpacity={0.85}>
               <Ionicons name="logo-apple" size={22} color="#FFFFFF" />
               <View>
-                <Text style={styles.storeBadgeSmall}>Download on the</Text>
+                <Text style={styles.storeBadgeSmall}>{t('download_on', 'Download on the')}</Text>
                 <Text style={styles.storeBadgeLarge}>App Store</Text>
               </View>
             </TouchableOpacity>
@@ -166,15 +166,15 @@ const WebFooter = ({ navigation, style }) => {
 
           {/* Column 5: Subscribe to our newsletter */}
           <View style={[styles.footerCol, { flex: 1.2 }]}>
-            <Text style={styles.colHeading}>Subscribe to our newsletter</Text>
+            <Text style={styles.colHeading}>{t('newsletter_subscribe', 'Subscribe to our newsletter')}</Text>
             <Text style={styles.newsletterSub}>
-              Get health tips, offers and updates.
+              {t('newsletter_desc', 'Get health tips, offers and updates.')}
             </Text>
 
             <View style={styles.subscribeInputRow}>
               <TextInput
                 style={styles.newsletterInput}
-                placeholder="Enter your email"
+                placeholder={t('enter_email', 'Enter your email')}
                 placeholderTextColor="#94A3B8"
                 value={emailInput}
                 onChangeText={setEmailInput}
@@ -193,7 +193,7 @@ const WebFooter = ({ navigation, style }) => {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 }}>
                 <Ionicons name="checkmark-circle" size={14} color="#00B894" />
                 <Text style={styles.subscribedSuccess}>
-                  Thank you for subscribing!
+                  {t('newsletter_success', 'Thank you for subscribing!')}
                 </Text>
               </View>
             )}
@@ -209,9 +209,9 @@ const WebFooter = ({ navigation, style }) => {
           </Text>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Text style={styles.madeWithText}>Made with</Text>
+            <Text style={styles.madeWithText}>{t('made_with_love', 'Made with')}</Text>
             <Ionicons name="heart" size={13} color="#EF4444" />
-            <Text style={styles.madeWithText}>for a healthier tomorrow.</Text>
+            <Text style={styles.madeWithText}>{t('healthier_tomorrow', 'for a healthier tomorrow.')}</Text>
           </View>
 
           <TouchableOpacity

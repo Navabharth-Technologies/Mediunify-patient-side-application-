@@ -20,10 +20,11 @@ import { showAlert } from '../../utils/alert';
 import colors from '../../theme/colors';
 import { safeNavigateToMain } from '../../utils/navigationHelper';
 import { syncRegister } from '../../services/dataSyncService';
-
+import { useTheme } from '../../context/ThemeContext';
 import { useKeyboardVisibility } from '../../utils/keyboardUtils';
 
 const OTPScreen = ({ navigation, route }) => {
+  const { t, isIndic } = useTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const isSmallDevice = width < 375 || height < 680;
@@ -324,9 +325,11 @@ const OTPScreen = ({ navigation, route }) => {
             </View>
 
             {/* TITLE & SUBTITLE */}
-            <Text style={[styles.title, isSmallDevice && styles.titleSmall]}>Verify Your Mobile Number</Text>
-            <Text style={[styles.subtitle, isSmallDevice && styles.subtitleSmall]}>
-              Enter the 6-digit OTP sent to
+            <Text style={[styles.title, isSmallDevice && styles.titleSmall, isIndic && { lineHeight: 28 }]}>
+              {t('auth.auth_verify_mobile', 'Verify Your Mobile Number')}
+            </Text>
+            <Text style={[styles.subtitle, isSmallDevice && styles.subtitleSmall, isIndic && { lineHeight: 20 }]}>
+              {t('auth.otp_sent_to', 'Enter the 6-digit OTP sent to')}
             </Text>
 
             {/* PHONE PILL WITH CHANGE OPTION */}
@@ -338,7 +341,9 @@ const OTPScreen = ({ navigation, route }) => {
                 activeOpacity={0.7}
                 style={styles.changePhonePillBtn}
               >
-                <Text style={styles.changePhonePillBtnText}>• Change</Text>
+                <Text style={[styles.changePhonePillBtnText, isIndic && { lineHeight: 16 }]}>
+                  • {t('common.change', 'Change')}
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -349,8 +354,8 @@ const OTPScreen = ({ navigation, route }) => {
               activeOpacity={0.7}
             >
               <Ionicons name="flash-outline" size={14} color="#00B894" />
-              <Text style={styles.demoChipText}>
-                Tap to autofill Demo OTP: <Text style={{ fontWeight: '900' }}>123456</Text>
+              <Text style={[styles.demoChipText, isIndic && { lineHeight: 18 }]}>
+                {t('auth.autofill_demo_hint', 'Tap to autofill Demo OTP:')} <Text style={{ fontWeight: '900' }}>123456</Text>
               </Text>
             </TouchableOpacity>
 
@@ -410,11 +415,15 @@ const OTPScreen = ({ navigation, route }) => {
               {verifying ? (
                 <View style={styles.btnRow}>
                   <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.verifyBtnText}>Verifying OTP...</Text>
+                  <Text style={[styles.verifyBtnText, isIndic && { lineHeight: 22 }]}>
+                    {t('auth.verifying_otp', 'Verifying OTP...')}
+                  </Text>
                 </View>
               ) : (
                 <View style={styles.btnRow}>
-                  <Text style={styles.verifyBtnText}>Verify OTP</Text>
+                  <Text style={[styles.verifyBtnText, isIndic && { lineHeight: 22 }]}>
+                    {t('auth.verify_otp', 'Verify OTP')}
+                  </Text>
                   <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
                 </View>
               )}
@@ -423,12 +432,15 @@ const OTPScreen = ({ navigation, route }) => {
             {/* RESEND OTP WITH COUNTDOWN */}
             <View style={styles.resendRow}>
               {countdown > 0 ? (
-                <Text style={styles.resendText}>
-                  Resend OTP in <Text style={styles.countdownText}>{countdown}s</Text>
+                <Text style={[styles.resendText, isIndic && { lineHeight: 18 }]}>
+                  {t('auth.resend_in', 'Resend OTP in')}{' '}
+                  <Text style={styles.countdownText}>{countdown}s</Text>
                 </Text>
               ) : (
                 <TouchableOpacity onPress={handleResend} activeOpacity={0.7}>
-                  <Text style={styles.resendLink}>Resend OTP</Text>
+                  <Text style={[styles.resendLink, isIndic && { lineHeight: 18 }]}>
+                    {t('auth.resend_otp', 'Resend OTP')}
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -440,7 +452,9 @@ const OTPScreen = ({ navigation, route }) => {
               activeOpacity={0.7}
             >
               <Ionicons name="create-outline" size={14} color="#00B894" />
-              <Text style={styles.changeMobileText}>Change Mobile Number</Text>
+              <Text style={[styles.changeMobileText, isIndic && { lineHeight: 18 }]}>
+                {t('auth.change_mobile_num', 'Change Mobile Number')}
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

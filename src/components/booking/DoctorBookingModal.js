@@ -23,6 +23,7 @@ import { getAvailableDates, getSlotsForDate } from '../../utils/appointmentSlotH
 import { validateAndBookSlot, subscribeToSlotChanges } from '../../services/slotBookingService';
 import { useAuthGuard } from '../../context/AuthGuardContext';
 import { isGuestUser, promptLoginRequired } from '../../utils/authHelper';
+import { useTheme } from '../../context/ThemeContext';
 
 const DoctorBookingModal = ({
   visible,
@@ -31,6 +32,7 @@ const DoctorBookingModal = ({
   consultationType = 'In-Person', // 'In-Person' | 'Video'
   navigation,
 }) => {
+  const { t, isIndic } = useTheme();
   const { requireLogin } = useAuthGuard();
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
@@ -478,11 +480,11 @@ const DoctorBookingModal = ({
                   {isVideo ? '100% PRIVATE & ENCRYPTED HD VIDEO' : '100% VERIFIED CLINIC CARE'}
                 </Text>
               </View>
-              <Text style={styles.modalTitle}>
-                {isVideo ? 'Book Instant Video Consult' : 'Book In-Clinic Consultation'}
+              <Text style={[styles.modalTitle, isIndic && { lineHeight: 24 }]}>
+                {isVideo ? t('doctors.book_video_consult', 'Book Instant Video Consult') : t('doctors.book_in_clinic', 'Book In-Clinic Consultation')}
               </Text>
               <Text style={styles.modalSub} numberOfLines={1}>
-                {doctor.name} • {doctor.specialty}
+                {doctor.name} • {t(doctor.specialty || doctor.specialization, doctor.specialty || doctor.specialization)}
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.modalCloseBtn} activeOpacity={0.7}>
@@ -493,17 +495,21 @@ const DoctorBookingModal = ({
           {/* FORM BODY */}
           <ScrollView style={styles.modalForm} showsVerticalScrollIndicator={false}>
             {/* PATIENT FULL NAME */}
-            <Text style={styles.inputLabel}>Patient Full Name</Text>
+            <Text style={[styles.inputLabel, isIndic && { lineHeight: 18 }]}>
+              {t('auth.full_name', 'Patient Full Name')}
+            </Text>
             <TextInput
               style={styles.textInput}
               value={patientName}
               onChangeText={setPatientName}
-              placeholder="Enter patient name"
+              placeholder={t('auth.full_name_ph', 'Enter patient name')}
               placeholderTextColor="#94A3B8"
             />
 
             {/* MOBILE NUMBER */}
-            <Text style={styles.inputLabel}>Mobile Number</Text>
+            <Text style={[styles.inputLabel, isIndic && { lineHeight: 18 }]}>
+              {t('auth.mobile_number', 'Mobile Number')}
+            </Text>
             <TextInput
               style={styles.textInput}
               value={patientPhone}
@@ -514,17 +520,21 @@ const DoctorBookingModal = ({
             />
 
             {/* PRIMARY HEALTH CONCERN */}
-            <Text style={styles.inputLabel}>Primary Health Concern</Text>
+            <Text style={[styles.inputLabel, isIndic && { lineHeight: 18 }]}>
+              {t('doctors.reason_for_visit', 'Primary Health Concern')}
+            </Text>
             <TextInput
               style={styles.textInput}
               value={healthConcern}
               onChangeText={setHealthConcern}
-              placeholder="e.g. Fever, Stress, Joint Pain & Wellness"
+              placeholder={t('doctors.reason_ph', 'e.g. Fever, Stress, Joint Pain & Wellness')}
               placeholderTextColor="#94A3B8"
             />
 
             {/* UPLOAD PDF OR IMAGE OPTION */}
-            <Text style={styles.inputLabel}>Medical Records / Prescription (Optional)</Text>
+            <Text style={[styles.inputLabel, isIndic && { lineHeight: 18 }]}>
+              {t('records.records_title', 'Medical Records / Prescription')}
+            </Text>
             {!uploadedDocument ? (
               <View style={styles.uploadContainer}>
                 <View style={styles.uploadButtonsRow}>
@@ -813,7 +823,9 @@ const DoctorBookingModal = ({
             </View>
 
             {/* PAYMENT OPTION */}
-            <Text style={styles.inputLabel}>Payment Option</Text>
+            <Text style={[styles.inputLabel, isIndic && { lineHeight: 18 }]}>
+              {t('payment.payment_method', 'Payment Option')}
+            </Text>
             <View style={styles.payOptionsRow}>
               {!isVideo && (
                 <TouchableOpacity
@@ -821,8 +833,8 @@ const DoctorBookingModal = ({
                   onPress={() => setPaymentOption('PAY_AT_CLINIC')}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.payMethodText, paymentOption === 'PAY_AT_CLINIC' && styles.payMethodTextActive]}>
-                    Pay at Clinic
+                  <Text style={[styles.payMethodText, paymentOption === 'PAY_AT_CLINIC' && styles.payMethodTextActive, isIndic && { lineHeight: 16 }]}>
+                    {t('payment.cod', 'Pay at Clinic')}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -832,8 +844,8 @@ const DoctorBookingModal = ({
                 onPress={() => setPaymentOption('WALLET')}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.payMethodText, paymentOption === 'WALLET' && styles.payMethodTextActive]}>
-                  Wallet (₹{walletBalance})
+                <Text style={[styles.payMethodText, paymentOption === 'WALLET' && styles.payMethodTextActive, isIndic && { lineHeight: 16 }]}>
+                  {t('profile.health_wallet', 'Wallet')} (₹{walletBalance})
                 </Text>
               </TouchableOpacity>
 
@@ -842,8 +854,8 @@ const DoctorBookingModal = ({
                 onPress={() => setPaymentOption('PAY_ONLINE')}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.payMethodText, paymentOption === 'PAY_ONLINE' && styles.payMethodTextActive]}>
-                  UPI / Online
+                <Text style={[styles.payMethodText, paymentOption === 'PAY_ONLINE' && styles.payMethodTextActive, isIndic && { lineHeight: 16 }]}>
+                  {t('payment.upi', 'UPI / Online')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -851,15 +863,15 @@ const DoctorBookingModal = ({
             {/* PRICING SUMMARY BOX */}
             <View style={styles.pricingSummaryBox}>
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>
-                  {paymentOption === 'PAY_AT_CLINIC' ? 'Total Payable at Clinic' : 'Total Payable'}
+                <Text style={[styles.summaryLabel, isIndic && { lineHeight: 18 }]}>
+                  {paymentOption === 'PAY_AT_CLINIC' ? t('payment.pay_at_clinic_total', 'Total Payable at Clinic') : t('pharmacy.total_payable', 'Total Payable')}
                 </Text>
                 <Text style={styles.summaryValue}>₹{feeAmount}</Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 }}>
                 <Ionicons name="checkmark-circle" size={13} color="#00B894" />
-                <Text style={styles.summaryNote}>
-                  Zero cancellation fee • Digital prescription included • Instant confirmation
+                <Text style={[styles.summaryNote, isIndic && { lineHeight: 16 }]}>
+                  {t('booking.perks_note', 'Zero cancellation fee • Digital prescription included • Instant confirmation')}
                 </Text>
               </View>
             </View>
@@ -867,10 +879,10 @@ const DoctorBookingModal = ({
             {/* PRIVACY ASSURANCE BOX */}
             <View style={styles.privacyAssuranceBox}>
               <Ionicons name="shield-checkmark" size={16} color="#059669" />
-              <Text style={styles.privacyAssuranceText}>
+              <Text style={[styles.privacyAssuranceText, isIndic && { lineHeight: 18 }]}>
                 {isVideo
-                  ? '100% private encrypted HD video consultation with verified doctor. Includes free 3-day digital prescription follow-up.'
-                  : 'Verified specialist doctors with authentic clinical care, sanitized OPD rooms, and verified digital prescription.'}
+                  ? t('booking.assurance_video', '100% private encrypted HD video consultation with verified doctor. Includes free 3-day digital prescription follow-up.')
+                  : t('booking.assurance_clinic', 'Verified specialist doctors with authentic clinical care, sanitized OPD rooms, and verified digital prescription.')}
               </Text>
             </View>
           </ScrollView>
@@ -886,7 +898,9 @@ const DoctorBookingModal = ({
               {isBooking ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Text style={styles.confirmBookingBtnText}>Confirm Appointment</Text>
+                <Text style={[styles.confirmBookingBtnText, isIndic && { lineHeight: 22 }]}>
+                  {t('booking.confirm', 'Confirm Appointment')}
+                </Text>
               )}
             </TouchableOpacity>
           </View>

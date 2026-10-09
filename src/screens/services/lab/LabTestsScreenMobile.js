@@ -42,6 +42,7 @@ import { showAlert } from '../../../utils/alert';
 import { useCart } from '../../../context/CartContext';
 import { useAuthGuard } from '../../../context/AuthGuardContext';
 import Pagination from '../../../components/common/Pagination';
+import { useTheme } from '../../../context/ThemeContext';
 
 // Helper to normalize city names
 const normalizeCity = (cityStr) => {
@@ -102,6 +103,7 @@ const POPULAR_CLINICAL_TEST_IDS = [
 ];
 
 const LabTestsScreenMobile = (props) => {
+  const { t, isIndic } = useTheme();
   const { navigation, route } = props;
   const { width } = useWindowDimensions();
   const isTablet = width >= 600;
@@ -952,7 +954,7 @@ const LabTestsScreenMobile = (props) => {
             <Ionicons name="arrow-back" size={22} color={colors.secondary} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Diagnostic Lab Tests</Text>
+            <Text style={[styles.headerTitle, isIndic && { lineHeight: 22 }]}>{t('lab.lab_tests_title', 'Diagnostic Lab Tests')}</Text>
           </View>
         </View>
 
@@ -960,9 +962,9 @@ const LabTestsScreenMobile = (props) => {
           <View style={styles.noLocationIconCircle}>
             <Ionicons name="location-outline" size={54} color="#007D69" />
           </View>
-          <Text style={styles.noLocationTitle}>Location Required</Text>
-          <Text style={styles.noLocationMsg}>
-            Please select your location from the Home Screen to view available lab tests.
+          <Text style={[styles.noLocationTitle, isIndic && { lineHeight: 22 }]}>{t('Location Required')}</Text>
+          <Text style={[styles.noLocationMsg, isIndic && { lineHeight: 18 }]}>
+            {t('Please select your location from the Home Screen to view available lab tests.')}
           </Text>
           <TouchableOpacity
             style={styles.noLocationBtn}
@@ -976,7 +978,7 @@ const LabTestsScreenMobile = (props) => {
             }}
           >
             <Ionicons name="home-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-            <Text style={styles.noLocationBtnText}>Go to Home</Text>
+            <Text style={[styles.noLocationBtnText, isIndic && { lineHeight: 18 }]}>{t('Go to Home')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -997,8 +999,8 @@ const LabTestsScreenMobile = (props) => {
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            Diagnostic Lab Tests
+          <Text style={[styles.headerTitle, isIndic && { lineHeight: 22 }]} numberOfLines={1}>
+            {t('lab.lab_tests_title', 'Diagnostic Lab Tests')}
           </Text>
           <View style={styles.headerCityBadge}>
             <Ionicons name="location-sharp" size={11} color="#007D69" />
@@ -1035,8 +1037,8 @@ const LabTestsScreenMobile = (props) => {
           activeOpacity={0.8}
         >
           <Ionicons name="flask-outline" size={14} color={activeTab === 'BROWSE' ? '#007D69' : '#64748B'} style={{ marginRight: 5 }} />
-          <Text style={[styles.tabBtnText, activeTab === 'BROWSE' && styles.tabBtnTextActive]}>
-            Browse Tests
+          <Text style={[styles.tabBtnText, activeTab === 'BROWSE' && styles.tabBtnTextActive, isIndic && { lineHeight: 16 }]}>
+            {t('Browse Tests')}
           </Text>
         </TouchableOpacity>
 
@@ -1046,8 +1048,8 @@ const LabTestsScreenMobile = (props) => {
           activeOpacity={0.8}
         >
           <Ionicons name="calendar-outline" size={14} color={activeTab === 'BOOKINGS' ? '#007D69' : '#64748B'} style={{ marginRight: 5 }} />
-          <Text style={[styles.tabBtnText, activeTab === 'BOOKINGS' && styles.tabBtnTextActive]}>
-            My Bookings
+          <Text style={[styles.tabBtnText, activeTab === 'BOOKINGS' && styles.tabBtnTextActive, isIndic && { lineHeight: 16 }]}>
+            {t('booking.my_appointments', 'My Bookings')}
           </Text>
           {bookingsList.length > 0 && (
             <View style={styles.tabBadge}>
@@ -1062,8 +1064,8 @@ const LabTestsScreenMobile = (props) => {
           activeOpacity={0.8}
         >
           <Ionicons name="document-text-outline" size={14} color={activeTab === 'REPORTS' ? '#007D69' : '#64748B'} style={{ marginRight: 5 }} />
-          <Text style={[styles.tabBtnText, activeTab === 'REPORTS' && styles.tabBtnTextActive]}>
-            Reports
+          <Text style={[styles.tabBtnText, activeTab === 'REPORTS' && styles.tabBtnTextActive, isIndic && { lineHeight: 16 }]}>
+            {t('Reports')}
           </Text>
           {reportsList.length > 0 && (
             <View style={styles.tabBadge}>

@@ -27,8 +27,10 @@ import { getAvailableDates, getSlotsForDate } from '../../../utils/appointmentSl
 import { validateAndBookSlot, subscribeToSlotChanges } from '../../../services/slotBookingService';
 import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
 import doctors from '../../../data/doctors';
+import { useTheme } from '../../../context/ThemeContext';
 
 const DoctorBookingScreen = ({ route, navigation }) => {
+  const { t, isIndic } = useTheme();
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   const doctor = route?.params?.doctor || doctors[0];
@@ -491,14 +493,14 @@ const DoctorBookingScreen = ({ route, navigation }) => {
           {isDesktopWeb && (
             <View style={styles.breadcrumbsRow}>
               <TouchableOpacity onPress={() => navigation.navigate('Home')}>
-                <Text style={styles.breadcrumbLink}>Home</Text>
+                <Text style={styles.breadcrumbLink}>{t('Home')}</Text>
               </TouchableOpacity>
               <Text style={styles.breadcrumbSlash}>/</Text>
               <TouchableOpacity onPress={() => navigation.navigate('DoctorList')}>
-                <Text style={styles.breadcrumbLink}>In-Clinic Doctors</Text>
+                <Text style={styles.breadcrumbLink}>{t('doctors.book_in_clinic', 'In-Clinic Doctors')}</Text>
               </TouchableOpacity>
               <Text style={styles.breadcrumbSlash}>/</Text>
-              <Text style={styles.breadcrumbCurrent}>Book Consultation</Text>
+              <Text style={styles.breadcrumbCurrent}>{t('common.book_now', 'Book Consultation')}</Text>
             </View>
           )}
 
@@ -509,11 +511,11 @@ const DoctorBookingScreen = ({ route, navigation }) => {
               <View style={{ flex: 1 }}>
                 <View style={styles.confidentialBadgePill}>
                   <Ionicons name="location" size={11} color="#1E3A8A" />
-                  <Text style={styles.confidentialBadgePillText}>100% VERIFIED CLINIC CARE</Text>
+                  <Text style={[styles.confidentialBadgePillText, isIndic && { lineHeight: 14 }]}>{t('100% VERIFIED CLINIC CARE')}</Text>
                 </View>
-                <Text style={styles.modalTitle}>Book In-Clinic Consultation</Text>
-                <Text style={styles.modalSub} numberOfLines={1}>
-                  {doctor.name} • {doctor.specialty}
+                <Text style={[styles.modalTitle, isIndic && { lineHeight: 22 }]}>{t('doctors.book_in_clinic', 'Book In-Clinic Consultation')}</Text>
+                <Text style={[styles.modalSub, isIndic && { lineHeight: 18 }]} numberOfLines={1}>
+                  {doctor.name} • {t(doctor.specialty, doctor.specialty)}
                 </Text>
               </View>
               <TouchableOpacity
@@ -528,17 +530,17 @@ const DoctorBookingScreen = ({ route, navigation }) => {
             {/* FORM BODY */}
             <ScrollView style={styles.modalForm} showsVerticalScrollIndicator={false}>
               {/* PATIENT FULL NAME */}
-              <Text style={styles.inputLabel}>Patient Full Name</Text>
+              <Text style={[styles.inputLabel, isIndic && { lineHeight: 16 }]}>{t('auth.full_name', 'Patient Full Name')}</Text>
               <TextInput
                 style={styles.textInput}
                 value={patientName}
                 onChangeText={setPatientName}
-                placeholder="Enter patient name"
+                placeholder={t('auth.full_name_ph', 'Enter patient name')}
                 placeholderTextColor="#94A3B8"
               />
 
               {/* MOBILE NUMBER */}
-              <Text style={styles.inputLabel}>Mobile Number</Text>
+              <Text style={[styles.inputLabel, isIndic && { lineHeight: 16 }]}>{t('auth.mobile_number', 'Mobile Number')}</Text>
               <TextInput
                 style={styles.textInput}
                 value={patientPhone}
@@ -549,17 +551,17 @@ const DoctorBookingScreen = ({ route, navigation }) => {
               />
 
               {/* PRIMARY HEALTH CONCERN */}
-              <Text style={styles.inputLabel}>Primary Health Concern</Text>
+              <Text style={[styles.inputLabel, isIndic && { lineHeight: 16 }]}>{t('doctors.reason_for_visit', 'Primary Health Concern')}</Text>
               <TextInput
                 style={styles.textInput}
                 value={healthConcern}
                 onChangeText={setHealthConcern}
-                placeholder="Stress, Joint Pain & Wellness"
+                placeholder={t('doctors.reason_ph', 'Stress, Joint Pain & Wellness')}
                 placeholderTextColor="#94A3B8"
               />
 
               {/* UPLOAD PDF OR IMAGE OPTION */}
-              <Text style={styles.inputLabel}>Medical Records / Prescription (PDF or Image)</Text>
+              <Text style={[styles.inputLabel, isIndic && { lineHeight: 16 }]}>{t('records.upload_record', 'Medical Records / Prescription (PDF or Image)')}</Text>
               {!uploadedDocument ? (
                 <View style={styles.uploadContainer}>
                   <View style={styles.uploadButtonsRow}>
@@ -570,7 +572,7 @@ const DoctorBookingScreen = ({ route, navigation }) => {
                       activeOpacity={0.8}
                     >
                       <Ionicons name="document-text" size={18} color="#DC2626" />
-                      <Text style={styles.uploadActionBtnText}>Upload PDF</Text>
+                      <Text style={[styles.uploadActionBtnText, isIndic && { lineHeight: 16 }]}>{t('Upload PDF')}</Text>
                     </TouchableOpacity>
 
                     {/* UPLOAD IMAGE BUTTON */}
@@ -580,7 +582,7 @@ const DoctorBookingScreen = ({ route, navigation }) => {
                       activeOpacity={0.8}
                     >
                       <Ionicons name="image" size={18} color="#059669" />
-                      <Text style={styles.uploadActionBtnText}>Upload Image</Text>
+                      <Text style={[styles.uploadActionBtnText, isIndic && { lineHeight: 16 }]}>{t('Upload Image')}</Text>
                     </TouchableOpacity>
 
                     {/* CAMERA OPTION */}
@@ -590,11 +592,11 @@ const DoctorBookingScreen = ({ route, navigation }) => {
                       activeOpacity={0.8}
                     >
                       <Ionicons name="camera" size={18} color="#2563EB" />
-                      <Text style={styles.uploadActionBtnText}>Camera</Text>
+                      <Text style={[styles.uploadActionBtnText, isIndic && { lineHeight: 16 }]}>{t('Camera')}</Text>
                     </TouchableOpacity>
                   </View>
-                  <Text style={styles.uploadHintText}>
-                    Attach past prescriptions, lab tests, or scan reports (PDF, JPG, PNG up to 15MB).
+                  <Text style={[styles.uploadHintText, isIndic && { lineHeight: 16 }]}>
+                    {t('Attach past prescriptions, lab tests, or scan reports (PDF, JPG, PNG up to 15MB).')}
                   </Text>
                 </View>
               ) : (
@@ -614,7 +616,7 @@ const DoctorBookingScreen = ({ route, navigation }) => {
                       <Text style={styles.uploadedFileSize}>{uploadedDocument.size}</Text>
                       <Text style={styles.uploadedFileDot}>•</Text>
                       <Ionicons name="checkmark-circle" size={12} color="#059669" />
-                      <Text style={styles.uploadedFileReady}>Attached for Doctor</Text>
+                      <Text style={[styles.uploadedFileReady, isIndic && { lineHeight: 14 }]}>{t('Attached for Doctor')}</Text>
                     </View>
                   </View>
                   <TouchableOpacity
@@ -630,7 +632,7 @@ const DoctorBookingScreen = ({ route, navigation }) => {
               {/* PREFERRED APPOINTMENT SLOT */}
               <View style={styles.slotPickerSection}>
                 <View style={styles.slotHeaderRow}>
-                  <Text style={styles.inputLabel}>Choose Date & Time Slot</Text>
+                  <Text style={[styles.inputLabel, isIndic && { lineHeight: 16 }]}>{t('doctors.select_date_time', 'Choose Date & Time Slot')}</Text>
                   <View style={styles.selectedSlotSummaryBadge}>
                     <Ionicons name="checkmark-circle" size={12} color="#059669" />
                     <Text style={styles.selectedSlotSummaryText} numberOfLines={1}>
@@ -823,15 +825,15 @@ const DoctorBookingScreen = ({ route, navigation }) => {
               </View>
 
               {/* PAYMENT OPTION PILLS */}
-              <Text style={styles.inputLabel}>Payment Option</Text>
+              <Text style={[styles.inputLabel, isIndic && { lineHeight: 16 }]}>{t('payment.payment_method', 'Payment Option')}</Text>
               <View style={styles.payOptionsRow}>
                 <TouchableOpacity
                   style={[styles.payMethodChip, paymentOption === 'PAY_AT_CLINIC' && styles.payMethodChipActive]}
                   onPress={() => setPaymentOption('PAY_AT_CLINIC')}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.payMethodText, paymentOption === 'PAY_AT_CLINIC' && styles.payMethodTextActive]}>
-                    Pay at Clinic
+                  <Text style={[styles.payMethodText, paymentOption === 'PAY_AT_CLINIC' && styles.payMethodTextActive, isIndic && { lineHeight: 16 }]}>
+                    {t('payment.cod', 'Pay at Clinic')}
                   </Text>
                 </TouchableOpacity>
 
@@ -840,8 +842,8 @@ const DoctorBookingScreen = ({ route, navigation }) => {
                   onPress={() => setPaymentOption('WALLET')}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.payMethodText, paymentOption === 'WALLET' && styles.payMethodTextActive]}>
-                    Wallet (₹{walletBalance})
+                  <Text style={[styles.payMethodText, paymentOption === 'WALLET' && styles.payMethodTextActive, isIndic && { lineHeight: 16 }]}>
+                    {t('profile.wallet_balance', 'Wallet')} (₹{walletBalance})
                   </Text>
                 </TouchableOpacity>
 
@@ -850,8 +852,8 @@ const DoctorBookingScreen = ({ route, navigation }) => {
                   onPress={() => setPaymentOption('PAY_ONLINE')}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.payMethodText, paymentOption === 'PAY_ONLINE' && styles.payMethodTextActive]}>
-                    UPI / Online
+                  <Text style={[styles.payMethodText, paymentOption === 'PAY_ONLINE' && styles.payMethodTextActive, isIndic && { lineHeight: 16 }]}>
+                    {t('payment.upi', 'UPI / Online')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -859,21 +861,21 @@ const DoctorBookingScreen = ({ route, navigation }) => {
               {/* PRICING SUMMARY BOX (EXACT SCREENSHOT REPLICA) */}
               <View style={styles.pricingSummaryBox}>
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>
-                    {paymentOption === 'PAY_AT_CLINIC' ? 'Total Payable at Clinic' : 'Total Payable'}
+                  <Text style={[styles.summaryLabel, isIndic && { lineHeight: 18 }]}>
+                    {paymentOption === 'PAY_AT_CLINIC' ? t('Total Payable at Clinic') : t('pharmacy.total_payable', 'Total Payable')}
                   </Text>
                   <Text style={styles.summaryValue}>₹{feeAmount}</Text>
                 </View>
-                <Text style={styles.summaryNote}>
-                  Zero cancellation fee • Digital prescription included • Instant confirmation
+                <Text style={[styles.summaryNote, isIndic && { lineHeight: 16 }]}>
+                  {t('Zero cancellation fee • Digital prescription included • Instant confirmation')}
                 </Text>
               </View>
 
               {/* PRIVACY & VERIFIED ASSURANCE BOX */}
               <View style={styles.privacyAssuranceBox}>
                 <Ionicons name="shield-checkmark" size={16} color="#1E3A8A" />
-                <Text style={styles.privacyAssuranceText}>
-                  Certified specialist doctors with authenticated clinic queue token, sanitized OPD rooms, instant digital prescription, and verified clinical care.
+                <Text style={[styles.privacyAssuranceText, isIndic && { lineHeight: 18 }]}>
+                  {t('Certified specialist doctors with authenticated clinic queue token, sanitized OPD rooms, instant digital prescription, and verified clinical care.')}
                 </Text>
               </View>
             </ScrollView>
@@ -889,7 +891,7 @@ const DoctorBookingScreen = ({ route, navigation }) => {
                 {isBooking ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.confirmBookingBtnText}>Confirm Appointment</Text>
+                  <Text style={[styles.confirmBookingBtnText, isIndic && { lineHeight: 18 }]}>{t('validation.booking_confirmed', 'Confirm Appointment')}</Text>
                 )}
               </TouchableOpacity>
             </View>

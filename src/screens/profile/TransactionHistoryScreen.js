@@ -19,6 +19,7 @@ import { showAlert } from '../../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../theme/colors';
+import { useTheme } from '../../context/ThemeContext';
 
 // ─────────────────────────────────────────────
 // DEFAULT TRANSACTIONS (Includes Completed & Refunded)
@@ -206,21 +207,21 @@ function getServiceConfig(type) {
   }
 }
 
-function getStatusConfig(status) {
+function getStatusConfig(status, t = (k) => k) {
   const s = (status || '').toLowerCase();
   if (s === 'refunded' || s.includes('refund')) {
-    return { label: '↩ Refunded', color: '#7C3AED', bg: '#EDE9FE' };
+    return { label: `↩ ${t('Refunded')}`, color: '#7C3AED', bg: '#EDE9FE' };
   }
   if (s === 'paid' || s === 'success') {
-    return { label: '✓ Paid', color: '#059669', bg: '#ECFDF5' };
+    return { label: `✓ ${t('Paid')}`, color: '#059669', bg: '#ECFDF5' };
   }
   if (s === 'pending') {
-    return { label: 'Pending', color: '#D97706', bg: '#FEF3C7' };
+    return { label: t('Pending'), color: '#D97706', bg: '#FEF3C7' };
   }
   if (s === 'failed') {
-    return { label: 'Failed', color: '#DC2626', bg: '#FEF2F2' };
+    return { label: t('Failed'), color: '#DC2626', bg: '#FEF2F2' };
   }
-  return { label: status || 'Paid', color: '#059669', bg: '#ECFDF5' };
+  return { label: t(status || 'Paid'), color: '#059669', bg: '#ECFDF5' };
 }
 
 function groupTransactions(list) {
@@ -263,6 +264,7 @@ function groupTransactions(list) {
 // MAIN COMPONENT
 // ─────────────────────────────────────────────
 const TransactionHistoryScreen = ({ navigation }) => {
+  const { t, isIndic } = useTheme();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
 
@@ -609,7 +611,7 @@ const TransactionHistoryScreen = ({ navigation }) => {
   const renderCard = (item, isTabletCol = false) => {
     const isRefund = (item.status || '').toLowerCase().includes('refund') || item.serviceType === 'refund';
     const svc    = getServiceConfig(isRefund ? 'refund' : item.serviceType);
-    const status = getStatusConfig(item.status);
+    const status = getStatusConfig(item.status, t);
     return (
       <TouchableOpacity
         key={item.id}
@@ -624,7 +626,7 @@ const TransactionHistoryScreen = ({ navigation }) => {
 
         {/* Middle */}
         <View style={S.cardMid}>
-          <Text style={S.cardService} numberOfLines={1}>{item.service}</Text>
+          <Text style={S.cardService} numberOfLines={1}>{t(item.service)}</Text>
           <Text style={S.cardTitle}   numberOfLines={1}>{item.title}</Text>
           <Text style={S.cardDate}    numberOfLines={1}>{item.date}</Text>
         </View>
@@ -649,7 +651,7 @@ const TransactionHistoryScreen = ({ navigation }) => {
 
   const renderSectionHeader = ({ section }) => (
     <View style={S.sectionHeader}>
-      <Text style={S.sectionLabel}>{section.title}</Text>
+      <Text style={S.sectionLabel}>{t(section.title)}</Text>
     </View>
   );
 
@@ -665,7 +667,7 @@ const TransactionHistoryScreen = ({ navigation }) => {
         <TouchableOpacity style={S.headerBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
           <Ionicons name="arrow-back" size={22} color="#0F172A" />
         </TouchableOpacity>
-        <Text style={S.headerTitle}>Payment History</Text>
+        <Text style={S.headerTitle}>{t('Payment History')}</Text>
         <TouchableOpacity style={S.headerBtn} onPress={loadTransactionsFromStorage} activeOpacity={0.8}>
           <Ionicons name="refresh-outline" size={20} color="#64748B" />
         </TouchableOpacity>
@@ -675,12 +677,12 @@ const TransactionHistoryScreen = ({ navigation }) => {
       <View style={[S.summary, isTablet && S.summaryTablet, selectedTab === 'refund' && S.summaryRefund]}>
         <View>
           <Text style={S.summaryLabel}>
-            {selectedTab === 'refund' ? 'Total Refunded' : 'Total Spent'}
+            {selectedTab === 'refund' ? t('Total Refunded') : t('Total Spent')}
           </Text>
           <Text style={S.summaryAmount}>₹{totalSpent.toLocaleString('en-IN')}</Text>
         </View>
         <Text style={S.summaryCount}>
-          {filteredTransactions.length} {selectedTab === 'refund' ? 'refunds' : 'payments'}
+          {filteredTransactions.length} {selectedTab === 'refund' ? t('refunds') : t('payments')}
         </Text>
       </View>
 
@@ -690,7 +692,7 @@ const TransactionHistoryScreen = ({ navigation }) => {
           <Ionicons name="search-outline" size={16} color="#94A3B8" />
           <TextInput
             style={S.searchInput}
-            placeholder="Search transactions, doctors, medicines..."
+            placeholder={t('Search transactions, doctors, medicines...')}
             placeholderTextColor="#94A3B8"
             value={search}
             onChangeText={setSearch}
@@ -741,7 +743,7 @@ const TransactionHistoryScreen = ({ navigation }) => {
                     !active && isRefundTab && S.pillTextRefund,
                   ]}
                 >
-                  {tab.label}
+                  {t(tab.label)}
                 </Text>
               </TouchableOpacity>
             );
@@ -753,7 +755,7 @@ const TransactionHistoryScreen = ({ navigation }) => {
       {isTablet ? (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[S.listContent, S.listContentTablet]}>
           {sections.length === 0
-            ? <EmptyState onExplore={() => navigation.goBack()} isRefund={selectedTab === 'refund'} />
+            ? <EmptyState onExplore={() => navigation.goBack()} isRefund={selectedTab === 'refund'} t={t} />
             : sections.map((sec) => (
                 <View key={sec.title}>
                   {renderSectionHeader({ section: sec })}
@@ -773,7 +775,7 @@ const TransactionHistoryScreen = ({ navigation }) => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={S.listContent}
           stickySectionHeadersEnabled={false}
-          ListEmptyComponent={<EmptyState onExplore={() => navigation.goBack()} isRefund={selectedTab === 'refund'} />}
+          ListEmptyComponent={<EmptyState onExplore={() => navigation.goBack()} isRefund={selectedTab === 'refund'} t={t} />}
         />
       )}
 
@@ -802,7 +804,7 @@ const TransactionHistoryScreen = ({ navigation }) => {
                     />
                   </View>
                   <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={S.detailService} numberOfLines={1}>{selectedTxn.service}</Text>
+                    <Text style={S.detailService} numberOfLines={1}>{t(selectedTxn.service)}</Text>
                     <Text style={S.detailTitle}   numberOfLines={1}>{selectedTxn.title}</Text>
                   </View>
                   <TouchableOpacity style={S.closeBtn} onPress={() => setSelectedTxn(null)}>
@@ -815,38 +817,38 @@ const TransactionHistoryScreen = ({ navigation }) => {
                   <Text style={[S.amountBig, selectedTxn.status?.toLowerCase().includes('refund') && S.cardAmountRefund]}>
                     {selectedTxn.status?.toLowerCase().includes('refund') ? `+ ₹${selectedTxn.amount.toLocaleString('en-IN')}` : `₹${selectedTxn.amount.toLocaleString('en-IN')}`}
                   </Text>
-                  <View style={[S.statusBadge, { backgroundColor: getStatusConfig(selectedTxn.status).bg, paddingHorizontal: 10, paddingVertical: 4 }]}>
-                    <Text style={[S.statusText, { color: getStatusConfig(selectedTxn.status).color, fontSize: 13, fontWeight: '800' }]}>
-                      {getStatusConfig(selectedTxn.status).label}
+                  <View style={[S.statusBadge, { backgroundColor: getStatusConfig(selectedTxn.status, t).bg, paddingHorizontal: 10, paddingVertical: 4 }]}>
+                    <Text style={[S.statusText, { color: getStatusConfig(selectedTxn.status, t).color, fontSize: 13, fontWeight: '800' }]}>
+                      {getStatusConfig(selectedTxn.status, t).label}
                     </Text>
                   </View>
                 </View>
 
                 {/* Info rows */}
                 <View style={S.infoBox}>
-                  <InfoRow label="Date"           value={selectedTxn.date} />
-                  <InfoRow label="Transaction ID" value={selectedTxn.id} mono />
-                  <InfoRow label="Payment Mode"   value={selectedTxn.paymentMode} />
-                  <InfoRow label="Facility"       value={selectedTxn.facility} />
+                  <InfoRow label={t('Date')}           value={selectedTxn.date} />
+                  <InfoRow label={t('Transaction ID')} value={selectedTxn.id} mono />
+                  <InfoRow label={t('Payment Mode')}   value={selectedTxn.paymentMode} />
+                  <InfoRow label={t('Facility')}       value={selectedTxn.facility} />
                   {selectedTxn.mrp > selectedTxn.amount && !selectedTxn.status?.toLowerCase().includes('refund') && (
-                    <InfoRow label="You saved" value={`₹${(selectedTxn.mrp - selectedTxn.amount).toLocaleString('en-IN')}`} green />
+                    <InfoRow label={t('You saved')} value={`₹${(selectedTxn.mrp - selectedTxn.amount).toLocaleString('en-IN')}`} green />
                   )}
                 </View>
 
                 {/* Items */}
                 {selectedTxn.items?.length > 0 && (
                   <View style={S.itemsBox}>
-                    <Text style={S.itemsTitle}>Itemized Details</Text>
+                    <Text style={S.itemsTitle}>{t('Itemized Details')}</Text>
                     {selectedTxn.items.map((it, i) => (
                       <View key={i} style={S.itemRow}>
                         <Text style={S.itemName} numberOfLines={2}>{it.name}</Text>
-                        <Text style={S.itemPrice}>{it.price === 0 ? 'Free' : `₹${it.price}`}</Text>
+                        <Text style={S.itemPrice}>{it.price === 0 ? t('Free') : `₹${it.price}`}</Text>
                       </View>
                     ))}
                     <View style={S.divider} />
                     <View style={S.itemRow}>
                       <Text style={[S.itemName, { fontWeight: '800', color: '#0F172A' }]}>
-                        {selectedTxn.status?.toLowerCase().includes('refund') ? 'Total Refund' : 'Total Paid'}
+                        {selectedTxn.status?.toLowerCase().includes('refund') ? t('Total Refund') : t('Total Paid')}
                       </Text>
                       <Text style={[S.itemPrice, { color: selectedTxn.status?.toLowerCase().includes('refund') ? '#7C3AED' : '#059669', fontSize: 14 }]}>
                         ₹{selectedTxn.amount.toLocaleString('en-IN')}
@@ -859,7 +861,7 @@ const TransactionHistoryScreen = ({ navigation }) => {
                 <View style={S.actions}>
                   <TouchableOpacity style={S.shareBtn} onPress={() => handleShare(selectedTxn)} activeOpacity={0.85}>
                     <Ionicons name="share-social-outline" size={15} color="#0F766E" />
-                    <Text style={S.shareBtnText}>Share</Text>
+                    <Text style={S.shareBtnText}>{t('Share')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={S.dlBtn}
@@ -870,7 +872,7 @@ const TransactionHistoryScreen = ({ navigation }) => {
                     activeOpacity={0.88}
                   >
                     <Ionicons name="download-outline" size={15} color="#FFFFFF" />
-                    <Text style={S.dlBtnText}>Download PDF</Text>
+                    <Text style={S.dlBtnText}>{t('Download PDF')}</Text>
                   </TouchableOpacity>
                 </View>
               </ScrollView>
@@ -900,14 +902,14 @@ const InfoRow = ({ label, value, mono, green }) => (
 // ─────────────────────────────────────────────
 // EMPTY STATE
 // ─────────────────────────────────────────────
-const EmptyState = ({ onExplore, isRefund }) => (
+const EmptyState = ({ onExplore, isRefund, t = (k) => k }) => (
   <View style={S.empty}>
     <Ionicons name={isRefund ? 'arrow-undo-outline' : 'receipt-outline'} size={46} color="#CBD5E1" />
     <Text style={S.emptyTitle}>
-      {isRefund ? 'No refund records found' : 'No transactions yet'}
+      {isRefund ? t('No refund records found') : t('No transactions yet')}
     </Text>
     <TouchableOpacity style={S.exploreBtn} onPress={onExplore} activeOpacity={0.85}>
-      <Text style={S.exploreBtnText}>Explore Healthcare Services</Text>
+      <Text style={S.exploreBtnText}>{t('Explore Healthcare Services')}</Text>
     </TouchableOpacity>
   </View>
 );

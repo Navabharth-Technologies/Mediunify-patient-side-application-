@@ -18,10 +18,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { showAlert } from '../../utils/alert';
 import colors from '../../theme/colors';
-
+import { useTheme } from '../../context/ThemeContext';
 import { useKeyboardVisibility } from '../../utils/keyboardUtils';
 
 const ForgotPasswordScreen = ({ navigation }) => {
+  const { t, isIndic } = useTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const isSmallDevice = width < 375 || height < 680;
@@ -158,15 +159,17 @@ const ForgotPasswordScreen = ({ navigation }) => {
               <Ionicons name="key-outline" size={30} color="#00B894" />
             </View>
 
-            <Text style={styles.title}>Reset Account Password</Text>
-            <Text style={styles.subtitle}>
-              Enter your registered email or 10-digit mobile number and create a new secure password.
+            <Text style={[styles.title, isIndic && { lineHeight: 28 }]}>
+              {t('auth.forgot_password_title', 'Reset Account Password')}
+            </Text>
+            <Text style={[styles.subtitle, isIndic && { lineHeight: 20 }]}>
+              {t('auth.forgot_password_desc', 'Enter your registered email or 10-digit mobile number and create a new secure password.')}
             </Text>
 
             {/* INPUT: EMAIL OR PHONE */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>
-                Registered Email or Phone <Text style={styles.requiredMark}>*</Text>
+              <Text style={[styles.fieldLabel, isIndic && { lineHeight: 18 }]}>
+                {t('auth.email_or_mobile', 'Registered Email or Phone')} <Text style={styles.requiredMark}>*</Text>
               </Text>
               <View style={[styles.inputBox, email ? styles.inputBoxFilled : null]}>
                 <Ionicons
@@ -177,7 +180,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
                 />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Enter registered email or mobile"
+                  placeholder={t('auth.email_or_mobile_ph', 'Enter registered email or mobile')}
                   placeholderTextColor="#94A3B8"
                   value={email}
                   onChangeText={setEmail}
@@ -198,12 +201,12 @@ const ForgotPasswordScreen = ({ navigation }) => {
             {/* INPUT: NEW PASSWORD */}
             <View style={styles.fieldGroup}>
               <View style={styles.fieldLabelRow}>
-                <Text style={styles.fieldLabel}>
-                  New Password <Text style={styles.requiredMark}>*</Text>
+                <Text style={[styles.fieldLabel, isIndic && { lineHeight: 18 }]}>
+                  {t('settings.new_password', 'New Password')} <Text style={styles.requiredMark}>*</Text>
                 </Text>
                 {newPassword.length > 0 && (
                   <Text style={[styles.counterText, newPassword.length >= 6 ? styles.counterTextSuccess : styles.counterTextWarning]}>
-                    {newPassword.length >= 6 ? 'Min 6 met' : `${newPassword.length}/6 chars`}
+                    {newPassword.length >= 6 ? t('auth.min_met', 'Min 6 met') : `${newPassword.length}/6 ${t('auth.chars', 'chars')}`}
                   </Text>
                 )}
               </View>
@@ -211,7 +214,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
                 <Ionicons name="lock-closed-outline" size={18} color={newPassword ? colors.primary : colors.slate} style={styles.inputPrefixIcon} />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Enter new password (min 6 chars)"
+                  placeholder={t('auth.new_pass_ph', 'Enter new password (min 6 chars)')}
                   placeholderTextColor="#94A3B8"
                   value={newPassword}
                   onChangeText={setNewPassword}
@@ -238,13 +241,13 @@ const ForgotPasswordScreen = ({ navigation }) => {
             {/* INPUT: CONFIRM PASSWORD */}
             <View style={styles.fieldGroup}>
               <View style={styles.fieldLabelRow}>
-                <Text style={styles.fieldLabel}>
-                  Confirm New Password <Text style={styles.requiredMark}>*</Text>
+                <Text style={[styles.fieldLabel, isIndic && { lineHeight: 18 }]}>
+                  {t('auth.confirm_password', 'Confirm New Password')} <Text style={styles.requiredMark}>*</Text>
                 </Text>
                 {isPasswordMatch && (
                   <View style={styles.matchedBadge}>
                     <Ionicons name="checkmark-circle" size={13} color="#00B894" />
-                    <Text style={styles.matchedBadgeText}>Passwords Match</Text>
+                    <Text style={styles.matchedBadgeText}>{t('auth.passwords_match', 'Passwords Match')}</Text>
                   </View>
                 )}
               </View>
@@ -252,7 +255,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
                 <Ionicons name="shield-checkmark-outline" size={18} color={confirmPassword ? colors.primary : colors.slate} style={styles.inputPrefixIcon} />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Confirm your new password"
+                  placeholder={t('auth.confirm_password_ph', 'Confirm your new password')}
                   placeholderTextColor="#94A3B8"
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
@@ -286,11 +289,15 @@ const ForgotPasswordScreen = ({ navigation }) => {
               {isUpdating ? (
                 <View style={styles.btnRow}>
                   <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.primaryBtnText}>Updating Security Credentials...</Text>
+                  <Text style={[styles.primaryBtnText, isIndic && { lineHeight: 22 }]}>
+                    {t('auth.updating_creds', 'Updating Security Credentials...')}
+                  </Text>
                 </View>
               ) : (
                 <View style={styles.btnRow}>
-                  <Text style={styles.primaryBtnText}>Update Password & Sign In</Text>
+                  <Text style={[styles.primaryBtnText, isIndic && { lineHeight: 22 }]}>
+                    {t('auth.update_and_sign_in', 'Update Password & Sign In')}
+                  </Text>
                   <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
                 </View>
               )}
@@ -301,7 +308,9 @@ const ForgotPasswordScreen = ({ navigation }) => {
               onPress={() => navigation.navigate('Login')}
               activeOpacity={0.7}
             >
-              <Text style={styles.cancelLinkText}>Cancel & Return to Sign In</Text>
+              <Text style={[styles.cancelLinkText, isIndic && { lineHeight: 18 }]}>
+                {t('auth.cancel_return_signin', 'Cancel & Return to Sign In')}
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

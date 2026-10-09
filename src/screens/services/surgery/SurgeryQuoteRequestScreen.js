@@ -22,8 +22,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../../theme/colors';
 import WebFooter from '../../../components/web/WebFooter';
 import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
+import { useTheme } from '../../../context/ThemeContext';
 
 const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
+  const { t } = useTheme();
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef(null);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
@@ -132,11 +134,11 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
 
   const handleUploadReport = () => {
     showAlert(
-      'Upload Doctor Prescription / Scan',
-      'Choose source to attach prescription, ultrasound, or CT scan report for the hospital surgical desk to review:',
+      t('Upload Doctor Prescription / Scan'),
+      t('Choose source to attach prescription, ultrasound, or CT scan report for the hospital surgical desk to review:'),
       [
         {
-          text: 'Take Photo (Camera)',
+          text: t('Take Photo (Camera)'),
           onPress: () => {
             setUploadedReport({
               name: 'Dr_Prescription_Scan_Slip.jpg',
@@ -145,7 +147,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
           },
         },
         {
-          text: 'Choose from Gallery',
+          text: t('Choose from Gallery'),
           onPress: () => {
             setUploadedReport({
               name: 'Abdomen_Ultrasound_Report.pdf',
@@ -153,7 +155,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
             });
           },
         },
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('Cancel'), style: 'cancel' },
       ]
     );
   };
@@ -165,7 +167,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
       return;
     }
     if (!patientName.trim() || !patientPhone.trim()) {
-      showAlert('Required Fields', 'Please enter patient name and contact phone number.');
+      showAlert(t('Required Fields'), t('Please enter patient name and contact phone number.'));
       return;
     }
 
@@ -221,7 +223,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
     } catch (e) {
       console.log('Error saving quote request:', e);
       setSubmitting(false);
-      showAlert('Submission Error', 'Could not send quote request. Please try again.');
+      showAlert(t('Submission Error'), t('Could not send quote request. Please try again.'));
     }
   };
 
@@ -240,8 +242,8 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Request Surgery Price Quote</Text>
-          <Text style={styles.headerSubtitle}>Hospital Estimate & Insurance Pre-Approval</Text>
+          <Text style={styles.headerTitle}>{t('Request Surgery Price Quote')}</Text>
+          <Text style={styles.headerSubtitle}>{t('Hospital Estimate & Insurance Pre-Approval')}</Text>
         </View>
       </View>
 
@@ -265,14 +267,14 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
         {isDesktopWeb && (
           <View style={styles.breadcrumbsRow}>
             <TouchableOpacity onPress={() => navigation.navigate('Home')}>
-              <Text style={styles.breadcrumbLink}>Home</Text>
+              <Text style={styles.breadcrumbLink}>{t('Home')}</Text>
             </TouchableOpacity>
             <Text style={styles.breadcrumbSlash}>/</Text>
             <TouchableOpacity onPress={() => navigation.navigate('HospitalCare')}>
-              <Text style={styles.breadcrumbLink}>Hospitals & Surgeries</Text>
+              <Text style={styles.breadcrumbLink}>{t('Hospitals & Surgeries')}</Text>
             </TouchableOpacity>
             <Text style={styles.breadcrumbSlash}>/</Text>
-            <Text style={styles.breadcrumbCurrent}>Price Quote Request</Text>
+            <Text style={styles.breadcrumbCurrent}>{t('Price Quote Request')}</Text>
           </View>
         )}
 
@@ -280,12 +282,12 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
         <View style={styles.selectedSurgeryCard}>
           <View style={styles.confidentialBadgePill}>
             <Ionicons name="shield-checkmark" size={11} color="#0D9488" />
-            <Text style={styles.confidentialBadgePillText}>100% CONFIDENTIAL & ACCREDITED SURGICAL CARE</Text>
+            <Text style={styles.confidentialBadgePillText}>{t('100% CONFIDENTIAL & ACCREDITED SURGICAL CARE')}</Text>
           </View>
           <View style={styles.selectedBadgeRow}>
             <View style={styles.selectedCategoryBadge}>
               <Text style={styles.selectedCategoryText}>
-                {surgery?.categoryLabel || 'Surgical Procedure'}
+                {surgery?.categoryLabel ? t(surgery.categoryLabel) : t('Surgical Procedure')}
               </Text>
             </View>
             <View style={styles.selectedStayBadge}>
@@ -300,15 +302,15 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
 
           <View style={styles.techniqueBanner}>
             <Ionicons name="sparkles" size={13} color={colors.primary} />
-            <Text style={styles.techniqueText}>Technique: {surgery?.technique}</Text>
+            <Text style={styles.techniqueText}>{t('Technique')}: {surgery?.technique}</Text>
           </View>
         </View>
 
         {/* SECTION: PATIENT INFORMATION */}
-        <Text style={styles.formSectionTitle}>1. Patient Details</Text>
+        <Text style={styles.formSectionTitle}>{t('1. Patient Details')}</Text>
         <View style={styles.formCard}>
           {/* Patient Selection: Self vs Family Member */}
-          <Text style={styles.inputLabel}>Select Patient *</Text>
+          <Text style={styles.inputLabel}>{t('Select Patient *')}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.familyPillsRow}>
             <TouchableOpacity
               style={[
@@ -329,7 +331,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
                   selectedFamilyMemberId === 'self' && styles.familyMemberPillTextActive,
                 ]}
               >
-                Self
+                {t('Self')}
               </Text>
             </TouchableOpacity>
 
@@ -363,7 +365,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
             })}
           </ScrollView>
 
-          <Text style={styles.inputLabel}>Patient Full Name</Text>
+          <Text style={styles.inputLabel}>{t('Patient Full Name')}</Text>
           <TextInput
             style={styles.input}
             value={patientName}
@@ -373,12 +375,12 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
                 scrollViewRef.current?.scrollTo({ y: 180, animated: true });
               }, 100);
             }}
-            placeholder="Enter patient full name"
+            placeholder={t('Enter patient full name')}
           />
 
           <View style={styles.formRow}>
             <View style={{ flex: 1, marginRight: 8 }}>
-              <Text style={styles.inputLabel}>Age</Text>
+              <Text style={styles.inputLabel}>{t('Age')}</Text>
               <TextInput
                 style={styles.input}
                 value={patientAge}
@@ -389,12 +391,12 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
                   }, 100);
                 }}
                 keyboardType="numeric"
-                placeholder="Age"
+                placeholder={t('Age')}
               />
             </View>
 
             <View style={{ flex: 1, marginLeft: 8 }}>
-              <Text style={styles.inputLabel}>Gender</Text>
+              <Text style={styles.inputLabel}>{t('Gender')}</Text>
               <View style={styles.genderRow}>
                 {['Male', 'Female'].map((g) => (
                   <TouchableOpacity
@@ -411,7 +413,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
                         patientGender === g && styles.genderPillTextActive,
                       ]}
                     >
-                      {g}
+                      {t(g)}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -419,7 +421,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
             </View>
           </View>
 
-          <Text style={styles.inputLabel}>Contact Phone Number</Text>
+          <Text style={styles.inputLabel}>{t('Contact Phone Number')}</Text>
           <TextInput
             style={styles.input}
             value={patientPhone}
@@ -430,12 +432,12 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
               }, 100);
             }}
             keyboardType="phone-pad"
-            placeholder="Mobile number for quote SMS & WhatsApp"
+            placeholder={t('Mobile number for quote SMS & WhatsApp')}
           />
         </View>
 
         {/* SECTION: PREFERRED TIMELINE */}
-        <Text style={styles.formSectionTitle}>2. Preferred Admission Timeline</Text>
+        <Text style={styles.formSectionTitle}>{t('2. Preferred Admission Timeline')}</Text>
         <View style={styles.formCard}>
           {datesOptions.map((d) => {
             const isSelected = preferredDate === d;
@@ -459,7 +461,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
                     isSelected && styles.dateOptionTextActive,
                   ]}
                 >
-                  {d}
+                  {t(d)}
                 </Text>
               </TouchableOpacity>
             );
@@ -467,9 +469,9 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
         </View>
 
         {/* SECTION: INSURANCE & PAYMENT OPTION */}
-        <Text style={styles.formSectionTitle}>3. Health Insurance & Cashless TPA</Text>
+        <Text style={styles.formSectionTitle}>{t('3. Health Insurance & Cashless TPA')}</Text>
         <View style={styles.formCard}>
-          <Text style={styles.inputLabel}>Do you have Health Insurance / Mediclaim?</Text>
+          <Text style={styles.inputLabel}>{t('Do you have Health Insurance / Mediclaim?')}</Text>
           <View style={styles.insuranceChoiceRow}>
             <TouchableOpacity
               style={[
@@ -489,7 +491,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
                   hasInsurance === 'yes' && styles.insuranceChoiceTextActive,
                 ]}
               >
-                Yes, Cashless TPA
+                {t('Yes, Cashless TPA')}
               </Text>
             </TouchableOpacity>
 
@@ -511,14 +513,14 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
                   hasInsurance === 'no' && styles.insuranceChoiceTextActive,
                 ]}
               >
-                No, Self-Pay Package
+                {t('No, Self-Pay Package')}
               </Text>
             </TouchableOpacity>
           </View>
 
           {hasInsurance === 'yes' && (
             <View style={{ marginTop: 10 }}>
-              <Text style={styles.inputLabel}>Insurance Provider / TPA Name</Text>
+              <Text style={styles.inputLabel}>{t('Insurance Provider / TPA Name')}</Text>
               <TextInput
                 style={styles.input}
                 value={insuranceProvider}
@@ -536,7 +538,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
 
         {/* SECTION: UPLOAD PRESCRIPTION OR SCAN */}
         <Text style={styles.formSectionTitle}>
-          4. Attach Prescription or Scan Report (Optional)
+          {t('4. Attach Prescription or Scan Report (Optional)')}
         </Text>
         <View style={styles.formCard}>
           {uploadedReport ? (
@@ -557,15 +559,15 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
               onPress={handleUploadReport}
             >
               <Ionicons name="cloud-upload-outline" size={28} color={colors.primary} />
-              <Text style={styles.uploadDottedTitle}>Upload Doctor's Advice Slip / Scan</Text>
+              <Text style={styles.uploadDottedTitle}>{t("Upload Doctor's Advice Slip / Scan")}</Text>
               <Text style={styles.uploadDottedSub}>
-                Helps hospital surgical desk give exact package quote & pre-authorization
+                {t('Helps hospital surgical desk give exact package quote & pre-authorization')}
               </Text>
             </TouchableOpacity>
           )}
 
           <Text style={[styles.inputLabel, { marginTop: 12 }]}>
-            Additional Medical Notes / Symptoms
+            {t('Additional Medical Notes / Symptoms')}
           </Text>
           <TextInput
             style={[styles.input, { height: 60, textAlignVertical: 'top', paddingTop: 8 }]}
@@ -585,7 +587,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
         <View style={styles.privacyAssuranceBoxUnified}>
           <Ionicons name="shield-checkmark" size={17} color="#059669" />
           <Text style={styles.privacyAssuranceTextUnified}>
-            100% discrete inquiry. Dedicated hospital surgical care coordinator will contact you privately with insurance coverage pre-authorization and transparent package pricing.
+            {t('100% discrete inquiry. Dedicated hospital surgical care coordinator will contact you privately with insurance coverage pre-authorization and transparent package pricing.')}
           </Text>
         </View>
 
@@ -597,7 +599,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
           disabled={submitting}
         >
           <Text style={styles.submitBtnText}>
-            {submitting ? 'Sending Request to Hospital...' : 'Send Surgery Quote Request'}
+            {submitting ? t('Sending Request to Hospital...') : t('Send Surgery Quote Request')}
           </Text>
           <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
         </TouchableOpacity>
@@ -625,9 +627,9 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
               <Ionicons name="checkmark-done" size={32} color="#FFFFFF" />
             </View>
 
-            <Text style={styles.successTitle}>Surgery Quote Request Sent!</Text>
+            <Text style={styles.successTitle}>{t('Surgery Quote Request Sent!')}</Text>
             <Text style={styles.successSub}>
-              Your request has been forwarded to the Surgical Care Desk at{' '}
+              {t('Your request has been forwarded to the Surgical Care Desk at')}{' '}
               <Text style={{ fontWeight: '800', color: colors.secondary }}>
                 {hospital?.name}
               </Text>
@@ -637,23 +639,23 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
             {/* REQUEST META CARD */}
             <View style={styles.quoteSummaryBox}>
               <View style={styles.quoteSummaryRow}>
-                <Text style={styles.quoteSummaryLabel}>Request ID:</Text>
+                <Text style={styles.quoteSummaryLabel}>{t('Request ID:')}</Text>
                 <Text style={styles.quoteSummaryVal}>{generatedRequestId}</Text>
               </View>
               <View style={styles.quoteSummaryRow}>
-                <Text style={styles.quoteSummaryLabel}>Procedure:</Text>
+                <Text style={styles.quoteSummaryLabel}>{t('Procedure:')}</Text>
                 <Text style={styles.quoteSummaryVal} numberOfLines={1}>
                   {surgery?.name}
                 </Text>
               </View>
               <View style={styles.quoteSummaryRow}>
-                <Text style={styles.quoteSummaryLabel}>Hospital:</Text>
+                <Text style={styles.quoteSummaryLabel}>{t('Hospital:')}</Text>
                 <Text style={styles.quoteSummaryVal}>{hospital?.name}</Text>
               </View>
               <View style={styles.quoteSummaryRow}>
-                <Text style={styles.quoteSummaryLabel}>Status:</Text>
+                <Text style={styles.quoteSummaryLabel}>{t('Status:')}</Text>
                 <View style={styles.quoteStatusPill}>
-                  <Text style={styles.quoteStatusPillText}>Under Review by Hospital Desk</Text>
+                  <Text style={styles.quoteStatusPillText}>{t('Under Review by Hospital Desk')}</Text>
                 </View>
               </View>
             </View>
@@ -662,7 +664,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
             <View style={styles.nextStepsBanner}>
               <Ionicons name="time-outline" size={18} color={colors.primary} />
               <Text style={styles.nextStepsText}>
-                The hospital surgical desk will review your details and send your customized cost estimate and TPA pre-authorization details via notification & SMS.
+                {t('The hospital surgical desk will review your details and send your customized cost estimate and TPA pre-authorization details via notification & SMS.')}
               </Text>
             </View>
 
@@ -674,7 +676,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
                 navigation.navigate('MyAppointments');
               }}
             >
-              <Text style={styles.modalPrimaryBtnText}>View in My Appointments</Text>
+              <Text style={styles.modalPrimaryBtnText}>{t('View in My Appointments')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -685,7 +687,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
               }}
             >
               <Ionicons name="call" size={14} color={colors.secondary} />
-              <Text style={styles.modalCallBtnText}>Call Hospital Desk Directly</Text>
+              <Text style={styles.modalCallBtnText}>{t('Call Hospital Desk Directly')}</Text>
             </TouchableOpacity>
           </View>
         </View>

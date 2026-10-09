@@ -1,8 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import colors from '../theme/colors';
+import { useTheme } from '../context/ThemeContext';
 
 const HealthRecordCard = ({ title, description, icon }) => {
+  const { t, isIndic } = useTheme();
   return (
     <View style={styles.card}>
       <View style={styles.iconBox}>
@@ -10,8 +12,8 @@ const HealthRecordCard = ({ title, description, icon }) => {
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.description}>{description}</Text>
+        <Text style={[styles.title, isIndic && { lineHeight: 20 }]}>{title ? t(title, title) : ''}</Text>
+        <Text style={[styles.description, isIndic && { lineHeight: 18 }]}>{description ? t(description, description) : ''}</Text>
       </View>
     </View>
   );

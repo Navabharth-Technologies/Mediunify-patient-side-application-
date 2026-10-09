@@ -10,6 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import colors from '../theme/colors';
+import { useTheme } from '../context/ThemeContext';
 
 const CustomInput = ({
   label,
@@ -25,17 +26,22 @@ const CustomInput = ({
   autoComplete,
   ...restProps
 }) => {
+  const { t, isIndic } = useTheme();
   const isPasswordField = secureTextEntry || isPassword;
   const [hidePassword, setHidePassword] = useState(isPasswordField);
 
   return (
     <View style={styles.container}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
+      {label ? (
+        <Text style={[styles.label, isIndic && { lineHeight: 20 }]}>
+          {t(label, label)}
+        </Text>
+      ) : null}
 
       <View style={styles.inputWrapper}>
         <TextInput
           style={[styles.input, isPasswordField && styles.passwordInput]}
-          placeholder={placeholder}
+          placeholder={placeholder ? t(placeholder, placeholder) : undefined}
           placeholderTextColor={colors.textSecondary || '#94A3B8'}
           value={value}
           onChangeText={onChangeText}

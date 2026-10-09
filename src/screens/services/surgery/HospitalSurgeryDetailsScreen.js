@@ -20,12 +20,14 @@ import {
   getSurgeryHospitalById,
   surgerySpecialties,
 } from '../../../data/surgeryHospitalsData';
+import { useTheme } from '../../../context/ThemeContext';
 
 const HospitalSurgeryDetailsScreen = ({ route, navigation }) => {
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   const { hospitalId, initialSpecialty } = route.params || {};
   const hospital = getSurgeryHospitalById(hospitalId);
+  const { t } = useTheme();
 
   const [search, setSearch] = useState('');
   const [selectedSpecialty, setSelectedSpecialty] = useState(
@@ -96,7 +98,7 @@ const HospitalSurgeryDetailsScreen = ({ route, navigation }) => {
             {hospital.name}
           </Text>
           <Text style={styles.headerSubtitle}>
-            Surgical Care & Procedures Catalog
+            {t('Surgical Care & Procedures Catalog')}
           </Text>
         </View>
 
@@ -117,11 +119,11 @@ const HospitalSurgeryDetailsScreen = ({ route, navigation }) => {
         {isDesktopWeb && (
           <View style={styles.breadcrumbsRow}>
             <TouchableOpacity onPress={() => navigation.navigate('Home')}>
-              <Text style={styles.breadcrumbLink}>Home</Text>
+              <Text style={styles.breadcrumbLink}>{t('Home')}</Text>
             </TouchableOpacity>
             <Text style={styles.breadcrumbSlash}>/</Text>
             <TouchableOpacity onPress={() => navigation.navigate('HospitalCare')}>
-              <Text style={styles.breadcrumbLink}>Hospitals & Surgeries</Text>
+              <Text style={styles.breadcrumbLink}>{t('Hospitals & Surgeries')}</Text>
             </TouchableOpacity>
             <Text style={styles.breadcrumbSlash}>/</Text>
             <Text style={styles.breadcrumbCurrent}>{hospital.name}</Text>
@@ -160,14 +162,14 @@ const HospitalSurgeryDetailsScreen = ({ route, navigation }) => {
                 <Ionicons name="star" size={14} color="#FFA000" />
                 <Text style={styles.statBold}>{hospital.rating}</Text>
               </View>
-              <Text style={styles.statLabel}>({hospital.reviewCount} Reviews)</Text>
+              <Text style={styles.statLabel}>({hospital.reviewCount} {t('Reviews')})</Text>
             </View>
 
             <View style={styles.statDivider} />
 
             <View style={styles.statCol}>
               <Text style={styles.statBold}>{hospital.icuBeds}</Text>
-              <Text style={styles.statLabel}>Critical Care</Text>
+              <Text style={styles.statLabel}>{t('Critical Care')}</Text>
             </View>
 
             <View style={styles.statDivider} />
@@ -176,7 +178,7 @@ const HospitalSurgeryDetailsScreen = ({ route, navigation }) => {
               <Text style={[styles.statBold, { color: colors.primary }]}>
                 {hospital.otCount}
               </Text>
-              <Text style={styles.statLabel}>Surgical OTs</Text>
+              <Text style={styles.statLabel}>{t('Surgical OTs')}</Text>
             </View>
           </View>
 
@@ -188,7 +190,7 @@ const HospitalSurgeryDetailsScreen = ({ route, navigation }) => {
               onPress={() => Linking.openURL(`tel:${hospital.phone}`)}
             >
               <Ionicons name="call" size={15} color={colors.secondary} />
-              <Text style={styles.heroCallBtnText}>Call Surgery Desk</Text>
+              <Text style={styles.heroCallBtnText}>{t('Call Surgery Desk')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -197,13 +199,13 @@ const HospitalSurgeryDetailsScreen = ({ route, navigation }) => {
               onPress={openHospitalGps}
             >
               <Ionicons name="navigate" size={15} color={colors.primary} />
-              <Text style={styles.heroDirectionsBtnText}>Directions (GPS)</Text>
+              <Text style={styles.heroDirectionsBtnText}>{t('Directions (GPS)')}</Text>
             </TouchableOpacity>
           </View>
 
           {/* CASHLESS INSURANCE TPA SUPPORTED */}
           <View style={styles.insuranceSection}>
-            <Text style={styles.insuranceTitle}>Cashless Insurance & TPA Partners:</Text>
+            <Text style={styles.insuranceTitle}>{t('Cashless Insurance & TPA Partners:')}</Text>
             <View style={styles.insuranceTagsWrap}>
               {hospital.cashlessInsurance.map((ins, i) => (
                 <View key={i} style={styles.insuranceTag}>
@@ -222,7 +224,7 @@ const HospitalSurgeryDetailsScreen = ({ route, navigation }) => {
           <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
           <TextInput
             style={styles.searchInput}
-            placeholder={`Search surgeries in ${hospital.name.split(' ')[0]}...`}
+            placeholder={`${t('Search surgeries in')} ${hospital.name.split(' ')[0]}...`}
             placeholderTextColor="#94A3B8"
             value={search}
             onChangeText={setSearch}
@@ -314,10 +316,10 @@ const HospitalSurgeryDetailsScreen = ({ route, navigation }) => {
         ================================================== */}
         <View style={styles.surgeriesListSection}>
           <Text style={styles.sectionHeaderTitle}>
-            Available Procedures ({filteredSurgeries.length})
+            {t('Available Procedures')} ({filteredSurgeries.length})
           </Text>
           <Text style={styles.sectionHeaderSub}>
-            Select a surgery to request a customized hospital quote & insurance check.
+            {t('Select a surgery to request a customized hospital quote & insurance check.')}
           </Text>
 
           {filteredSurgeries.map((surg) => {
@@ -342,17 +344,17 @@ const HospitalSurgeryDetailsScreen = ({ route, navigation }) => {
                 <View style={styles.procedureMetaBox}>
                   <View style={styles.procedureMetaRow}>
                     <Ionicons name="sparkles" size={13} color={colors.primary} />
-                    <Text style={styles.procedureMetaLabel}>Technique: </Text>
+                    <Text style={styles.procedureMetaLabel}>{t('Technique')}: </Text>
                     <Text style={styles.procedureMetaVal}>{surg.technique}</Text>
                   </View>
                   <View style={styles.procedureMetaRow}>
                     <Ionicons name="shield-checkmark" size={13} color={colors.accent} />
-                    <Text style={styles.procedureMetaLabel}>Anesthesia: </Text>
+                    <Text style={styles.procedureMetaLabel}>{t('Anesthesia')}: </Text>
                     <Text style={styles.procedureMetaVal}>{surg.anesthesia}</Text>
                   </View>
                   <View style={styles.procedureMetaRow}>
                     <Ionicons name="walk" size={13} color="#059669" />
-                    <Text style={styles.procedureMetaLabel}>Recovery: </Text>
+                    <Text style={styles.procedureMetaLabel}>{t('Recovery')}: </Text>
                     <Text style={styles.procedureMetaVal}>{surg.recovery}</Text>
                   </View>
                 </View>
@@ -360,7 +362,7 @@ const HospitalSurgeryDetailsScreen = ({ route, navigation }) => {
                 {/* EXPANDABLE INCLUSIONS */}
                 {isExpanded && (
                   <View style={styles.inclusionsBox}>
-                    <Text style={styles.inclusionsTitle}>Surgery Package Inclusions:</Text>
+                    <Text style={styles.inclusionsTitle}>{t('Surgery Package Inclusions:')}</Text>
                     {surg.inclusions.map((inc, i) => (
                       <View key={i} style={styles.inclusionItem}>
                         <Ionicons name="checkmark-circle" size={14} color="#059669" />
@@ -377,16 +379,16 @@ const HospitalSurgeryDetailsScreen = ({ route, navigation }) => {
                   }
                 >
                   <Text style={styles.toggleInclusionsText}>
-                    {isExpanded ? 'Hide Package Inclusions ▲' : 'View Package Inclusions ▼'}
+                    {isExpanded ? t('Hide Package Inclusions ▲') : t('View Package Inclusions ▼')}
                   </Text>
                 </TouchableOpacity>
 
                 {/* FOOTER: QUOTE BADGE & REQUEST QUOTE BUTTON */}
                 <View style={styles.surgeryCardFooter}>
                   <View style={styles.quoteStatusBox}>
-                    <Text style={styles.quoteStatusLabel}>Price & Package Cost</Text>
+                    <Text style={styles.quoteStatusLabel}>{t('Price & Package Cost')}</Text>
                     <Text style={styles.quoteStatusValue}>
-                      Provided by Hospital Desk
+                      {t('Provided by Hospital Desk')}
                     </Text>
                   </View>
 
@@ -396,7 +398,7 @@ const HospitalSurgeryDetailsScreen = ({ route, navigation }) => {
                     onPress={() => handleRequestQuote(surg)}
                   >
                     <Ionicons name="calculator-outline" size={15} color="#FFFFFF" />
-                    <Text style={styles.requestQuoteBtnText}>Get Price Quote</Text>
+                    <Text style={styles.requestQuoteBtnText}>{t('Get Price Quote')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>

@@ -16,8 +16,10 @@ import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
 import WebFooter from '../../../components/web/WebFooter';
 import DoctorBookingModal from '../../../components/booking/DoctorBookingModal';
+import { useTheme } from '../../../context/ThemeContext';
 
 const DoctorDetailsScreen = ({ route, navigation }) => {
+  const { t, isIndic } = useTheme();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
@@ -29,12 +31,12 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
       <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={55} color="#D32F2F" />
-          <Text style={styles.errorText}>Doctor information unavailable.</Text>
+          <Text style={[styles.errorText, isIndic && { lineHeight: 22 }]}>{t('Doctor information unavailable.')}</Text>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.buttonText}>Go Back</Text>
+            <Text style={styles.buttonText}>{t('back', 'Go Back')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -80,7 +82,7 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
           <Ionicons name="arrow-back" size={22} color={colors.secondary} />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Doctor Profile</Text>
+        <Text style={[styles.headerTitle, isIndic && { lineHeight: 22 }]}>{t('Doctor Profile')}</Text>
 
         <TouchableOpacity
           style={styles.headerButton}
@@ -102,11 +104,11 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
         {isDesktopWeb && (
           <View style={styles.breadcrumbsRow}>
             <TouchableOpacity onPress={() => navigation.navigate('Home')}>
-              <Text style={styles.breadcrumbLink}>Home</Text>
+              <Text style={styles.breadcrumbLink}>{t('Home')}</Text>
             </TouchableOpacity>
             <Text style={styles.breadcrumbSlash}>/</Text>
             <TouchableOpacity onPress={() => navigation.navigate('DoctorList')}>
-              <Text style={styles.breadcrumbLink}>Find Doctors</Text>
+              <Text style={styles.breadcrumbLink}>{t('nav_find_doctors', 'Find Doctors')}</Text>
             </TouchableOpacity>
             <Text style={styles.breadcrumbSlash}>/</Text>
             <Text style={styles.breadcrumbCurrent}>{doctor.name}</Text>
@@ -122,17 +124,17 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
 
           <View style={styles.doctorHeaderInfo}>
             <View style={styles.nameRow}>
-              <Text style={styles.name}>{doctor.name}</Text>
+              <Text style={[styles.name, isIndic && { lineHeight: 24 }]}>{doctor.name}</Text>
               <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
             </View>
 
-            <Text style={styles.specialty}>{doctor.specialty}</Text>
+            <Text style={[styles.specialty, isIndic && { lineHeight: 20 }]}>{t(doctor.specialty, doctor.specialty)}</Text>
             <Text style={styles.qualification}>{doctor.qualification}</Text>
 
             <View style={styles.experienceBadge}>
               <Ionicons name="ribbon" size={13} color="#D97706" />
               <Text style={styles.experienceBadgeText}>
-                {doctor.experience || `${doctor.experienceYears || 10}+ Years Experience`}
+                {doctor.experience || `${doctor.experienceYears || 10}+ ${t('years_exp', 'Years Experience')}`}
               </Text>
             </View>
           </View>
@@ -145,21 +147,21 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
               <Ionicons name="star" size={16} color="#FFA000" />
               <Text style={styles.metricValText}>{doctor.rating || '4.9'}</Text>
             </View>
-            <Text style={styles.metricSubText}>{doctor.reviewCount || 300}+ Reviews</Text>
+            <Text style={[styles.metricSubText, isIndic && { lineHeight: 16 }]}>{doctor.reviewCount || 300}+ {t('reviews', 'Reviews')}</Text>
           </View>
 
           <View style={styles.metricDivider} />
 
           <View style={styles.metricBox}>
-            <Text style={styles.metricValText}>{doctor.experienceYears || 12}+ Yrs</Text>
-            <Text style={styles.metricSubText}>Clinical Practice</Text>
+            <Text style={styles.metricValText}>{doctor.experienceYears || 12}+ {t('years', 'Yrs')}</Text>
+            <Text style={[styles.metricSubText, isIndic && { lineHeight: 16 }]}>{t('Clinical Practice')}</Text>
           </View>
 
           <View style={styles.metricDivider} />
 
           <View style={styles.metricBox}>
             <Text style={[styles.metricValText, { color: colors.primary }]}>₹{doctor.fee || 500}</Text>
-            <Text style={styles.metricSubText}>Consultation Fee</Text>
+            <Text style={[styles.metricSubText, isIndic && { lineHeight: 16 }]}>{t('consultation_fee', 'Consultation Fee')}</Text>
           </View>
         </View>
 
@@ -187,8 +189,8 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
           {/* TIMINGS */}
           <View style={styles.timingsRow}>
             <Ionicons name="time-outline" size={15} color={colors.secondary} />
-            <Text style={styles.timingsText}>
-              In-Clinic Hours: {doctor.openHours || '09:30 AM - 01:30 PM, 05:00 PM - 08:30 PM'}
+            <Text style={[styles.timingsText, isIndic && { lineHeight: 18 }]}>
+              {t('In-Clinic Hours:')} {doctor.openHours || '09:30 AM - 01:30 PM, 05:00 PM - 08:30 PM'}
             </Text>
           </View>
 
@@ -200,7 +202,7 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
               onPress={handleOpenNavigation}
             >
               <Ionicons name="navigate" size={16} color="#FFFFFF" />
-              <Text style={styles.navigateBtnText}>Get Directions (GPS)</Text>
+              <Text style={[styles.navigateBtnText, isIndic && { lineHeight: 18 }]}>{t('Get Directions (GPS)')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -209,15 +211,15 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
               onPress={() => Linking.openURL(`tel:${doctor.phone || '+918212459901'}`)}
             >
               <Ionicons name="call" size={16} color={colors.secondary} />
-              <Text style={styles.callClinicBtnText}>Call Clinic</Text>
+              <Text style={[styles.callClinicBtnText, isIndic && { lineHeight: 18 }]}>{t('Call Clinic')}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         {/* ABOUT DOCTOR */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>About Doctor</Text>
-          <Text style={styles.description}>
+          <Text style={[styles.sectionTitle, isIndic && { lineHeight: 22 }]}>{t('About Doctor')}</Text>
+          <Text style={[styles.description, isIndic && { lineHeight: 20 }]}>
             {doctor.about ||
               `${doctor.name} is a highly qualified ${doctor.specialty} with ${doctor.experience || 'over a decade of experience'}. Known for compassionate and thorough patient consultations.`}
           </Text>
@@ -226,12 +228,12 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
         {/* SERVICES OFFERED */}
         {doctor.servicesOffered && doctor.servicesOffered.length > 0 && (
           <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Services & Treatments Offered</Text>
+            <Text style={[styles.sectionTitle, isIndic && { lineHeight: 22 }]}>{t('Services & Treatments Offered')}</Text>
             <View style={styles.servicesList}>
               {doctor.servicesOffered.map((service, idx) => (
                 <View key={idx} style={styles.serviceItem}>
                   <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
-                  <Text style={styles.serviceItemText}>{service}</Text>
+                  <Text style={[styles.serviceItemText, isIndic && { lineHeight: 18 }]}>{t(service, service)}</Text>
                 </View>
               ))}
             </View>
@@ -249,7 +251,7 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <View style={styles.bottomBarInner}>
           <View style={styles.bottomPriceCol}>
-            <Text style={styles.bottomFeeLabel}>In-Person Fee</Text>
+            <Text style={[styles.bottomFeeLabel, isIndic && { lineHeight: 16 }]}>{t('In-Person Fee')}</Text>
             <Text style={styles.bottomFeeAmount}>₹{doctor.fee || 500}</Text>
           </View>
 
@@ -258,7 +260,7 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
             activeOpacity={0.88}
             onPress={() => setBookingModalVisible(true)}
           >
-            <Text style={styles.bookMainButtonText}>Book In-Person Visit</Text>
+            <Text style={[styles.bookMainButtonText, isIndic && { lineHeight: 20 }]}>{t('Book In-Person Visit')}</Text>
             <Ionicons name="calendar" size={18} color="#FFFFFF" />
           </TouchableOpacity>
         </View>

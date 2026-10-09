@@ -22,6 +22,7 @@ import { showAlert } from '../../utils/alert';
 import doctors from '../../data/doctors';
 import { radiologyLabs } from '../../data/radiologyLabsData';
 import { useCart } from '../../context/CartContext';
+import { useTheme } from '../../context/ThemeContext';
 import WebBackButton from '../../components/web/WebBackButton';
 
 // ─── Quick topic chips shown in sidebar & welcome ─────────────────────────
@@ -83,6 +84,7 @@ const ChatbotScreenWeb = ({ navigation }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 960;
   const { addToCart } = useCart();
+  const { t, isIndic } = useTheme();
 
   const [messages, setMessages]                     = useState(INITIAL_MESSAGES);
   const [inputText, setInputText]                   = useState('');
@@ -721,16 +723,16 @@ const ChatbotScreenWeb = ({ navigation }) => {
                 <Text style={styles.headerTitleText}>MediUnify AI</Text>
                 <View style={styles.headerOnlinePill}>
                   <View style={styles.headerOnlineDot} />
-                  <Text style={styles.headerOnlinePillText}>Online</Text>
+                  <Text style={styles.headerOnlinePillText}>{t('online_status', 'Online')}</Text>
                 </View>
               </View>
-              <Text style={styles.headerSubText}>Your 24/7 health assistant</Text>
+              <Text style={styles.headerSubText}>{t('bot_subtitle', 'Your 24/7 health assistant')}</Text>
             </View>
 
             <View style={styles.headerRightActions}>
               <TouchableOpacity style={styles.scanHeaderActionBtn} onPress={handleScanPrescription} activeOpacity={0.85}>
                 <Ionicons name="scan-outline" size={15} color="#0D9488" />
-                <Text style={styles.scanHeaderActionText}>Scan Rx</Text>
+                <Text style={styles.scanHeaderActionText}>{t('scan_rx', 'Scan Rx')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.resetHeaderActionBtn}
@@ -761,7 +763,7 @@ const ChatbotScreenWeb = ({ navigation }) => {
                   <View style={styles.typingBubble}>
                     <ActivityIndicator size="small" color={colors.primary} />
                     <Text style={styles.typingText}>
-                      {scanningPrescription ? 'Scanning prescription…' : 'Typing…'}
+                      {scanningPrescription ? t('scanning_prescription', 'Scanning prescription…') : t('typing', 'Typing…')}
                     </Text>
                   </View>
                 </View>
@@ -779,7 +781,7 @@ const ChatbotScreenWeb = ({ navigation }) => {
 
                 <TextInput
                   style={styles.webTextInput}
-                  placeholder="Ask me anything about your health…"
+                  placeholder={t('chat_placeholder', 'Ask me anything about your health…')}
                   placeholderTextColor="#94A3B8"
                   value={inputText}
                   onChangeText={setInputText}
@@ -803,7 +805,7 @@ const ChatbotScreenWeb = ({ navigation }) => {
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 8 }}>
                 <Ionicons name="information-circle-outline" size={13} color="#64748B" />
                 <Text style={styles.disclaimerText}>
-                  AI guidance only — not a substitute for professional medical advice. Emergency? Call 108.
+                  {t('ai_disclaimer', 'AI guidance only — not a substitute for professional medical advice. Emergency? Call 108.')}
                 </Text>
               </View>
             </View>

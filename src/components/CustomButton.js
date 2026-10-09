@@ -7,12 +7,14 @@ import {
 } from 'react-native';
 
 import colors from '../theme/colors';
+import { useTheme } from '../context/ThemeContext';
 
 const CustomButton = ({
   title,
   onPress,
   disabled = false,
 }) => {
+  const { t, isIndic } = useTheme();
   return (
     <TouchableOpacity
       style={[
@@ -23,8 +25,8 @@ const CustomButton = ({
       disabled={disabled}
       activeOpacity={0.8}
     >
-      <Text style={styles.text}>
-        {title}
+      <Text style={[styles.text, isIndic && { lineHeight: 22 }]}>
+        {title ? t(title, title) : ''}
       </Text>
     </TouchableOpacity>
   );

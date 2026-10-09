@@ -8,12 +8,14 @@ import {
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../context/ThemeContext';
 
 const SearchBar = ({
   value,
   onChangeText,
   placeholder = 'Search healthcare services...',
 }) => {
+  const { t } = useTheme();
   return (
     <View style={styles.container}>
       <Ionicons name="search-outline" size={18} color="#64748B" style={{ marginRight: 10 }} />
@@ -22,7 +24,7 @@ const SearchBar = ({
         style={styles.input}
         value={value}
         onChangeText={onChangeText}
-        placeholder={placeholder}
+        placeholder={t(placeholder, placeholder)}
         placeholderTextColor="#9E9E9E"
       />
 
