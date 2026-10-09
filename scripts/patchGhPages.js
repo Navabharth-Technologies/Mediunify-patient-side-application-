@@ -15,7 +15,7 @@ const path = require('path');
 
 const appJsonPath = path.join(__dirname, '..', 'app.json');
 const appJson = fs.existsSync(appJsonPath) ? JSON.parse(fs.readFileSync(appJsonPath, 'utf8')) : {};
-const BASE_PATH = (process.env.PUBLIC_URL || appJson.expo?.web?.baseUrl || '/mediunify-patient').replace(/\/$/, '');
+const BASE_PATH = (process.env.PUBLIC_URL || appJson.expo?.web?.baseUrl || '/Mediunify-patient-side-application-').replace(/\/$/, '');
 const DIST = path.join(__dirname, '..', 'dist');
 const INDEX_HTML = path.join(DIST, 'index.html');
 

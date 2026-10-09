@@ -2,7 +2,7 @@
   "name": "mediunify-patient",
   "version": "1.0.0",
   "main": "index.js",
-  "homepage": "https://hemanthgowdatn2003.github.io/mediunify-patient",
+  "homepage": "https://internship-ui.github.io/Mediunify-patient-side-application-",
   "scripts": {
     "start": "expo start",
     "server": "node server/syncServer.js",
