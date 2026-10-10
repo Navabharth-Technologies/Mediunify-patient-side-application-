@@ -1174,23 +1174,6 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   ))}
                 </View>
               </View>
-
-              {/* Guest Exploration Strip */}
-              <View style={styles.guestStrip}>
-                <View style={{ flex: 1, minWidth: 220 }}>
-                  <Text style={styles.guestStripHeading}>{t('guest_explore_title', 'Explore MediUnify as Guest')}</Text>
-                  <Text style={[styles.guestStripText, isIndic && { lineHeight: 20 }]}>
-                    {t('guest_explore_desc', 'Browse doctors, lab tests, radiology scans and medicine prices with full transparency.')}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.guestStripBtn}
-                  onPress={handleContinueAsGuest}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.guestStripBtnText}>{t('guest_continue_btn', 'Continue as Guest →')}</Text>
-                </TouchableOpacity>
-              </View>
             </View>
 
             {/* Right Visual Cluster: Family Image & MediUnify AI Card */}
@@ -2228,15 +2211,6 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                   </TouchableOpacity>
                 </View>
               )}
-
-              {/* Quick Guest Continue */}
-              <TouchableOpacity
-                onPress={handleContinueAsGuest}
-                style={styles.skipGuestModalBtn}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.skipGuestModalText}>{t('guest_continue_btn', 'Continue as Guest →')}</Text>
-              </TouchableOpacity>
             </ScrollView>
           </View>
         </KeyboardAvoidingView>

@@ -425,9 +425,11 @@ export const AuthGuardProvider = ({ children }) => {
               </View>
             )}
 
-            <TouchableOpacity onPress={handleCloseLogin} style={styles.guestBtn} activeOpacity={0.7}>
-              <Text style={styles.guestBtnText}>Continue as Guest →</Text>
-            </TouchableOpacity>
+            {Platform.OS !== 'web' && (
+              <TouchableOpacity onPress={handleCloseLogin} style={styles.guestBtn} activeOpacity={0.7}>
+                <Text style={styles.guestBtnText}>Continue as Guest →</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </KeyboardAvoidingView>
       </Modal>

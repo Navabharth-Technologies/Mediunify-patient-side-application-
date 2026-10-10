@@ -390,17 +390,19 @@ const LoginScreen = ({ navigation }) => {
           <View style={{ width: 36 }} />
         )}
 
-        <TouchableOpacity
-          style={styles.guestLink}
-          onPress={handleContinueAsGuest}
-          activeOpacity={0.7}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Text style={[styles.guestLinkText, isIndic && { lineHeight: 18 }]}>
-            {t('guest_continue_btn', 'Continue as Guest')}
-          </Text>
-          <Ionicons name="chevron-forward" size={14} color="#007D69" />
-        </TouchableOpacity>
+        {Platform.OS !== 'web' && (
+          <TouchableOpacity
+            style={styles.guestLink}
+            onPress={handleContinueAsGuest}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={[styles.guestLinkText, isIndic && { lineHeight: 18 }]}>
+              {t('guest_continue_btn', 'Continue as Guest')}
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color="#007D69" />
+          </TouchableOpacity>
+        )}
       </View>
 
       <KeyboardAvoidingView

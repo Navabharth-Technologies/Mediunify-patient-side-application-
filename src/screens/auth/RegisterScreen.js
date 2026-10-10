@@ -281,17 +281,19 @@ const RegisterScreen = ({ navigation, route }) => {
           <Ionicons name="arrow-back" size={22} color="#0F172A" />
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.guestLink}
-          onPress={handleSkipToHome}
-          activeOpacity={0.7}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Text style={[styles.guestLinkText, isIndic && { lineHeight: 18 }]}>
-            {t('auth.continue_as_guest', 'Continue as Guest')}
-          </Text>
-          <Ionicons name="chevron-forward" size={14} color="#007D69" />
-        </TouchableOpacity>
+        {Platform.OS !== 'web' && (
+          <TouchableOpacity
+            style={styles.guestLink}
+            onPress={handleSkipToHome}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={[styles.guestLinkText, isIndic && { lineHeight: 18 }]}>
+              {t('auth.continue_as_guest', 'Continue as Guest')}
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color="#007D69" />
+          </TouchableOpacity>
+        )}
       </View>
 
       <KeyboardAvoidingView
