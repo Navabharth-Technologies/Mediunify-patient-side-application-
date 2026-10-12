@@ -1749,7 +1749,6 @@ const NurseBookingScreen = ({ navigation, route, ...props }) => {
         {isDesktopWeb && (
           <WebFooter
             navigation={navigation}
-            style={styles.webFooterLightBanner}
           />
         )}
       </ScrollView>
@@ -3317,7 +3316,6 @@ const NurseBookingScreen = ({ navigation, route, ...props }) => {
         {isDesktopWeb && (
           <WebFooter
             navigation={navigation}
-            style={styles.webFooterLightBanner}
           />
         )}
       </ScrollView>
@@ -3526,7 +3524,6 @@ const NurseBookingScreen = ({ navigation, route, ...props }) => {
         {isDesktopWeb && (
           <WebFooter
             navigation={navigation}
-            style={styles.webFooterLightBanner}
           />
         )}
       </ScrollView>
@@ -4200,10 +4197,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
   },
   webFooterLightBanner: {
-    backgroundColor: '#E6F8F5',
-    backgroundImage: Platform.OS === 'web' ? 'linear-gradient(180deg, #E6F8F5 0%, #EDFAF7 50%, #E0F5F1 100%)' : undefined,
-    borderTopWidth: 1.5,
-    borderTopColor: '#99F6E4',
+    width: '100%',
   },
 
   // Top Bar Row
