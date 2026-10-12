@@ -33,7 +33,7 @@ const CONSULTATION_TYPES = [
     features: [
       'Direct in-person physical examination',
       'Confirmed slot & zero waiting time at desk',
-      '1,500+ verified clinics & multi-speciality centers',
+      '1,500+ verified clinics & multispecialty centers',
       'Pay at clinic or digital instant pay',
     ],
     popularBadge: 'Popular for Physical Care',

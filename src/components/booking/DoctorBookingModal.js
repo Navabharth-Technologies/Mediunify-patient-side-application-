@@ -24,6 +24,7 @@ import { validateAndBookSlot, subscribeToSlotChanges } from '../../services/slot
 import { useAuthGuard } from '../../context/AuthGuardContext';
 import { isGuestUser, promptLoginRequired } from '../../utils/authHelper';
 import { useTheme } from '../../context/ThemeContext';
+import { isDesktopLayout } from '../../utils/responsiveLayoutHelper';
 
 const DoctorBookingModal = ({
   visible,
@@ -35,7 +36,7 @@ const DoctorBookingModal = ({
   const { t, isIndic } = useTheme();
   const { requireLogin } = useAuthGuard();
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const isDesktopWeb = Platform.OS === 'web' && isDesktopLayout(width);
   const isVideo = consultationType === 'Video';
 
   const [slotTick, setSlotTick] = useState(0);

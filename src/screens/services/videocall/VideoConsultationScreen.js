@@ -894,7 +894,7 @@ const VideoConsultationScreen = ({ navigation, route }) => {
             {selectedSpecialty !== 'all' && (
               <View style={styles.activeSpecChipRow}>
                 <View style={styles.activeSpecChip}>
-                  <Text style={styles.activeSpecChipLabel}>Specialty:</Text>
+                  <Text style={styles.activeSpecChipLabel}>Specialization:</Text>
                   <Text style={styles.activeSpecChipValue}>
                     {SPECIALIZATION_CATEGORIES.find((c) => c.id === selectedSpecialty)
                       ? SPECIALIZATION_CATEGORIES.find((c) => c.id === selectedSpecialty).name

@@ -25,10 +25,11 @@ import { getAvailableDates, getSlotsForDate } from '../../../utils/appointmentSl
 import { validateAndBookSlot, subscribeToSlotChanges } from '../../../services/slotBookingService';
 import { useAuthGuard } from '../../../context/AuthGuardContext';
 import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
+import { isDesktopLayout } from '../../../utils/responsiveLayoutHelper';
 
 const VideoBookingScreen = ({ route, navigation }) => {
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const isDesktopWeb = Platform.OS === 'web' && isDesktopLayout(width);
   const doctor = route?.params?.doctor;
   const { requireLogin } = useAuthGuard();
 

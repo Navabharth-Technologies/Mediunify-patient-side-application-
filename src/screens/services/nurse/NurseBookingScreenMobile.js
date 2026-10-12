@@ -3731,7 +3731,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
                 <Text style={styles.assignedNameLarge}>{assignedNurse.name}</Text>
                 <Text style={styles.assignedQualLarge}>{assignedNurse.qualification} • {assignedNurse.experience} exp</Text>
                 <Text style={styles.assignedSpecLarge}>
-                  Specialty: {assignedNurse.specialization || 'General Clinical Nursing'}
+                  Specialization: {assignedNurse.specialization || 'General Clinical Nursing'}
                 </Text>
                 <Text style={styles.assignedRegLarge}>Council Reg: {assignedNurse.councilReg || 'KNC Verified'}</Text>
               </View>

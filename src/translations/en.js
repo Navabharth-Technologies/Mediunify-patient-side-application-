@@ -227,7 +227,7 @@ export const en = {
     specialties_badge: 'VERIFIED CLINICAL DEPARTMENTS',
     specialties_title: 'Consult Top Doctors Online for Any Health Concern',
     specialties_subtitle: 'Private online & in-clinic consultations with certified doctors in all specialties',
-    view_all_specialties: 'View All Specialities',
+    view_all_specialties: 'View All Specializations',
     special_deals_badge: 'SPECIAL OFFERS & DEALS',
     special_deals_title: 'Exclusive Healthcare Deals & Savings',
     special_deals_sub: 'Limited-time discounts on full body checkups, certified medicines, diagnostic imaging & doctor consultations.',

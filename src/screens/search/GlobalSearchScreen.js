@@ -21,6 +21,7 @@ import colors from '../../theme/colors';
 import { useTheme } from '../../context/ThemeContext';
 import WebFooter from '../../components/web/WebFooter';
 import { useCart } from '../../context/CartContext';
+import { isDesktopLayout } from '../../utils/responsiveLayoutHelper';
 
 // Real Data Sources for Search
 import { doctors } from '../../data/doctors';
@@ -259,7 +260,7 @@ const POPULAR_SEARCHES = [
 
 const GlobalSearchScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const isDesktopWeb = Platform.OS === 'web' && isDesktopLayout(width);
   const { t, isIndic } = useTheme();
 
   const searchPlaceholder = width < 360
@@ -478,7 +479,7 @@ const GlobalSearchScreen = ({ navigation, route }) => {
       });
     }
 
-    // 4. SCAN & X-RAY (RADIOLOGY)
+    // 4. SCANS & X-RAY (RADIOLOGY)
     if (Array.isArray(RADIOLOGY_TESTS)) {
       const isScanWord = ['scan', 'xray', 'x-ray', 'mri', 'ct', 'ultrasound', 'echo', 'ecg', 'radiology'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
       RADIOLOGY_TESTS.forEach((scan) => {
@@ -492,8 +493,8 @@ const GlobalSearchScreen = ({ navigation, route }) => {
           results.push({
             id: `rad-${scan.id}`,
             name: scan.name,
-            category: 'Scan & X-Ray',
-            subtitle: `Scan & X-Ray • ${scan.modality || scan.categoryName || 'Radiology'}`,
+            category: 'Scans & X-Ray',
+            subtitle: `Scans & X-Ray • ${scan.modality || scan.categoryName || 'Radiology'}`,
             badge: scan.price ? `₹${scan.price}` : (scan.mrp ? `₹${scan.mrp}` : ''),
             icon: 'scan-outline',
             iconType: 'ionicons',

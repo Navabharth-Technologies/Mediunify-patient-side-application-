@@ -28,11 +28,12 @@ import { validateAndBookSlot, subscribeToSlotChanges } from '../../../services/s
 import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
 import doctors from '../../../data/doctors';
 import { useTheme } from '../../../context/ThemeContext';
+import { isDesktopLayout } from '../../../utils/responsiveLayoutHelper';
 
 const DoctorBookingScreen = ({ route, navigation }) => {
   const { t, isIndic } = useTheme();
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const isDesktopWeb = Platform.OS === 'web' && isDesktopLayout(width);
   const doctor = route?.params?.doctor || doctors[0];
   const { requireLogin } = useAuthGuard();
 

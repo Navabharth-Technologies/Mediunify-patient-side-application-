@@ -22,6 +22,7 @@ import { detectAutoLocation } from '../../utils/locationHelper';
 import { showAlert } from '../../utils/alert';
 import PromotionalAdsSection from '../../components/web/PromotionalAdsSection';
 import { useTheme } from '../../context/ThemeContext';
+import { isDesktopLayout } from '../../utils/responsiveLayoutHelper';
 
 // ==================================================
 // OFFICIAL MEDIUNIFY LOGO & BRAND PALETTE:
@@ -1072,7 +1073,7 @@ const HomeScreenWeb = ({ navigation }) => {
               onPress={() => handleNavigateToService('DoctorList')}
               activeOpacity={0.8}
             >
-              <Text style={styles.viewAllBtnText}>{t('view_all_specialties', 'View All Specialities')}</Text>
+              <Text style={styles.viewAllBtnText}>{t('view_all_specialties', 'View All Specializations')}</Text>
               <Ionicons name="arrow-forward" size={14} color={PALETTE.teal} style={{ marginLeft: 6 }} />
             </TouchableOpacity>
           </View>
@@ -1241,7 +1242,7 @@ const HomeScreenWeb = ({ navigation }) => {
             </View>
 
             <View style={styles.footerCol}>
-              <Text style={styles.footerColTitle}>{t('footer_top_specialties', 'Top Specialties')}</Text>
+              <Text style={styles.footerColTitle}>{t('footer_top_specialties', 'Top Specializations')}</Text>
               <TouchableOpacity onPress={() => handleConsultNow('general-primary')}>
                 <Text style={styles.footerLink}>{t('spec_physician_title', 'General Physician')}</Text>
               </TouchableOpacity>
@@ -2528,7 +2529,7 @@ const styles = StyleSheet.create({
 
 const HomeScreenResponsive = (props) => {
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 768;
+  const isDesktop = isDesktopLayout(width);
 
   if (!isDesktop) {
     return <HomeScreenMobile {...props} />;

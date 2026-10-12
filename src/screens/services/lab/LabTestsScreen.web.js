@@ -40,13 +40,15 @@ import {
 import { useCart } from '../../../context/CartContext';
 import { useAuthGuard } from '../../../context/AuthGuardContext';
 import LabTestsScreenMobile from './LabTestsScreenMobile';
+import { isDesktopLayout, isDesktopSiteRequested } from '../../../utils/responsiveLayoutHelper';
 
 const LabTestsScreenWeb = (props) => {
   const { navigation, route } = props;
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 1024;
-  const isTablet = width >= 768 && width < 1024;
+  const desktopSiteMode = isDesktopSiteRequested();
+  const isDesktop = desktopSiteMode || width >= 1024;
+  const isTablet = !desktopSiteMode && (width >= 768 && width < 1024);
   const { requireLogin } = useAuthGuard();
 
   // Open Google Maps Directions for Clinical Lab / Diagnostic Centre
@@ -4617,7 +4619,7 @@ const styles = StyleSheet.create({
 
 const LabTestsScreenResponsive = (props) => {
   const { width } = useWindowDimensions();
-  if (width < 768) {
+  if (!isDesktopLayout(width)) {
     return <LabTestsScreenMobile {...props} />;
   }
   return <LabTestsScreenWeb {...props} />;

@@ -28,6 +28,7 @@ import { detectAutoLocation } from '../../utils/locationHelper';
 import { REMAINING_SERVICES } from '../../data/remainingServices';
 import PromotionalAdsSection from '../../components/web/PromotionalAdsSection';
 import WebHeader from '../../components/web/WebHeader';
+import { isDesktopLayout } from '../../utils/responsiveLayoutHelper';
 
 // 7 Service Cards — with accent colors, badges, creative design
 const HERO_CARDS = [
@@ -1433,7 +1434,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
               onPress={() => handleNavigateToService('DoctorList')}
               activeOpacity={0.8}
             >
-              <Text style={styles.viewAllBtnText}>{t('view_all_specialties', 'View All Specialities')}</Text>
+              <Text style={styles.viewAllBtnText}>{t('view_all_specialties', 'View All Specializations')}</Text>
               <Ionicons name="arrow-forward" size={14} color="#00B894" style={{ marginLeft: 6 }} />
             </TouchableOpacity>
           </View>
@@ -1606,7 +1607,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
             </View>
 
             <View style={styles.footerCol}>
-              <Text style={styles.footerColTitle}>{t('footer_top_specialties', 'Top Specialties')}</Text>
+              <Text style={styles.footerColTitle}>{t('footer_top_specialties', 'Top Specializations')}</Text>
               <TouchableOpacity onPress={() => handleConsultNow('general-primary')}>
                 <Text style={styles.footerLink}>{t('spec_physician_title', 'General Physician')}</Text>
               </TouchableOpacity>
@@ -3880,7 +3881,7 @@ const styles = StyleSheet.create({
 
 const LoginScreenResponsive = (props) => {
   const { width } = useWindowDimensions();
-  if (width < 768) {
+  if (!isDesktopLayout(width)) {
     return <LoginScreenMobile {...props} />;
   }
   return <LoginScreenWeb {...props} />;

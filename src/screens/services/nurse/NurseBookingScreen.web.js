@@ -33,6 +33,7 @@ import {
 import { validateAddressMatchesCity } from '../../../utils/addressLocationValidator';
 import { saveTransaction } from '../../../services/transactionService';
 import { useAuthGuard } from '../../../context/AuthGuardContext';
+import { isDesktopLayout, isDesktopSiteRequested } from '../../../utils/responsiveLayoutHelper';
 
 const ASYNC_KEY_NURSING_REQUESTS = '@unnathi_home_nursing_requests';
 
@@ -162,8 +163,9 @@ import NurseBookingScreenMobile from './NurseBookingScreenMobile';
 
 const NurseBookingScreen = ({ navigation, route, ...props }) => {
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 992;
-  const isTablet = width >= 768 && width < 992;
+  const desktopSiteMode = isDesktopSiteRequested();
+  const isDesktopWeb = Platform.OS === 'web' && (desktopSiteMode || width >= 992);
+  const isTablet = !desktopSiteMode && (width >= 768 && width < 992);
   const { requireLogin } = useAuthGuard();
 
   // Active top-level view: 'LANDING' | 'REQUEST_FLOW' | 'MY_REQUESTS' | 'REQUEST_DETAILS'
@@ -7301,7 +7303,7 @@ const styles = StyleSheet.create({
 
 const NurseBookingScreenResponsive = (props) => {
   const { width } = useWindowDimensions();
-  return width < 768 ? (
+  return !isDesktopLayout(width) ? (
     <NurseBookingScreenMobile {...props} />
   ) : (
     <NurseBookingScreen {...props} />

@@ -26,6 +26,7 @@ import WebFooter from '../../../components/web/WebFooter';
 import OptimizedImage from '../../../components/common/OptimizedImage';
 import Pagination from '../../../components/common/Pagination';
 import WebBackButton from '../../../components/web/WebBackButton';
+import { isDesktopLayout, isDesktopSiteRequested } from '../../../utils/responsiveLayoutHelper';
 
 // ==================================================
 // 1. HERO ADS SLIDES (Exact HomeScreen.web.js Standard)
@@ -577,8 +578,9 @@ import PharmacyScreenMobile from './PharmacyScreenMobile';
 
 const PharmacyScreenWeb = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 1024;
-  const isTablet = width >= 768 && width < 1024;
+  const desktopSiteMode = isDesktopSiteRequested();
+  const isDesktop = desktopSiteMode || width >= 1024;
+  const isTablet = !desktopSiteMode && (width >= 768 && width < 1024);
 
   const {
     pharmacyCart,
@@ -3289,7 +3291,7 @@ const styles = StyleSheet.create({
 
 const PharmacyScreenResponsive = (props) => {
   const { width } = useWindowDimensions();
-  if (width < 768) {
+  if (!isDesktopLayout(width)) {
     return <PharmacyScreenMobile {...props} />;
   }
   return <PharmacyScreenWeb {...props} />;

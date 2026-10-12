@@ -26,6 +26,7 @@ import WebFooter from '../../../components/web/WebFooter';
 import { useAuthGuard } from '../../../context/AuthGuardContext';
 import { saveTransaction } from '../../../services/transactionService';
 import { useTheme } from '../../../context/ThemeContext';
+import { isDesktopLayout } from '../../../utils/responsiveLayoutHelper';
 import {
   getSlotStatus,
   validateAndBookSlot,
@@ -306,7 +307,7 @@ const DEFAULT_MOCKUP_ITEMS = [
 const CartScreen = ({ navigation, route }) => {
   const { t, isIndic } = useTheme();
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 768;
+  const isDesktop = isDesktopLayout(width);
   const { requireLogin } = useAuthGuard();
   const {
     pharmacyCart = [],
@@ -1256,7 +1257,7 @@ const CartScreen = ({ navigation, route }) => {
                 activeOpacity={0.7}
               >
                 <Text style={styles.breadcrumbLink}>
-                  {activeCartTab === 'radiology' ? t('navigation.scans_xray', 'Radiology & Imaging Scans') : activeCartTab === 'lab' ? t('navigation.lab_tests', 'Lab Tests & Diagnostics') : t('pharmacy.pharmacy_title', 'Pharmacy')}
+                  {activeCartTab === 'radiology' ? t('navigation.scans_xray', 'Scans & X-Ray') : activeCartTab === 'lab' ? t('navigation.lab_tests', 'Lab Tests & Diagnostics') : t('pharmacy.pharmacy_title', 'Pharmacy')}
                 </Text>
               </TouchableOpacity>
               <Ionicons name="chevron-forward" size={13} color="#94A3B8" />
@@ -1409,7 +1410,7 @@ const CartScreen = ({ navigation, route }) => {
                 adjustsFontSizeToFit
                 minimumFontScale={0.8}
               >
-                {t('navigation.scans_xray', 'Radiology')}
+                {t('navigation.scans_xray', 'Scans & X-Ray')}
               </Text>
               <View
                 style={[

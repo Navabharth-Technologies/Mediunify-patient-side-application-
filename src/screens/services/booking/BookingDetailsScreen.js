@@ -22,6 +22,7 @@ import colors from '../../../theme/colors';
 import { syncActiveUser } from '../../../services/dataSyncService';
 import WebFooter from '../../../components/web/WebFooter';
 import { useTheme } from '../../../context/ThemeContext';
+import { isDesktopLayout } from '../../../utils/responsiveLayoutHelper';
 import {
   getSlotStatus,
   validateAndBookSlot,
@@ -56,7 +57,7 @@ const RESCHEDULE_SLOTS = {
 const BookingDetailsScreen = ({ navigation, route }) => {
   const { t, isIndic } = useTheme();
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const isDesktopWeb = Platform.OS === 'web' && isDesktopLayout(width);
   const appointment = route?.params?.appointment;
 
   const [currentStatus, setCurrentStatus] = useState(appointment?.status || 'Confirmed');

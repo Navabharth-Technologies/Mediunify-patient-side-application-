@@ -15,6 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../context/ThemeContext';
 import AllServicesScreenMobile from './AllServicesScreenMobile';
 import WebBackButton from '../../components/web/WebBackButton';
+import { isDesktopLayout } from '../../utils/responsiveLayoutHelper';
 
 // ─────────────────────────────────────────────────
 // Brand Palette — consistent with HomeScreen.web.js
@@ -780,7 +781,7 @@ const styles = StyleSheet.create({
 
 const AllServicesScreenResponsive = (props) => {
   const { width } = useWindowDimensions();
-  return width < 768 ? (
+  return !isDesktopLayout(width) ? (
     <AllServicesScreenMobile {...props} />
   ) : (
     <AllServicesScreenWeb {...props} />

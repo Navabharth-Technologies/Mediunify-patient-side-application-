@@ -361,7 +361,7 @@ const HomeScreen = ({ navigation, route }) => {
       });
     }
 
-    // 4. SCAN & X-RAY (RADIOLOGY)
+    // 4. SCANS & X-RAY (RADIOLOGY)
     if (Array.isArray(RADIOLOGY_TESTS)) {
       const isScanWord = ['scan', 'xray', 'x-ray', 'mri', 'ct', 'ultrasound', 'echo', 'ecg', 'radiology'].some((w) => rawQuery.includes(w) || w.includes(rawQuery));
       RADIOLOGY_TESTS.forEach((scan) => {
@@ -375,8 +375,8 @@ const HomeScreen = ({ navigation, route }) => {
           results.push({
             id: `rad-${scan.id}`,
             name: scan.name,
-            category: 'Scan & X-Ray',
-            subtitle: `Scan & X-Ray • ${scan.modality || scan.categoryName || 'Radiology'}`,
+            category: 'Scans & X-Ray',
+            subtitle: `Scans & X-Ray • ${scan.modality || scan.categoryName || 'Radiology'}`,
             badge: scan.price ? `₹${scan.price}` : (scan.mrp ? `₹${scan.mrp}` : ''),
             icon: 'scan-outline',
             iconType: 'ionicons',

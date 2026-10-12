@@ -51,9 +51,12 @@ class GlobalErrorBoundary extends React.Component {
 }
 
 import { preloadCriticalAssets } from './src/utils/assetManager';
+import { syncResponsiveViewport } from './src/utils/responsiveLayoutHelper';
 
 // Web-safe dynamic viewport & keyboard layout initializer
 if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  syncResponsiveViewport();
+
   const styleId = 'mediunify-responsive-mobile-web';
   if (!document.getElementById(styleId)) {
     const styleEl = document.createElement('style');
@@ -69,7 +72,6 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
         min-height: 100dvh;
         margin: 0;
         padding: 0;
-        overflow-x: hidden;
         -webkit-overflow-scrolling: touch;
         overscroll-behavior-y: none;
         touch-action: manipulation;
@@ -81,7 +83,11 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
         min-height: 100dvh;
         display: flex;
         flex-direction: column;
-        overflow-x: hidden;
+      }
+      @media (max-width: 767px) {
+        html, body, #root {
+          overflow-x: hidden;
+        }
       }
       /* Ensure text inputs are fully selectable, tap-responsive and never blocked by parent user-select */
       input, textarea, select, [contenteditable="true"] {
@@ -126,6 +132,7 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
 
   const updateAppHeight = () => {
     if (typeof window === 'undefined') return;
+    syncResponsiveViewport();
     const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
     document.documentElement.style.setProperty('--app-height', `${vh}px`);
   };
@@ -137,6 +144,7 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
     } else {
       window.addEventListener('resize', updateAppHeight);
     }
+    window.addEventListener('orientationchange', updateAppHeight);
     updateAppHeight();
   }
 }

@@ -33,6 +33,7 @@ import doctors, { doctorSpecialties, SPECIALIZATION_CATEGORIES } from '../../../
 import colors from '../../../theme/colors';
 import WebFooter from '../../../components/web/WebFooter';
 import DoctorBookingModal from '../../../components/booking/DoctorBookingModal';
+import { isDesktopLayout } from '../../../utils/responsiveLayoutHelper';
 import Pagination from '../../../components/common/Pagination';
 
 export const POPULAR_LOCALITIES = [
@@ -122,8 +123,8 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 
 const DoctorListScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 600;
-  const isWideScreen = width >= 768;
+  const isDesktopWeb = Platform.OS === 'web' && (isDesktopLayout(width) || width >= 600);
+  const isWideScreen = isDesktopLayout(width);
   const scrollViewRef = useRef(null);
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -1162,7 +1163,7 @@ const DoctorListScreen = ({ navigation, route }) => {
             {selectedSpecialty !== 'all' && (
               <View style={styles.activeSpecChipRow}>
                 <View style={styles.activeSpecChip}>
-                  <Text style={styles.activeSpecChipLabel}>Specialty:</Text>
+                  <Text style={styles.activeSpecChipLabel}>Specialization:</Text>
                   <Text style={styles.activeSpecChipValue}>
                     {SPECIALIZATION_CATEGORIES.find((c) => c.id === selectedSpecialty)?.name ||
                       doctorSpecialties.find((s) => s.id === selectedSpecialty || s.key === selectedSpecialty)?.name ||

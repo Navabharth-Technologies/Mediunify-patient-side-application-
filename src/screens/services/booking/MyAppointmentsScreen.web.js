@@ -21,6 +21,7 @@ import PaginationBar from '../../../components/web/PaginationBar';
 import PatientPageBanner from '../../../components/web/PatientPageBanner';
 import { showAlert } from '../../../utils/alert';
 import { isGuestUser } from '../../../utils/authHelper';
+import { isDesktopLayout, isDesktopSiteRequested } from '../../../utils/responsiveLayoutHelper';
 import {
   getActivePatient,
   getPatientFamilyMembers,
@@ -96,8 +97,9 @@ export const renderSafeText = (val, fallback = '') => {
 const MyAppointmentsScreenWeb = ({ navigation, route }) => {
   const { t, isIndic } = useTheme();
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 1024;
-  const isTablet = width >= 768 && width < 1024;
+  const desktopSiteMode = isDesktopSiteRequested();
+  const isDesktop = desktopSiteMode || width >= 1024;
+  const isTablet = !desktopSiteMode && (width >= 768 && width < 1024);
 
   const [patient, setPatient] = useState(null);
   const [familyMembers, setFamilyMembers] = useState([]);

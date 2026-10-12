@@ -25,13 +25,15 @@ import {
 import { cancelBookedSlot } from '../../../services/slotBookingService';
 import { showAlert } from '../../../utils/alert';
 import { isGuestUser } from '../../../utils/authHelper';
+import { isDesktopLayout, isDesktopSiteRequested } from '../../../utils/responsiveLayoutHelper';
 
 const CONSULTATION_TABS = ['Upcoming', 'Completed', 'Cancelled'];
 
 const MyOnlineConsultationsScreenWeb = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 1024;
-  const isTablet = width >= 768 && width < 1024;
+  const desktopSiteMode = isDesktopSiteRequested();
+  const isDesktop = desktopSiteMode || width >= 1024;
+  const isTablet = !desktopSiteMode && (width >= 768 && width < 1024);
 
   const [patient, setPatient] = useState(null);
   const [consultations, setConsultations] = useState([]);

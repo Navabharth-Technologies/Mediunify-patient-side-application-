@@ -25,6 +25,7 @@ import {
   saveMedicineOrders,
   matchMedicineOrderToAccount,
 } from '../../../data/patientDashboardData';
+import { isDesktopLayout, isDesktopSiteRequested } from '../../../utils/responsiveLayoutHelper';
 
 /**
  * MediUnify Exact Brand Color Palette:
@@ -115,8 +116,9 @@ import MyMedicineOrdersScreenMobile from './MyMedicineOrdersScreenMobile';
 
 const MyMedicineOrdersScreenWeb = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 1024;
-  const isTablet = width >= 768 && width < 1024;
+  const desktopSiteMode = isDesktopSiteRequested();
+  const isDesktop = desktopSiteMode || width >= 1024;
+  const isTablet = !desktopSiteMode && (width >= 768 && width < 1024);
 
   const { addToCart } = useCart() || {};
 
@@ -1667,7 +1669,7 @@ const MyMedicineOrdersScreenWeb = ({ navigation, route }) => {
 
 const MyMedicineOrdersScreenResponsive = (props) => {
   const { width } = useWindowDimensions();
-  if (width < 768) {
+  if (!isDesktopLayout(width)) {
     return <MyMedicineOrdersScreenMobile {...props} />;
   }
   return <MyMedicineOrdersScreenWeb {...props} />;

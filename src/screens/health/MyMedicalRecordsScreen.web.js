@@ -27,14 +27,16 @@ import {
 
 import HealthRecordsScreenMobile from './HealthRecordsScreen';
 import { useTheme } from '../../context/ThemeContext';
+import { isDesktopLayout, isDesktopSiteRequested } from '../../utils/responsiveLayoutHelper';
 
 const RECORD_TABS = ['All Records', 'Lab Reports', 'Radiology & Scans', 'Prescriptions', 'Other Records'];
 
 const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
   const { t, isIndic } = useTheme();
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 1024;
-  const isTablet = width >= 768 && width < 1024;
+  const desktopSiteMode = isDesktopSiteRequested();
+  const isDesktop = desktopSiteMode || width >= 1024;
+  const isTablet = !desktopSiteMode && (width >= 768 && width < 1024);
 
   const { addToCart } = useCart() || {};
 
@@ -916,7 +918,7 @@ const MyMedicalRecordsScreenWeb = ({ navigation, route, ...props }) => {
 
 const MyMedicalRecordsScreenResponsive = (props) => {
   const { width } = useWindowDimensions();
-  return width < 768 ? (
+  return !isDesktopLayout(width) ? (
     <HealthRecordsScreenMobile {...props} />
   ) : (
     <MyMedicalRecordsScreenWeb {...props} />

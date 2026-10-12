@@ -3,7 +3,7 @@ import ImagingScreenWeb from './ImagingScreen.web';
 
 /**
  * RadiologyOrderSuccessScreen
- * Forwards to the unified Web Scan & X-Ray / Radiology flow in My Bookings view.
+ * Forwards to the unified Web Scans & X-Ray / Radiology flow in My Bookings view.
  */
 const RadiologyOrderSuccessScreen = (props) => {
   return (

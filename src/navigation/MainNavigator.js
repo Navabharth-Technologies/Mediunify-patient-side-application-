@@ -444,11 +444,13 @@ const PROTECTED_ROUTES = [
   'TransactionHistory',
 ];
 
+import { isDesktopLayout, syncResponsiveViewport } from '../utils/responsiveLayoutHelper';
+
 const MainNavigator = ({
   navigation,
 }) => {
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const isDesktopWeb = Platform.OS === 'web' && isDesktopLayout(width);
 
   const [
     currentRoute,

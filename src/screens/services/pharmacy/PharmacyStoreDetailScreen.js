@@ -22,6 +22,7 @@ import colors from '../../../theme/colors';
 import pharmacyProducts from '../../../data/pharmacyProducts';
 import ProductCard from '../../../components/ProductCard';
 import { useCart } from '../../../context/CartContext';
+import { isDesktopLayout } from '../../../utils/responsiveLayoutHelper';
 
 const CATEGORIES = [
   { id: 'all', name: 'All', icon: 'apps-outline' },
@@ -39,7 +40,7 @@ const CATEGORIES = [
 const PharmacyStoreDetailScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const isDesktopWeb = Platform.OS === 'web' && isDesktopLayout(width);
 
   const {
     pharmacyCart,

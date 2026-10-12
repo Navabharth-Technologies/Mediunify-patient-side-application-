@@ -11,13 +11,15 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { PROMOTIONAL_OFFERS } from '../../data/promotionalOffersData';
+import { isDesktopSiteRequested } from '../../utils/responsiveLayoutHelper';
 
 export default function PromotionalAdsSection({ onNavigate }) {
   const { width } = useWindowDimensions();
   const { t, isIndic } = useTheme();
-  const isDesktop = width >= 1024;
-  const isTablet = width >= 768 && width < 1024;
-  const isMobile = width < 768;
+  const desktopSiteMode = isDesktopSiteRequested();
+  const isDesktop = desktopSiteMode || width >= 1024;
+  const isTablet = !desktopSiteMode && (width >= 768 && width < 1024);
+  const isMobile = !desktopSiteMode && (width < 768);
 
   const totalOffers = PROMOTIONAL_OFFERS.length;
   const [currentIndex, setCurrentIndex] = useState(0);

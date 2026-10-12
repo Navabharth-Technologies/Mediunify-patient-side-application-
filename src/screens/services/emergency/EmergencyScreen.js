@@ -12,10 +12,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import WebFooter from '../../../components/web/WebFooter';
+import { isDesktopLayout } from '../../../utils/responsiveLayoutHelper';
 
 const EmergencyScreen = ({ navigation }) => {
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const isDesktopWeb = Platform.OS === 'web' && isDesktopLayout(width);
 
   const handleCallEmergency = (number = '108') => {
     Linking.openURL(`tel:${number}`).catch(() => {});

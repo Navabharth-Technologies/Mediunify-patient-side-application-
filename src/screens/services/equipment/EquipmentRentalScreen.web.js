@@ -20,6 +20,7 @@ import WebFooter from '../../../components/web/WebFooter';
 import OptimizedImage from '../../../components/common/OptimizedImage';
 import Pagination from '../../../components/common/Pagination';
 import WebBackButton from '../../../components/web/WebBackButton';
+import { isDesktopLayout } from '../../../utils/responsiveLayoutHelper';
 import {
   equipmentCategories,
   equipmentCatalog,
@@ -1886,7 +1887,7 @@ const styles = StyleSheet.create({
 
 const EquipmentRentalScreenResponsive = (props) => {
   const { width } = useWindowDimensions();
-  return width < 768 ? (
+  return !isDesktopLayout(width) ? (
     <EquipmentRentalScreenMobile {...props} />
   ) : (
     <EquipmentRentalScreen {...props} />

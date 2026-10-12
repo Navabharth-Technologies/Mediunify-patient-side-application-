@@ -23,13 +23,15 @@ import { syncActiveUser } from '../../services/dataSyncService';
 import { promptLoginRequired } from '../../utils/authHelper';
 import WebFooter from '../../components/web/WebFooter';
 import ProfileScreenMobile from './ProfileScreenMobile';
+import { isDesktopLayout, isDesktopSiteRequested } from '../../utils/responsiveLayoutHelper';
 
 const ProfileScreenWeb = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
   const { isDarkMode, language, changeLanguage, LANGUAGES, t } = useTheme();
   const currentLang = LANGUAGES.find((l) => l.code === language) || LANGUAGES[0];
-  const isDesktop = width >= 992;
-  const isTablet = width >= 640 && width < 992;
+  const desktopSiteMode = isDesktopSiteRequested();
+  const isDesktop = desktopSiteMode || width >= 992;
+  const isTablet = !desktopSiteMode && (width >= 640 && width < 992);
 
   // User Profile State - loaded dynamically from storage
   const [user, setUser] = useState({
@@ -2509,7 +2511,7 @@ const styles = StyleSheet.create({
 
 const ProfileScreenResponsive = (props) => {
   const { width } = useWindowDimensions();
-  if (width < 768) {
+  if (!isDesktopLayout(width)) {
     return <ProfileScreenMobile {...props} />;
   }
   return <ProfileScreenWeb {...props} />;

@@ -22,8 +22,8 @@ import {
   savePatientSettings,
 } from '../../data/patientDashboardData';
 import { useTheme } from '../../context/ThemeContext';
-
 import SettingsScreenMobile from './SettingsScreenMobile';
+import { isDesktopLayout } from '../../utils/responsiveLayoutHelper';
 
 const LANGUAGES = [
   { code: 'en', label: 'English (India)' },
@@ -546,7 +546,7 @@ const SettingsScreenWeb = ({ navigation, route }) => {
 
 const SettingsScreenResponsive = (props) => {
   const { width } = useWindowDimensions();
-  if (width < 768) {
+  if (!isDesktopLayout(width)) {
     return <SettingsScreenMobile {...props} />;
   }
   return <SettingsScreenWeb {...props} />;

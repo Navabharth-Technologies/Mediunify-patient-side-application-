@@ -35,6 +35,7 @@ import {
   DIAGNOSTIC_CENTRES,
   getGoogleMapsDirectionsUrl,
 } from '../../../data/labTestData';
+import { isDesktopLayout, isDesktopSiteRequested } from '../../../utils/responsiveLayoutHelper';
 
 const VIEW_MODES = [
   { id: 'all_appts', label: 'All Tests & Scans', icon: 'apps' },
@@ -179,8 +180,9 @@ import MyTestsScreenMobile from './MyTestsScreenMobile';
 
 const MyTestsScreenWeb = ({ navigation, route, ...props }) => {
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 1024;
-  const isTablet = width >= 768 && width < 1024;
+  const desktopSiteMode = isDesktopSiteRequested();
+  const isDesktop = desktopSiteMode || width >= 1024;
+  const isTablet = !desktopSiteMode && (width >= 768 && width < 1024);
 
   const [patient, setPatient] = useState(null);
   const [familyMembers, setFamilyMembers] = useState([]);
@@ -2407,7 +2409,7 @@ const MyTestsScreenWeb = ({ navigation, route, ...props }) => {
 
 const MyTestsScreenResponsive = (props) => {
   const { width } = useWindowDimensions();
-  return width < 768 ? (
+  return !isDesktopLayout(width) ? (
     <MyTestsScreenMobile {...props} />
   ) : (
     <MyTestsScreenWeb {...props} />

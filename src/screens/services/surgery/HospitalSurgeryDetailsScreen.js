@@ -21,10 +21,11 @@ import {
   surgerySpecialties,
 } from '../../../data/surgeryHospitalsData';
 import { useTheme } from '../../../context/ThemeContext';
+import { isDesktopLayout } from '../../../utils/responsiveLayoutHelper';
 
 const HospitalSurgeryDetailsScreen = ({ route, navigation }) => {
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const isDesktopWeb = Platform.OS === 'web' && isDesktopLayout(width);
   const { hospitalId, initialSpecialty } = route.params || {};
   const hospital = getSurgeryHospitalById(hospitalId);
   const { t } = useTheme();

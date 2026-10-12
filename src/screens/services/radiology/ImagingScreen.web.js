@@ -23,6 +23,7 @@ import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
 import WebFooter from '../../../components/web/WebFooter';
 import WebBackButton from '../../../components/web/WebBackButton';
 import { useTheme } from '../../../context/ThemeContext';
+import { isDesktopLayout, isDesktopSiteRequested } from '../../../utils/responsiveLayoutHelper';
 import {
   RADIOLOGY_CATEGORIES,
   RADIOLOGY_TESTS,
@@ -66,9 +67,10 @@ const POPULAR_SEARCH_CHIPS = [
 export default function ImagingScreenWeb({ navigation, route }) {
   const { t, isIndic } = useTheme();
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 1024;
-  const isTablet = width >= 768 && width < 1024;
-  const isMobile = width < 768;
+  const desktopSiteMode = isDesktopSiteRequested();
+  const isDesktop = desktopSiteMode || width >= 1024;
+  const isTablet = !desktopSiteMode && (width >= 768 && width < 1024);
+  const isMobile = !desktopSiteMode && (width < 768);
 
   const mainScrollRef = useRef(null);
 
@@ -86,18 +88,21 @@ export default function ImagingScreenWeb({ navigation, route }) {
 
   // Responsive card dimension calculators (2 cards per row on Tablet, 3 on Desktop, 1 on Mobile)
   const getCategoryCardWidth = () => {
+    if (desktopSiteMode) return '31.5%';
     if (width < 600) return '100%';
     if (width < 1024) return '48%'; // Exactly 2 cards per row on Tablet
     return '31.5%'; // 3 cards per row on Desktop
   };
 
   const getTestCardWidth = () => {
+    if (desktopSiteMode) return '31.5%';
     if (width < 600) return '100%';
     if (width < 1024) return '48%'; // Exactly 2 cards per row on Tablet
     return '31.5%'; // 3 cards per row on Desktop
   };
 
   const getProviderCardWidth = () => {
+    if (desktopSiteMode) return '48%';
     if (width < 768) return '100%';
     if (width < 1200) return '48%'; // 2 cards per row on Tablet
     return '48%';
@@ -1104,7 +1109,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
         <View style={styles.pinnedTitleContainer}>
           <Text style={[styles.pinnedTitleText, isIndic && { lineHeight: 20 }]} numberOfLines={1} ellipsizeMode="tail">
             {viewMode === 'categories'
-              ? t('navigation.scans_xray', 'Scan & X-Ray')
+              ? t('navigation.scans_xray', 'Scans & X-Ray')
               : viewMode === 'tests'
               ? selectedCategory?.name ? t(selectedCategory.name, selectedCategory.name) : t('Select Scan')
               : viewMode === 'providers'
@@ -1123,7 +1128,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
               ? t('booking.confirmed', 'Confirmed')
               : viewMode === 'my-bookings'
               ? t('booking.my_appointments', 'My Bookings')
-              : t('navigation.scans_xray', 'Scan & X-Ray')}
+              : t('navigation.scans_xray', 'Scans & X-Ray')}
           </Text>
           <View style={styles.pinnedCityBadge}>
             <Ionicons name="location-sharp" size={10} color="#00B894" />
@@ -1198,7 +1203,7 @@ export default function ImagingScreenWeb({ navigation, route }) {
                   </View>
                 </View>
 
-                <Text style={styles.heroHeading}>Scan & X-Ray</Text>
+                <Text style={styles.heroHeading}>{t('navigation.scans_xray', 'Scans & X-Ray')}</Text>
                 <Text style={styles.heroSubheading}>
                   Book verified imaging centres with instant digital reports in {selectedCity}.
                 </Text>

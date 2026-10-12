@@ -3,7 +3,7 @@ import ImagingScreenWeb from './ImagingScreen.web';
 
 /**
  * RadiologyLabsScreen (Mobile, Tablet, Web)
- * Seamlessly integrates the unified Web Scan & X-Ray / Radiology flow
+ * Seamlessly integrates the unified Web Scans & X-Ray / Radiology flow
  * as the single source of truth across iOS, Android, and Tablet.
  * 
  * Complies with:

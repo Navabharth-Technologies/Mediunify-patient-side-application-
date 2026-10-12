@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../theme/colors';
 import { useTheme } from '../../context/ThemeContext';
+import { isDesktopLayout } from '../../utils/responsiveLayoutHelper';
 
 const OUR_SERVICES = [
   { labelKey: 'card_lab_tests', label: 'Lab Tests', route: 'LabTests' },
@@ -40,7 +41,7 @@ const SUPPORT_LINKS = [
 const WebFooter = ({ navigation, style }) => {
   const { width } = useWindowDimensions();
   const { t, isIndic } = useTheme();
-  const isDesktop = width >= 768;
+  const isDesktop = isDesktopLayout(width);
   const [emailInput, setEmailInput] = useState('');
   const [subscribed, setSubscribed] = useState(false);
 

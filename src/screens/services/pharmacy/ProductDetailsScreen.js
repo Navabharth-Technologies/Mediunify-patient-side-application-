@@ -21,6 +21,7 @@ import { EXTENDED_PRODUCTS, getProductImage } from './PharmacyScreen';
 import { useCart } from '../../../context/CartContext';
 import ProductCard from '../../../components/ProductCard';
 import { useAuthGuard } from '../../../context/AuthGuardContext';
+import { isDesktopLayout } from '../../../utils/responsiveLayoutHelper';
 
 const getCategoryIcon = (category) => {
   switch (category) {
@@ -49,7 +50,7 @@ const getCategoryIcon = (category) => {
 
 const ProductDetailsScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const isDesktopWeb = Platform.OS === 'web' && isDesktopLayout(width);
 
   const { productId, product: passedProduct, store: passedStore } = route.params || {};
   const { cart, addToCart, cartCount, selectedPharmacyStore } = useCart();

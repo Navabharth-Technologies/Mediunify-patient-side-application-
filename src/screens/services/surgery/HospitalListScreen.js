@@ -25,10 +25,11 @@ import {
   geocodeWebSafe,
 } from '../../../utils/locationHelper';
 import { useTheme } from '../../../context/ThemeContext';
+import { isDesktopLayout } from '../../../utils/responsiveLayoutHelper';
 
 const HospitalListScreen = ({ navigation }) => {
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const isDesktopWeb = Platform.OS === 'web' && isDesktopLayout(width);
   const { t } = useTheme();
 
   const [hospitals, setHospitals] = useState([]);

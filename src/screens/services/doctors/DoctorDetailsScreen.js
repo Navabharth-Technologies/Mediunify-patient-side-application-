@@ -17,12 +17,13 @@ import colors from '../../../theme/colors';
 import WebFooter from '../../../components/web/WebFooter';
 import DoctorBookingModal from '../../../components/booking/DoctorBookingModal';
 import { useTheme } from '../../../context/ThemeContext';
+import { isDesktopLayout } from '../../../utils/responsiveLayoutHelper';
 
 const DoctorDetailsScreen = ({ route, navigation }) => {
   const { t, isIndic } = useTheme();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const isDesktopWeb = Platform.OS === 'web' && isDesktopLayout(width);
   const doctor = route?.params?.doctor;
   const [bookingModalVisible, setBookingModalVisible] = useState(false);
 

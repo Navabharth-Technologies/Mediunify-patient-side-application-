@@ -32,14 +32,16 @@ import {
   subscribeToSlotChanges,
 } from '../../../services/slotBookingService';
 import { useTheme } from '../../../context/ThemeContext';
+import { isDesktopLayout, isDesktopSiteRequested } from '../../../utils/responsiveLayoutHelper';
 
 const ASYNC_KEY_BOOKINGS = '@unnathi_ayurveda_bookings';
 const ASYNC_KEY_REQUESTS = '@unnathi_ayurveda_callback_requests';
 
 const AyurvedaWellnessScreen = ({ navigation, route }) => {
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 992;
-  const isTablet = width >= 768 && width < 992;
+  const desktopSiteMode = isDesktopSiteRequested();
+  const isDesktopWeb = Platform.OS === 'web' && (desktopSiteMode || width >= 992);
+  const isTablet = !desktopSiteMode && (width >= 768 && width < 992);
   const { t } = useTheme();
 
   // Root Navigation View: 'DISCOVERY' | 'DETAILS' | 'APPOINTMENTS' | 'REQUESTS'

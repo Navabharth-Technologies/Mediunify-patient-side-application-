@@ -11,14 +11,16 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { navigationRef } from '../../navigation/navigationRef';
 import { useTheme } from '../../context/ThemeContext';
+import { isDesktopLayout, isDesktopSiteRequested } from '../../utils/responsiveLayoutHelper';
 
 const FloatingAiBotIcon = () => {
   const { t } = useTheme();
   if (Platform.OS !== 'web') return null;
 
   const { width } = useWindowDimensions();
-  const isMobile = width < 768;
-  const isMobileLayout = width < 992;
+  const desktopSiteMode = isDesktopSiteRequested();
+  const isMobile = !isDesktopLayout(width);
+  const isMobileLayout = !desktopSiteMode && (width < 992);
 
   const [currentPath, setCurrentPath] = useState('');
   const [showPopup, setShowPopup] = useState(false);

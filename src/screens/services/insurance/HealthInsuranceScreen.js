@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showAlert } from '../../../utils/alert';
 import WebFooter from '../../../components/web/WebFooter';
+import { isDesktopLayout } from '../../../utils/responsiveLayoutHelper';
 
 const COMING_SOON_FEATURES = [
   {
@@ -49,7 +50,7 @@ const COMING_SOON_FEATURES = [
 
 const HealthInsuranceScreen = ({ navigation }) => {
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const isDesktopWeb = Platform.OS === 'web' && isDesktopLayout(width);
 
   const [contactInput, setContactInput] = useState('');
   const [isSubscribed, setIsSubscribed] = useState(false);

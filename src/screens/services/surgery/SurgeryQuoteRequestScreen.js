@@ -23,6 +23,7 @@ import colors from '../../../theme/colors';
 import WebFooter from '../../../components/web/WebFooter';
 import { isGuestUser, promptLoginRequired } from '../../../utils/authHelper';
 import { useTheme } from '../../../context/ThemeContext';
+import { isDesktopLayout } from '../../../utils/responsiveLayoutHelper';
 
 const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
   const { t } = useTheme();
@@ -46,7 +47,7 @@ const SurgeryQuoteRequestScreen = ({ route, navigation }) => {
   }, []);
 
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const isDesktopWeb = Platform.OS === 'web' && isDesktopLayout(width);
   const { hospital, surgery } = route.params || {};
   useEffect(() => {
     loadPatientAndFamilyContext();
