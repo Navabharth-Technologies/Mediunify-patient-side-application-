@@ -152,7 +152,7 @@
     }
     /* Mobile web application native feel optimizations without freezing viewport */
     @media (max-width: 767px) {
-      html, body {
+      html:not(.desktop-site-mode), body:not(.desktop-site-mode) {
         width: 100%;
         min-height: 100%;
         min-height: -webkit-fill-available;
@@ -165,7 +165,7 @@
         -webkit-touch-callout: none;
         -webkit-tap-highlight-color: transparent;
       }
-      #root {
+      #root:not(.desktop-site-mode) {
         width: 100%;
         min-height: 100%;
         min-height: -webkit-fill-available;
@@ -183,6 +183,17 @@
         scrollbar-width: none !important;
         -ms-overflow-style: none !important;
       }
+    }
+    /* Mobile Desktop-Site View: Match PC monitor layout completely */
+    html.desktop-site-mode,
+    html.desktop-site-mode body,
+    html.desktop-site-mode #root {
+      min-width: 1200px !important;
+      width: 1200px !important;
+      max-width: none !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      touch-action: pan-x pan-y pinch-zoom !important;
     }
     html, body {
       overscroll-behavior-y: none;
@@ -223,6 +234,34 @@
   </style>
   <script data-gh-patch="true">
     (function() {
+      // ── Desktop Site Mode detection on Mobile Browsers ──
+      try {
+        var ua = navigator.userAgent || '';
+        var hasMobileToken = /Android.*Mobile|Mobile.*Safari|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+        var screenDim = (window.screen ? Math.min(window.screen.width, window.screen.height) : 1024);
+        var isPhysicalMobile = screenDim < 768;
+        var hasTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0);
+        var isIos = (typeof window.orientation !== 'undefined') || /iPhone|iPod|iPad/i.test(navigator.platform || '');
+        var urlDesktop = window.location && (window.location.search.indexOf('mode=desktop') !== -1 || window.location.search.indexOf('desktop=true') !== -1);
+
+        var isDesktopMode = urlDesktop || (!hasMobileToken && (
+          (/Macintosh/i.test(ua) && (isPhysicalMobile || isIos)) ||
+          (/Android/i.test(ua)) ||
+          (/Linux x86_64|X11/i.test(ua) && (isPhysicalMobile || (hasTouch && screenDim < 900))) ||
+          (isPhysicalMobile && (hasTouch || isIos))
+        ));
+
+        if (isDesktopMode) {
+          var meta = document.querySelector('meta[name="viewport"]');
+          if (meta) {
+            meta.setAttribute('content', 'width=1200, initial-scale=0.32, minimum-scale=0.2, maximum-scale=5.0, user-scalable=yes');
+          }
+          if (document.documentElement) {
+            document.documentElement.classList.add('desktop-site-mode');
+          }
+        }
+      } catch (e) {}
+
       var BASE = '/Mediunify-patient-side-application-';
 
       // ── A: Restore path from 404.html redirect ──
@@ -262,6 +301,6 @@
     </noscript>
     <!-- The root element for your Expo app. -->
     <div id="root"></div>
-  <script src="/Mediunify-patient-side-application-/_expo/static/js/web/index-5011b071f2233f9156c70f1141aa3aa0.js" defer></script>
+  <script src="/Mediunify-patient-side-application-/_expo/static/js/web/index-245a73588d0c93f31c98e0089720178f.js" defer></script>
 </body>
 </html>
