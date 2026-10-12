@@ -184,12 +184,16 @@
         -ms-overflow-style: none !important;
       }
     }
-    /* Fluid responsive layout across mobile and desktop */
-    html, body, #root {
-      width: 100% !important;
-      max-width: 100% !important;
-      min-width: 0 !important;
-      overflow-x: hidden !important;
+    /* Mobile Desktop-Site View: Match PC monitor layout completely */
+    html.desktop-site-mode,
+    html.desktop-site-mode body,
+    html.desktop-site-mode #root {
+      min-width: 1200px !important;
+      width: 1200px !important;
+      max-width: none !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      touch-action: pan-x pan-y pinch-zoom !important;
     }
     html, body {
       overscroll-behavior-y: none;
@@ -230,14 +234,31 @@
   </style>
   <script data-gh-patch="true">
     (function() {
-      // ── Maintain clean, responsive viewport at all times ──
+      // ── Desktop Site Mode detection on Mobile Browsers ──
       try {
-        var meta = document.querySelector('meta[name="viewport"]');
-        if (meta) {
-          meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover, interactive-widget=resizes-content');
-        }
-        if (document.documentElement) {
-          document.documentElement.classList.remove('desktop-site-mode');
+        var ua = navigator.userAgent || '';
+        var hasMobileToken = /Android.*Mobile|Mobile.*Safari|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+        var screenDim = (window.screen ? Math.min(window.screen.width, window.screen.height) : 1024);
+        var isPhysicalMobile = screenDim < 768;
+        var hasTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0);
+        var isIos = (typeof window.orientation !== 'undefined') || /iPhone|iPod|iPad/i.test(navigator.platform || '');
+        var urlDesktop = window.location && (window.location.search.indexOf('mode=desktop') !== -1 || window.location.search.indexOf('desktop=true') !== -1);
+
+        var isDesktopMode = urlDesktop || (!hasMobileToken && (
+          (/Macintosh/i.test(ua) && (isPhysicalMobile || isIos)) ||
+          (/Android/i.test(ua)) ||
+          (/Linux x86_64|X11/i.test(ua) && (isPhysicalMobile || (hasTouch && screenDim < 900))) ||
+          (isPhysicalMobile && (hasTouch || isIos))
+        ));
+
+        if (isDesktopMode) {
+          var meta = document.querySelector('meta[name="viewport"]');
+          if (meta) {
+            meta.setAttribute('content', 'width=1200, initial-scale=0.32, minimum-scale=0.2, maximum-scale=5.0, user-scalable=yes');
+          }
+          if (document.documentElement) {
+            document.documentElement.classList.add('desktop-site-mode');
+          }
         }
       } catch (e) {}
 
@@ -280,6 +301,6 @@
     </noscript>
     <!-- The root element for your Expo app. -->
     <div id="root"></div>
-  <script src="/Mediunify-patient-side-application-/_expo/static/js/web/index-ac798c3b37e741f8da0c24a69c4275c0.js" defer></script>
+  <script src="/Mediunify-patient-side-application-/_expo/static/js/web/index-c945fa800f5af2a32a730349100c5f3b.js" defer></script>
 </body>
 </html>
