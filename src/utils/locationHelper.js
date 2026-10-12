@@ -453,6 +453,95 @@ export const detectUserLocationWithAddress = async () => {
 };
 
 /**
+ * Takes location specifically from the phone's hardware GPS sensor.
+ * Prompts for permission if needed, obtains high-accuracy coordinates,
+ * reverse-geocodes them, and stores the resulting city & address in AsyncStorage.
+ */
+export const detectPhoneGPSLocation = async (forcePrompt = true) => {
+  try {
+    // 1. Request location permissions
+    const perm = await requestLocationPermissionWebSafe();
+    if (!perm.granted && perm.status !== 'granted') {
+      return {
+        success: false,
+        error: 'PERMISSION_DENIED',
+        message: 'Location permission was denied. Please allow location access to use phone GPS.',
+      };
+    }
+
+    let lat = null;
+    let lon = null;
+    let accuracy = null;
+
+    // 2. High-accuracy GPS positioning
+    if (Platform.OS === 'web') {
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            (position) => resolve(position),
+            (err) => reject(err),
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 }
+          );
+        });
+        lat = pos.coords.latitude;
+        lon = pos.coords.longitude;
+        accuracy = pos.coords.accuracy;
+      }
+    } else {
+      // Native iOS / Android
+      try {
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+        lat = loc.coords.latitude;
+        lon = loc.coords.longitude;
+        accuracy = loc.coords.accuracy;
+      } catch (nativeErr) {
+        // Fallback to balanced if high-accuracy times out
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        lat = loc.coords.latitude;
+        lon = loc.coords.longitude;
+        accuracy = loc.coords.accuracy;
+      }
+    }
+
+    if (!lat || !lon) {
+      throw new Error('Unable to retrieve coordinates from phone GPS.');
+    }
+
+    // 3. Reverse geocode to find real locality and city
+    const addresses = await reverseGeocodeWebSafe({ latitude: lat, longitude: lon });
+    const first = addresses?.[0];
+
+    const rawCity = first?.city || first?.district || first?.subregion || 'Mysore';
+    const detectedCity = normalizeCityName(rawCity);
+    const locality = first?.name || first?.district || first?.subregion || detectedCity;
+    const fullLoc = first?.formattedAddress || `${locality}, ${detectedCity}, ${first?.region || 'Karnataka'}`;
+
+    // 4. Save to AsyncStorage
+    await saveLocationToStorage(detectedCity, fullLoc, { latitude: lat, longitude: lon });
+
+    return {
+      success: true,
+      city: detectedCity,
+      locality: locality,
+      fullLocation: fullLoc,
+      coords: { latitude: lat, longitude: lon, accuracy },
+      source: 'phone_gps',
+    };
+  } catch (err) {
+    console.warn('[LocationHelper] detectPhoneGPSLocation failed:', err);
+    return {
+      success: false,
+      error: err.message || 'GPS_ERROR',
+      message: err.message || 'Could not fetch phone GPS location.',
+    };
+  }
+};
+
+/**
  * Automatically detects the user's location via GPS (with IP fallback).
  * Works reliably on Web (browsers) and Native (iOS/Android).
  */
@@ -465,7 +554,7 @@ export const detectAutoLocation = async () => {
           navigator.geolocation.getCurrentPosition(
             (position) => resolve(position),
             (err) => reject(err),
-            { enableHighAccuracy: false, timeout: 6000, maximumAge: 60000 }
+            { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
           );
         });
 
@@ -576,6 +665,7 @@ export default {
   geocodeWebSafe,
   detectUserLocationWithAddress,
   detectAutoLocation,
+  detectPhoneGPSLocation,
   normalizeCityName,
   saveLocationToStorage,
   getClosestMysoreLocality,

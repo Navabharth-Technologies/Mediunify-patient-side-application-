@@ -27,6 +27,7 @@ import {
   getCurrentPositionWebSafe,
   reverseGeocodeWebSafe,
   detectAutoLocation,
+  detectPhoneGPSLocation,
   normalizeCityName,
 } from '../../utils/locationHelper';
 
@@ -652,15 +653,18 @@ const HomeScreen = ({ navigation, route }) => {
         } else {
           setLocationName(savedLoc.trim());
         }
-      } else {
-        try {
-          const autoLoc = await detectAutoLocation();
-          if (autoLoc && autoLoc.city) {
-            setSelectedCity(autoLoc.city);
-            setLocationName(autoLoc.city);
-          }
-        } catch (e) {}
       }
+
+      // Automatically fetch location from Phone GPS hardware
+      detectPhoneGPSLocation(false)
+        .then((gpsRes) => {
+          if (gpsRes && gpsRes.success && gpsRes.city) {
+            const matched = CITIES.find((c) => gpsRes.city.toLowerCase().includes(c.toLowerCase().slice(0, 4))) || gpsRes.city;
+            setSelectedCity(matched);
+            setLocationName(gpsRes.locality || matched);
+          }
+        })
+        .catch(() => {});
 
       const savedWallet = await AsyncStorage.getItem('@unnathi_wallet_balance');
       if (savedWallet) {
@@ -719,33 +723,19 @@ const HomeScreen = ({ navigation, route }) => {
     showToast(`₹${num.toLocaleString('en-IN')} added to Care Wallet!`);
   };
 
-  // GPS Location Detection
+  // GPS Location Detection directly from phone GPS
   const handleDetectGPSLocation = async () => {
     try {
       setLoadingLocation(true);
-      const perm = await requestLocationPermissionWebSafe();
-      if (!perm.granted && perm.status !== 'granted') {
-        showAlert('Permission Denied', 'Please grant location permission to detect your city.');
-        setLoadingLocation(false);
-        return;
-      }
-      const loc = await getCurrentPositionWebSafe({ accuracy: Location.Accuracy.Balanced });
-      const addresses = await reverseGeocodeWebSafe({
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-      });
-
-      const geocode = addresses && addresses.length > 0 ? addresses[0] : null;
-      if (geocode) {
-        const rawCity = geocode.city || geocode.subregion || geocode.district || 'Mysuru';
-        const normalized = normalizeCityName(rawCity);
-        const matchedCity = CITIES.find((c) => normalized.toLowerCase().includes(c.toLowerCase().slice(0, 4))) || normalized;
+      const gpsRes = await detectPhoneGPSLocation(true);
+      if (gpsRes && gpsRes.success && gpsRes.city) {
+        const matchedCity = CITIES.find((c) => gpsRes.city.toLowerCase().includes(c.toLowerCase().slice(0, 4))) || gpsRes.city;
         setSelectedCity(matchedCity);
-        setLocationName(matchedCity);
-        await AsyncStorage.setItem('@mediunify_selected_city', matchedCity);
-        await AsyncStorage.setItem('@unnathi_user_location', matchedCity);
+        setLocationName(gpsRes.locality || matchedCity);
         setLocationModalVisible(false);
-        showToast(`City set to ${matchedCity}`);
+        showToast(`📍 Phone GPS: ${gpsRes.locality || matchedCity}`);
+      } else {
+        showAlert('Location Permission', gpsRes?.message || 'Could not detect GPS location. Please check your device location settings.');
       }
       setLoadingLocation(false);
     } catch (e) {
@@ -1614,6 +1604,29 @@ const HomeScreen = ({ navigation, route }) => {
             <Text style={styles.cityModalSub}>
               Verified clinics, labs & home delivery available across Karnataka
             </Text>
+
+            {/* USE PHONE GPS BUTTON */}
+            <TouchableOpacity
+              style={styles.cityGpsOption}
+              onPress={handleDetectGPSLocation}
+              disabled={loadingLocation}
+              activeOpacity={0.8}
+            >
+              {loadingLocation ? (
+                <ActivityIndicator size="small" color="#007D69" style={{ marginRight: 6 }} />
+              ) : (
+                <Ionicons name="navigate-circle" size={20} color="#007D69" style={{ marginRight: 6 }} />
+              )}
+              <Text style={styles.cityGpsOptionText}>
+                {loadingLocation ? 'Detecting GPS Location...' : 'Use Current Location (Phone GPS)'}
+              </Text>
+            </TouchableOpacity>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 10 }}>
+              <View style={{ flex: 1, height: 1, backgroundColor: '#F1F5F9' }} />
+              <Text style={{ marginHorizontal: 8, fontSize: 10, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.5 }}>OR SELECT CITY</Text>
+              <View style={{ flex: 1, height: 1, backgroundColor: '#F1F5F9' }} />
+            </View>
 
             <View style={styles.cityList}>
               {CITIES.map((city) => {

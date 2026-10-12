@@ -22,6 +22,7 @@ import colors from '../../theme/colors';
 import { safeNavigateToMain } from '../../utils/navigationHelper';
 import { syncLogin, syncRegister, autoMigrateLocalAccountsToServer } from '../../services/dataSyncService';
 import { useTheme } from '../../context/ThemeContext';
+import { detectPhoneGPSLocation } from '../../utils/locationHelper';
 
 const PRE_SEEDED_CREDENTIALS = {
   'user@mediunify.com': {
@@ -361,6 +362,9 @@ const LoginScreen = ({ navigation }) => {
       await AsyncStorage.removeItem('@unnathi_primary_user');
       await AsyncStorage.removeItem('@mediunify_membership');
       await AsyncStorage.removeItem('@unnathi_active_patient');
+
+      // Proactively trigger phone GPS detection so user location is ready
+      detectPhoneGPSLocation(false).catch(() => {});
     } catch (e) {}
     await safeNavigateToMain(navigation);
   };
@@ -375,7 +379,7 @@ const LoginScreen = ({ navigation }) => {
     >
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* TOP UTILITY BAR: BACK OR GUEST SKIP */}
+      {/* TOP UTILITY BAR: BACK OR SKIP BUTTON */}
       <View style={styles.topUtilityBar}>
         {navigation.canGoBack() ? (
           <TouchableOpacity
@@ -383,6 +387,7 @@ const LoginScreen = ({ navigation }) => {
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Back"
           >
             <Ionicons name="arrow-back" size={22} color="#0F172A" />
           </TouchableOpacity>
@@ -390,19 +395,19 @@ const LoginScreen = ({ navigation }) => {
           <View style={{ width: 36 }} />
         )}
 
-        {Platform.OS !== 'web' && (
-          <TouchableOpacity
-            style={styles.guestLink}
-            onPress={handleContinueAsGuest}
-            activeOpacity={0.7}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Text style={[styles.guestLinkText, isIndic && { lineHeight: 18 }]}>
-              {t('guest_continue_btn', 'Continue as Guest')}
-            </Text>
-            <Ionicons name="chevron-forward" size={14} color="#007D69" />
-          </TouchableOpacity>
-        )}
+        {/* Prominent Skip Button (Always available on both mobile native & web) */}
+        <TouchableOpacity
+          style={styles.skipTopBtn}
+          onPress={handleContinueAsGuest}
+          activeOpacity={0.75}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityLabel="Skip Login"
+        >
+          <Text style={[styles.skipTopBtnText, isIndic && { lineHeight: 18 }]}>
+            {t('auth_skip_btn', 'Skip')}
+          </Text>
+          <Ionicons name="chevron-forward" size={15} color="#007D69" />
+        </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView
@@ -607,6 +612,24 @@ const LoginScreen = ({ navigation }) => {
                 </Text>
               </TouchableOpacity>
             </View>
+
+            {/* OR DIVIDER & SECONDARY SKIP BUTTON */}
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>{t('auth_or', 'OR')}</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <TouchableOpacity
+              style={styles.skipCardBtn}
+              onPress={handleContinueAsGuest}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="arrow-forward-circle-outline" size={19} color="#007D69" style={{ marginRight: 8 }} />
+              <Text style={[styles.skipCardBtnText, isIndic && { lineHeight: 18 }]}>
+                {t('auth_skip_explore', 'Skip & Explore as Guest')}
+              </Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -635,6 +658,55 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F8FAFC',
+  },
+  skipTopBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: 6,
+    paddingHorizontal: 13,
+    borderRadius: 16,
+    backgroundColor: '#F0FDF9',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+  },
+  skipTopBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#007D69',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 14,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E2E8F0',
+  },
+  dividerText: {
+    marginHorizontal: 10,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94A3B8',
+    letterSpacing: 0.5,
+  },
+  skipCardBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#007D69',
+    backgroundColor: '#F0FDF9',
+    width: '100%',
+  },
+  skipCardBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#007D69',
   },
   guestLink: {
     flexDirection: 'row',
