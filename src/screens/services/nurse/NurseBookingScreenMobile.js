@@ -3532,6 +3532,7 @@ const NurseBookingScreen = ({ navigation, route }) => {
   const renderRequestDetailsView = () => {
     if (!selectedRequestDetail) return null;
     const req = requestsList.find((r) => r.id === selectedRequestDetail.id) || selectedRequestDetail;
+    const assignedNurse = req.assignedNurse;
     const isRejected = req.status === 'Booking Not Confirmed' || req.status === 'Cancelled' || req.status === 'Rejected' || !!req.rejectionReason;
     const isServiceDone = ['Service Completed', 'Completed', 'Visit Completed'].includes(req.status);
     const isBookingDone = isServiceDone || ['Booking Confirmed', 'Service In Progress'].includes(req.status);

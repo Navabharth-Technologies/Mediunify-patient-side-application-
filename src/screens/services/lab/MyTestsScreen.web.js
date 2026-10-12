@@ -57,6 +57,8 @@ export const MODALITY_OPTIONS = [
   { id: 'Pathology & Blood Tests', label: 'Pathology & Blood Tests', icon: 'flask-outline' },
 ];
 
+export const FAMILY_RELATIONS = ['Father', 'Mother', 'Spouse', 'Child', 'Sibling', 'Grandparent', 'Other'];
+
 const STATUS_FILTERS = [
   'All Status',
   'Active & Confirmed',

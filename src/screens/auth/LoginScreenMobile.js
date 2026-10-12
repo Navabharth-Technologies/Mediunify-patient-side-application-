@@ -73,7 +73,7 @@ const PRE_SEEDED_CREDENTIALS = {
 
 import { useKeyboardVisibility } from '../../utils/keyboardUtils';
 
-const LoginScreen = ({ navigation }) => {
+const LoginScreen = ({ navigation, route }) => {
   const { t = (k, fb) => fb || k, isIndic } = useTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();

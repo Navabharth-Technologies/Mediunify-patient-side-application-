@@ -693,11 +693,7 @@ const PharmacyScreenWeb = ({ navigation, route }) => {
     }, 80);
   };
 
-  useEffect(() => {
-    if (selectedAddress?.locality) {
-      setCurrentAddress(`${selectedAddress.locality}, ${selectedAddress.city || 'Mysuru'}`);
-    }
-  }, [selectedAddress]);
+
 
   // Handle Route Params
   useEffect(() => {

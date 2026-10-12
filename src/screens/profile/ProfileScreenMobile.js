@@ -25,7 +25,7 @@ import { syncActiveUser } from '../../services/dataSyncService';
 import { promptLoginRequired } from '../../utils/authHelper';
 
 const ProfileScreen = ({ navigation, route }) => {
-  const { isDarkMode, language, changeLanguage, LANGUAGES, t } = useTheme();
+  const { isDarkMode, language, changeLanguage, LANGUAGES, t, isIndic } = useTheme();
   const currentLang = LANGUAGES.find((l) => l.code === language) || LANGUAGES[0];
   const { width } = useWindowDimensions();
   const isTablet = width >= 600;
