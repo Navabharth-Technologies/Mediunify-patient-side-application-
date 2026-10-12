@@ -411,9 +411,10 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
     return (
       <ScrollView
         style={styles.scrollContainer}
-        contentContainerStyle={[styles.scrollContent, styles.desktopContainer]}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.desktopContainer}>
         {/* Clean Web Header */}
         <View style={styles.topHeaderBar}>
           <WebBackButton
@@ -544,6 +545,8 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
           )}
         </View>
 
+        </View>
+
         <WebFooter />
       </ScrollView>
     );
@@ -559,9 +562,10 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
     return (
       <ScrollView
         style={styles.scrollContainer}
-        contentContainerStyle={[styles.scrollContent, styles.desktopContainer]}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.desktopContainer}>
         <View style={styles.topHeaderBar}>
           <WebBackButton
             onPress={() => setCurrentView('HOME')}
@@ -603,6 +607,8 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
           </TouchableOpacity>
         </View>
 
+        </View>
+
         <WebFooter />
       </ScrollView>
     );
@@ -618,9 +624,10 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
     return (
       <ScrollView
         style={styles.scrollContainer}
-        contentContainerStyle={[styles.scrollContent, styles.desktopContainer]}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.desktopContainer}>
         <View style={styles.topHeaderBar}>
           <WebBackButton
             onPress={() => {
@@ -891,6 +898,8 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
           </View>
         )}
 
+        </View>
+
         <WebFooter />
       </ScrollView>
     );
@@ -905,9 +914,10 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
     return (
       <ScrollView
         style={styles.scrollContainer}
-        contentContainerStyle={[styles.scrollContent, styles.desktopContainer]}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.desktopContainer}>
         <View style={styles.topHeaderBar}>
           <WebBackButton
             onPress={() => setCurrentView('HOME')}
@@ -1021,6 +1031,8 @@ const EquipmentRentalScreen = ({ navigation, route, ...props }) => {
             })}
           </View>
         )}
+
+        </View>
 
         <WebFooter />
       </ScrollView>

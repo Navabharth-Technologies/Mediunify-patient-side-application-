@@ -143,7 +143,10 @@ const linking = {
           VideoConsultation: 'consultation',
           HospitalCare: 'hospital-care',
           HealthInsurance: 'insurance',
-          NurseBooking: 'home-care',
+          NurseBooking: {
+            path: 'home-care',
+            alias: ['home-care', 'home-nursing', 'nurse-booking', 'nursing', 'home_care', 'home_nursing', 'NurseBooking', 'HomeNursing', 'HomeCare'],
+          },
           Emergency: 'emergency',
           AyurvedaWellness: 'ayurveda-wellness',
           EquipmentRental: 'equipment-rental',

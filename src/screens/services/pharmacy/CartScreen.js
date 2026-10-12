@@ -364,19 +364,19 @@ const CartScreen = ({ navigation, route }) => {
   }, [navigation, syncLocationWithHome]);
 
   const [activeCartTab, setActiveCartTab] = useState(() => {
-    if (route?.params?.initialTab === 'radiology') return 'radiology';
+    // Radiology/Scans & X-Ray are no longer part of the cart — they use a dedicated booking flow.
     if (route?.params?.initialTab === 'lab') return 'lab';
     if (route?.params?.initialTab === 'pharmacy') return 'pharmacy';
-    if (radiologyCart?.length > 0 && (!labCart || labCart.length === 0) && (!pharmacyCart || pharmacyCart.length === 0)) return 'radiology';
     if (labCart?.length > 0 && (!pharmacyCart || pharmacyCart.length === 0)) return 'lab';
     return 'pharmacy';
   });
 
   useEffect(() => {
-    if (route?.params?.initialTab) {
+    if (route?.params?.initialTab && route.params.initialTab !== 'radiology') {
       setActiveCartTab(route.params.initialTab);
     }
   }, [route?.params?.initialTab]);
+
 
   const [checkoutModalVisible, setCheckoutModalVisible] = useState(false);
 
@@ -1159,6 +1159,33 @@ const CartScreen = ({ navigation, route }) => {
     showAlert('Added to Cart', `${deal.name} has been added to your cart.`);
   };
 
+  const getDealQty = (dealId) => {
+    const match = items.find((it) => it.id === dealId);
+    return match ? (match.quantity || 1) : 0;
+  };
+
+  const handleIncreaseDealQty = (deal) => {
+    if (increaseQuantity) {
+      increaseQuantity(deal.id, 'pharmacy');
+    } else {
+      setLocalDemoItems((prev) =>
+        prev.map((it) => (it.id === deal.id ? { ...it, quantity: (it.quantity || 1) + 1 } : it))
+      );
+    }
+  };
+
+  const handleDecreaseDealQty = (deal) => {
+    if (decreaseQuantity) {
+      decreaseQuantity(deal.id, 'pharmacy');
+    } else {
+      setLocalDemoItems((prev) =>
+        prev
+          .map((it) => (it.id === deal.id ? { ...it, quantity: (it.quantity || 1) - 1 } : it))
+          .filter((it) => it.quantity > 0)
+      );
+    }
+  };
+
   // Care Plan state
   const [hasCarePlan, setHasCarePlan] = useState(false);
   const [isExistingMember, setIsExistingMember] = useState(false);
@@ -1386,48 +1413,8 @@ const CartScreen = ({ navigation, route }) => {
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[
-                styles.cartCategoryTab,
-                activeCartTab === 'radiology' && styles.cartCategoryTabActiveRad,
-              ]}
-              onPress={() => setActiveCartTab('radiology')}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="radio"
-                size={13}
-                color={activeCartTab === 'radiology' ? '#0284C7' : '#64748B'}
-                style={{ marginRight: 3 }}
-              />
-              <Text
-                style={[
-                  styles.cartCategoryTabText,
-                  activeCartTab === 'radiology' && styles.cartCategoryTabTextActiveRad,
-                  isIndic && { lineHeight: 16 },
-                ]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.8}
-              >
-                {t('navigation.scans_xray', 'Scans & X-Ray')}
-              </Text>
-              <View
-                style={[
-                  styles.cartTabBadge,
-                  activeCartTab === 'radiology' && styles.cartTabBadgeActiveRad,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.cartTabBadgeText,
-                    activeCartTab === 'radiology' && styles.cartTabBadgeTextActiveRad,
-                  ]}
-                >
-                  {radiologyCart.length || radiologyCartCount || 0}
-                </Text>
-              </View>
-            </TouchableOpacity>
+
+
           </View>
         </View>
 
@@ -1923,13 +1910,39 @@ const CartScreen = ({ navigation, route }) => {
                       <Text style={styles.dealDiscountText}>{deal.discount}</Text>
                     </View>
 
-                    <TouchableOpacity
-                      style={styles.addToCartBtn}
-                      onPress={() => handleAddDealToCart(deal)}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.addToCartBtnText}>Add to cart</Text>
-                    </TouchableOpacity>
+                    {/* Add to Cart or Stepper (matching Pharmacy page reference) */}
+                    {getDealQty(deal.id) > 0 ? (
+                      <View style={styles.dealQuantityStepper}>
+                        <TouchableOpacity
+                          style={styles.dealStepperBtn}
+                          onPress={() => handleDecreaseDealQty(deal)}
+                          activeOpacity={0.7}
+                        >
+                          {getDealQty(deal.id) === 1 ? (
+                            <Ionicons name="trash-outline" size={13} color="#EF4444" />
+                          ) : (
+                            <Ionicons name="remove" size={13} color="#00B894" />
+                          )}
+                        </TouchableOpacity>
+                        <Text style={styles.dealStepperQuantity}>{getDealQty(deal.id)}</Text>
+                        <TouchableOpacity
+                          style={styles.dealStepperBtn}
+                          onPress={() => handleIncreaseDealQty(deal)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="add" size={13} color="#00B894" />
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.dealAddToCartBtn}
+                        onPress={() => handleAddDealToCart(deal)}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="cart-outline" size={14} color="#FFFFFF" />
+                        <Text style={styles.dealAddToCartBtnText}>Add to Cart</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 ))}
               </ScrollView>
@@ -1974,13 +1987,39 @@ const CartScreen = ({ navigation, route }) => {
                       <Text style={styles.dealDiscountText}>{buy.discount}</Text>
                     </View>
 
-                    <TouchableOpacity
-                      style={styles.addToCartBtn}
-                      onPress={() => handleAddDealToCart(buy)}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.addToCartBtnText}>Add to cart</Text>
-                    </TouchableOpacity>
+                    {/* Add to Cart or Stepper (matching Pharmacy page reference) */}
+                    {getDealQty(buy.id) > 0 ? (
+                      <View style={styles.dealQuantityStepper}>
+                        <TouchableOpacity
+                          style={styles.dealStepperBtn}
+                          onPress={() => handleDecreaseDealQty(buy)}
+                          activeOpacity={0.7}
+                        >
+                          {getDealQty(buy.id) === 1 ? (
+                            <Ionicons name="trash-outline" size={13} color="#EF4444" />
+                          ) : (
+                            <Ionicons name="remove" size={13} color="#00B894" />
+                          )}
+                        </TouchableOpacity>
+                        <Text style={styles.dealStepperQuantity}>{getDealQty(buy.id)}</Text>
+                        <TouchableOpacity
+                          style={styles.dealStepperBtn}
+                          onPress={() => handleIncreaseDealQty(buy)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="add" size={13} color="#00B894" />
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.dealAddToCartBtn}
+                        onPress={() => handleAddDealToCart(buy)}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="cart-outline" size={14} color="#FFFFFF" />
+                        <Text style={styles.dealAddToCartBtnText}>Add to Cart</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 ))}
               </ScrollView>
@@ -4203,20 +4242,65 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#7BC96F',
   },
-  addToCartBtn: {
-    borderWidth: 1.5,
-    borderColor: '#00B894',
-    borderRadius: 6,
-    paddingVertical: 6,
+  dealAddToCartBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    gap: 6,
+    backgroundColor: '#00B894',
+    paddingVertical: 7,
+    borderRadius: 8,
+    height: 36,
+    marginTop: 6,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  dealAddToCartBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  dealQuantityStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1.5,
+    borderColor: '#00B894',
+    borderRadius: 8,
+    backgroundColor: '#ECFDF5',
+    height: 36,
+    paddingHorizontal: 6,
+    marginTop: 6,
+  },
+  dealStepperBtn: {
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  dealStepperQuantity: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#00B894',
+  },
+  addToCartBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1.5,
+    borderColor: '#00B894',
+    borderRadius: 8,
+    paddingVertical: 7,
+    height: 36,
+    backgroundColor: '#00B894',
+    marginTop: 6,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   addToCartBtnText: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: '#00B894',
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   dealAddBtn: {
     borderWidth: 1.5,

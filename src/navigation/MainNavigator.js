@@ -434,7 +434,6 @@ const PROTECTED_ROUTES = [
   'Payment',
   'DoctorBooking',
   'VideoBooking',
-  'NurseBooking',
   'LabBooking',
   'SurgeryQuoteRequest',
   'Bookings',
@@ -464,13 +463,12 @@ const MainNavigator = ({
   const isKeyboardVisible = useKeyboardVisibility();
 
   const cartCtx = useCart();
-  const radiologyCartCount = cartCtx?.radiologyCartCount || 0;
   const labCartCount = cartCtx?.labCartCount || 0;
   const pharmacyCartCount = cartCtx?.pharmacyCartCount || 0;
   const totalCartCount = cartCtx?.totalCartCount || 0;
+  // Radiology/Scans & X-Ray are excluded from the cart — they use a dedicated booking flow.
 
   const hasBottomBar = (
-    (['RadiologyLabDetails', 'RadiologyLabs', 'Imaging'].includes(currentRoute) && radiologyCartCount > 0) ||
     (['LabTests'].includes(currentRoute) && labCartCount > 0) ||
     (['Pharmacy', 'PharmacyStoreDetail'].includes(currentRoute) && pharmacyCartCount > 0) ||
     (['Cart', 'Checkout', 'Payment'].includes(currentRoute)) ||

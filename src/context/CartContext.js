@@ -84,8 +84,10 @@ export const CartProvider = ({ children }) => {
       const storedLab = await AsyncStorage.getItem(LAB_CART_KEY);
       if (storedLab) setLabCart(JSON.parse(storedLab));
 
-      const storedRadiology = await AsyncStorage.getItem(RADIOLOGY_CART_KEY);
-      if (storedRadiology) setRadiologyCart(JSON.parse(storedRadiology));
+      // Scans & X-Ray items are not supported in the shopping cart.
+      // Clear any previously persisted radiology cart items.
+      await AsyncStorage.removeItem(RADIOLOGY_CART_KEY);
+      setRadiologyCart([]);
     } catch (e) {
       console.log('Error loading saved cart data:', e);
     }
@@ -197,16 +199,11 @@ export const CartProvider = ({ children }) => {
   // ADD TO CART (AUTOMATIC CART ROUTING)
   // ==========================================
   const addToCart = (product, quantityToAdd = 1, forcedType = null, storeOverride = null) => {
+    // Scans & X-Ray (radiology) items cannot be added to the shopping cart.
+    // They have their own dedicated booking flow in the Scans & X-Ray section.
     if (isRadiologyItem(product, forcedType)) {
-      setRadiologyCart((prev) => {
-        const existing = prev.find((item) => item.id === product.id);
-        if (existing) {
-          return prev.map((item) =>
-            item.id === product.id ? { ...item, quantity: item.quantity + quantityToAdd } : item
-          );
-        }
-        return [...prev, { ...product, quantity: quantityToAdd, cartType: 'radiology' }];
-      });
+      console.log('[Cart] Blocked: Scans & X-Ray items cannot be added to the cart.');
+      return;
     } else if (isLabItem(product, forcedType)) {
       setLabCart((prev) => {
         const existing = prev.find((item) => item.id === product.id);
@@ -250,9 +247,10 @@ export const CartProvider = ({ children }) => {
     }
   };
 
-  // Dedicated Radiology Scan Add
+  // Dedicated Radiology Scan Add — blocked: Scans & X-Ray use their own booking flow
   const addRadiologyScanToCart = (scan, quantity = 1) => {
-    addToCart(scan, quantity, 'radiology');
+    // Scans & X-Ray items are not added to the cart.
+    console.log('[Cart] Blocked: Use the Scans & X-Ray booking flow instead of the cart.');
   };
 
   // Dedicated Lab Test Add
@@ -662,7 +660,8 @@ export const CartProvider = ({ children }) => {
   };
 
   // Overall combined totals (for global headers if needed)
-  const totalCartCount = pharmacyCartCount + labCartCount + radiologyCartCount;
+  // Radiology/Scans & X-Ray items are excluded from the cart count — they use a dedicated booking flow.
+  const totalCartCount = pharmacyCartCount + labCartCount;
 
   // ==========================================
   // ORDERS MANAGEMENT

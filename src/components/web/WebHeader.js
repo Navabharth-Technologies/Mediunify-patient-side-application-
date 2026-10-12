@@ -266,8 +266,9 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
 
   const [isTabletDrawerOpen, setIsTabletDrawerOpen] = useState(false);
 
-  const { pharmacyCartCount = 0, pharmacyFinalTotal = 0, labCartCount = 0, radiologyCartCount = 0 } = useCart() || {};
-  const totalCartCount = (pharmacyCartCount || 0) + (labCartCount || 0) + (radiologyCartCount || 0);
+  const { pharmacyCartCount = 0, pharmacyFinalTotal = 0, labCartCount = 0 } = useCart() || {};
+  // Radiology/Scans & X-Ray are excluded from the shopping cart — they use a dedicated booking flow.
+  const totalCartCount = (pharmacyCartCount || 0) + (labCartCount || 0);
   const unreadNotifsCount = notificationsList.filter((n) => n.unread).length;
 
   const displayName = userName && userName.trim() && userName !== 'My Account' ? userName.trim() : 'Account';
@@ -909,7 +910,6 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
               let targetTab = 'pharmacy';
               if (pharmacyCartCount > 0) targetTab = 'pharmacy';
               else if (labCartCount > 0) targetTab = 'lab';
-              else if (radiologyCartCount > 0) targetTab = 'radiology';
               handleNavigate('Cart', { initialTab: targetTab });
             }}
             activeOpacity={0.8}
