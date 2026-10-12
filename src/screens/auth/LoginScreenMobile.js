@@ -380,9 +380,9 @@ const LoginScreen = ({ navigation }) => {
     >
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* TOP UTILITY BAR: BACK OR SKIP BUTTON */}
-      <View style={styles.topUtilityBar}>
-        {navigation.canGoBack() ? (
+      {/* TOP UTILITY BAR: BACK BUTTON (ONLY IF CAN GO BACK) */}
+      {navigation.canGoBack() ? (
+        <View style={styles.topUtilityBar}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
@@ -392,24 +392,11 @@ const LoginScreen = ({ navigation }) => {
           >
             <Ionicons name="arrow-back" size={22} color="#0F172A" />
           </TouchableOpacity>
-        ) : (
           <View style={{ width: 36 }} />
-        )}
-
-        {/* Prominent Skip Button (Always available on both mobile native & web) */}
-        <TouchableOpacity
-          style={styles.skipTopBtn}
-          onPress={handleContinueAsGuest}
-          activeOpacity={0.75}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          accessibilityLabel="Skip Login"
-        >
-          <Text style={[styles.skipTopBtnText, isIndic && { lineHeight: 18 }]}>
-            {t('auth_skip_btn', 'Skip')}
-          </Text>
-          <Ionicons name="chevron-forward" size={15} color="#007D69" />
-        </TouchableOpacity>
-      </View>
+        </View>
+      ) : (
+        <View style={{ height: 12 }} />
+      )}
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -610,38 +597,32 @@ const LoginScreen = ({ navigation }) => {
               )}
             </TouchableOpacity>
 
-            {/* REGISTER PROMPT */}
+            {/* REGISTER & SKIP ROW */}
             <View style={styles.signupFooter}>
               <Text style={[styles.signupFooterText, isIndic && { lineHeight: 18 }]}>
-                {t('auth_no_account', "Don't have an account? ")}
+                {t('auth_no_account', "Don't have an account?")}{' '}
               </Text>
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => navigation.navigate('Register')}
+                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
               >
                 <Text style={[styles.signupFooterLink, isIndic && { lineHeight: 18 }]}>
                   {t('auth_sign_up', 'Sign Up')}
                 </Text>
               </TouchableOpacity>
+              <Text style={styles.signupFooterDivider}> • </Text>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={handleContinueAsGuest}
+                hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+                accessibilityLabel="Skip Login"
+              >
+                <Text style={[styles.signupFooterLink, isIndic && { lineHeight: 18 }]}>
+                  {t('auth_skip_btn', 'Skip')}
+                </Text>
+              </TouchableOpacity>
             </View>
-
-            {/* OR DIVIDER & SECONDARY SKIP BUTTON */}
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>{t('auth_or', 'OR')}</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            <TouchableOpacity
-              style={styles.skipCardBtn}
-              onPress={handleContinueAsGuest}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="arrow-forward-circle-outline" size={19} color="#007D69" style={{ marginRight: 8 }} />
-              <Text style={[styles.skipCardBtnText, isIndic && { lineHeight: 18 }]}>
-                {t('auth_skip_explore', 'Skip & Explore as Guest')}
-              </Text>
-            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -921,6 +902,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: '#007D69',
+  },
+  signupFooterDivider: {
+    fontSize: 13,
+    color: '#94A3B8',
+    marginHorizontal: 4,
+    fontWeight: '600',
   },
 });
 
