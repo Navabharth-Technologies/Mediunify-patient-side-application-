@@ -80,6 +80,8 @@ const LoginScreen = ({ navigation }) => {
   const isSmallDevice = width < 375 || height < 680;
   const isTablet = width >= 600;
   const scrollViewRef = useRef(null);
+  const emailInputRef = useRef(null);
+  const passwordInputRef = useRef(null);
 
   const isKeyboardVisible = useKeyboardVisibility();
 
@@ -97,8 +99,6 @@ const LoginScreen = ({ navigation }) => {
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const isPhoneMode = /^[0-9+\s()-]+$/.test(email.trim()) && email.trim().length > 0;
-
   useEffect(() => {
     try {
       autoMigrateLocalAccountsToServer();
@@ -108,6 +108,7 @@ const LoginScreen = ({ navigation }) => {
 
 
   const handleLogin = async () => {
+    if (isLoggingIn) return;
     const inputVal = email.trim();
     const inputPassword = password.trim();
     setErrorMessage('');
@@ -470,6 +471,7 @@ const LoginScreen = ({ navigation }) => {
                   style={styles.inputPrefixIcon}
                 />
                 <TextInput
+                  ref={emailInputRef}
                   style={styles.textInput}
                   placeholder={t('auth_email_placeholder', 'Email address or 10-digit number')}
                   placeholderTextColor="#94A3B8"
@@ -482,14 +484,16 @@ const LoginScreen = ({ navigation }) => {
                       }, 100);
                     }
                   }}
-                  keyboardType={isPhoneMode ? 'phone-pad' : 'email-address'}
-                  inputMode={isPhoneMode ? 'tel' : 'email'}
-                  type={isPhoneMode ? 'tel' : 'email'}
+                  keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
-                  autoComplete={isPhoneMode ? 'tel' : 'email'}
-                  textContentType={isPhoneMode ? 'telephoneNumber' : 'emailAddress'}
-                  name={isPhoneMode ? 'tel' : 'email'}
+                  spellCheck={false}
+                  autoComplete="username"
+                  textContentType="username"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => passwordInputRef.current?.focus()}
+                  name="username"
                   id="login_mobile_identity"
                 />
                 {email.length > 0 && (
@@ -497,6 +501,9 @@ const LoginScreen = ({ navigation }) => {
                     onPress={() => setEmail('')}
                     style={styles.clearBtn}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear email or mobile number"
+                    activeOpacity={0.7}
                   >
                     <Ionicons name="close-circle" size={17} color="#94A3B8" />
                   </TouchableOpacity>
@@ -527,6 +534,7 @@ const LoginScreen = ({ navigation }) => {
                   style={styles.inputPrefixIcon}
                 />
                 <TextInput
+                  ref={passwordInputRef}
                   style={styles.textInput}
                   placeholder={t('auth_password_placeholder', 'Enter your password')}
                   placeholderTextColor="#94A3B8"
@@ -542,17 +550,21 @@ const LoginScreen = ({ navigation }) => {
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  spellCheck={false}
                   autoComplete="current-password"
-                  type="password"
                   textContentType="password"
+                  returnKeyType="go"
+                  onSubmitEditing={handleLogin}
                   name="password"
                   id="login_mobile_password"
                 />
                 <TouchableOpacity
                   style={styles.eyeBtn}
-                  onPress={() => setShowPassword(!showPassword)}
+                  onPress={() => setShowPassword((prev) => !prev)}
                   activeOpacity={0.7}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
                 >
                   <Ionicons
                     name={showPassword ? 'eye-off-outline' : 'eye-outline'}

@@ -238,6 +238,8 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
   );
 
   const userHasTypedRef = useRef(false);
+  const webEmailInputRef = useRef(null);
+  const webPasswordInputRef = useRef(null);
 
   useEffect(() => {
     if (route?.params?.openAuthModal || route?.params?.openLogin) {
@@ -686,6 +688,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
   // LOGIN SUBMISSION
   // ==========================================
   const handleLogin = async () => {
+    if (isSubmitting) return;
     const inputVal = email.trim();
     const inputPassword = password.trim();
     setErrorMessage('');
@@ -695,8 +698,9 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
       return;
     }
     const cleanPhone = inputVal.replace(/[^0-9]/g, '');
+    const cleanPhone10 = cleanPhone.length >= 10 ? cleanPhone.slice(-10) : cleanPhone;
     const isEmail = inputVal.includes('@') && inputVal.includes('.');
-    const isPhone = cleanPhone.length === 10;
+    const isPhone = cleanPhone10.length === 10;
     if (!isEmail && !isPhone) {
       setErrorMessage('Enter a valid email or 10-digit mobile number.');
       return;
@@ -1759,6 +1763,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                       style={styles.inputPrefixIcon}
                     />
                     <TextInput
+                      ref={webEmailInputRef}
                       style={styles.textInput}
                       placeholder={t('auth_email_phone_ph', 'Email address or 10-digit number')}
                       placeholderTextColor="#94A3B8"
@@ -1769,14 +1774,28 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                       }}
                       autoCapitalize="none"
                       autoCorrect={false}
-                      autoComplete={/^[0-9+\s()-]+$/.test(email.trim()) && email.trim().length > 0 ? 'tel' : 'email'}
-                      inputMode={/^[0-9+\s()-]+$/.test(email.trim()) && email.trim().length > 0 ? 'tel' : 'email'}
-                      type={/^[0-9+\s()-]+$/.test(email.trim()) && email.trim().length > 0 ? 'tel' : 'email'}
-                      keyboardType={/^[0-9+\s()-]+$/.test(email.trim()) && email.trim().length > 0 ? 'phone-pad' : 'email-address'}
-                      textContentType={/^[0-9+\s()-]+$/.test(email.trim()) && email.trim().length > 0 ? 'telephoneNumber' : 'emailAddress'}
-                      name={/^[0-9+\s()-]+$/.test(email.trim()) && email.trim().length > 0 ? 'tel' : 'email'}
+                      spellCheck={false}
+                      autoComplete="username"
+                      keyboardType="email-address"
+                      textContentType="username"
+                      name="username"
                       id="user_login_identity"
+                      returnKeyType="next"
+                      blurOnSubmit={false}
+                      onSubmitEditing={() => webPasswordInputRef.current?.focus()}
                     />
+                    {email.length > 0 && (
+                      <TouchableOpacity
+                        onPress={() => setEmail('')}
+                        style={styles.clearBtn}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Clear email or mobile number"
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="close-circle" size={17} color="#94A3B8" />
+                      </TouchableOpacity>
+                    )}
                   </View>
 
                   <Text style={[styles.inputLabel, { marginTop: 14 }]}>{t('auth_password', 'Password')}</Text>
@@ -1788,6 +1807,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                       style={styles.inputPrefixIcon}
                     />
                     <TextInput
+                      ref={webPasswordInputRef}
                       style={styles.textInput}
                       placeholder={t('auth_password_ph', 'Enter your password')}
                       placeholderTextColor="#94A3B8"
@@ -1799,16 +1819,20 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                       secureTextEntry={!showPassword}
                       autoCapitalize="none"
                       autoCorrect={false}
+                      spellCheck={false}
                       autoComplete="current-password"
-                      type="password"
                       textContentType="password"
                       name="password"
                       id="user_login_secret"
+                      returnKeyType="go"
+                      onSubmitEditing={handleLogin}
                     />
                     <TouchableOpacity
-                      onPress={() => setShowPassword(!showPassword)}
+                      onPress={() => setShowPassword((prev) => !prev)}
                       style={styles.eyeBtn}
                       activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
                     >
                       <Ionicons
                         name={showPassword ? 'eye-off-outline' : 'eye-outline'}
@@ -2098,7 +2122,6 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                       autoCapitalize="none"
                       autoCorrect={false}
                       autoComplete="new-password"
-                      type="password"
                       textContentType="newPassword"
                       name="password"
                       id="user_reg_newpwd"
@@ -2138,7 +2161,6 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
                       autoCapitalize="none"
                       autoCorrect={false}
                       autoComplete="new-password"
-                      type="password"
                       textContentType="newPassword"
                       name="confirm-password"
                       id="user_reg_confirmpwd"
@@ -3730,6 +3752,14 @@ const styles = StyleSheet.create({
     paddingLeft: 8,
     paddingRight: 2,
     paddingVertical: 8,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  clearBtn: {
+    paddingLeft: 8,
+    paddingRight: 4,
+    paddingVertical: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   forgotBtn: {
