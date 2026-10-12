@@ -141,7 +141,7 @@ if (fs.existsSync(INDEX_HTML)) {
     }
     /* Mobile web application native feel optimizations without freezing viewport */
     @media (max-width: 767px) {
-      html, body {
+      html:not(.desktop-site-mode), body:not(.desktop-site-mode) {
         width: 100%;
         min-height: 100%;
         min-height: -webkit-fill-available;
@@ -154,7 +154,7 @@ if (fs.existsSync(INDEX_HTML)) {
         -webkit-touch-callout: none;
         -webkit-tap-highlight-color: transparent;
       }
-      #root {
+      #root:not(.desktop-site-mode) {
         width: 100%;
         min-height: 100%;
         min-height: -webkit-fill-available;
@@ -172,6 +172,17 @@ if (fs.existsSync(INDEX_HTML)) {
         scrollbar-width: none !important;
         -ms-overflow-style: none !important;
       }
+    }
+    /* Mobile Desktop-Site View: Match PC monitor layout completely */
+    html.desktop-site-mode,
+    html.desktop-site-mode body,
+    html.desktop-site-mode #root {
+      min-width: 1200px !important;
+      width: 1200px !important;
+      max-width: none !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      touch-action: pan-x pan-y pinch-zoom !important;
     }
     html, body {
       overscroll-behavior-y: none;
@@ -215,14 +226,27 @@ if (fs.existsSync(INDEX_HTML)) {
       // ── Desktop Site Mode detection on Mobile Browsers ──
       try {
         var ua = navigator.userAgent || '';
-        var hasTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        var hasMobileToken = /Android.*Mobile|Mobile.*Safari|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
         var screenDim = (window.screen ? Math.min(window.screen.width, window.screen.height) : 1024);
-        var isMobileScreen = screenDim < 768;
-        var hasMobileUA = /Android.*Mobile|Mobile.*Safari|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-        if (hasTouch && isMobileScreen && !hasMobileUA) {
+        var isPhysicalMobile = screenDim < 768;
+        var hasTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0);
+        var isIos = (typeof window.orientation !== 'undefined') || /iPhone|iPod|iPad/i.test(navigator.platform || '');
+        var urlDesktop = window.location && (window.location.search.indexOf('mode=desktop') !== -1 || window.location.search.indexOf('desktop=true') !== -1);
+
+        var isDesktopMode = urlDesktop || (!hasMobileToken && (
+          (/Macintosh/i.test(ua) && (isPhysicalMobile || isIos)) ||
+          (/Android/i.test(ua)) ||
+          (/Linux x86_64|X11/i.test(ua) && (isPhysicalMobile || (hasTouch && screenDim < 900))) ||
+          (isPhysicalMobile && (hasTouch || isIos))
+        ));
+
+        if (isDesktopMode) {
           var meta = document.querySelector('meta[name="viewport"]');
           if (meta) {
-            meta.setAttribute('content', 'width=1024, initial-scale=0.38, minimum-scale=0.25, maximum-scale=5.0, user-scalable=yes');
+            meta.setAttribute('content', 'width=1200, initial-scale=0.32, minimum-scale=0.2, maximum-scale=5.0, user-scalable=yes');
+          }
+          if (document.documentElement) {
+            document.documentElement.classList.add('desktop-site-mode');
           }
         }
       } catch (e) {}

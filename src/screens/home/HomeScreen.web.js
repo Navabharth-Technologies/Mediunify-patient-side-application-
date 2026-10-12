@@ -22,7 +22,7 @@ import { detectAutoLocation } from '../../utils/locationHelper';
 import { showAlert } from '../../utils/alert';
 import PromotionalAdsSection from '../../components/web/PromotionalAdsSection';
 import { useTheme } from '../../context/ThemeContext';
-import { isDesktopLayout } from '../../utils/responsiveLayoutHelper';
+import { isDesktopLayout, isDesktopSiteRequested } from '../../utils/responsiveLayoutHelper';
 
 // ==================================================
 // OFFICIAL MEDIUNIFY LOGO & BRAND PALETTE:
@@ -196,9 +196,10 @@ const HomeScreenWeb = ({ navigation }) => {
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  const isDesktop = width >= 992;
-  const isTablet = width >= 640 && width < 992;
-  const isMobile = width < 640;
+  const desktopSiteMode = isDesktopSiteRequested();
+  const isDesktop = desktopSiteMode || width >= 992;
+  const isTablet = !desktopSiteMode && (width >= 640 && width < 992);
+  const isMobile = !desktopSiteMode && (width < 640);
 
   const filteredLocations = filterLocations(locationSearchText);
 
@@ -562,10 +563,10 @@ const HomeScreenWeb = ({ navigation }) => {
   }, [showCityPicker]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, desktopSiteMode && { minWidth: 1200, width: '100%' }]}>
       <ScrollView
         ref={scrollViewRef}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, desktopSiteMode && { minWidth: 1200, width: '100%' }]}
         showsVerticalScrollIndicator={false}
       >
         {/* ============================================================

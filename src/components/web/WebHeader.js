@@ -582,8 +582,8 @@ const WebHeader = ({ navigation, currentRoute = 'Home', currentParams = {} }) =>
   };
 
   return (
-    <View style={styles.headerRoot} nativeID="mediunify-web-header">
-      <View style={[styles.headerContainer, { paddingHorizontal: isDesktop ? 40 : 16 }]}>
+    <View style={[styles.headerRoot, desktopSiteMode && { minWidth: 1200, width: '100%' }]} nativeID="mediunify-web-header">
+      <View style={[styles.headerContainer, { paddingHorizontal: isDesktop ? 40 : 16 }, desktopSiteMode && { minWidth: 1200, width: '100%' }]}>
         {/* ============================================================
             LEFT GROUP: BRAND LOGO + NAV LINKS (PINNED TO LEFT EDGE)
         ============================================================ */}

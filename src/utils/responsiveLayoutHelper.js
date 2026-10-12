@@ -5,16 +5,33 @@ import { Platform, useWindowDimensions } from 'react-native';
  * Checks if the user is on a mobile device whose browser has requested "Desktop site".
  * In mobile browsers (e.g. Chrome on Android, Safari on iOS), selecting "Desktop site"
  * changes navigator.userAgent to a desktop UA (e.g. Linux x86_64, Windows, or Mac) while
- * the device physically remains a touch-screen device with physical screen width < 768.
+ * the device physically remains a touch-screen device with physical screen dimensions.
  */
 export function isDesktopSiteRequested() {
   if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof navigator === 'undefined') {
     return false;
   }
 
+  // 1. Explicit URL or class override
+  try {
+    if (window.location && (window.location.search.includes('mode=desktop') || window.location.search.includes('desktop=true'))) {
+      return true;
+    }
+    if (typeof document !== 'undefined' && document.documentElement.classList.contains('desktop-site-mode')) {
+      return true;
+    }
+  } catch (e) {}
+
   const ua = navigator.userAgent || '';
 
-  // Check if physical hardware has touch capability
+  // 2. Normal mobile UAs contain Mobile, iPhone, iPod, etc.
+  // If the UA still explicitly includes a mobile token, normal mobile mode is active.
+  const hasMobileToken = /Android.*Mobile|Mobile.*Safari|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  if (hasMobileToken) {
+    return false;
+  }
+
+  // 3. Check hardware touch capability
   const hasTouch = (
     ('ontouchstart' in window) ||
     (navigator.maxTouchPoints > 0) ||
@@ -22,18 +39,34 @@ export function isDesktopSiteRequested() {
     (navigator.msMaxTouchPoints > 0)
   );
 
-  // Check physical screen dimensions
+  // 4. Physical screen dimensions
   const screenDim = typeof window.screen !== 'undefined'
     ? Math.min(window.screen.width, window.screen.height)
     : 1024;
   const isPhysicalMobileScreen = screenDim < 768;
 
-  // Normal mobile UAs contain Mobile, Android, iPhone, iPod, etc.
-  const hasMobileUA = /Android.*Mobile|Mobile.*Safari|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  // 5. iOS device detection (Safari on iPhone/iPad in Desktop Mode reports as Macintosh)
+  const isIosDevice = (
+    typeof window.orientation !== 'undefined' ||
+    (typeof navigator.platform === 'string' && /iPhone|iPod|iPad/i.test(navigator.platform))
+  );
 
-  // If it's a mobile device with touch, but the browser has stripped the mobile token
-  // from the User-Agent, the user has toggled "Request Desktop Site" / "Desktop site"!
-  if (hasTouch && isPhysicalMobileScreen && !hasMobileUA) {
+  // iOS Safari in "Request Desktop Website" mode
+  if (/Macintosh/i.test(ua) && (isPhysicalMobileScreen || isIosDevice)) {
+    return true;
+  }
+
+  // Android Chrome / Edge / Firefox in "Desktop site" mode
+  if (/Android/i.test(ua) && !hasMobileToken) {
+    return true;
+  }
+
+  if (/Linux x86_64|X11/i.test(ua) && (isPhysicalMobileScreen || (hasTouch && screenDim < 900))) {
+    return true;
+  }
+
+  // Generic mobile screen without mobile UA token
+  if (isPhysicalMobileScreen && !hasMobileToken && (hasTouch || isIosDevice)) {
     return true;
   }
 
@@ -50,11 +83,10 @@ export function isDesktopLayout(width) {
 }
 
 /**
- * Dynamically synchronizes the HTML <meta name="viewport"> tag.
- * When desktop site is requested on a mobile browser, sets viewport width=1024
+ * Dynamically synchronizes the HTML <meta name="viewport"> tag and root classes.
+ * When desktop site is requested on a mobile browser, sets viewport width=1200
  * with user scalability enabled so the desktop web application layout renders
- * cleanly and allows user zooming. When normal mobile browsing is active,
- * keeps standard mobile viewport.
+ * completely and matches a desktop monitor.
  */
 export function syncResponsiveViewport() {
   if (Platform.OS !== 'web' || typeof document === 'undefined') return;
@@ -68,11 +100,13 @@ export function syncResponsiveViewport() {
   }
 
   if (isDesktopSite) {
-    const desktopContent = 'width=1024, initial-scale=0.38, minimum-scale=0.25, maximum-scale=5.0, user-scalable=yes';
+    const desktopContent = 'width=1200, initial-scale=0.32, minimum-scale=0.2, maximum-scale=5.0, user-scalable=yes';
     if (metaViewport.getAttribute('content') !== desktopContent) {
       metaViewport.setAttribute('content', desktopContent);
     }
+    document.documentElement.classList.add('desktop-site-mode');
   } else {
+    document.documentElement.classList.remove('desktop-site-mode');
     const mobileContent = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content';
     if (metaViewport.getAttribute('content') !== mobileContent) {
       metaViewport.setAttribute('content', mobileContent);
@@ -120,7 +154,7 @@ export function useResponsiveLayout() {
   const isMobile = (width < 600 && !desktopSiteMode);
 
   return {
-    width: desktopSiteMode ? Math.max(width, 1024) : width,
+    width: desktopSiteMode ? Math.max(width, 1200) : width,
     height,
     isDesktop,
     isTablet,

@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../theme/colors';
 import { useTheme } from '../../context/ThemeContext';
-import { isDesktopLayout } from '../../utils/responsiveLayoutHelper';
+import { isDesktopLayout, isDesktopSiteRequested } from '../../utils/responsiveLayoutHelper';
 
 const OUR_SERVICES = [
   { labelKey: 'card_lab_tests', label: 'Lab Tests', route: 'LabTests' },
@@ -41,6 +41,7 @@ const SUPPORT_LINKS = [
 const WebFooter = ({ navigation, style }) => {
   const { width } = useWindowDimensions();
   const { t, isIndic } = useTheme();
+  const desktopSiteMode = isDesktopSiteRequested();
   const isDesktop = isDesktopLayout(width);
   const [emailInput, setEmailInput] = useState('');
   const [subscribed, setSubscribed] = useState(false);
@@ -70,8 +71,8 @@ const WebFooter = ({ navigation, style }) => {
   };
 
   return (
-    <View style={[styles.footerWrapper, style]} nativeID="mediunify-footer">
-      <View style={styles.footerContainer}>
+    <View style={[styles.footerWrapper, desktopSiteMode && { minWidth: 1200, width: '100%' }, style]} nativeID="mediunify-footer">
+      <View style={[styles.footerContainer, desktopSiteMode && { minWidth: 1200, width: '100%' }]}>
         {/* ============================================================
             MAIN 5-COLUMN ROW
         ============================================================ */}

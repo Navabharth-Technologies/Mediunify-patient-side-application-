@@ -444,12 +444,13 @@ const PROTECTED_ROUTES = [
   'TransactionHistory',
 ];
 
-import { isDesktopLayout, syncResponsiveViewport } from '../utils/responsiveLayoutHelper';
+import { isDesktopLayout, isDesktopSiteRequested, syncResponsiveViewport } from '../utils/responsiveLayoutHelper';
 
 const MainNavigator = ({
   navigation,
 }) => {
   const { width } = useWindowDimensions();
+  const desktopSiteMode = isDesktopSiteRequested();
   const isDesktopWeb = Platform.OS === 'web' && isDesktopLayout(width);
 
   const [
@@ -546,7 +547,10 @@ const MainNavigator = ({
   return (
 
     <View
-      style={styles.mainContainer}
+      style={[
+        styles.mainContainer,
+        desktopSiteMode && { minWidth: 1200, width: '100%' },
+      ]}
     >
       {/* ==================================================
           DESKTOP REAL WEBSITE HEADER

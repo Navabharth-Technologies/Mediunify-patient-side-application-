@@ -28,7 +28,7 @@ import { detectAutoLocation } from '../../utils/locationHelper';
 import { REMAINING_SERVICES } from '../../data/remainingServices';
 import PromotionalAdsSection from '../../components/web/PromotionalAdsSection';
 import WebHeader from '../../components/web/WebHeader';
-import { isDesktopLayout } from '../../utils/responsiveLayoutHelper';
+import { isDesktopLayout, isDesktopSiteRequested } from '../../utils/responsiveLayoutHelper';
 
 // 7 Service Cards — with accent colors, badges, creative design
 const HERO_CARDS = [
@@ -170,9 +170,10 @@ import LoginScreenMobile from './LoginScreenMobile';
 const LoginScreenWeb = ({ navigation, route = {} }) => {
   const { width } = useWindowDimensions();
   const { t, language, isIndic } = useTheme();
-  const isDesktop = width >= 992;
-  const isTablet = width >= 640 && width < 992;
-  const isMobile = width < 640;
+  const desktopSiteMode = isDesktopSiteRequested();
+  const isDesktop = desktopSiteMode || width >= 992;
+  const isTablet = !desktopSiteMode && (width >= 640 && width < 992);
+  const isMobile = !desktopSiteMode && (width < 640);
 
   // Scroll ref for scrolling to top
   const scrollViewRef = useRef(null);
@@ -951,7 +952,7 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, desktopSiteMode && { minWidth: 1200, width: '100%' }]}>
       {/* ==================================================
           1. TOP NAVIGATION HEADER (MATCHING EXACT USER SCREENSHOT)
       ================================================== */}
@@ -962,8 +963,8 @@ const LoginScreenWeb = ({ navigation, route = {} }) => {
 
       <ScrollView
         ref={scrollViewRef}
-        style={styles.container}
-        contentContainerStyle={styles.scrollContent}
+        style={[styles.container, desktopSiteMode && { minWidth: 1200, width: '100%' }]}
+        contentContainerStyle={[styles.scrollContent, desktopSiteMode && { minWidth: 1200, width: '100%' }]}
         showsVerticalScrollIndicator={false}
       >
         {/* ==================================================
