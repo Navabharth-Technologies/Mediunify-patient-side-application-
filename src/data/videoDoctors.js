@@ -1001,7 +1001,95 @@ export const videoDoctors = [
       "Verified Specialist",
       "Instant Connect"
     ]
+  },
+  {
+    "id": "v-24",
+    "name": "Dr. Aditi S. Sharma",
+    "specialty": "General Physician & Diabetologist",
+    "specialtyKey": "general",
+    "categoryId": "general-primary",
+    "qualification": "MBBS, MD (Internal Medicine)",
+    "experienceYears": 13,
+    "experience": "13 Years Experience",
+    "rating": 4.9,
+    "reviewCount": 380,
+    "videoConsultCount": 890,
+    "fee": 500,
+    "mrpFee": 750,
+    "discount": "33% OFF",
+    "languages": [
+      "English",
+      "Kannada",
+      "Hindi"
+    ],
+    "hospital": "Sanjeevini TeleHealth Network",
+    "availableToday": true,
+    "nextSlot": "Today, in 20 mins (04:30 PM)",
+    "slots": [
+      "04:30 PM",
+      "05:15 PM",
+      "06:00 PM",
+      "07:15 PM",
+      "08:30 PM"
+    ],
+    "image": "https://images.unsplash.com/photo-1594824813627-81ffc29b6710?auto=format&fit=crop&q=80&w=400",
+    "about": "Comprehensive online consultation for acute illnesses, diabetes titration, lifestyle guidance, and regular health reviews.",
+    "services": [
+      "Instant Video Consultation",
+      "Digital Verified e-Prescription",
+      "Lab Test Follow-up Review",
+      "Lifestyle & Dietary Advice"
+    ],
+    "badges": [
+      "Verified Specialist",
+      "Instant Connect"
+    ]
+  },
+  {
+    "id": "v-25",
+    "name": "Dr. Pranav R. Deshmukh",
+    "specialty": "Interventional Cardiologist & Heart Specialist",
+    "specialtyKey": "cardio",
+    "categoryId": "cardiology-group",
+    "qualification": "MBBS, MD (Medicine), DM (Cardiology), FACC",
+    "experienceYears": 17,
+    "experience": "17 Years Experience",
+    "rating": 4.9,
+    "reviewCount": 460,
+    "videoConsultCount": 1120,
+    "fee": 800,
+    "mrpFee": 1200,
+    "discount": "33% OFF",
+    "languages": [
+      "English",
+      "Kannada",
+      "Hindi"
+    ],
+    "hospital": "Apex Cardiac Care Tele-Clinic",
+    "availableToday": true,
+    "nextSlot": "Today, in 30 mins (04:45 PM)",
+    "slots": [
+      "04:45 PM",
+      "05:30 PM",
+      "06:15 PM",
+      "07:30 PM",
+      "08:15 PM"
+    ],
+    "image": "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=400",
+    "about": "Expert tele-cardiology consultations for hypertension, chest pain triage, ECG/Echo review, post-angioplasty care, and cholesterol management.",
+    "services": [
+      "Instant Video Consultation",
+      "Digital Verified e-Prescription",
+      "ECG & Echo Report Second Opinion",
+      "Cardiac Medication Optimization"
+    ],
+    "badges": [
+      "Verified Specialist",
+      "Instant Connect"
+    ]
   }
 ];
 
 export default videoDoctors;
+
+

@@ -119,23 +119,6 @@ const HERO_PRACTO_CARDS = [
     route: 'Imaging',
     image: require('../../../assets/services/service_radiology.jpg'),
   },
-  {
-    id: 'home-care',
-    titleKey: 'card_home_nurse',
-    title: 'Home Care & Nursing',
-    subtitleKey: 'card_home_nurse_desc',
-    subtitle: 'Certified nurses, elderly care, and injections at your home.',
-    bgColor: '#FFF5F0',
-    gradientTop: 'linear-gradient(135deg, #FFE4D6 0%, #FFF0E8 100%)',
-    accentColor: '#FF7F50',
-    accentBg: '#FFF5F0',
-    availabilityKey: 'service_nurse_avail',
-    availability: 'At Your Doorstep',
-    iconFamily: 'MaterialCommunityIcons',
-    iconName: 'home-heart',
-    route: 'NurseBooking',
-    image: require('../../../assets/services/service_home_care.jpg'),
-  },
 ];
 
 // Popular search tags matching reference design

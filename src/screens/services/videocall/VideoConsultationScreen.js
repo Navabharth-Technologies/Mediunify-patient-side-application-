@@ -33,7 +33,7 @@ const VideoConsultationScreen = ({ navigation, route }) => {
   const scrollViewRef = useRef(null);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const DOCTORS_PER_PAGE = 4;
+  const DOCTORS_PER_PAGE = 5;
 
   const initialSearch = route?.params?.query || route?.params?.search || '';
   const [search, setSearch] = useState(initialSearch);

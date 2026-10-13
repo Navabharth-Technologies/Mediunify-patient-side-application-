@@ -128,7 +128,7 @@ const DoctorListScreen = ({ navigation, route }) => {
   const scrollViewRef = useRef(null);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const DOCTORS_PER_PAGE = 5;
+  const DOCTORS_PER_PAGE = 6;
 
   const [search, setSearch] = useState(route?.params?.query || route?.params?.search || '');
   const [selectedSpecialty, setSelectedSpecialty] = useState(route?.params?.specialty || route?.params?.categoryId || 'all');

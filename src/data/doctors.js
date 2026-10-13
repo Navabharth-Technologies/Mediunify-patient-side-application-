@@ -1883,8 +1883,52 @@ const doctors = [
       "Verified Doctor",
       "Top Choice"
     ]
+  },
+  {
+    "id": "29",
+    "name": "Dr. Aditi S. Sharma",
+    "specialty": "General Physician & Diabetologist",
+    "specialtyKey": "general-primary",
+    "categoryId": "general-primary",
+    "qualification": "MBBS, MD (Internal Medicine)",
+    "experienceYears": 13,
+    "experience": "13 Years Experience",
+    "rating": 4.9,
+    "reviewCount": 380,
+    "fee": 500,
+    "clinicName": "Sanjeevini Health & Wellness Clinic",
+    "clinicArea": "Kuvempunagar, Mysore",
+    "clinicAddress": "14th Main, Saraswathipuram Extension, Mysore - 570009",
+    "distanceKm": 1.8,
+    "distance": "1.8 km away",
+    "latitude": 12.2980,
+    "longitude": 76.6310,
+    "phone": "+91 821 254 3388",
+    "openHours": "09:00 AM - 01:00 PM, 05:00 PM - 08:30 PM",
+    "availableToday": true,
+    "nextSlot": "Today, 05:30 PM",
+    "slots": [
+      "10:00 AM",
+      "11:30 AM",
+      "05:30 PM",
+      "06:45 PM",
+      "08:00 PM"
+    ],
+    "image": "https://images.unsplash.com/photo-1594824813627-81ffc29b6710?auto=format&fit=crop&q=80&w=400",
+    "about": "Experienced internal medicine practitioner specializing in primary care, chronic lifestyle illness, diabetes management, and preventive health.",
+    "servicesOffered": [
+      "General Health Checkup",
+      "Diabetes & Hypertension Care",
+      "Fever & Viral Infection Treatment",
+      "Preventive Wellness Counseling"
+    ],
+    "badges": [
+      "Verified Doctor",
+      "Top Rated"
+    ]
   }
 ];
 
 export { doctors };
 export default doctors;
+
